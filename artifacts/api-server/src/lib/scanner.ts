@@ -131,7 +131,7 @@ function isServerOnlyPath(path: string): boolean {
 }
 
 function isLikelyApiRoute(path: string): boolean {
-  return /^app\/api(?:\/[^/]+)*\/route\.ts$/i.test(path);
+  return /(?:^|\/)app\/api(?:\/[^/]+)*\/route\.ts$/i.test(path);
 }
 
 function findApiRouteFiles(files: RepositoryFile[]): RepositoryFile[] {
@@ -140,6 +140,10 @@ function findApiRouteFiles(files: RepositoryFile[]): RepositoryFile[] {
     logger.info({ path: file.path }, "API route found");
   }
   return routeFiles;
+}
+
+function stripSqlComments(sql: string): string {
+  return sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
 function finding(
@@ -158,8 +162,9 @@ function scanRls(files: RepositoryFile[]): Finding[] {
   const findings: Finding[] = [];
 
   for (const file of files.filter((item) => /\.sql$/i.test(item.path))) {
+    const cleanContent = stripSqlComments(file.content);
     const createPattern = /create\s+table\s+(?:if\s+not\s+exists\s+)?(\w+)/gi;
-    for (const match of file.content.matchAll(createPattern)) {
+    for (const match of cleanContent.matchAll(createPattern)) {
       const tableName = match[1];
       const line = lineNumberAt(file.content, match.index ?? 0);
       const escapedTableName = tableName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -168,7 +173,7 @@ function scanRls(files: RepositoryFile[]): Finding[] {
         "i",
       );
 
-      if (!enablePattern.test(file.content)) {
+      if (!enablePattern.test(cleanContent)) {
         findings.push(
           finding(
             `rls-${file.path}-${line}`,
