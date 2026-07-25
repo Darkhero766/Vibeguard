@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "U2VDrFQy7yTbnaaMLZfn2"
+uri = "file://exports/Vibeguard-source-370aac0.zip"
+type = "unspecified"
+title = "VibeGuard complete source code"
