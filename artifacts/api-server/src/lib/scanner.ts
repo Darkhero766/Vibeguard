@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { promisify } from "node:util";
 import type { Finding, ScanReport } from "@workspace/api-zod";
+import { logger } from "./logger";
 
 type RepositoryFile = {
   path: string;
@@ -121,16 +122,6 @@ function lineAt(content: string, line: number): string {
   return content.split("\n")[line - 1] ?? "";
 }
 
-function hasAuthBefore(content: string, line: number): boolean {
-  const before = content
-    .split("\n")
-    .slice(0, line)
-    .join("\n");
-  return /\b(?:getUser|getSession|auth\(\)|auth\.getUser|requireAuth|requireUser|currentUser|withAuth|userId|session)\b/i.test(
-    before,
-  );
-}
-
 function isServerOnlyPath(path: string): boolean {
   return (
     /(^|\/)(?:api|server|actions|middleware)(?:\/|$)/i.test(path) ||
@@ -140,11 +131,15 @@ function isServerOnlyPath(path: string): boolean {
 }
 
 function isLikelyApiRoute(path: string): boolean {
-  return (
-    /(^|\/)(?:api|routes?)(?:\/|$)/i.test(path) ||
-    /(^|\/)(?:app|pages)\/api(?:\/|$)/i.test(path) ||
-    /(?:route|server)\.[cm]?[jt]sx?$/i.test(path)
-  );
+  return /^app\/api(?:\/[^/]+)*\/route\.ts$/i.test(path);
+}
+
+function findApiRouteFiles(files: RepositoryFile[]): RepositoryFile[] {
+  const routeFiles = files.filter((file) => isLikelyApiRoute(file.path));
+  for (const file of routeFiles) {
+    logger.info({ path: file.path }, "API route found");
+  }
+  return routeFiles;
 }
 
 function finding(
@@ -160,65 +155,63 @@ function finding(
 }
 
 function scanRls(files: RepositoryFile[]): Finding[] {
-  const enabledTables = new Set<string>();
-  const tables: Array<{ name: string; filePath: string; line: number }> = [];
+  const findings: Finding[] = [];
 
   for (const file of files.filter((item) => /\.sql$/i.test(item.path))) {
-    const enablePattern =
-      /alter\s+table\s+(?:if\s+exists\s+)?(?:"?[\w]+"?\.)?"?([\w]+)"?\s+enable\s+row\s+level\s+security/gi;
-    for (const match of file.content.matchAll(enablePattern)) {
-      enabledTables.add(match[1].toLowerCase());
-    }
-
-    const createPattern =
-      /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:"?[\w]+"?\.)?"?([\w]+)"?/gi;
+    const createPattern = /create\s+table\s+(?:if\s+not\s+exists\s+)?(\w+)/gi;
     for (const match of file.content.matchAll(createPattern)) {
+      const tableName = match[1];
       const line = lineNumberAt(file.content, match.index ?? 0);
-      tables.push({ name: match[1], filePath: file.path, line });
+      const escapedTableName = tableName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const enablePattern = new RegExp(
+        `alter\\s+table\\s+${escapedTableName}\\s+enable\\s+row\\s+level\\s+security`,
+        "i",
+      );
+
+      if (!enablePattern.test(file.content)) {
+        findings.push(
+          finding(
+            `rls-${file.path}-${line}`,
+            "Critical",
+            `RLS is not enabled on "${tableName}"`,
+            `Table ${tableName} has no Row-Level Security policy.`,
+            file.path,
+            line,
+            "rls",
+          ),
+        );
+      }
     }
   }
 
-  return tables
-    .filter((table) => !enabledTables.has(table.name.toLowerCase()))
-    .map((table) =>
-      finding(
-        `rls-${table.filePath}-${table.line}`,
-        "Critical",
-        `RLS is not enabled on "${table.name}"`,
-        `The "${table.name}" table is created without Row-Level Security being enabled. Supabase tables are exposed through the API by default, so users may be able to read or change rows they should not access.`,
-        table.filePath,
-        table.line,
-        "rls",
-      ),
-    );
+  return findings;
 }
 
 function scanUnauthenticatedWrites(files: RepositoryFile[]): Finding[] {
   const findings: Finding[] = [];
-  const writePattern =
-    /\.(?:from\([^)]*\)\.)?(?:insert|update|upsert|delete)\s*\(/gi;
+  const writePattern = /\.(?:insert|update|delete|upsert)\s*\(/i;
+  const authPattern =
+    /auth\.getUser\s*\(|auth\.uid\s*\(|getServerSession\s*\(|session\.user\b/i;
 
-  for (const file of files.filter(
-    (item) => /\.(?:[cm]?[jt]sx?)$/i.test(item.path) && isLikelyApiRoute(item.path),
-  )) {
-    for (const match of file.content.matchAll(writePattern)) {
-      const line = lineNumberAt(file.content, match.index ?? 0);
-      if (hasAuthBefore(file.content, line)) {
-        continue;
-      }
-      findings.push(
-        finding(
-          `write-${file.path}-${line}`,
-          "High",
-          "Database write is missing an auth check",
-          "This API route writes to the database before checking who is making the request. An unauthenticated caller may be able to create, change, or delete data.",
-          file.path,
-          line,
-          "unauthenticated_write",
-        ),
-      );
+  for (const file of findApiRouteFiles(files)) {
+    const writeIndex = file.content.search(writePattern);
+    if (writeIndex < 0 || authPattern.test(file.content.slice(0, writeIndex))) {
+      continue;
     }
+
+    findings.push(
+      finding(
+        `write-${file.path}-${lineNumberAt(file.content, writeIndex)}`,
+        "High",
+        "Database write is missing an auth check",
+        "This route writes to the database with no detected auth check before the write.",
+        file.path,
+        lineNumberAt(file.content, writeIndex),
+        "unauthenticated_write",
+      ),
+    );
   }
+
   return findings;
 }
 
