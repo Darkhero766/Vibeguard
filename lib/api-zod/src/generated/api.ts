@@ -45,7 +45,7 @@ export const CreateScanResponse = zod.object({
   "description": zod.string(),
   "filePath": zod.string(),
   "line": zod.number().min(1),
-  "check": zod.enum(['rls', 'unauthenticated_write', 'service_role_client'])
+  "check": zod.enum(['rls', 'unauthenticated_write', 'service_role_client', 'unprotected_rpc', 'committed_env_file'])
 })),
   "filesScanned": zod.number().min(createScanResponseFilesScannedMin),
   "scannedAt": zod.string()

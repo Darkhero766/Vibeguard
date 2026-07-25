@@ -100,7 +100,7 @@ components:
           minimum: 1
         check:
           type: string
-          enum: [rls, unauthenticated_write, service_role_client]
+          enum: [rls, unauthenticated_write, service_role_client, unprotected_rpc, committed_env_file]
       required: [id, severity, title, description, filePath, line, check]
     ScanReport:
       type: object

@@ -13,4 +13,6 @@ export const FindingCheck = {
   rls: 'rls',
   unauthenticated_write: 'unauthenticated_write',
   service_role_client: 'service_role_client',
+  unprotected_rpc: 'unprotected_rpc',
+  committed_env_file: 'committed_env_file',
 } as const;

@@ -55,7 +55,7 @@ function parseRepoUrl(repoUrl: string): { owner: string; repo: string; cloneUrl:
 
 function shouldRead(path: string): boolean {
   return (
-    SOURCE_EXTENSIONS.test(path) &&
+    (SOURCE_EXTENSIONS.test(path) || /(^|\/)\.env(\.[\w-]+)?$/i.test(path)) &&
     !path.split("/").some((part) => IGNORED_PATH_PARTS.has(part))
   );
 }
@@ -251,6 +251,64 @@ function scanClientServiceRole(files: RepositoryFile[]): Finding[] {
   return findings;
 }
 
+function scanUnprotectedRpc(files: RepositoryFile[]): Finding[] {
+  const findings: Finding[] = [];
+
+  for (const file of files.filter((item) => /\.sql$/i.test(item.path))) {
+    const cleanContent = file.content
+      .replace(/--[^\n]*/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+    const fnPattern =
+      /create\s+(?:or\s+replace\s+)?function\s+(\w+)\s*\([^)]*\)[\s\S]*?security\s+definer([\s\S]*?)(?:^\s*\$\$|\$function\$)/gim;
+
+    for (const match of cleanContent.matchAll(fnPattern)) {
+      const fnName = match[1];
+      const line = lineNumberAt(file.content, match.index ?? 0);
+      const hasPermissionCheck =
+        /auth\.uid\s*\(|auth\.role\s*\(|raise\s+exception/i.test(match[0]);
+
+      if (!hasPermissionCheck) {
+        findings.push(
+          finding(
+            `rpc-${file.path}-${line}`,
+            "High",
+            `Security definer function "${fnName}" has no visible permission check`,
+            `This function runs with elevated database privileges (SECURITY DEFINER) but its body has no auth.uid(), auth.role(), or exception check found. Any caller may be able to invoke it with full access.`,
+            file.path,
+            line,
+            "unprotected_rpc",
+          ),
+        );
+      }
+    }
+  }
+
+  return findings;
+}
+
+function scanCommittedEnvFile(files: RepositoryFile[]): Finding[] {
+  const findings: Finding[] = [];
+  const envFilePattern = /(^|\/)\.env(\.local|\.production|\.development)?$/i;
+
+  for (const file of files) {
+    if (envFilePattern.test(file.path)) {
+      findings.push(
+        finding(
+          `env-file-${file.path}`,
+          "Critical",
+          "A .env file is committed to the repository",
+          "This file is tracked in git, meaning any secrets inside it are exposed in the repository (and remain in git history even if deleted later). Rotate any keys in this file immediately and add it to .gitignore.",
+          file.path,
+          1,
+          "committed_env_file",
+        ),
+      );
+    }
+  }
+
+  return findings;
+}
+
 export async function scanPublicRepository(repoUrl: string): Promise<ScanReport> {
   const { owner, repo, cloneUrl } = parseRepoUrl(repoUrl);
   const repository = await fetchRepositoryFiles(cloneUrl, repo);
@@ -258,6 +316,8 @@ export async function scanPublicRepository(repoUrl: string): Promise<ScanReport>
     ...scanClientServiceRole(repository.files),
     ...scanUnauthenticatedWrites(repository.files),
     ...scanRls(repository.files),
+    ...scanUnprotectedRpc(repository.files),
+    ...scanCommittedEnvFile(repository.files),
   ].sort((a, b) => a.filePath.localeCompare(b.filePath) || a.line - b.line);
 
   return {
