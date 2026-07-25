@@ -1,6 +1,6 @@
-# [Project name]
+# VibeGuard
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+VibeGuard scans public Next.js + Supabase repositories for three high-signal security issues without running repository code.
 
 ## Run & Operate
 
@@ -22,15 +22,21 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/vibeguard` — React/Vite single-page interface and report flow
+- `artifacts/api-server/src/lib/scanner.ts` — stateless Git object reader and deterministic checks
+- `artifacts/api-server/src/routes/scans.ts` — scan endpoint
+- `lib/api-spec/openapi.yaml` — source of truth for the scan contract
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Repository input is limited to public `github.com/owner/repo` URLs.
+- Scans use a shallow Git fetch with `--no-checkout`, inspect only tracked JS/TS/SQL blobs, and always remove the temporary directory.
+- No repository dependencies, hooks, scripts, or application code are executed.
+- The scan is stateless; findings are returned directly and never persisted.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Users can submit a public GitHub repository, review findings for disabled Supabase RLS, unauthenticated API database writes, and client-side service_role references, re-scan, and copy a text report.
 
 ## User preferences
 
@@ -38,7 +44,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- GitHub fetches can take up to two minutes for a large public repository and are bounded by file and byte limits.
+- Run `pnpm --filter @workspace/api-spec run codegen` after changing the OpenAPI contract.
 
 ## Pointers
 

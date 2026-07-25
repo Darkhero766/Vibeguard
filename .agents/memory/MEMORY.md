@@ -1,0 +1,1 @@
+- [Repository scanning boundary](repository-scanning-boundary.md) — read untrusted Git repositories as bounded Git objects; never check out or execute repository code.

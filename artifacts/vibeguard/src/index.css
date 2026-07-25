@@ -1,0 +1,169 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --font-sans: var(--app-font-sans);
+  --font-mono: var(--app-font-mono);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+}
+
+:root {
+  --background: 48 20% 96%;
+  --foreground: 198 16% 16%;
+  --border: 45 11% 84%;
+  --input: 45 11% 78%;
+  --ring: 187 37% 34%;
+  --card: 48 20% 98%;
+  --card-foreground: 198 16% 16%;
+  --primary: 187 37% 29%;
+  --primary-foreground: 48 20% 97%;
+  --secondary: 47 17% 91%;
+  --secondary-foreground: 198 16% 22%;
+  --muted: 47 13% 91%;
+  --muted-foreground: 198 9% 43%;
+  --accent: 187 29% 89%;
+  --accent-foreground: 187 37% 24%;
+  --destructive: 8 51% 43%;
+  --destructive-foreground: 48 20% 97%;
+  --app-font-sans: 'Manrope', ui-sans-serif, sans-serif;
+  --app-font-mono: 'DM Mono', ui-monospace, monospace;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 198 16% 12%;
+  --foreground: 48 20% 94%;
+  --border: 198 11% 27%;
+  --input: 198 11% 31%;
+  --ring: 187 37% 57%;
+  --card: 198 15% 15%;
+  --card-foreground: 48 20% 94%;
+  --primary: 187 37% 59%;
+  --primary-foreground: 198 16% 12%;
+  --secondary: 198 12% 22%;
+  --secondary-foreground: 48 20% 94%;
+  --muted: 198 12% 21%;
+  --muted-foreground: 198 8% 67%;
+  --accent: 187 24% 25%;
+  --accent-foreground: 187 37% 78%;
+  --destructive: 8 51% 58%;
+  --destructive-foreground: 198 16% 12%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    background: hsl(var(--background));
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    min-width: 320px;
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+}
+
+@keyframes vg-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes vg-scan {
+  from {
+    opacity: 0.45;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.vg-rise {
+  animation: vg-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.vg-scan {
+  animation: vg-scan 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.vg-grid {
+  background-image: linear-gradient(to right, hsl(var(--border) / 0.35) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--border) / 0.35) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+}
+
+.vg-focus:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+
+.vg-button {
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.vg-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.vg-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.vg-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: hsl(var(--muted));
+}
+
+.vg-skeleton::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, hsl(var(--background) / 0.56), transparent);
+  animation: vg-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes vg-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

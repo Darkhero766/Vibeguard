@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: scans
+    description: Stateless repository security scans
 paths:
   /healthz:
     get:
@@ -24,6 +26,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /scans:
+    post:
+      operationId: createScan
+      tags: [scans]
+      summary: Scan a public GitHub repository
+      description: Fetches JavaScript and TypeScript source files from a public GitHub repository and checks them for three security issues.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanInput"
+      responses:
+        "200":
+          description: Scan report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanReport"
+        "400":
+          description: Invalid repository URL or scan request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Repository not found or is not public
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: GitHub could not be reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +72,57 @@ components:
           type: string
       required:
         - status
+    ScanInput:
+      type: object
+      properties:
+        repoUrl:
+          type: string
+          minLength: 1
+          pattern: "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?$"
+      required:
+        - repoUrl
+    Finding:
+      type: object
+      properties:
+        id:
+          type: string
+        severity:
+          type: string
+          enum: [Critical, High, Medium]
+        title:
+          type: string
+        description:
+          type: string
+        filePath:
+          type: string
+        line:
+          type: integer
+          minimum: 1
+        check:
+          type: string
+          enum: [rls, unauthenticated_write, service_role_client]
+      required: [id, severity, title, description, filePath, line, check]
+    ScanReport:
+      type: object
+      properties:
+        repo:
+          type: string
+        repoUrl:
+          type: string
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Finding"
+        filesScanned:
+          type: integer
+          minimum: 0
+        scannedAt:
+          type: string
+      required: [repo, repoUrl, findings, filesScanned, scannedAt]
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
 

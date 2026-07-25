@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "VibeGuard"
+version = "1.0.0"
+id = "artifacts/vibeguard"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19155
+
+[services.development]
+run = "pnpm --filter @workspace/vibeguard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/vibeguard", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/vibeguard/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19155"
+BASE_PATH = "/"
