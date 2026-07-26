@@ -24,6 +24,10 @@ const IGNORED_PATH_PARTS = new Set([
   "vendor",
 ]);
 
+const SELF_EXCLUDED_PATHS = [
+  "artifacts/api-server/src/lib/scanner.ts",
+];
+
 function parseRepoUrl(repoUrl: string): { owner: string; repo: string; cloneUrl: string } {
   let parsed: URL;
   try {
@@ -56,8 +60,24 @@ function parseRepoUrl(repoUrl: string): { owner: string; repo: string; cloneUrl:
 function shouldRead(path: string): boolean {
   return (
     (SOURCE_EXTENSIONS.test(path) || /(^|\/)\.env(\.[\w-]+)?$/i.test(path)) &&
-    !path.split("/").some((part) => IGNORED_PATH_PARTS.has(part))
+    !path.split("/").some((part) => IGNORED_PATH_PARTS.has(part)) &&
+    !SELF_EXCLUDED_PATHS.includes(path)
   );
+}
+
+function deduplicateFindings(findings: Finding[]): Finding[] {
+  const seen = new Set<string>();
+  const deduped: Finding[] = [];
+
+  for (const finding of findings) {
+    const key = `${finding.filePath}:${finding.line}:${finding.check}:${finding.title}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(finding);
+    }
+  }
+
+  return deduped;
 }
 
 async function fetchRepositoryFiles(cloneUrl: string, repo: string): Promise<{
@@ -312,13 +332,13 @@ function scanCommittedEnvFile(files: RepositoryFile[]): Finding[] {
 export async function scanPublicRepository(repoUrl: string): Promise<ScanReport> {
   const { owner, repo, cloneUrl } = parseRepoUrl(repoUrl);
   const repository = await fetchRepositoryFiles(cloneUrl, repo);
-  const findings = [
+  const findings = deduplicateFindings([
     ...scanClientServiceRole(repository.files),
     ...scanUnauthenticatedWrites(repository.files),
     ...scanRls(repository.files),
     ...scanUnprotectedRpc(repository.files),
     ...scanCommittedEnvFile(repository.files),
-  ].sort((a, b) => a.filePath.localeCompare(b.filePath) || a.line - b.line);
+  ]).sort((a, b) => a.filePath.localeCompare(b.filePath) || a.line - b.line);
 
   return {
     repo: `${owner}/${repository.repo}`,
