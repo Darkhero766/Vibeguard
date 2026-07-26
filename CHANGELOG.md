@@ -2,6 +2,27 @@
 
 Short, human-readable notes for contributors and reviewers.
 
+## 2026-07-26 (session 7)
+
+### GitHub OAuth login and private repository scanning
+
+**What was built:**
+
+1. **GitHub sign-in** — Added "Continue with GitHub" button to the auth page alongside the existing Google button. Requests `repo` scope so private repositories can be read. Includes a consent notice explaining exactly what is stored and how to revoke access.
+
+2. **Encrypted token storage** — New `github_tokens` table in Supabase (with full RLS: users can only read/write their own row). On GitHub sign-in, `provider_token` is captured from the Supabase session and sent to `POST /api/github/token`, where it is encrypted with AES-256-GCM using `GITHUB_TOKEN_ENCRYPTION_KEY` (a Replit Secret) and stored. The plaintext token never persists anywhere.
+
+3. **Private repo scanning** — `POST /api/scans` now accepts an optional Supabase JWT. When present, the server fetches the user's stored GitHub token, decrypts it, and embeds it in the git clone URL (`https://x-oauth-token:<token>@github.com/...`). All existing file-filtering and check logic is unchanged — only the clone URL differs.
+
+4. **Repo picker UI** — Logged-in users see a "Paste URL / My repos" toggle above the scan input. "My repos" fetches `GET /api/github/repos` (proxied through the server using the stored token) and shows a searchable list with lock/globe icons for private/public repos. Clicking a repo immediately triggers a scan. If no GitHub connection exists, the picker shows a "Link GitHub account" prompt.
+
+5. **Auth wiring** — `setAuthTokenGetter` is called at app startup so every generated API hook (including `useCreateScan`) automatically includes the Supabase JWT in the Authorization header.
+
+**Manual steps still required:**
+- Apply the `github_tokens` table migration (`node scripts/migrate-supabase.mjs` or paste the SQL in the Supabase SQL editor).
+- Register a GitHub OAuth App (Settings → Developer settings → OAuth Apps) and add the Client ID + Secret to Supabase Auth → Providers → GitHub.
+- Add the Replit dev domain to Supabase Auth → URL Configuration → Redirect URLs.
+
 ## 2026-07-26 (session 6)
 
 ### Two polish features
