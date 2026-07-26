@@ -11,3 +11,7 @@ Short, human-readable notes for contributors and reviewers.
 - Added a placeholder environment template at `artifacts/vibeguard/.env.example`; no credential values are committed.
 - Added startup validation for the Supabase URL and documented the required environment variables in `replit.md`.
 - Verified workspace typechecking and the VibeGuard production build.
+
+### Contributor workflow
+
+- Documented the project convention to update this changelog after each change and push the summary to GitHub.

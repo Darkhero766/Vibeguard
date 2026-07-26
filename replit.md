@@ -43,7 +43,7 @@ Users can submit a public GitHub repository, review findings for disabled Supaba
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Keep `CHANGELOG.md` updated with a short, human-readable summary after each project change, then commit and push it to the configured GitHub remote.
 
 ## Gotchas
 
