@@ -9,7 +9,10 @@ VibeGuard scans public Next.js + Supabase repositories for three high-signal sec
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env:
+  - `VITE_SUPABASE_URL` — Supabase project URL, stored as a Replit Secret
+  - `VITE_SUPABASE_ANON_KEY` — Supabase anon/public key, stored as a Replit Secret
+  - `DATABASE_URL` — Postgres connection string for the API server
 
 ## Stack
 
