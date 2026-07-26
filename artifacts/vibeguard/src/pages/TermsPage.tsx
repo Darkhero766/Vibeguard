@@ -14,7 +14,7 @@ export default function TermsPage() {
             </div>
             <h1 className="mt-5 text-[32px] font-extrabold tracking-[-0.045em]">Terms of Service</h1>
             <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
-              Last updated: July 2025 · <span className="text-[#a06427]">Placeholder — review before launch</span>
+              Last updated: July 2026
             </p>
 
             <div className="prose-vg mt-10 space-y-8 text-[14px] leading-7 text-foreground">
@@ -28,7 +28,7 @@ export default function TermsPage() {
               <section>
                 <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">2. Description of Service</h2>
                 <p className="text-muted-foreground">
-                  VibeGuard is a static security analysis tool that scans publicly accessible GitHub repositories for common security misconfigurations. The Service reads repository source files without cloning or executing any code, and returns a report of findings.
+                  VibeGuard is a static security analysis tool that scans <strong className="text-foreground">publicly accessible GitHub repositories only</strong>. The Service fetches repository source files using a shallow, no-checkout Git clone, inspects tracked blobs for security misconfigurations, and returns a report. No repository code is executed. The temporary clone is deleted immediately after each scan.
                 </p>
               </section>
 
@@ -40,23 +40,23 @@ export default function TermsPage() {
               </section>
 
               <section>
-                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">4. No Warranty</h2>
+                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">4. Usage Limits</h2>
                 <p className="text-muted-foreground">
-                  The Service is provided "as is" without warranties of any kind. VibeGuard does not guarantee that scans are complete, accurate, or free from errors. Security findings are heuristic and may include false positives or miss actual issues. This tool is not a substitute for a professional security audit.
+                  Free accounts are limited to <strong className="text-foreground">1 scan per account</strong>. VibeGuard reserves the right to adjust these limits at any time. Attempting to circumvent usage limits (e.g. by creating multiple accounts) is a violation of these Terms.
                 </p>
               </section>
 
               <section>
-                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">5. Limitation of Liability</h2>
+                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">5. No Warranty</h2>
                 <p className="text-muted-foreground">
-                  To the maximum extent permitted by law, VibeGuard shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of, or inability to use, the Service.
+                  The Service is provided "as is" without warranties of any kind. VibeGuard does not guarantee that scans are complete, accurate, or free from errors. Security findings are automated and heuristic — they may include false positives or miss actual vulnerabilities. <strong className="text-foreground">This tool is not a substitute for a professional security audit.</strong>
                 </p>
               </section>
 
               <section>
-                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">6. Data & Privacy</h2>
+                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">6. Data &amp; Privacy</h2>
                 <p className="text-muted-foreground">
-                  VibeGuard scans publicly available source code only. We do not store the contents of any scanned repository. Your account information (email address) and scan usage count are stored to enforce usage limits. See our <a href="/privacy" className="text-primary underline underline-offset-4">Privacy Policy</a> for details.
+                  VibeGuard scans publicly available source code only. <strong className="text-foreground">We do not store the contents of any scanned repository.</strong> Your account information (email address) and scan usage count are stored solely to enforce usage limits. See our <a href="/privacy" className="text-primary underline underline-offset-4">Privacy Policy</a> for details.
                 </p>
               </section>
 
@@ -70,7 +70,8 @@ export default function TermsPage() {
               <section>
                 <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">8. Contact</h2>
                 <p className="text-muted-foreground">
-                  Questions about these Terms? Contact us at [email placeholder].
+                  Questions about these Terms? Open an issue on our{' '}
+                  <a href="https://github.com/Darkhero766/Vibeguard" className="text-primary underline underline-offset-4" target="_blank" rel="noopener noreferrer">GitHub repository</a>.
                 </p>
               </section>
             </div>

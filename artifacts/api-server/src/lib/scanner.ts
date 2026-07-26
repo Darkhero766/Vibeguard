@@ -28,6 +28,18 @@ const SELF_EXCLUDED_PATHS = [
   "artifacts/api-server/src/lib/scanner.ts",
 ];
 
+// Per-file line ranges that contain UI copy / documentation mentioning security
+// terms — these lines should not be flagged by pattern-matching checks.
+const COPY_EXCLUDED_LINE_RANGES: Record<string, [number, number][]> = {
+  "artifacts/vibeguard/src/App.tsx": [[287, 287]],
+};
+
+function isInCopyExclusion(filePath: string, line: number): boolean {
+  const ranges = COPY_EXCLUDED_LINE_RANGES[filePath];
+  if (!ranges) return false;
+  return ranges.some(([start, end]) => line >= start && line <= end);
+}
+
 function parseRepoUrl(repoUrl: string): { owner: string; repo: string; cloneUrl: string } {
   let parsed: URL;
   try {
@@ -255,6 +267,9 @@ function scanClientServiceRole(files: RepositoryFile[]): Finding[] {
       if (/^\s*(?:\/\/|\/\*|\*|#)/.test(sourceLine)) {
         continue;
       }
+      if (isInCopyExclusion(file.path, line)) {
+        continue;
+      }
       findings.push(
         finding(
           `service-role-${file.path}-${line}`,
@@ -329,14 +344,93 @@ function scanCommittedEnvFile(files: RepositoryFile[]): Finding[] {
   return findings;
 }
 
+function scanGenericSecrets(files: RepositoryFile[]): Finding[] {
+  const findings: Finding[] = [];
+  const patterns: Array<{ pattern: RegExp; name: string; description: string }> = [
+    {
+      pattern: /sk_live_[a-zA-Z0-9]{20,}/g,
+      name: "Stripe live secret key hardcoded in source",
+      description:
+        "A Stripe live-mode secret key (sk_live_…) is present in source code. Anyone with this key can charge customers and access your full Stripe account. Remove it, move the value to an environment variable, and rotate the key immediately.",
+    },
+    {
+      pattern: /AKIA[0-9A-Z]{16}/g,
+      name: "AWS access key ID hardcoded in source",
+      description:
+        "An AWS access key ID (AKIA…) is hardcoded in source. This key can be used to access AWS services and may allow serious damage to your infrastructure. Remove it, use environment variables or IAM roles instead, and revoke the key immediately.",
+    },
+    {
+      pattern: /(?:api[_-]?key|secret[_-]?key)\s*[:=]\s*["'][a-zA-Z0-9_\-]{20,}["']/gi,
+      name: "Hardcoded API or secret key assignment",
+      description:
+        "A variable named api_key, apiKey, secret_key, or secretKey is assigned a long string literal directly in source. Hardcoding secrets exposes them in version history even after removal. Use environment variables instead.",
+    },
+  ];
+
+  for (const file of files.filter(
+    (item) =>
+      /\.(?:[cm]?[jt]sx?)$/i.test(item.path) &&
+      !isServerOnlyPath(item.path),
+  )) {
+    for (const { pattern, name, description } of patterns) {
+      for (const match of file.content.matchAll(pattern)) {
+        const line = lineNumberAt(file.content, match.index ?? 0);
+        const sourceLine = lineAt(file.content, line);
+        if (/^\s*(?:\/\/|\/\*|\*|#)/.test(sourceLine)) continue;
+        if (isInCopyExclusion(file.path, line)) continue;
+        findings.push(
+          finding(
+            `secret-${file.path}-${line}-${name}`,
+            "Critical",
+            name,
+            description,
+            file.path,
+            line,
+            "hardcoded_secret",
+          ),
+        );
+      }
+    }
+  }
+
+  return findings;
+}
+
+function scanCorsWildcard(files: RepositoryFile[]): Finding[] {
+  const findings: Finding[] = [];
+  const configFilePattern = /(?:^|\/)next\.config\.[cm]?[jt]sx?$/i;
+  const corsPattern = /['"]Access-Control-Allow-Origin['"]\s*:\s*['"]\*['"]/gi;
+
+  for (const file of files.filter((item) => configFilePattern.test(item.path))) {
+    for (const match of file.content.matchAll(corsPattern)) {
+      const line = lineNumberAt(file.content, match.index ?? 0);
+      findings.push(
+        finding(
+          `cors-${file.path}-${line}`,
+          "Medium",
+          "CORS wildcard allows any origin",
+          "Setting Access-Control-Allow-Origin to \"*\" lets any website make cross-origin requests to your API from a visitor's browser, including requests that carry session cookies. Restrict this to your specific frontend domain instead.",
+          file.path,
+          line,
+          "cors_wildcard",
+        ),
+      );
+    }
+  }
+
+  return findings;
+}
+
 export async function scanPublicRepository(repoUrl: string): Promise<ScanReport> {
   const { owner, repo, cloneUrl } = parseRepoUrl(repoUrl);
   const repository = await fetchRepositoryFiles(cloneUrl, repo);
   const findings = deduplicateFindings([
     ...scanClientServiceRole(repository.files),
+    ...scanGenericSecrets(repository.files),
     ...scanUnauthenticatedWrites(repository.files),
     ...scanRls(repository.files),
     ...scanUnprotectedRpc(repository.files),
+    ...scanCorsWildcard(repository.files),
     ...scanCommittedEnvFile(repository.files),
   ]).sort((a, b) => a.filePath.localeCompare(b.filePath) || a.line - b.line);
 
