@@ -8,7 +8,8 @@ Short, human-readable notes for contributors and reviewers.
 
 - Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as shared Replit environment variables (read from `artifacts/vibeguard/.env.example`).
 - Restarted the VibeGuard frontend workflow; browser console clean, landing page loads without errors.
-- Note: `DATABASE_URL` (Postgres connection for the API server) is runtime-managed by Replit — no manual action needed for that key.
+- Confirmed the API server is stateless — scan routes do not call the database. `DATABASE_URL` is runtime-managed by Replit but not required for functionality.
+- Usage tracking (`usage` table, RLS, auto-signup trigger) lives entirely in Supabase. Run `supabase/migrations/usage_table.sql` once in the Supabase SQL Editor if not already applied.
 
 ## 2026-07-26
 
