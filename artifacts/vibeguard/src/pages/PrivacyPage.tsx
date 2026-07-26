@@ -1,0 +1,73 @@
+import { Nav } from '@/components/Nav';
+import { Footer } from '@/components/Footer';
+
+export default function PrivacyPage() {
+  return (
+    <div className="flex min-h-[100dvh] flex-col bg-background">
+      <Nav />
+      <main className="flex-1">
+        <article className="mx-auto w-full max-w-[720px] px-5 py-16 sm:px-8">
+          <div className="vg-rise">
+            <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
+              <span className="inline-block h-px w-8 bg-primary" />
+              Legal
+            </div>
+            <h1 className="mt-5 text-[32px] font-extrabold tracking-[-0.045em]">Privacy Policy</h1>
+            <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+              Last updated: July 2025 · <span className="text-[#a06427]">Placeholder — review before launch</span>
+            </p>
+
+            <div className="mt-10 space-y-8 text-[14px] leading-7 text-foreground">
+              <section>
+                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">What we collect</h2>
+                <ul className="space-y-2 text-muted-foreground">
+                  <li><span className="font-semibold text-foreground">Email address</span> — when you create an account, used for authentication only.</li>
+                  <li><span className="font-semibold text-foreground">Scan usage count</span> — how many scans you have run, stored to enforce per-account limits.</li>
+                  <li><span className="font-semibold text-foreground">Repository URL</span> — the URL you submit for scanning. We do not store the URL after the scan completes.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">What we do NOT collect</h2>
+                <ul className="space-y-2 text-muted-foreground">
+                  <li>We do not store the source code of any scanned repository.</li>
+                  <li>We do not sell or share your personal data with third parties for advertising.</li>
+                  <li>We do not track you across other websites.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">Authentication</h2>
+                <p className="text-muted-foreground">
+                  Authentication is handled by Supabase Auth. Passwords are hashed and never stored in plain text. If you sign in with Google, we receive your email address from Google's OAuth service and nothing else.
+                </p>
+              </section>
+
+              <section>
+                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">Data retention</h2>
+                <p className="text-muted-foreground">
+                  Your account data (email and usage count) is retained for as long as your account exists. You may request account deletion by contacting us, after which all personal data will be removed within 30 days.
+                </p>
+              </section>
+
+              <section>
+                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">Security</h2>
+                <p className="text-muted-foreground">
+                  We use Row-Level Security (RLS) in our database to ensure each user can only access their own data. All data in transit is encrypted via HTTPS.
+                </p>
+              </section>
+
+              <section>
+                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">Contact</h2>
+                <p className="text-muted-foreground">
+                  For privacy-related questions or data deletion requests, contact us at [email placeholder].
+                </p>
+              </section>
+            </div>
+          </div>
+        </article>
+      </main>
+      <Footer />
+    </div>
+  );
+}
