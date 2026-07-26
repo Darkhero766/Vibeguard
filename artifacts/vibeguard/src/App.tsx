@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
+import { ScanProgress } from '@/components/ScanProgress';
 import AuthPage from '@/pages/AuthPage';
 import PricingPage from '@/pages/PricingPage';
 import TermsPage from '@/pages/TermsPage';
@@ -514,8 +515,8 @@ function Home() {
             </section>
           )}
 
-          {/* ── Scanning skeleton ── */}
-          {isScanning && <ScanSkeleton />}
+          {/* ── Scanning progress ── */}
+          {isScanning && <ScanProgress />}
 
           {/* ── Upgrade wall after scan attempt ── */}
           {scanBlocked && !isScanning && (

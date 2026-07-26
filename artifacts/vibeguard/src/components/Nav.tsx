@@ -13,6 +13,8 @@ export function Nav() {
     ? Math.max(0, usage.scans_limit - usage.scans_used)
     : null;
 
+  const displayName = user?.user_metadata?.full_name || user?.email || '';
+
   const handleSignOut = async () => {
     setAccountOpen(false);
     await signOut();
@@ -55,7 +57,7 @@ export function Nav() {
                 onClick={() => setAccountOpen((o) => !o)}
                 className="vg-button vg-focus flex items-center gap-2 border border-border bg-card px-3 py-2 text-[12px] font-medium text-foreground hover:border-primary/50"
               >
-                <span className="max-w-[160px] truncate text-muted-foreground">{user.email}</span>
+                <span className="max-w-[160px] truncate text-muted-foreground">{displayName}</span>
                 {scansRemaining !== null && (
                   <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[10px] text-primary">
                     {scansRemaining} scan{scansRemaining !== 1 ? 's' : ''} left
@@ -69,7 +71,7 @@ export function Nav() {
                   <div className="fixed inset-0 z-40" onClick={() => setAccountOpen(false)} />
                   <div className="absolute right-0 top-full z-50 mt-1.5 w-56 border border-border bg-card shadow-lg">
                     <div className="border-b border-border p-3">
-                      <p className="truncate text-[11px] font-semibold text-foreground">{user.email}</p>
+                      <p className="truncate text-[11px] font-semibold text-foreground">{displayName}</p>
                       {scansRemaining !== null && (
                         <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
                           Scans remaining: <span className="font-semibold text-primary">{scansRemaining}</span>
@@ -138,7 +140,7 @@ export function Nav() {
             <div className="border-t border-border/50 pt-3 pb-1">
               {user ? (
                 <div className="space-y-2">
-                  <p className="text-[12px] text-muted-foreground truncate">{user.email}</p>
+                  <p className="text-[12px] text-muted-foreground truncate">{displayName}</p>
                   {scansRemaining !== null && (
                     <p className="font-mono text-[11px] text-primary">Scans remaining: {scansRemaining}</p>
                   )}

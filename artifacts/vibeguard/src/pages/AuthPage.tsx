@@ -15,6 +15,7 @@ export default function AuthPage() {
   const params = new URLSearchParams(search);
   const initialMode = (params.get('mode') === 'signin' ? 'signin' : 'signup') as AuthMode;
   const [mode, setMode] = useState<AuthMode>(initialMode);
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,7 +35,11 @@ export default function AuthPage() {
     setLoading(true);
     try {
       if (mode === 'signup') {
-        const { error: err } = await supabase.auth.signUp({ email, password });
+        const { error: err } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: fullName.trim() } },
+        });
         if (err) throw err;
         setSuccess("Check your email to confirm your account, then sign in.");
       } else {
@@ -120,6 +125,23 @@ export default function AuthPage() {
 
           {/* Email/password form */}
           <form onSubmit={handleSubmit} className="space-y-3">
+            {mode === 'signup' && (
+              <div>
+                <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.12em] text-foreground" htmlFor="full-name">
+                  Full name
+                </label>
+                <input
+                  id="full-name"
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="vg-focus h-11 w-full border border-input bg-card px-3.5 text-[14px] text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary"
+                  placeholder="Jane Smith"
+                  autoComplete="name"
+                />
+              </div>
+            )}
             <div>
               <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.12em] text-foreground" htmlFor="email">
                 Email

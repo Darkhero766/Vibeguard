@@ -1,0 +1,69 @@
+Add two final polish features to VibeGuard. Do not touch the scanner
+logic (scanner.ts) — only frontend/auth changes.
+
+FEATURE 1 — Show the user's name instead of email in the account menu
+
+Currently only email/password is collected at signup, so there's no
+name to display yet. Add a "Full name" field to the signup form:
+
+1. Add a text input labeled "Full name" to the signup form, required,
+   above or below the email field.
+2. On signup, pass the name into Supabase Auth's user metadata:
+   supabase.auth.signUp({
+     email,
+     password,
+     options: { data: { full_name: fullName } }
+   })
+3. In the account menu / navbar (wherever the email currently shows,
+   e.g. "md.sohilsheikh13@gmail.c..."), replace it with the user's
+   full_name from user_metadata instead:
+   const { data: { user } } = await supabase.auth.getUser();
+   const displayName = user?.user_metadata?.full_name || user?.email;
+   Fall back to email only if full_name is somehow missing (e.g. for
+   any existing users who signed up before this change).
+4. Keep "X scans left" next to the name exactly as it is now, just
+   swap the email text for the name.
+
+FEATURE 2 — Animated scan progress instead of a static loading spinner
+
+Replace the current loading state (shown while a scan is running) with
+a live-feeling progress UI. Since the actual scan already runs multiple
+checks sequentially or in parallel (RLS, unauthenticated writes,
+service_role, RPC, committed .env), stream progress updates to the
+frontend as each check starts and completes, rather than showing one
+generic spinner until the whole scan finishes.
+
+Backend: modify the scan endpoint to use Server-Sent Events (SSE) or
+a simple polling-friendly status object, emitting an event each time a
+check starts and finishes, e.g.:
+  { status: "running", check: "rls", filesScanned: 4, totalFiles: 12 }
+  { status: "complete", check: "rls", findingsCount: 1 }
+  ...continues through all five checks...
+  { status: "done", totalFindings: 3 }
+
+Frontend: build an animated progress component that:
+- Shows an overall progress bar filling up as checks complete
+  (e.g. 1 of 5 checks done = 20%, animate the fill smoothly with a
+  CSS transition, not an instant jump)
+- Lists each check as a row with a status icon: pending (gray dot),
+  running (animated spinning/pulsing icon), complete (green check)
+- Shows a live-updating "X files scanned" counter if that data is
+  available from the backend
+- Use a subtle animation for the "running" state — a pulsing dot or
+  a smooth spinner, not a jarring flash
+- Keep it minimalist, matching the existing clean/Linear-style design
+  — no heavy illustrations, just clean progress indicators
+
+If SSE is too large a change to wire up cleanly given the current
+architecture, a simpler acceptable fallback: have the backend return
+an estimated total check count upfront, and animate the frontend
+progress bar through the 5 known checks with realistic timed delays
+between each (e.g. 400-800ms per check) while the actual scan runs in
+the background, then reconcile with the real result once it returns.
+This fakes the live feel without needing real-time backend streaming,
+and is a reasonable tradeoff for this stage of the product.
+
+After both features, test end to end: sign up as a new user with a
+name, confirm the name (not email) shows in the account menu, then run
+a scan and confirm the progress animation plays through smoothly
+before results appear
