@@ -21,7 +21,24 @@ const client = new Client({
 });
 
 const SQL = `
--- Usage table for per-user scan limits
+-- ─── GitHub OAuth tokens (encrypted server-side) ─────────────────────────────
+CREATE TABLE IF NOT EXISTS public.github_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  encrypted_token text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT github_tokens_owner_unique UNIQUE (owner)
+);
+
+ALTER TABLE public.github_tokens ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can manage their own github token" ON public.github_tokens;
+CREATE POLICY "Users can manage their own github token"
+  ON public.github_tokens FOR ALL
+  USING (auth.uid() = owner)
+  WITH CHECK (auth.uid() = owner);
+
+-- ─── Usage table for per-user scan limits ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.usage (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,

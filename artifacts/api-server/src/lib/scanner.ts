@@ -49,7 +49,7 @@ function parseRepoUrl(repoUrl: string): { owner: string; repo: string; cloneUrl:
   }
 
   if (parsed.protocol !== "https:" || parsed.hostname !== "github.com") {
-    throw new Error("Only public github.com repository URLs are supported.");
+    throw new Error("Only github.com repository URLs are supported.");
   }
 
   const parts = parsed.pathname.split("/").filter(Boolean);
@@ -92,17 +92,27 @@ function deduplicateFindings(findings: Finding[]): Finding[] {
   return deduped;
 }
 
-async function fetchRepositoryFiles(cloneUrl: string, repo: string): Promise<{
+async function fetchRepositoryFiles(
+  cloneUrl: string,
+  repo: string,
+  githubToken?: string,
+): Promise<{
   repo: string;
   files: RepositoryFile[];
 }> {
   const parent = await mkdtemp("/tmp/vibeguard-");
   const checkout = `${parent}/repo`;
 
+  // Embed OAuth token in the clone URL for authenticated (private) access.
+  // Credentials are never logged — we pass the URL directly to the git subprocess.
+  const resolvedCloneUrl = githubToken
+    ? cloneUrl.replace("https://", `https://x-oauth-token:${githubToken}@`)
+    : cloneUrl;
+
   try {
     await execFileAsync(
       "git",
-      ["clone", "--no-checkout", "--depth", "1", "--no-tags", "--single-branch", "--quiet", cloneUrl, checkout],
+      ["clone", "--no-checkout", "--depth", "1", "--no-tags", "--single-branch", "--quiet", resolvedCloneUrl, checkout],
       { timeout: 120_000, maxBuffer: 2_000_000 },
     );
 
@@ -136,7 +146,7 @@ async function fetchRepositoryFiles(cloneUrl: string, repo: string): Promise<{
   } catch (error) {
     const message =
       error instanceof Error && error.message.includes("Repository not found")
-        ? "Repository not found. Make sure it is public and the URL is correct."
+        ? "Repository not found. Check the URL and make sure you have access."
         : "GitHub could not be reached. Please try again.";
     const wrapped = new Error(message);
     Object.assign(wrapped, { status: message.startsWith("Repository") ? 404 : 502 });
@@ -421,9 +431,12 @@ function scanCorsWildcard(files: RepositoryFile[]): Finding[] {
   return findings;
 }
 
-export async function scanPublicRepository(repoUrl: string): Promise<ScanReport> {
+export async function scanPublicRepository(
+  repoUrl: string,
+  githubToken?: string,
+): Promise<ScanReport> {
   const { owner, repo, cloneUrl } = parseRepoUrl(repoUrl);
-  const repository = await fetchRepositoryFiles(cloneUrl, repo);
+  const repository = await fetchRepositoryFiles(cloneUrl, repo, githubToken);
   const findings = deduplicateFindings([
     ...scanClientServiceRole(repository.files),
     ...scanGenericSecrets(repository.files),

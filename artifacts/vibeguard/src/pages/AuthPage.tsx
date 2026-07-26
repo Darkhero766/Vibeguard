@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { AlertCircle, ArrowRight, Github, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, Github, Info, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Nav } from '@/components/Nav';
@@ -20,6 +20,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [githubLoading, setGithubLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -74,6 +75,24 @@ export default function AuthPage() {
     // On success the page redirects — no need to clear loading state
   };
 
+  const handleGithub = async () => {
+    setError('');
+    setGithubLoading(true);
+    try {
+      const redirectTo = window.location.origin + (import.meta.env.BASE_URL ?? '/');
+      // Request 'repo' scope so we can scan private repositories on the user's behalf.
+      const { error: err } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
+        options: { scopes: 'repo', redirectTo },
+      });
+      if (err) throw err;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'GitHub sign-in failed.';
+      setError(msg);
+      setGithubLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background">
       <Nav />
@@ -97,12 +116,38 @@ export default function AuthPage() {
               : 'Sign in to run your security scan.'}
           </p>
 
+          {/* GitHub OAuth */}
+          <button
+            type="button"
+            onClick={handleGithub}
+            disabled={githubLoading || googleLoading}
+            className="vg-button vg-focus mt-7 flex w-full items-center justify-center gap-2.5 border border-border bg-card py-2.5 text-[13px] font-semibold text-foreground hover:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {githubLoading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Github size={16} />
+            )}
+            {githubLoading ? 'Redirecting…' : 'Continue with GitHub'}
+          </button>
+
+          {/* GitHub consent notice */}
+          <div className="mt-2.5 flex items-start gap-2 border border-border bg-secondary/60 px-3 py-2.5">
+            <Info size={12} className="mt-0.5 shrink-0 text-muted-foreground" />
+            <p className="text-[11px] leading-[1.55] text-muted-foreground">
+              VibeGuard requests read access to your repositories to scan them for security issues.
+              We do not store your code — only your GitHub access token, encrypted, so you don't
+              have to re-authenticate each session. You can revoke this access anytime from your
+              GitHub settings.
+            </p>
+          </div>
+
           {/* Google OAuth */}
           <button
             type="button"
             onClick={handleGoogle}
-            disabled={googleLoading}
-            className="vg-button vg-focus mt-7 flex w-full items-center justify-center gap-2.5 border border-border bg-card py-2.5 text-[13px] font-semibold text-foreground hover:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={googleLoading || githubLoading}
+            className="vg-button vg-focus mt-3 flex w-full items-center justify-center gap-2.5 border border-border bg-card py-2.5 text-[13px] font-semibold text-foreground hover:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {googleLoading ? (
               <Loader2 size={16} className="animate-spin" />

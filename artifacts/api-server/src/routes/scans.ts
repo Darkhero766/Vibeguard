@@ -1,10 +1,12 @@
 import { Router, type IRouter } from "express";
 import { CreateScanBody, CreateScanResponse } from "@workspace/api-zod";
 import { scanPublicRepository } from "../lib/scanner";
+import { optionalAuth, type AuthedRequest } from "../middlewares/auth";
+import { getGithubTokenForUser } from "../lib/github";
 
 const router: IRouter = Router();
 
-router.post("/scans", async (req, res): Promise<void> => {
+router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<void> => {
   const parsed = CreateScanBody.safeParse(req.body);
   if (!parsed.success) {
     req.log.warn({ errors: parsed.error.message }, "Invalid scan request");
@@ -12,8 +14,19 @@ router.post("/scans", async (req, res): Promise<void> => {
     return;
   }
 
+  // If the request is authenticated, try to fetch the user's stored GitHub token.
+  // This enables private repository scanning without changing the API contract.
+  let githubToken: string | undefined;
+  if (req.userId && req.userJwt) {
+    try {
+      githubToken = (await getGithubTokenForUser(req.userId, req.userJwt)) ?? undefined;
+    } catch {
+      // Non-fatal — fall back to unauthenticated clone
+    }
+  }
+
   try {
-    const report = await scanPublicRepository(parsed.data.repoUrl);
+    const report = await scanPublicRepository(parsed.data.repoUrl, githubToken);
     res.json(CreateScanResponse.parse(report));
   } catch (error) {
     const status = typeof error === "object" && error !== null && "status" in error

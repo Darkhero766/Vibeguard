@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useCreateScan } from '@workspace/api-client-react';
+import { useCreateScan, setAuthTokenGetter } from '@workspace/api-client-react';
 import {
   AlertCircle, ArrowRight, Check, Clipboard, ExternalLink,
   FileSearch, Github, KeyRound, Lock, RefreshCw,
@@ -12,6 +12,14 @@ import { supabase } from '@/lib/supabase';
 import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
 import { ScanProgress } from '@/components/ScanProgress';
+import { RepoPicker } from '@/components/RepoPicker';
+
+// Wire the Supabase session JWT into all generated API calls so the server
+// can look up the user's GitHub token for private repository scanning.
+setAuthTokenGetter(async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
+});
 import AuthPage from '@/pages/AuthPage';
 import PricingPage from '@/pages/PricingPage';
 import TermsPage from '@/pages/TermsPage';
@@ -327,11 +335,12 @@ function HowItWorks() {
 // ─── Home page ───────────────────────────────────────────────────────────────
 
 function Home() {
-  const { user, usage, usageLoading, refreshUsage } = useAuth();
+  const { user, session, usage, usageLoading, refreshUsage } = useAuth();
   const [repoUrl, setRepoUrl] = useState('');
   const [validationError, setValidationError] = useState('');
   const [copied, setCopied] = useState(false);
   const [scanBlocked, setScanBlocked] = useState(false);
+  const [scanMode, setScanMode] = useState<'url' | 'picker'>('url');
   const inputRef = useRef<HTMLInputElement>(null);
   const scanMutation = useCreateScan();
   const report = scanMutation.data as ScanReport | undefined;
@@ -457,44 +466,72 @@ function Home() {
                 ) : isAtLimit ? (
                   <UpgradeWall />
                 ) : (
-                  <form className="mt-10 max-w-[680px]" onSubmit={handleSubmit}>
-                    <label className="mb-2.5 block font-mono text-[10px] font-medium uppercase tracking-[0.14em]" htmlFor="repo-url">
-                      Public GitHub URL
-                    </label>
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <div className="relative min-w-0 flex-1">
-                        <Github className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                        <input
-                          ref={inputRef}
-                          id="repo-url"
-                          type="url"
-                          value={repoUrl}
-                          onChange={(e) => { setRepoUrl(e.target.value); setValidationError(''); }}
-                          placeholder="https://github.com/owner/repository"
-                          className={`vg-focus h-12 w-full border bg-card pl-10 pr-4 text-[14px] outline-none transition-colors placeholder:text-muted-foreground/60 ${validationError ? 'border-[#b56b5c]' : 'border-input focus:border-primary'}`}
-                        />
-                      </div>
+                  <div className="mt-8 max-w-[680px]">
+                    {/* Mode toggle: paste URL or pick from connected repos */}
+                    <div className="flex w-fit border border-border bg-card p-0.5">
                       <button
-                        type="submit"
-                        disabled={isScanning || (!canScan && repoUrl.length > 0)}
-                        className="vg-button vg-focus inline-flex h-12 items-center justify-center gap-2 bg-primary px-5 text-[13px] font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45"
+                        type="button"
+                        onClick={() => setScanMode('url')}
+                        className={`vg-button vg-focus px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'url' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                       >
-                        Scan repository <ArrowRight size={15} />
+                        Paste URL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScanMode('picker')}
+                        className={`vg-button vg-focus px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'picker' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        My repos
                       </button>
                     </div>
-                    {validationError ? (
-                      <p className="mt-2.5 flex items-center gap-2 text-[12px] text-[#963f34]">
-                        <AlertCircle size={13} /> {validationError}
-                      </p>
-                    ) : (
-                      <p className="mt-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-                        Public repositories only · read-only scan
-                        {usage && (
-                          <> · <span className="text-primary">{Math.max(0, usage.scans_limit - usage.scans_used)} scan{usage.scans_limit - usage.scans_used !== 1 ? 's' : ''} remaining</span></>
+
+                    {scanMode === 'url' ? (
+                      <form className="mt-4" onSubmit={handleSubmit}>
+                        <label className="mb-2.5 block font-mono text-[10px] font-medium uppercase tracking-[0.14em]" htmlFor="repo-url">
+                          GitHub repository URL
+                        </label>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <div className="relative min-w-0 flex-1">
+                            <Github className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                            <input
+                              ref={inputRef}
+                              id="repo-url"
+                              type="url"
+                              value={repoUrl}
+                              onChange={(e) => { setRepoUrl(e.target.value); setValidationError(''); }}
+                              placeholder="https://github.com/owner/repository"
+                              className={`vg-focus h-12 w-full border bg-card pl-10 pr-4 text-[14px] outline-none transition-colors placeholder:text-muted-foreground/60 ${validationError ? 'border-[#b56b5c]' : 'border-input focus:border-primary'}`}
+                            />
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={isScanning || (!canScan && repoUrl.length > 0)}
+                            className="vg-button vg-focus inline-flex h-12 items-center justify-center gap-2 bg-primary px-5 text-[13px] font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45"
+                          >
+                            Scan repository <ArrowRight size={15} />
+                          </button>
+                        </div>
+                        {validationError ? (
+                          <p className="mt-2.5 flex items-center gap-2 text-[12px] text-[#963f34]">
+                            <AlertCircle size={13} /> {validationError}
+                          </p>
+                        ) : (
+                          <p className="mt-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+                            Public &amp; private repositories · read-only scan
+                            {usage && (
+                              <> · <span className="text-primary">{Math.max(0, usage.scans_limit - usage.scans_used)} scan{usage.scans_limit - usage.scans_used !== 1 ? 's' : ''} remaining</span></>
+                            )}
+                          </p>
                         )}
-                      </p>
+                      </form>
+                    ) : (
+                      <RepoPicker
+                        session={session}
+                        onSelect={(url) => runScan(url)}
+                        disabled={isScanning}
+                      />
                     )}
-                  </form>
+                  </div>
                 )}
 
                 {apiError && (

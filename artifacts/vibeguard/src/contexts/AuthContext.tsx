@@ -2,6 +2,22 @@ import { Session, User } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase, type UsageRow } from '@/lib/supabase';
 
+/** Store the user's GitHub OAuth token server-side (fire-and-forget). */
+async function persistGithubToken(githubToken: string, supabaseJwt: string): Promise<void> {
+  try {
+    await fetch('/api/github/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${supabaseJwt}`,
+      },
+      body: JSON.stringify({ token: githubToken }),
+    });
+  } catch {
+    // Non-fatal — user can still scan public repos
+  }
+}
+
 type AuthContextValue = {
   user: User | null;
   session: Session | null;
@@ -79,6 +95,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else if (!u) {
           lastUserId.current = null;
           setUsage(null);
+        }
+
+        // After a GitHub OAuth sign-in, persist the provider token server-side.
+        // provider_token is only available right after the OAuth redirect.
+        if (
+          _event === 'SIGNED_IN' &&
+          s?.provider_token &&
+          s.access_token &&
+          s.user?.app_metadata?.provider === 'github'
+        ) {
+          persistGithubToken(s.provider_token, s.access_token);
         }
       }
     );

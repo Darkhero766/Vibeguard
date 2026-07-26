@@ -1,0 +1,71 @@
+Add GitHub OAuth login and private repository scanning to VibeGuard.
+This is a significant addition — implement carefully, and confirm each
+step works before moving to the next.
+
+1. ADD GITHUB AS A LOGIN OPTION
+Add "Sign in with GitHub" alongside the existing email/password option
+using Supabase Auth's GitHub provider. Request the "repo" scope so we
+can read private repositories on the user's behalf:
+
+  await supabase.auth.signInWithOAuth({
+    provider: 'github',
+    options: { scopes: 'repo' }
+  });
+
+Note: this requires a GitHub OAuth App to be registered (Settings →
+Developer settings → OAuth Apps on GitHub) with the Client ID/Secret
+added to Supabase's Auth provider settings — flag this as a manual
+setup step for me to do in both dashboards, don't try to automate it.
+
+2. SECURELY STORE THE GITHUB ACCESS TOKEN
+On successful GitHub login, Supabase's session includes a
+provider_token (the user's GitHub access token) — but it's only
+available right after auth, not persisted automatically. Store it:
+
+- Create a new table `github_tokens` (owner: user id, encrypted_token:
+  text, created_at: timestamp)
+- Enable RLS: users can only read/write their own row
+  (auth.uid() = owner)
+- On login, if session.provider_token exists, encrypt it (use a
+  server-side encryption key stored in Replit Secrets, never
+  hardcoded) and upsert it into this table
+- When scanning a private repo, fetch and decrypt this token
+  server-side only — never send it to the frontend after initial
+  storage
+
+3. UPDATE THE REPO INPUT UI
+Instead of only a manual "paste a public repo URL" field, add a repo
+picker for logged-in GitHub users: fetch their repo list via GitHub's
+API (using their stored token) and show it as a searchable dropdown,
+with a visual distinction between public and private repos (e.g. a
+small lock icon on private ones). Keep the manual URL paste option
+too, for users who don't want to connect GitHub or are scanning
+someone else's public repo.
+
+4. UPDATE THE SCANNER'S REPO-FETCHING LOGIC
+Wherever the scanner currently fetches repo files (likely an
+unauthenticated GitHub API call for public repos), add a path that
+includes the user's GitHub token in the Authorization header when
+scanning a private repo they've selected via the picker. Confirm this
+still respects the existing file-filtering logic (SOURCE_EXTENSIONS,
+IGNORED_PATH_PARTS) — no changes needed there.
+
+5. GATE PRIVATE REPO SCANNING BEHIND A CLEAR LIMIT
+Private repo scanning should count against the same "scans used"
+limit as public scans for now — don't build separate limits yet. Just
+make sure the UI clearly shows whether a scan target is public or
+private so users understand what they're granting access to.
+
+6. ADD A CLEAR CONSENT NOTICE
+Before completing GitHub OAuth, or somewhere visible on the connect
+flow, add text: "VibeGuard requests read access to your repositories
+to scan them for security issues. We do not store your code — only
+your GitHub access token, encrypted, so you don't have to
+re-authenticate each session. You can revoke this access anytime from
+your GitHub settings." This matters — you're asking for real trust
+here and should be transparent about exactly what's being stored.
+
+After building, test end to end: sign in with GitHub, confirm the
+private repo list loads, scan a private test repo, and confirm the
+scan actually reads real file contents (check the findings reference
+real line numbers from the private repo, not an error).
