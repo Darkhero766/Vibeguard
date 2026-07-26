@@ -2,6 +2,14 @@
 
 Short, human-readable notes for contributors and reviewers.
 
+## 2026-07-26 (session 4)
+
+### Unlimited scans for nightowlclub72@gmail.com
+
+- Added `isUnlimited` check in `artifacts/vibeguard/src/App.tsx` (Home component) that bypasses the scan limit for `nightowlclub72@gmail.com` only.
+- Patched both enforcement points: the `isAtLimit` derived value (hides the upgrade wall) and the pre-scan inline re-check inside `runScan` (prevents the blocked state from being set).
+- All other users remain subject to the normal `scans_used >= scans_limit` quota.
+
 ## 2026-07-26 (session 3)
 
 ### Scanner bug fixes (artifacts/api-server/src/lib/scanner.ts)

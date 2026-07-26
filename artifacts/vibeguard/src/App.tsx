@@ -338,7 +338,8 @@ function Home() {
   const apiError = getErrorMessage(scanMutation.error);
   const canScan = useMemo(() => githubUrlPattern.test(repoUrl.trim()), [repoUrl]);
 
-  const isAtLimit = !usageLoading && usage != null && usage.scans_used >= usage.scans_limit;
+  const isUnlimited = user?.email === 'nightowlclub72@gmail.com';
+  const isAtLimit = !isUnlimited && !usageLoading && usage != null && usage.scans_used >= usage.scans_limit;
 
   const runScan = async (url: string) => {
     const normalizedUrl = url.trim().replace(/\/$/, '');
@@ -356,7 +357,7 @@ function Home() {
       .select('scans_used, scans_limit')
       .maybeSingle();
 
-    if (freshUsage && freshUsage.scans_used >= freshUsage.scans_limit) {
+    if (!isUnlimited && freshUsage && freshUsage.scans_used >= freshUsage.scans_limit) {
       setScanBlocked(true);
       return;
     }
