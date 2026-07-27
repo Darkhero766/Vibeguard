@@ -4,13 +4,17 @@ import type { Request, Response, NextFunction } from "express";
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY!;
 
+// Single shared client — avoids re-initialising the realtime WebSocket on every request.
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: { persistSession: false },
+});
+
 export interface AuthedRequest extends Request {
   userId?: string;
   userJwt?: string;
 }
 
 async function resolveUser(jwt: string) {
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
   const {
     data: { user },
     error,
