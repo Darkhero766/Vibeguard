@@ -1,11 +1,15 @@
 import type { Request, Response, NextFunction } from "express";
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+// Accept server-side names (SUPABASE_URL / SUPABASE_ANON_KEY) or the VITE_-prefixed
+// variants that Replit exposes as plain env vars for the frontend build.
+const supabaseUrl =
+  process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey =
+  process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
-    "VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required for API authentication.",
+    "SUPABASE_URL and SUPABASE_ANON_KEY (or VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) are required for API authentication.",
   );
 }
 
