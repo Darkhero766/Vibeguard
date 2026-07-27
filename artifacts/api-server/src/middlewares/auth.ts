@@ -1,13 +1,15 @@
-import { createClient } from "@supabase/supabase-js";
 import type { Request, Response, NextFunction } from "express";
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 
-// Single shared client — avoids re-initialising the realtime WebSocket on every request.
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: { persistSession: false },
-});
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    "VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required for API authentication.",
+  );
+}
+
+const supabaseUserUrl = new URL("/auth/v1/user", supabaseUrl).toString();
 
 export interface AuthedRequest extends Request {
   userId?: string;
@@ -15,12 +17,18 @@ export interface AuthedRequest extends Request {
 }
 
 async function resolveUser(jwt: string) {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(jwt);
-  if (error || !user) return null;
-  return user;
+  const response = await fetch(supabaseUserUrl, {
+    headers: {
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${jwt}`,
+    },
+  });
+
+  if (!response.ok) return null;
+
+  const user = (await response.json()) as { id?: unknown };
+  if (typeof user.id !== "string") return null;
+  return { id: user.id };
 }
 
 /**

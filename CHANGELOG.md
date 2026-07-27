@@ -2,6 +2,15 @@
 
 Short, human-readable notes for contributors and reviewers.
 
+## 2026-07-27
+
+### Replit setup
+
+- Installed the locked pnpm workspace dependencies and configured the existing VibeGuard frontend and API workflows.
+- Confirmed the Supabase browser configuration and securely added the API’s Supabase database and GitHub-token encryption secrets.
+- Updated server-side Supabase JWT validation to use the Auth REST endpoint so the API starts on Replit’s Node.js runtime without an unnecessary realtime WebSocket.
+- Synchronized the OpenAPI finding enum with the scanner’s generic-secret and CORS checks.
+
 ## 2026-07-26 (session 7)
 
 ### GitHub OAuth login and private repository scanning

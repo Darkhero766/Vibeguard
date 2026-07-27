@@ -4,15 +4,17 @@ VibeGuard scans public Next.js + Supabase repositories for three high-signal sec
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/vibeguard run dev` — run the VibeGuard web app (port 19155)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
 - `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
+- `PORT=19155 BASE_PATH=/ pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env:
   - `VITE_SUPABASE_URL` — Supabase project URL, stored as a Replit Secret
   - `VITE_SUPABASE_ANON_KEY` — Supabase anon/public key, stored as a Replit Secret
-  - `DATABASE_URL` — Postgres connection string for the API server
+  - `SUPABASE_DB_URL` — Supabase Postgres connection string for the API server, stored as a Replit Secret
+  - `GITHUB_TOKEN_ENCRYPTION_KEY` — 64-character hex key used to encrypt GitHub OAuth tokens, stored as a Replit Secret
 
 ## Stack
 
