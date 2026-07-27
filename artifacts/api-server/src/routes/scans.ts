@@ -17,9 +17,9 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
   // If the request is authenticated, try to fetch the user's stored GitHub token.
   // This enables private repository scanning without changing the API contract.
   let githubToken: string | undefined;
-  if (req.userId && req.userJwt) {
+  if (req.userId) {
     try {
-      githubToken = (await getGithubTokenForUser(req.userId, req.userJwt)) ?? undefined;
+      githubToken = (await getGithubTokenForUser(req.userId)) ?? undefined;
     } catch {
       // Non-fatal — fall back to unauthenticated clone
     }

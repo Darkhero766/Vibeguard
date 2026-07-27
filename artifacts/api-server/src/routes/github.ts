@@ -1,12 +1,11 @@
 import { Router } from "express";
-import { createClient } from "@supabase/supabase-js";
-import { encryptToken } from "../lib/crypto";
+import { eq } from "drizzle-orm";
+import { db, githubTokens } from "@workspace/db";
+import { encryptToken, decryptToken } from "../lib/crypto";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
 const router = Router();
-const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY!;
 
 /**
  * POST /github/token
@@ -23,22 +22,13 @@ router.post("/github/token", requireAuth, async (req: AuthedRequest, res): Promi
   try {
     const encrypted = encryptToken(token);
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${req.userJwt}` } },
-    });
-
-    const { error } = await supabase
-      .from("github_tokens")
-      .upsert(
-        { owner: req.userId, encrypted_token: encrypted },
-        { onConflict: "owner" },
-      );
-
-    if (error) {
-      logger.error({ err: error }, "Failed to upsert GitHub token");
-      res.status(500).json({ error: "Failed to store token" });
-      return;
-    }
+    await db
+      .insert(githubTokens)
+      .values({ owner: req.userId!, encryptedToken: encrypted })
+      .onConflictDoUpdate({
+        target: githubTokens.owner,
+        set: { encryptedToken: encrypted },
+      });
 
     res.json({ ok: true });
   } catch (err) {
@@ -63,25 +53,20 @@ type GitHubApiRepo = {
  */
 router.get("/github/repos", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
   try {
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${req.userJwt}` } },
-    });
+    const [row] = await db
+      .select()
+      .from(githubTokens)
+      .where(eq(githubTokens.owner, req.userId!))
+      .limit(1);
 
-    const { data, error } = await supabase
-      .from("github_tokens")
-      .select("encrypted_token")
-      .eq("owner", req.userId)
-      .maybeSingle();
-
-    if (error || !data) {
+    if (!row) {
       res.status(404).json({
         error: "No GitHub connection found. Sign in with GitHub to enable private repo scanning.",
       });
       return;
     }
 
-    const { decryptToken } = await import("../lib/crypto");
-    const githubToken = decryptToken(data.encrypted_token);
+    const githubToken = decryptToken(row.encryptedToken);
 
     const response = await fetch(
       "https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator",
