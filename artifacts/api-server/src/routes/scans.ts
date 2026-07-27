@@ -7,6 +7,8 @@ import { getGithubTokenForUser } from "../lib/github";
 const router: IRouter = Router();
 
 router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<void> => {
+  console.log("[scans] repoUrl received:", JSON.stringify(req.body?.repoUrl));
+  console.log("[scans] pattern used:", CreateScanBody.shape.repoUrl.toString());
   const parsed = CreateScanBody.safeParse(req.body);
   if (!parsed.success) {
     req.log.warn({ errors: parsed.error.message }, "Invalid scan request");

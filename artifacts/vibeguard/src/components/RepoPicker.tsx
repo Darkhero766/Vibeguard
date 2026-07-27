@@ -137,7 +137,7 @@ export function RepoPicker({
             <button
               key={repo.id}
               disabled={disabled}
-              onClick={() => onSelect(repo.htmlUrl)}
+              onClick={() => { console.log("[RepoPicker] htmlUrl selected:", JSON.stringify(repo.htmlUrl)); onSelect(repo.htmlUrl); }}
               className="vg-button vg-focus flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div className="mt-0.5 shrink-0 text-muted-foreground">

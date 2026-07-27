@@ -12,7 +12,7 @@ export interface HealthStatus {
 export interface ScanInput {
   /**
      * @minLength 1
-     * @pattern ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?$
+     * @pattern ^https://github\.com/[-A-Za-z0-9_.]+/[-A-Za-z0-9_.]+/?$
      */
   repoUrl: string;
 }

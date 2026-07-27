@@ -23,7 +23,7 @@ export const HealthCheckResponse = zod.object({
  */
 
 
-export const createScanBodyRepoUrlRegExp = new RegExp('^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?$');
+export const createScanBodyRepoUrlRegExp = new RegExp('^https://github\\.com/[-A-Za-z0-9_.]+/[-A-Za-z0-9_.]+/?$');
 
 
 export const CreateScanBody = zod.object({

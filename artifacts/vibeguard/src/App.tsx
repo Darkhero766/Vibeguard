@@ -27,7 +27,7 @@ import PrivacyPage from '@/pages/PrivacyPage';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
-const githubUrlPattern = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/;
+const githubUrlPattern = /^https:\/\/github\.com\/[-A-Za-z0-9_.]+\/[-A-Za-z0-9_.]+\/?$/;
 
 type FindingSeverity = 'Critical' | 'High' | 'Medium';
 type Finding = {
