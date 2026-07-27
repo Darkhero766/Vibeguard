@@ -1,11 +1,12 @@
 import { Session, User } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase, type UsageRow } from '@/lib/supabase';
+import { apiUrl } from '@/lib/api';
 
 /** Store the user's GitHub OAuth token server-side (fire-and-forget). */
 async function persistGithubToken(githubToken: string, supabaseJwt: string): Promise<void> {
   try {
-    await fetch('/api/github/token', {
+    await fetch(apiUrl('/api/github/token'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

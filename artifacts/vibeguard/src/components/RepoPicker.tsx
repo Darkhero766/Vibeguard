@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Github, Lock, Globe, AlertCircle, Loader2, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { apiUrl } from '@/lib/api';
 
 type GithubRepo = {
   id: number;
@@ -40,7 +41,7 @@ export function RepoPicker({
     setLoading(true);
     setError(null);
 
-    fetch('/api/github/repos', {
+    fetch(apiUrl('/api/github/repos'), {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
       .then(async (r) => {

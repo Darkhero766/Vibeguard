@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useCreateScan, setAuthTokenGetter } from '@workspace/api-client-react';
+import { useCreateScan, setAuthTokenGetter, setBaseUrl } from '@workspace/api-client-react';
 import {
   AlertCircle, ArrowRight, Check, Clipboard, ExternalLink,
   FileSearch, Github, KeyRound, Lock, RefreshCw,
@@ -13,6 +13,12 @@ import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
 import { ScanProgress } from '@/components/ScanProgress';
 import { RepoPicker } from '@/components/RepoPicker';
+
+// Point the generated API client at the correct API server.
+// On Replit dev the Vite proxy handles /api → localhost:8080 so this is empty.
+// On Render set VITE_API_BASE_URL to the API service's origin.
+const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ?? '';
+setBaseUrl(apiBase || null);
 
 // Wire the Supabase session JWT into all generated API calls so the server
 // can look up the user's GitHub token for private repository scanning.
