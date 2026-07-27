@@ -4,9 +4,13 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
-// Supabase direct Postgres connection (SUPABASE_DB_URL) is the primary source.
-// DATABASE_URL (Replit-managed local Postgres) is kept as a dev fallback.
-const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
+// In development, prefer Replit's local Postgres (DATABASE_URL) which is always
+// reachable from the Replit sandbox. SUPABASE_DB_URL is used in production.
+// In production the order is reversed so the Supabase DB is authoritative.
+const connectionString =
+  process.env.NODE_ENV === "production"
+    ? process.env.SUPABASE_DB_URL || process.env.DATABASE_URL
+    : process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
 if (!connectionString) {
   throw new Error(
