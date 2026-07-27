@@ -4,29 +4,52 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
+// Supabase direct Postgres connection (SUPABASE_DB_URL) is the primary source.
+// DATABASE_URL (Replit-managed local Postgres) is kept as a dev fallback.
+const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
+
+if (!connectionString) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+    "SUPABASE_DB_URL is not set. Add the Supabase Postgres connection string as a Replit Secret.",
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Supabase requires SSL; local Replit Postgres does not.
+const isLocal =
+  connectionString.includes("localhost") ||
+  connectionString.includes("127.0.0.1") ||
+  connectionString.includes("helium") ||
+  connectionString.includes("sslmode=disable");
+
+export const pool = new Pool({
+  connectionString,
+  ssl: isLocal ? false : { rejectUnauthorized: false },
+});
+
 export const db = drizzle(pool, { schema });
 
 /**
  * Idempotent startup migration — creates any tables that don't yet exist.
- * Call this once before the HTTP server begins accepting requests so that both
- * the development and production databases are always in sync without a
- * separate migration step.
+ * Non-fatal: logs a warning if the database is unreachable (e.g. Supabase is
+ * not reachable from the Replit dev sandbox) so the server still starts locally.
+ * In the production deployment the database IS reachable and the table is
+ * created automatically on first boot.
  */
 export async function ensureTables(): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS github_tokens (
-      owner          uuid        PRIMARY KEY,
-      encrypted_token text       NOT NULL,
-      created_at     timestamptz NOT NULL DEFAULT now()
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS github_tokens (
+        owner           uuid        PRIMARY KEY,
+        encrypted_token text        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT now()
+      );
+    `);
+  } catch (err) {
+    console.warn(
+      "[db] ensureTables() could not reach the database — skipping migration.",
+      (err as Error).message,
     );
-  `);
+  }
 }
 
 export * from "./schema";
