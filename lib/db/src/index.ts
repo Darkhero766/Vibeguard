@@ -4,13 +4,12 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
-// In development, prefer Replit's local Postgres (DATABASE_URL) which is always
-// reachable from the Replit sandbox. SUPABASE_DB_URL is used in production.
-// In production the order is reversed so the Supabase DB is authoritative.
+// Always prefer SUPABASE_DB_URL when it is set — this is the authoritative
+// database for both development and production. Fall back to Replit's
+// runtime-managed DATABASE_URL only when SUPABASE_DB_URL is absent (e.g.
+// a purely local sandbox session with no Supabase project wired up).
 const connectionString =
-  process.env.NODE_ENV === "production"
-    ? process.env.SUPABASE_DB_URL || process.env.DATABASE_URL
-    : process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
+  process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
 
 if (!connectionString) {
   throw new Error(

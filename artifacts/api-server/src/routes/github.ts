@@ -1,9 +1,58 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
-import { db, githubTokens } from "@workspace/db";
 import { encryptToken, decryptToken } from "../lib/crypto";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { logger } from "../lib/logger";
+
+// Supabase REST API (PostgREST) — reachable via HTTPS from any environment,
+// unlike the direct Postgres connection which Replit's sandbox blocks.
+const supabaseUrl =
+  process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
+const supabaseAnonKey =
+  process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? "";
+
+function supabaseHeaders(userJwt: string) {
+  return {
+    apikey: supabaseAnonKey,
+    Authorization: `Bearer ${userJwt}`,
+    "Content-Type": "application/json",
+  };
+}
+
+/** Fetch the encrypted token row for a user via Supabase REST (PostgREST). */
+async function fetchTokenRow(
+  userId: string,
+  userJwt: string,
+): Promise<{ encrypted_token: string } | null> {
+  const url = `${supabaseUrl}/rest/v1/github_tokens?owner=eq.${encodeURIComponent(userId)}&select=encrypted_token&limit=1`;
+  const res = await fetch(url, { headers: supabaseHeaders(userJwt) });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Supabase REST error ${res.status}: ${body}`);
+  }
+  const rows = (await res.json()) as { encrypted_token: string }[];
+  return rows[0] ?? null;
+}
+
+/** Upsert (insert or replace) a github token row via Supabase REST. */
+async function upsertTokenRow(
+  userId: string,
+  encryptedToken: string,
+  userJwt: string,
+): Promise<void> {
+  const url = `${supabaseUrl}/rest/v1/github_tokens`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      ...supabaseHeaders(userJwt),
+      Prefer: "resolution=merge-duplicates",
+    },
+    body: JSON.stringify({ owner: userId, encrypted_token: encryptedToken }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Supabase REST upsert error ${res.status}: ${body}`);
+  }
+}
 
 const router = Router();
 
@@ -21,15 +70,7 @@ router.post("/github/token", requireAuth, async (req: AuthedRequest, res): Promi
 
   try {
     const encrypted = encryptToken(token);
-
-    await db
-      .insert(githubTokens)
-      .values({ owner: req.userId!, encryptedToken: encrypted })
-      .onConflictDoUpdate({
-        target: githubTokens.owner,
-        set: { encryptedToken: encrypted },
-      });
-
+    await upsertTokenRow(req.userId!, encrypted, req.userJwt!);
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, "Token encryption/storage failed");
@@ -52,31 +93,26 @@ type GitHubApiRepo = {
  * Fetches the user's accessible repositories from the GitHub API using their stored token.
  */
 router.get("/github/repos", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
+  const noConnection = {
+    error: "No GitHub connection found. Sign in with GitHub to enable private repo scanning.",
+  };
+
   try {
-    const [row] = await db
-      .select()
-      .from(githubTokens)
-      .where(eq(githubTokens.owner, req.userId!))
-      .limit(1);
+    const row = await fetchTokenRow(req.userId!, req.userJwt!);
 
     if (!row) {
-      res.status(404).json({
-        error: "No GitHub connection found. Sign in with GitHub to enable private repo scanning.",
-      });
+      res.status(404).json(noConnection);
       return;
     }
 
-    // If the encryption key is missing (e.g. after a redeployment), treat the
-    // stored token as unusable and ask the user to re-link their GitHub account.
+    // If the encryption key is missing after a redeployment, treat the stored
+    // token as unusable and prompt the user to re-link their GitHub account.
     if (!process.env.GITHUB_TOKEN_ENCRYPTION_KEY) {
-      res.status(404).json({
-        error:
-          "No GitHub connection found. Sign in with GitHub to enable private repo scanning.",
-      });
+      res.status(404).json(noConnection);
       return;
     }
 
-    const githubToken = decryptToken(row.encryptedToken);
+    const githubToken = decryptToken(row.encrypted_token);
 
     const response = await fetch(
       "https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator",
