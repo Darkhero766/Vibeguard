@@ -489,15 +489,13 @@ function Home() {
                       >
                         Paste URL
                       </button>
-                      {hasGithubToken && (
-                        <button
-                          type="button"
-                          onClick={() => setScanMode('picker')}
-                          className={`vg-button vg-focus px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'picker' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                        >
-                          My repos
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setScanMode('picker')}
+                        className={`vg-button vg-focus px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'picker' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        My repos
+                      </button>
                     </div>
 
                     {scanMode === 'url' ? (
