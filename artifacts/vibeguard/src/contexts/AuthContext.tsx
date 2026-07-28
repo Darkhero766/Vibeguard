@@ -3,28 +3,14 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase, type UsageRow } from '@/lib/supabase';
 import { apiUrl } from '@/lib/api';
 
-/** Store the user's GitHub OAuth token server-side (fire-and-forget). */
-async function persistGithubToken(githubToken: string, supabaseJwt: string): Promise<void> {
-  try {
-    await fetch(apiUrl('/api/github/token'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${supabaseJwt}`,
-      },
-      body: JSON.stringify({ token: githubToken }),
-    });
-  } catch {
-    // Non-fatal — user can still scan public repos
-  }
-}
-
 type AuthContextValue = {
   user: User | null;
   session: Session | null;
   usage: UsageRow | null;
   authLoading: boolean;
   usageLoading: boolean;
+  /** Incremented each time a GitHub OAuth token has been successfully persisted server-side. */
+  githubTokenVersion: number;
   signOut: () => Promise<void>;
   refreshUsage: () => Promise<void>;
 };
@@ -32,7 +18,6 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function ensureUsageRow(userId: string): Promise<UsageRow | null> {
-  // Try to fetch first
   const { data: existing } = await supabase
     .from('usage')
     .select('*')
@@ -41,7 +26,6 @@ async function ensureUsageRow(userId: string): Promise<UsageRow | null> {
 
   if (existing) return existing as UsageRow;
 
-  // Insert if missing (covers users created before trigger was installed)
   const { data: inserted } = await supabase
     .from('usage')
     .insert({ owner: userId, scans_used: 0, scans_limit: 1 })
@@ -57,6 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [usage, setUsage] = useState<UsageRow | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [usageLoading, setUsageLoading] = useState(false);
+  const [githubTokenVersion, setGithubTokenVersion] = useState(0);
   const lastUserId = useRef<string | null>(null);
 
   const refreshUsage = async () => {
@@ -106,7 +91,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           s.access_token &&
           s.user?.app_metadata?.provider === 'github'
         ) {
-          persistGithubToken(s.provider_token, s.access_token);
+          try {
+            await fetch(apiUrl('/api/github/token'), {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${s.access_token}`,
+              },
+              body: JSON.stringify({ token: s.provider_token }),
+            });
+            // Signal RepoPicker to re-fetch now that the token is stored.
+            setGithubTokenVersion((v) => v + 1);
+          } catch {
+            // Non-fatal — user can still scan public repos
+          }
         }
       }
     );
@@ -121,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, usage, authLoading, usageLoading, signOut, refreshUsage }}>
+    <AuthContext.Provider value={{ user, session, usage, authLoading, usageLoading, githubTokenVersion, signOut, refreshUsage }}>
       {children}
     </AuthContext.Provider>
   );

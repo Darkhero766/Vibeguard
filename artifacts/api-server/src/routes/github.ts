@@ -39,12 +39,15 @@ async function upsertTokenRow(
   encryptedToken: string,
   userJwt: string,
 ): Promise<void> {
-  const url = `${supabaseUrl}/rest/v1/github_tokens`;
+  // Pass ?on_conflict=owner so PostgREST targets the correct unique constraint
+  // (the table has both a PK on `id` and UNIQUE on `owner`; without the explicit
+  // target, merge-duplicates is ambiguous and the upsert is silently skipped).
+  const url = `${supabaseUrl}/rest/v1/github_tokens?on_conflict=owner`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
       ...supabaseHeaders(userJwt),
-      Prefer: "resolution=merge-duplicates",
+      Prefer: "resolution=merge-duplicates,return=minimal",
     },
     body: JSON.stringify({ owner: userId, encrypted_token: encryptedToken }),
   });

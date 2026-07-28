@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { Github, Lock, Globe, AlertCircle, Loader2, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { apiUrl } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 type GithubRepo = {
   id: number;
@@ -30,6 +31,7 @@ export function RepoPicker({
   onSelect: (repoUrl: string) => void;
   disabled?: boolean;
 }) {
+  const { githubTokenVersion } = useAuth();
   const [repos, setRepos] = useState<GithubRepo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,8 +43,12 @@ export function RepoPicker({
     setLoading(true);
     setError(null);
 
-    fetch(apiUrl('/api/github/repos'), {
-      headers: { Authorization: `Bearer ${session.access_token}` },
+    // Always get a fresh session token to avoid using a stale cached JWT.
+    supabase.auth.getSession().then(({ data: { session: fresh } }) => {
+      const token = fresh?.access_token ?? session.access_token;
+      return fetch(apiUrl('/api/github/repos'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
     })
       .then(async (r) => {
         const data = await r.json();
@@ -51,7 +57,9 @@ export function RepoPicker({
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [session?.access_token]);
+  // githubTokenVersion bumps after a new GitHub token is persisted server-side,
+  // ensuring we re-fetch even if access_token hasn't changed.
+  }, [session?.access_token, githubTokenVersion]);
 
   const handleConnectGithub = async () => {
     setConnectingGithub(true);
