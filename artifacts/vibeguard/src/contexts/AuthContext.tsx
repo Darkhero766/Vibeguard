@@ -85,11 +85,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // After a GitHub OAuth sign-in, persist the provider token server-side.
         // provider_token is only available right after the OAuth redirect.
+        // Check identities (not app_metadata.provider) so this works for users
+        // whose primary Supabase provider is Google but who also linked GitHub.
+        const hasGithubIdentity = s?.user?.identities?.some(
+          (id: { provider: string }) => id.provider === 'github'
+        );
         if (
           _event === 'SIGNED_IN' &&
           s?.provider_token &&
           s.access_token &&
-          s.user?.app_metadata?.provider === 'github'
+          hasGithubIdentity
         ) {
           try {
             await fetch(apiUrl('/api/github/token'), {
