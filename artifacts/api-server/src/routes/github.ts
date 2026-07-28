@@ -66,6 +66,16 @@ router.get("/github/repos", requireAuth, async (req: AuthedRequest, res): Promis
       return;
     }
 
+    // If the encryption key is missing (e.g. after a redeployment), treat the
+    // stored token as unusable and ask the user to re-link their GitHub account.
+    if (!process.env.GITHUB_TOKEN_ENCRYPTION_KEY) {
+      res.status(404).json({
+        error:
+          "No GitHub connection found. Sign in with GitHub to enable private repo scanning.",
+      });
+      return;
+    }
+
     const githubToken = decryptToken(row.encryptedToken);
 
     const response = await fetch(
