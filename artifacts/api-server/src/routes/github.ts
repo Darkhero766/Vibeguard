@@ -39,9 +39,6 @@ async function upsertTokenRow(
   encryptedToken: string,
   userJwt: string,
 ): Promise<void> {
-  // Pass ?on_conflict=owner so PostgREST targets the correct unique constraint
-  // (the table has both a PK on `id` and UNIQUE on `owner`; without the explicit
-  // target, merge-duplicates is ambiguous and the upsert is silently skipped).
   const url = `${supabaseUrl}/rest/v1/github_tokens?on_conflict=owner`;
   const res = await fetch(url, {
     method: "POST",
@@ -56,6 +53,21 @@ async function upsertTokenRow(
     throw new Error(`Supabase REST upsert error ${res.status}: ${body}`);
   }
 }
+
+// ─── In-memory repo cache ─────────────────────────────────────────────────────
+// Keyed by user id. Resets on server restart — acceptable tradeoff.
+type MappedRepo = {
+  id: number;
+  name: string;
+  fullName: string;
+  private: boolean;
+  htmlUrl: string;
+  updatedAt: string;
+  description: string | null;
+};
+type CacheEntry = { repos: MappedRepo[]; cachedAt: number };
+const repoCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 const router = Router();
 
@@ -74,10 +86,35 @@ router.post("/github/token", requireAuth, async (req: AuthedRequest, res): Promi
   try {
     const encrypted = encryptToken(token);
     await upsertTokenRow(req.userId!, encrypted, req.userJwt!);
+    // Invalidate any cached repo list so the next fetch is fresh.
+    repoCache.delete(req.userId!);
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, "Token encryption/storage failed");
     res.status(500).json({ error: "Failed to store token" });
+  }
+});
+
+/**
+ * DELETE /github/token
+ * Removes the user's stored GitHub OAuth token and clears their repo cache.
+ */
+router.delete("/github/token", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
+  try {
+    const url = `${supabaseUrl}/rest/v1/github_tokens?owner=eq.${encodeURIComponent(req.userId!)}`;
+    const deleteRes = await fetch(url, {
+      method: "DELETE",
+      headers: supabaseHeaders(req.userJwt!),
+    });
+    if (!deleteRes.ok) {
+      const body = await deleteRes.text();
+      throw new Error(`Supabase REST delete error ${deleteRes.status}: ${body}`);
+    }
+    repoCache.delete(req.userId!);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "Failed to disconnect GitHub token");
+    res.status(500).json({ error: "Failed to disconnect GitHub account" });
   }
 });
 
@@ -93,7 +130,8 @@ type GitHubApiRepo = {
 
 /**
  * GET /github/repos
- * Fetches the user's accessible repositories from the GitHub API using their stored token.
+ * Returns the user's repositories. Caches results for 5 minutes per user.
+ * Pass ?refresh=true to force a fresh fetch from GitHub.
  */
 router.get("/github/repos", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
   const noConnection = {
@@ -108,10 +146,16 @@ router.get("/github/repos", requireAuth, async (req: AuthedRequest, res): Promis
       return;
     }
 
-    // If the encryption key is missing after a redeployment, treat the stored
-    // token as unusable and prompt the user to re-link their GitHub account.
     if (!process.env.GITHUB_TOKEN_ENCRYPTION_KEY) {
       res.status(404).json(noConnection);
+      return;
+    }
+
+    // Return cached result unless ?refresh=true or cache has expired.
+    const forceRefresh = req.query.refresh === "true";
+    const cached = repoCache.get(req.userId!);
+    if (!forceRefresh && cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+      res.json(cached.repos);
       return;
     }
 
@@ -136,18 +180,18 @@ router.get("/github/repos", requireAuth, async (req: AuthedRequest, res): Promis
     }
 
     const repos = (await response.json()) as GitHubApiRepo[];
+    const mapped: MappedRepo[] = repos.map((r) => ({
+      id: r.id,
+      name: r.name,
+      fullName: r.full_name,
+      private: r.private,
+      htmlUrl: r.html_url,
+      updatedAt: r.updated_at,
+      description: r.description,
+    }));
 
-    res.json(
-      repos.map((r) => ({
-        id: r.id,
-        name: r.name,
-        fullName: r.full_name,
-        private: r.private,
-        htmlUrl: r.html_url,
-        updatedAt: r.updated_at,
-        description: r.description,
-      })),
-    );
+    repoCache.set(req.userId!, { repos: mapped, cachedAt: Date.now() });
+    res.json(mapped);
   } catch (err) {
     logger.error({ err }, "Failed to list GitHub repos");
     res.status(500).json({ error: "Failed to list repositories" });

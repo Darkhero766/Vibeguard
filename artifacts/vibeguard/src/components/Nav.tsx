@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { ChevronDown, LogOut, Menu, Shield, X } from 'lucide-react';
+import { ChevronDown, Github, Loader2, LogOut, Menu, Shield, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function Nav() {
-  const { user, usage, signOut } = useAuth();
+  const { user, usage, signOut, hasGithubToken, disconnectGithub } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [, navigate] = useLocation();
 
   const scansRemaining = usage
@@ -19,6 +21,25 @@ export function Nav() {
     setAccountOpen(false);
     await signOut();
     navigate('/');
+  };
+
+  const handleDisconnectClick = () => {
+    setShowDisconnectConfirm(true);
+  };
+
+  const handleDisconnectConfirm = async () => {
+    setDisconnecting(true);
+    try {
+      await disconnectGithub();
+    } finally {
+      setDisconnecting(false);
+      setShowDisconnectConfirm(false);
+      setAccountOpen(false);
+    }
+  };
+
+  const handleDisconnectCancel = () => {
+    setShowDisconnectConfirm(false);
   };
 
   return (
@@ -54,7 +75,7 @@ export function Nav() {
           {user ? (
             <div className="relative">
               <button
-                onClick={() => setAccountOpen((o) => !o)}
+                onClick={() => { setAccountOpen((o) => !o); setShowDisconnectConfirm(false); }}
                 className="vg-button vg-focus flex items-center gap-2 border border-border bg-card px-3 py-2 text-[12px] font-medium text-foreground hover:border-primary/50"
               >
                 <span className="max-w-[160px] truncate text-muted-foreground">{displayName}</span>
@@ -68,8 +89,8 @@ export function Nav() {
 
               {accountOpen && (
                 <>
-                  <div className="fixed inset-0 z-40" onClick={() => setAccountOpen(false)} />
-                  <div className="absolute right-0 top-full z-50 mt-1.5 w-56 border border-border bg-card shadow-lg">
+                  <div className="fixed inset-0 z-40" onClick={() => { setAccountOpen(false); setShowDisconnectConfirm(false); }} />
+                  <div className="absolute right-0 top-full z-50 mt-1.5 w-64 border border-border bg-card shadow-lg">
                     <div className="border-b border-border p-3">
                       <p className="truncate text-[11px] font-semibold text-foreground">{displayName}</p>
                       {scansRemaining !== null && (
@@ -78,15 +99,51 @@ export function Nav() {
                         </p>
                       )}
                     </div>
-                    <div className="p-1.5">
-                      <button
-                        onClick={handleSignOut}
-                        className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
-                      >
-                        <LogOut size={13} />
-                        Log out
-                      </button>
-                    </div>
+
+                    {/* Disconnect GitHub confirm prompt */}
+                    {showDisconnectConfirm ? (
+                      <div className="p-3 space-y-2.5">
+                        <p className="text-[11px] leading-5 text-foreground">
+                          This will remove VibeGuard's access to your GitHub repositories. You can also revoke access directly from GitHub's settings (Settings → Applications → Authorized OAuth Apps). Continue?
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleDisconnectConfirm}
+                            disabled={disconnecting}
+                            className="vg-button vg-focus flex flex-1 items-center justify-center gap-1.5 border border-[#b56b5c] bg-[#f6e9e5] px-3 py-1.5 text-[11px] font-semibold text-[#7f3a31] hover:bg-[#f0dbd6] disabled:opacity-50"
+                          >
+                            {disconnecting ? <Loader2 size={11} className="animate-spin" /> : null}
+                            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+                          </button>
+                          <button
+                            onClick={handleDisconnectCancel}
+                            disabled={disconnecting}
+                            className="vg-button vg-focus flex-1 border border-border bg-background px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-1.5">
+                        {hasGithubToken && (
+                          <button
+                            onClick={handleDisconnectClick}
+                            className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                          >
+                            <Github size={13} />
+                            Disconnect GitHub
+                          </button>
+                        )}
+                        <button
+                          onClick={handleSignOut}
+                          className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <LogOut size={13} />
+                          Log out
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -143,6 +200,38 @@ export function Nav() {
                   <p className="text-[12px] text-muted-foreground truncate">{displayName}</p>
                   {scansRemaining !== null && (
                     <p className="font-mono text-[11px] text-primary">Scans remaining: {scansRemaining}</p>
+                  )}
+                  {hasGithubToken && (
+                    showDisconnectConfirm ? (
+                      <div className="space-y-2 rounded border border-border bg-card p-3">
+                        <p className="text-[11px] leading-5 text-foreground">
+                          This will remove VibeGuard's access to your GitHub repositories. You can also revoke access directly from GitHub's settings. Continue?
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleDisconnectConfirm}
+                            disabled={disconnecting}
+                            className="flex flex-1 items-center justify-center gap-1.5 border border-[#b56b5c] bg-[#f6e9e5] px-3 py-1.5 text-[11px] font-semibold text-[#7f3a31] disabled:opacity-50"
+                          >
+                            {disconnecting ? <Loader2 size={11} className="animate-spin" /> : null}
+                            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+                          </button>
+                          <button
+                            onClick={handleDisconnectCancel}
+                            className="flex-1 border border-border bg-background px-3 py-1.5 text-[11px] text-muted-foreground"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleDisconnectClick}
+                        className="flex items-center gap-2 text-[12px] text-muted-foreground"
+                      >
+                        <Github size={13} /> Disconnect GitHub
+                      </button>
+                    )
                   )}
                   <button
                     onClick={() => { setMenuOpen(false); handleSignOut(); }}

@@ -11,8 +11,12 @@ type AuthContextValue = {
   usageLoading: boolean;
   /** Incremented each time a GitHub OAuth token has been successfully persisted server-side. */
   githubTokenVersion: number;
+  /** Whether the current user has a stored GitHub token. null = not yet checked. */
+  hasGithubToken: boolean | null;
   signOut: () => Promise<void>;
   refreshUsage: () => Promise<void>;
+  /** Deletes the stored GitHub token and clears the connected state. */
+  disconnectGithub: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -42,6 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authLoading, setAuthLoading] = useState(true);
   const [usageLoading, setUsageLoading] = useState(false);
   const [githubTokenVersion, setGithubTokenVersion] = useState(0);
+  const [hasGithubToken, setHasGithubToken] = useState<boolean | null>(null);
   const lastUserId = useRef<string | null>(null);
 
   const refreshUsage = async () => {
@@ -53,6 +58,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setUsageLoading(false);
     }
+  };
+
+  const disconnectGithub = async () => {
+    const currentSession = (await supabase.auth.getSession()).data.session;
+    if (!currentSession?.access_token) return;
+    await fetch(apiUrl('/api/github/token'), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${currentSession.access_token}` },
+    });
+    setHasGithubToken(false);
   };
 
   useEffect(() => {
@@ -78,9 +93,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } finally {
             setUsageLoading(false);
           }
+
+          // Check whether this user has a stored GitHub token.
+          supabase
+            .from('github_tokens')
+            .select('id')
+            .eq('owner', u.id)
+            .maybeSingle()
+            .then(({ data }) => setHasGithubToken(!!data));
         } else if (!u) {
           lastUserId.current = null;
           setUsage(null);
+          setHasGithubToken(null);
         }
 
         // After a GitHub OAuth sign-in, persist the provider token server-side.
@@ -105,8 +129,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               },
               body: JSON.stringify({ token: s.provider_token }),
             });
-            // Signal RepoPicker to re-fetch now that the token is stored.
             setGithubTokenVersion((v) => v + 1);
+            setHasGithubToken(true);
           } catch {
             // Non-fatal — user can still scan public repos
           }
@@ -120,11 +144,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setUsage(null);
+    setHasGithubToken(null);
     lastUserId.current = null;
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, usage, authLoading, usageLoading, githubTokenVersion, signOut, refreshUsage }}>
+    <AuthContext.Provider value={{ user, session, usage, authLoading, usageLoading, githubTokenVersion, hasGithubToken, signOut, refreshUsage, disconnectGithub }}>
       {children}
     </AuthContext.Provider>
   );

@@ -5,7 +5,7 @@ import {
   FileSearch, Github, KeyRound, Lock, RefreshCw,
   ShieldCheck, ShieldOff, Wifi, Zap,
 } from 'lucide-react';
-import { FormEvent, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Route, Router as WouterRouter, Switch } from 'wouter';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -341,12 +341,19 @@ function HowItWorks() {
 // ─── Home page ───────────────────────────────────────────────────────────────
 
 function Home() {
-  const { user, session, usage, usageLoading, refreshUsage } = useAuth();
+  const { user, session, usage, usageLoading, refreshUsage, hasGithubToken } = useAuth();
   const [repoUrl, setRepoUrl] = useState('');
   const [validationError, setValidationError] = useState('');
   const [copied, setCopied] = useState(false);
   const [scanBlocked, setScanBlocked] = useState(false);
   const [scanMode, setScanMode] = useState<'url' | 'picker'>('url');
+
+  // When GitHub is disconnected, drop back to URL mode automatically.
+  useEffect(() => {
+    if (hasGithubToken === false && scanMode === 'picker') {
+      setScanMode('url');
+    }
+  }, [hasGithubToken]);
   const inputRef = useRef<HTMLInputElement>(null);
   const scanMutation = useCreateScan();
   const report = scanMutation.data as ScanReport | undefined;
@@ -482,13 +489,15 @@ function Home() {
                       >
                         Paste URL
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setScanMode('picker')}
-                        className={`vg-button vg-focus px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'picker' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                      >
-                        My repos
-                      </button>
+                      {hasGithubToken && (
+                        <button
+                          type="button"
+                          onClick={() => setScanMode('picker')}
+                          className={`vg-button vg-focus px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'picker' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                          My repos
+                        </button>
+                      )}
                     </div>
 
                     {scanMode === 'url' ? (
