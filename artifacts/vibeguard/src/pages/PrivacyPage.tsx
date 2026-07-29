@@ -30,7 +30,7 @@ export default function PrivacyPage() {
               <section>
                 <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">What we do NOT collect</h2>
                 <ul className="space-y-2 text-muted-foreground">
-                  <li>We do not store the source code of any scanned repository. VibeGuard only scans public repositories, and the temporary copy used during a scan is deleted immediately afterwards.</li>
+                  <li>We do not store the source code of any scanned repository. VibeSane only scans public repositories, and the temporary copy used during a scan is deleted immediately afterwards.</li>
                   <li>We do not sell or share your personal data with third parties for advertising.</li>
                   <li>We do not track you across other websites.</li>
                 </ul>
@@ -39,7 +39,7 @@ export default function PrivacyPage() {
               <section>
                 <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">Scan results</h2>
                 <p className="text-muted-foreground">
-                  Scan findings are returned directly to your browser session and are not stored on our servers. VibeGuard's checks are automated and heuristic — they are not a substitute for a professional security audit.
+                  Scan findings are returned directly to your browser session and are not stored on our servers. VibeSane's checks are automated and heuristic — they are not a substitute for a professional security audit.
                 </p>
               </section>
 

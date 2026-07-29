@@ -3,7 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { ChevronDown, Github, Loader2, LogOut, Menu, Shield, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
-export function Nav() {
+export function Nav({ onReset }: { onReset?: () => void } = {}) {
   const { user, usage, signOut, hasGithubToken, disconnectGithub } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -46,12 +46,12 @@ export function Nav() {
     <header className="sticky top-0 z-50 border-b border-border/80 bg-background/95 backdrop-blur-sm">
       <div className="mx-auto flex w-full max-w-[1040px] items-center justify-between gap-4 px-5 py-4 sm:px-8">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 shrink-0">
+        <Link href="/" onClick={onReset} className="flex items-center gap-2.5 shrink-0">
           <span className="relative flex h-6 w-6 items-center justify-center border border-primary/60 text-primary">
             <span className="absolute h-2.5 w-2.5 border border-primary/80" />
             <span className="h-1 w-1 bg-primary" />
           </span>
-          <span className="text-[15px] font-extrabold tracking-[-0.03em]">VibeGuard</span>
+          <span className="text-[15px] font-extrabold tracking-[-0.03em]">VibeSane</span>
         </Link>
 
         {/* Desktop nav links */}
@@ -104,7 +104,7 @@ export function Nav() {
                     {showDisconnectConfirm ? (
                       <div className="p-3 space-y-2.5">
                         <p className="text-[11px] leading-5 text-foreground">
-                          This will remove VibeGuard's access to your GitHub repositories. You can also revoke access directly from GitHub's settings (Settings → Applications → Authorized OAuth Apps). Continue?
+                          This will remove VibeSane's access to your GitHub repositories. You can also revoke access directly from GitHub's settings (Settings → Applications → Authorized OAuth Apps). Continue?
                         </p>
                         <div className="flex gap-2">
                           <button
@@ -205,7 +205,7 @@ export function Nav() {
                     showDisconnectConfirm ? (
                       <div className="space-y-2 rounded border border-border bg-card p-3">
                         <p className="text-[11px] leading-5 text-foreground">
-                          This will remove VibeGuard's access to your GitHub repositories. You can also revoke access directly from GitHub's settings. Continue?
+                          This will remove VibeSane's access to your GitHub repositories. You can also revoke access directly from GitHub's settings. Continue?
                         </p>
                         <div className="flex gap-2">
                           <button

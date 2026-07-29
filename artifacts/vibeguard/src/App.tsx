@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useCreateScan, setAuthTokenGetter, setBaseUrl } from '@workspace/api-client-react';
 import {
-  AlertCircle, ArrowRight, Check, Clipboard, ExternalLink,
+  AlertCircle, ArrowLeft, ArrowRight, Check, Clipboard, ExternalLink,
   FileSearch, Github, KeyRound, Lock, RefreshCw,
   ShieldCheck, ShieldOff, Wifi, Zap,
 } from 'lucide-react';
@@ -177,7 +177,7 @@ function CleanResult({ report }: { report: ScanReport }) {
       </div>
       <h2 className="mt-6 text-[24px] font-bold tracking-[-0.035em]">No high-signal issues found.</h2>
       <p className="mt-2.5 max-w-xl text-[14px] leading-6 text-muted-foreground">
-        VibeGuard checked all {report.filesScanned} files and did not find any of the security patterns it looks for.
+        VibeSane checked all {report.filesScanned} files and did not find any of the security patterns it looks for.
       </p>
       <div className="mt-6 flex flex-wrap gap-5 font-mono text-[11px] uppercase tracking-[0.1em] text-[#66763e]">
         <span>{report.filesScanned} files scanned</span>
@@ -223,12 +223,19 @@ function UpgradeWall() {
 
 // ─── Report view ─────────────────────────────────────────────────────────────
 
-function Report({ report, onRescan, onCopy, copied }: {
-  report: ScanReport; onRescan: () => void; onCopy: () => void; copied: boolean;
+function Report({ report, onRescan, onCopy, copied, onBack }: {
+  report: ScanReport; onRescan: () => void; onCopy: () => void; copied: boolean; onBack: () => void;
 }) {
   return (
     <section className="vg-rise mt-10 pb-20">
       <div className="border-b border-border pb-6">
+        <button
+          onClick={onBack}
+          className="vg-button vg-focus mb-6 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground"
+          type="button"
+        >
+          <ArrowLeft size={12} /> Back to home
+        </button>
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-primary">
@@ -299,7 +306,7 @@ function HowItWorks() {
       icon: <FileSearch size={22} strokeWidth={1.6} />,
       num: '02',
       title: 'We scan for five security patterns',
-      desc: 'VibeGuard checks for RLS gaps, unauthenticated database writes, client-side service_role keys, unprotected SECURITY DEFINER functions, and committed .env files.',
+      desc: 'VibeSane checks for RLS gaps, unauthenticated database writes, client-side service_role keys, unprotected SECURITY DEFINER functions, and committed .env files.',
     },
     {
       icon: <Lock size={22} strokeWidth={1.6} />,
@@ -413,10 +420,18 @@ function Home() {
 
   const handleRescan = () => runScan(report?.repoUrl ?? repoUrl);
 
+  const handleReset = () => {
+    scanMutation.reset();
+    setRepoUrl('');
+    setValidationError('');
+    setScanBlocked(false);
+    setCopied(false);
+  };
+
   const handleCopy = async () => {
     if (!report) return;
     const text = [
-      `VibeGuard report — ${report.repo}`,
+      `VibeSane report — ${report.repo}`,
       `Repository: ${report.repoUrl}`,
       `Scanned: ${formatDate(report.scannedAt)}`,
       `Files scanned: ${report.filesScanned}`,
@@ -437,7 +452,7 @@ function Home() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background">
-      <Nav />
+      <Nav onReset={handleReset} />
       <main className="flex-1">
         <div className="vg-grid pointer-events-none absolute inset-x-0 top-0 h-[340px] opacity-50" />
         <div className="relative mx-auto w-full max-w-[1040px] px-5 sm:px-8">
@@ -577,7 +592,7 @@ function Home() {
 
           {/* ── Results ── */}
           {report && !isScanning && (
-            <Report copied={copied} onCopy={handleCopy} onRescan={handleRescan} report={report} />
+            <Report copied={copied} onCopy={handleCopy} onRescan={handleRescan} report={report} onBack={handleReset} />
           )}
         </div>
       </main>

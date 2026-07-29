@@ -104,7 +104,7 @@ export default function AuthPage() {
               <span className="absolute h-2.5 w-2.5 border border-primary/80" />
               <span className="h-1 w-1 bg-primary" />
             </span>
-            <span className="text-[14px] font-extrabold tracking-[-0.03em]">VibeGuard</span>
+            <span className="text-[14px] font-extrabold tracking-[-0.03em]">VibeSane</span>
           </div>
 
           <h1 className="mt-8 text-[26px] font-bold tracking-[-0.04em]">
@@ -135,7 +135,7 @@ export default function AuthPage() {
           <div className="mt-2.5 flex items-start gap-2 border border-border bg-secondary/60 px-3 py-2.5">
             <Info size={12} className="mt-0.5 shrink-0 text-muted-foreground" />
             <p className="text-[11px] leading-[1.55] text-muted-foreground">
-              VibeGuard requests read access to your repositories to scan them for security issues.
+              VibeSane requests read access to your repositories to scan them for security issues.
               We do not store your code — only your GitHub access token, encrypted, so you don't
               have to re-authenticate each session. You can revoke this access anytime from your
               GitHub settings.

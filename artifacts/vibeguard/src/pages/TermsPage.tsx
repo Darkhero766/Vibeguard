@@ -21,14 +21,14 @@ export default function TermsPage() {
               <section>
                 <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">1. Acceptance of Terms</h2>
                 <p className="text-muted-foreground">
-                  By accessing or using VibeGuard ("the Service"), you agree to be bound by these Terms of Service. If you do not agree, please do not use the Service.
+                  By accessing or using VibeSane ("the Service"), you agree to be bound by these Terms of Service. If you do not agree, please do not use the Service.
                 </p>
               </section>
 
               <section>
                 <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">2. Description of Service</h2>
                 <p className="text-muted-foreground">
-                  VibeGuard is a static security analysis tool that scans <strong className="text-foreground">publicly accessible GitHub repositories only</strong>. The Service fetches repository source files using a shallow, no-checkout Git clone, inspects tracked blobs for security misconfigurations, and returns a report. No repository code is executed. The temporary clone is deleted immediately after each scan.
+                  VibeSane is a static security analysis tool that scans <strong className="text-foreground">publicly accessible GitHub repositories only</strong>. The Service fetches repository source files using a shallow, no-checkout Git clone, inspects tracked blobs for security misconfigurations, and returns a report. No repository code is executed. The temporary clone is deleted immediately after each scan.
                 </p>
               </section>
 
@@ -42,21 +42,21 @@ export default function TermsPage() {
               <section>
                 <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">4. Usage Limits</h2>
                 <p className="text-muted-foreground">
-                  Free accounts are limited to <strong className="text-foreground">1 scan per account</strong>. VibeGuard reserves the right to adjust these limits at any time. Attempting to circumvent usage limits (e.g. by creating multiple accounts) is a violation of these Terms.
+                  Free accounts are limited to <strong className="text-foreground">1 scan per account</strong>. VibeSane reserves the right to adjust these limits at any time. Attempting to circumvent usage limits (e.g. by creating multiple accounts) is a violation of these Terms.
                 </p>
               </section>
 
               <section>
                 <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">5. No Warranty</h2>
                 <p className="text-muted-foreground">
-                  The Service is provided "as is" without warranties of any kind. VibeGuard does not guarantee that scans are complete, accurate, or free from errors. Security findings are automated and heuristic — they may include false positives or miss actual vulnerabilities. <strong className="text-foreground">This tool is not a substitute for a professional security audit.</strong>
+                  The Service is provided "as is" without warranties of any kind. VibeSane does not guarantee that scans are complete, accurate, or free from errors. Security findings are automated and heuristic — they may include false positives or miss actual vulnerabilities. <strong className="text-foreground">This tool is not a substitute for a professional security audit.</strong>
                 </p>
               </section>
 
               <section>
                 <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">6. Data &amp; Privacy</h2>
                 <p className="text-muted-foreground">
-                  VibeGuard scans publicly available source code only. <strong className="text-foreground">We do not store the contents of any scanned repository.</strong> Your account information (email address) and scan usage count are stored solely to enforce usage limits. See our <a href="/privacy" className="text-primary underline underline-offset-4">Privacy Policy</a> for details.
+                  VibeSane scans publicly available source code only. <strong className="text-foreground">We do not store the contents of any scanned repository.</strong> Your account information (email address) and scan usage count are stored solely to enforce usage limits. See our <a href="/privacy" className="text-primary underline underline-offset-4">Privacy Policy</a> for details.
                 </p>
               </section>
 
