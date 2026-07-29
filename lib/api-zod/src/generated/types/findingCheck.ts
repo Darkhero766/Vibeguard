@@ -17,4 +17,5 @@ export const FindingCheck = {
   committed_env_file: 'committed_env_file',
   hardcoded_secret: 'hardcoded_secret',
   cors_wildcard: 'cors_wildcard',
+  fake_env_example: 'fake_env_example',
 } as const;

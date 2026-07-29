@@ -406,6 +406,79 @@ function scanGenericSecrets(files: RepositoryFile[]): Finding[] {
   return findings;
 }
 
+function scanFakeEnvExample(files: RepositoryFile[]): Finding[] {
+  const findings: Finding[] = [];
+  const envExamplePattern = /(^|\/)\.env\.(example|sample|template)$/i;
+
+  // Patterns that strongly indicate a real credential (not a placeholder)
+  const specificPatterns: Array<{ pattern: RegExp; name: string }> = [
+    { pattern: /eyJ[A-Za-z0-9_-]{20,}/g, name: "JWT token" },
+    { pattern: /sk_live_[a-zA-Z0-9]{10,}/g, name: "Stripe live secret key" },
+    { pattern: /pk_live_[a-zA-Z0-9]{10,}/g, name: "Stripe live publishable key" },
+    { pattern: /AKIA[0-9A-Z]{16}/g, name: "AWS access key ID" },
+    { pattern: /ghp_[A-Za-z0-9]{36}/g, name: "GitHub personal access token" },
+    { pattern: /xoxb-[0-9A-Za-z-]{24,}/g, name: "Slack bot token" },
+  ];
+
+  // A value is a safe placeholder if it matches any of these
+  const isPlaceholder = (v: string): boolean =>
+    !v ||
+    v.length < 6 ||
+    /your_|xxx+|changeme|<[^>]+>|TODO|example|placeholder|replace|insert|enter_your|my_|fake|test_|dummy|sample|\[|\$\{|{{/i.test(v);
+
+  for (const file of files.filter((f) => envExamplePattern.test(f.path))) {
+    const alreadyFlagged = new Set<number>();
+
+    // 1. Specific high-confidence patterns
+    for (const { pattern, name } of specificPatterns) {
+      for (const match of file.content.matchAll(pattern)) {
+        const line = lineNumberAt(file.content, match.index ?? 0);
+        if (alreadyFlagged.has(line)) continue;
+        alreadyFlagged.add(line);
+        findings.push(
+          finding(
+            `fake-env-${file.path}-${line}-${name}`,
+            "High",
+            `Real ${name} committed in template env file`,
+            `This looks like a real credential committed inside what should be a placeholder template file (${file.path}). Template env files should only contain placeholder values like "your_api_key_here". Rotate this credential immediately.`,
+            file.path,
+            line,
+            "fake_env_example",
+          ),
+        );
+      }
+    }
+
+    // 2. General KEY=value lines: flag long non-placeholder values
+    const lines = file.content.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const lineNum = i + 1;
+      if (alreadyFlagged.has(lineNum)) continue;
+      const m = /^[A-Z_][A-Z0-9_]*\s*=\s*(.+)$/i.exec(lines[i].trim());
+      if (!m) continue;
+      const value = m[1].trim().replace(/^["']|["']$/g, "");
+      if (isPlaceholder(value)) continue;
+      if (value.length < 20) continue;
+      // Must look like a real secret: dense alphanumeric, no spaces
+      if (!/^[a-zA-Z0-9_.+/\-=]{20,}$/.test(value)) continue;
+      alreadyFlagged.add(lineNum);
+      findings.push(
+        finding(
+          `fake-env-${file.path}-${lineNum}-value`,
+          "High",
+          "Real-looking secret value in template env file",
+          `This looks like a real credential committed inside what should be a placeholder template file (${file.path}). Template env files should only contain placeholder values like "your_api_key_here". Rotate this credential immediately if real.`,
+          file.path,
+          lineNum,
+          "fake_env_example",
+        ),
+      );
+    }
+  }
+
+  return findings;
+}
+
 function scanCorsWildcard(files: RepositoryFile[]): Finding[] {
   const findings: Finding[] = [];
   const configFilePattern = /(?:^|\/)next\.config\.[cm]?[jt]sx?$/i;
@@ -445,6 +518,7 @@ export async function scanPublicRepository(
     ...scanUnprotectedRpc(repository.files),
     ...scanCorsWildcard(repository.files),
     ...scanCommittedEnvFile(repository.files),
+    ...scanFakeEnvExample(repository.files),
   ]).sort((a, b) => a.filePath.localeCompare(b.filePath) || a.line - b.line);
 
   return {

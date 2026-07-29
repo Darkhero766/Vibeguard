@@ -223,6 +223,52 @@ function UpgradeWall() {
 
 // ─── Report view ─────────────────────────────────────────────────────────────
 
+function BadgeSnippet({ report }: { report: ScanReport }) {
+  const [copied, setCopied] = useState(false);
+  const badgeUrl = `${window.location.origin}/api/badge/${report.repo}`;
+  const markdown = `![VibeSane](${badgeUrl})`;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(markdown);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2400);
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="mt-8 border border-border bg-card p-5">
+      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+        README badge
+      </p>
+      <p className="mt-1.5 text-[13px] text-muted-foreground">
+        Paste this into your README to show live scan status.
+      </p>
+      <div className="mt-3 flex items-center gap-2">
+        <code className="flex-1 overflow-x-auto rounded-none border border-border bg-muted px-3 py-2 font-mono text-[11px] text-foreground whitespace-nowrap">
+          {markdown}
+        </code>
+        <button
+          onClick={copy}
+          type="button"
+          className="vg-button vg-focus shrink-0 inline-flex items-center gap-1.5 border border-border bg-card px-3 py-2 text-[11px] font-semibold text-foreground hover:border-primary/50 hover:text-primary"
+        >
+          {copied ? <Check size={12} /> : <Clipboard size={12} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <a
+        href={badgeUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="vg-focus mt-2.5 inline-flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground underline decoration-border underline-offset-4 hover:text-primary"
+      >
+        Preview badge image <ExternalLink size={10} />
+      </a>
+    </div>
+  );
+}
+
 function Report({ report, onRescan, onCopy, copied, onBack }: {
   report: ScanReport; onRescan: () => void; onCopy: () => void; copied: boolean; onBack: () => void;
 }) {
@@ -285,8 +331,10 @@ function Report({ report, onRescan, onCopy, copied, onBack }: {
         <div className="mt-6"><CleanResult report={report} /></div>
       )}
 
+      <BadgeSnippet report={report} />
+
       <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-        scope: public source files · five high-signal checks
+        scope: public source files · six high-signal checks
       </p>
     </section>
   );

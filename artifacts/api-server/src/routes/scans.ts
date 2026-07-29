@@ -3,6 +3,7 @@ import { CreateScanBody, CreateScanResponse } from "@workspace/api-zod";
 import { scanPublicRepository } from "../lib/scanner";
 import { optionalAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
+import { cacheScanResult } from "../lib/scanCache";
 
 const router: IRouter = Router();
 
@@ -29,6 +30,9 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
 
   try {
     const report = await scanPublicRepository(parsed.data.repoUrl, githubToken);
+    // Cache result for badge endpoint (keyed by owner/repo)
+    const repoKey = report.repo; // already "owner/repo"
+    cacheScanResult(repoKey, report);
     res.json(CreateScanResponse.parse(report));
   } catch (error) {
     const status = typeof error === "object" && error !== null && "status" in error
