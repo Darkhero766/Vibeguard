@@ -52,7 +52,7 @@ export default function PricingPage() {
                 <span className="text-[40px] font-extrabold tracking-[-0.05em]">$0</span>
                 <span className="mb-2 text-[14px] text-muted-foreground">/ forever</span>
               </div>
-              <p className="mt-2 text-[13px] text-muted-foreground">For developers trying VibeGuard once.</p>
+              <p className="mt-2 text-[13px] text-muted-foreground">For developers trying VibeSane once.</p>
 
               <Link
                 href="/auth?mode=signup"

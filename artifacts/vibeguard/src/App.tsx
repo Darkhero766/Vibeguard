@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useCreateScan, setAuthTokenGetter, setBaseUrl } from '@workspace/api-client-react';
 import {
-  AlertCircle, ArrowLeft, ArrowRight, Check, Clipboard, ExternalLink,
-  FileSearch, Github, KeyRound, Lock, RefreshCw,
-  ShieldCheck, ShieldOff, Wifi, Zap,
+  AlertCircle, ArrowLeft, ArrowRight, Check, Clipboard, Code2, Database,
+  ExternalLink, Eye, FileSearch, FileWarning, Github, KeyRound, Lock,
+  RefreshCw, ShieldCheck, ShieldOff, Terminal, Wifi, Zap,
 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Route, Router as WouterRouter, Switch } from 'wouter';
@@ -340,6 +340,141 @@ function Report({ report, onRescan, onCopy, copied, onBack }: {
   );
 }
 
+// ─── Trust bar ───────────────────────────────────────────────────────────────
+
+function TrustBar() {
+  const items = [
+    { icon: <Lock size={12} strokeWidth={2} />, label: 'Read-only clone' },
+    { icon: <ShieldCheck size={12} strokeWidth={2} />, label: 'No code stored' },
+    { icon: <Eye size={12} strokeWidth={2} />, label: 'Six signal checks' },
+    { icon: <Wifi size={12} strokeWidth={2} />, label: 'Results in seconds' },
+  ];
+  return (
+    <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border pt-7">
+      {items.map((item) => (
+        <span key={item.label} className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="text-primary">{item.icon}</span>
+          {item.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ─── Checks grid ─────────────────────────────────────────────────────────────
+
+function ChecksGrid() {
+  const checks = [
+    {
+      icon: <Database size={18} strokeWidth={1.6} />,
+      severity: 'Critical',
+      title: 'Missing RLS policies',
+      desc: 'Tables without Row Level Security let any authenticated user read or write every row. A single missing policy exposes your entire dataset.',
+    },
+    {
+      icon: <Wifi size={18} strokeWidth={1.6} />,
+      severity: 'Critical',
+      title: 'Unauthenticated database writes',
+      desc: 'Supabase client calls made outside any auth guard allow anonymous users to insert or delete records freely.',
+    },
+    {
+      icon: <KeyRound size={18} strokeWidth={1.6} />,
+      severity: 'Critical',
+      title: 'Client-side service_role key',
+      desc: 'The service_role key bypasses all RLS policies. Shipping it in browser code hands every visitor full admin access to your database.',
+    },
+    {
+      icon: <Terminal size={18} strokeWidth={1.6} />,
+      severity: 'High',
+      title: 'Unprotected SECURITY DEFINER',
+      desc: 'Postgres functions marked SECURITY DEFINER run as their owner. Without an explicit search_path they are vulnerable to privilege escalation.',
+    },
+    {
+      icon: <FileSearch size={18} strokeWidth={1.6} />,
+      severity: 'High',
+      title: 'Committed .env secrets',
+      desc: 'Environment files checked into source control broadcast API keys, database passwords, and service tokens to anyone who can read the repo.',
+    },
+    {
+      icon: <FileWarning size={18} strokeWidth={1.6} />,
+      severity: 'High',
+      title: 'Real credentials in .env.example',
+      desc: '.env.example is meant to hold placeholders. When it contains real JWTs, live Stripe keys, or AWS credentials it silently leaks production secrets.',
+    },
+  ];
+
+  const badgeColor: Record<string, string> = {
+    Critical: 'text-[#963f34] bg-[#f6e9e5] border-[#e5c8c1]',
+    High: 'text-[#a06427] bg-[#f8efe1] border-[#e7d3b3]',
+  };
+
+  return (
+    <section className="mt-20 border-t border-border pt-14 pb-6">
+      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
+        <span className="inline-block h-px w-8 bg-primary" />
+        What VibeSane catches
+      </div>
+      <h2 className="mt-5 max-w-lg text-[28px] font-extrabold tracking-[-0.04em] sm:text-[36px]">
+        Six checks. The ones that actually matter.
+      </h2>
+      <p className="mt-3 max-w-[520px] text-[14px] leading-6 text-muted-foreground">
+        These patterns are responsible for the overwhelming majority of Next.js and Supabase security incidents — and vibecoding assistants introduce them constantly.
+      </p>
+      <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {checks.map((check) => (
+          <div key={check.title} className="group border border-border bg-card p-5 transition-colors hover:border-primary/40">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-primary/30 text-primary group-hover:border-primary/60 transition-colors">
+                {check.icon}
+              </div>
+              <span className={`inline-flex items-center border px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-[0.12em] ${badgeColor[check.severity]}`}>
+                {check.severity}
+              </span>
+            </div>
+            <h3 className="mt-4 text-[14px] font-bold tracking-[-0.02em] leading-snug">{check.title}</h3>
+            <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">{check.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Bottom CTA ──────────────────────────────────────────────────────────────
+
+function BottomCTA() {
+  return (
+    <section className="mt-6 mb-20 border border-primary/20 bg-primary/[0.04] p-10 sm:p-14">
+      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
+        <span className="inline-block h-px w-8 bg-primary" />
+        Free to start
+      </div>
+      <h2 className="mt-5 max-w-xl text-[26px] font-extrabold tracking-[-0.04em] sm:text-[34px]">
+        Ship with confidence.<br className="hidden sm:block" /> Catch the bugs before your users do.
+      </h2>
+      <p className="mt-3 max-w-lg text-[14px] leading-6 text-muted-foreground">
+        No installation. No tokens. Paste a GitHub URL and get a security report in under 30 seconds. Free for your first scan.
+      </p>
+      <div className="mt-8 flex flex-wrap items-center gap-3">
+        <a
+          href="/auth?mode=signup"
+          className="vg-button vg-focus inline-flex items-center gap-2 border border-primary bg-primary px-5 py-3 text-[13px] font-bold text-primary-foreground hover:bg-primary/90"
+        >
+          <KeyRound size={15} strokeWidth={2} />
+          Start scanning — it's free
+          <ArrowRight size={14} />
+        </a>
+        <a
+          href="/pricing"
+          className="vg-button vg-focus border border-border bg-card px-5 py-3 text-[13px] font-semibold text-foreground hover:border-primary/50"
+        >
+          See pricing
+        </a>
+      </div>
+    </section>
+  );
+}
+
 // ─── How it works section ────────────────────────────────────────────────────
 
 function HowItWorks() {
@@ -353,8 +488,8 @@ function HowItWorks() {
     {
       icon: <FileSearch size={22} strokeWidth={1.6} />,
       num: '02',
-      title: 'We scan for five security patterns',
-      desc: 'VibeSane checks for RLS gaps, unauthenticated database writes, client-side service_role keys, unprotected SECURITY DEFINER functions, and committed .env files.',
+      title: 'We scan for six security patterns',
+      desc: 'VibeSane checks for RLS gaps, unauthenticated database writes, client-side service_role keys, unprotected SECURITY DEFINER functions, committed .env secrets, and real credentials hidden in .env.example files.',
     },
     {
       icon: <Lock size={22} strokeWidth={1.6} />,
@@ -518,7 +653,7 @@ function Home() {
                   <span className="text-primary">before you ship.</span>
                 </h1>
                 <p className="mt-6 max-w-[560px] text-[16px] leading-7 text-muted-foreground sm:text-[17px]">
-                  Five high-signal checks: missing RLS policies, unauthenticated database writes, client-side service keys, unprotected SECURITY DEFINER functions, and committed secrets — all in seconds.
+                  Six high-signal checks: missing RLS policies, unauthenticated database writes, client-side service keys, unprotected SECURITY DEFINER functions, committed secrets, and exposed credentials in <code className="font-mono text-[15px] text-foreground">.env.example</code> files — all in seconds.
                 </p>
 
                 {/* CTA: gated by auth */}
@@ -624,7 +759,10 @@ function Home() {
                 )}
               </div>
 
+              <TrustBar />
+              <ChecksGrid />
               <HowItWorks />
+              <BottomCTA />
             </section>
           )}
 
