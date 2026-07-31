@@ -5,6 +5,7 @@ import {
   ExternalLink, Eye, FileSearch, FileWarning, Github, KeyRound, Lock,
   RefreshCw, ShieldCheck, ShieldOff, Terminal, Wifi, Zap,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Route, Router as WouterRouter, Switch } from 'wouter';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -45,6 +46,8 @@ type ScanReport = {
   filesScanned: number; scannedAt: string;
 };
 
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
 function formatDate(date: string) {
   const parsed = new Date(date);
   if (Number.isNaN(parsed.getTime())) return date;
@@ -52,6 +55,31 @@ function formatDate(date: string) {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit',
   }).format(parsed);
+}
+
+function formatRelativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diff / 60_000);
+  const hours = Math.floor(diff / 3_600_000);
+  const days = Math.floor(diff / 86_400_000);
+  if (minutes < 2) return 'just now';
+  if (minutes < 60) return `${minutes} minutes ago`;
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return formatDate(dateStr);
+}
+
+const LAST_SCAN_KEY = (uid: string) => `vs_last_scan_${uid}`;
+
+function saveLastScan(uid: string, report: ScanReport): void {
+  try { localStorage.setItem(LAST_SCAN_KEY(uid), JSON.stringify(report)); } catch {}
+}
+
+function loadLastScan(uid: string): ScanReport | null {
+  try {
+    const raw = localStorage.getItem(LAST_SCAN_KEY(uid));
+    return raw ? (JSON.parse(raw) as ScanReport) : null;
+  } catch { return null; }
 }
 
 function getErrorMessage(error: unknown) {
@@ -340,6 +368,60 @@ function Report({ report, onRescan, onCopy, copied, onBack }: {
   );
 }
 
+// ─── Welcome shield (animated, plays once on mount) ──────────────────────────
+
+function WelcomeShield() {
+  return (
+    <motion.div
+      initial={{ scale: 0.55, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 20 }}
+      className="inline-flex h-12 w-12 items-center justify-center rounded-[10px] border border-primary/40 bg-primary/[0.08] text-primary"
+    >
+      <ShieldCheck size={24} strokeWidth={1.7} />
+    </motion.div>
+  );
+}
+
+// ─── Last scan card ───────────────────────────────────────────────────────────
+
+function LastScanCard({ scan, onView }: { scan: ScanReport; onView: () => void }) {
+  const critical = scan.findings.filter(f => f.severity === 'Critical').length;
+  const high     = scan.findings.filter(f => f.severity === 'High').length;
+  const medium   = scan.findings.filter(f => f.severity === 'Medium').length;
+  const total    = scan.findings.length;
+
+  const parts: string[] = [];
+  if (critical > 0) parts.push(`${critical} critical`);
+  if (high > 0)     parts.push(`${high} high`);
+  if (medium > 0)   parts.push(`${medium} medium`);
+
+  return (
+    <div className="mt-6 flex items-start justify-between gap-4 rounded-none border-b border-border pb-5">
+      <div className="min-w-0">
+        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+          Last scan · {formatRelativeTime(scan.scannedAt)}
+        </p>
+        <p className="mt-1 truncate text-[15px] font-bold tracking-[-0.02em] text-foreground">
+          {scan.repo}
+        </p>
+        <p className="mt-0.5 text-[12px] text-muted-foreground">
+          {total === 0
+            ? 'No issues found'
+            : `${total} ${total === 1 ? 'finding' : 'findings'}${parts.length > 0 ? ' — ' + parts.join(', ') : ''}`}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onView}
+        className="vg-button vg-focus mt-1 shrink-0 inline-flex items-center gap-1.5 border border-border bg-card px-3 py-1.5 text-[11px] font-semibold text-foreground hover:border-primary/50 hover:text-primary"
+      >
+        View report <ExternalLink size={10} />
+      </button>
+    </div>
+  );
+}
+
 // ─── Trust bar ───────────────────────────────────────────────────────────────
 
 function TrustBar() {
@@ -536,6 +618,107 @@ function HowItWorks() {
   );
 }
 
+// ─── Scan form (shared between logged-in states) ──────────────────────────────
+
+function ScanForm({
+  scanMode, setScanMode, hasGithubToken, session, isScanning,
+  repoUrl, setRepoUrl, validationError, setValidationError,
+  canScan, usage, inputRef, handleSubmit, runScan,
+}: {
+  scanMode: 'url' | 'picker';
+  setScanMode: (m: 'url' | 'picker') => void;
+  hasGithubToken: boolean | null;
+  session: import('@supabase/supabase-js').Session | null;
+  isScanning: boolean;
+  repoUrl: string;
+  setRepoUrl: (v: string) => void;
+  validationError: string;
+  setValidationError: (v: string) => void;
+  canScan: boolean;
+  usage: import('@/lib/supabase').UsageRow | null;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  handleSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  runScan: (url: string) => void;
+}) {
+  const remaining = usage ? Math.max(0, usage.scans_limit - usage.scans_used) : null;
+
+  return (
+    <div className="mt-8 max-w-[680px]">
+      {/* Scans remaining — visible right where user is about to act */}
+      {remaining !== null && (
+        <p className="mb-4 font-mono text-[11px] text-muted-foreground">
+          <span className={`font-semibold ${remaining === 0 ? 'text-[#963f34]' : 'text-primary'}`}>
+            {remaining}
+          </span>{' '}
+          scan{remaining !== 1 ? 's' : ''} remaining this month
+        </p>
+      )}
+
+      {/* Mode toggle: paste URL or pick from connected repos */}
+      <div className="flex w-fit rounded-full border border-border bg-card p-0.5">
+        <button
+          type="button"
+          onClick={() => setScanMode('url')}
+          className={`vg-button vg-focus rounded-full px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'url' ? 'bg-primary text-primary-foreground shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          Paste URL
+        </button>
+        <button
+          type="button"
+          onClick={() => setScanMode('picker')}
+          className={`vg-button vg-focus rounded-full px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'picker' ? 'bg-primary text-primary-foreground shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          My repos
+        </button>
+      </div>
+
+      {scanMode === 'url' ? (
+        <form className="mt-4" onSubmit={handleSubmit}>
+          <label className="mb-2.5 block font-mono text-[10px] font-medium uppercase tracking-[0.14em]" htmlFor="repo-url">
+            GitHub repository URL
+          </label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <Github className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+              <input
+                ref={inputRef}
+                id="repo-url"
+                type="url"
+                value={repoUrl}
+                onChange={(e) => { setRepoUrl(e.target.value); setValidationError(''); }}
+                placeholder="https://github.com/owner/repository"
+                className={`vg-focus h-12 w-full border bg-card pl-10 pr-4 text-[14px] outline-none transition-colors placeholder:text-muted-foreground/60 ${validationError ? 'border-[#b56b5c]' : 'border-input focus:border-primary'}`}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isScanning || (!canScan && repoUrl.length > 0)}
+              className="vg-button vg-focus inline-flex h-12 items-center justify-center gap-2 bg-primary px-5 text-[13px] font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              Scan repository <ArrowRight size={15} />
+            </button>
+          </div>
+          {validationError ? (
+            <p className="mt-2.5 flex items-center gap-2 text-[12px] text-[#963f34]">
+              <AlertCircle size={13} /> {validationError}
+            </p>
+          ) : (
+            <p className="mt-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+              Public &amp; private repositories · read-only scan
+            </p>
+          )}
+        </form>
+      ) : (
+        <RepoPicker
+          session={session}
+          onSelect={(url) => runScan(url)}
+          disabled={isScanning}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Home page ───────────────────────────────────────────────────────────────
 
 function Home() {
@@ -546,15 +729,20 @@ function Home() {
   const [scanBlocked, setScanBlocked] = useState(false);
   const [scanMode, setScanMode] = useState<'url' | 'picker'>('url');
 
-  // When GitHub is disconnected, drop back to URL mode automatically.
-  useEffect(() => {
-    if (hasGithubToken === false && scanMode === 'picker') {
-      setScanMode('url');
-    }
-  }, [hasGithubToken]);
+  // Persisted last-scan card: loaded from localStorage, updated after each scan.
+  const [lastScan, setLastScan] = useState<ScanReport | null>(null);
+  // Allows restoring a saved scan into the report view without re-running the scan.
+  const [restoredReport, setRestoredReport] = useState<ScanReport | null>(null);
+
+  // Refs for one-time side-effects that shouldn't trigger re-renders.
+  const didAutoPickerRef = useRef(false);
+  const prevUserIdRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
   const scanMutation = useCreateScan();
-  const report = scanMutation.data as ScanReport | undefined;
+  const scanResult = scanMutation.data as ScanReport | undefined;
+  // Unified display report: fresh scan takes priority, then restored from history.
+  const displayReport = scanResult ?? restoredReport ?? undefined;
   const isScanning = scanMutation.isPending;
   const apiError = getErrorMessage(scanMutation.error);
   const canScan = useMemo(() => githubUrlPattern.test(repoUrl.trim()), [repoUrl]);
@@ -562,17 +750,41 @@ function Home() {
   const isUnlimited = user?.email === 'nightowlclub72@gmail.com';
   const isAtLimit = !isUnlimited && !usageLoading && usage != null && usage.scans_used >= usage.scans_limit;
 
+  // Load last scan from localStorage when user changes.
+  useEffect(() => {
+    if (user?.id !== prevUserIdRef.current) {
+      prevUserIdRef.current = user?.id ?? null;
+      didAutoPickerRef.current = false; // reset tab auto-select on user change
+    }
+    if (user?.id) {
+      setLastScan(loadLastScan(user.id));
+    } else {
+      setLastScan(null);
+    }
+  }, [user?.id]);
+
+  // Default to "My Repos" tab if GitHub is connected (once per login).
+  useEffect(() => {
+    if (hasGithubToken === true && !didAutoPickerRef.current) {
+      didAutoPickerRef.current = true;
+      setScanMode('picker');
+    }
+    if (hasGithubToken === false && scanMode === 'picker') {
+      setScanMode('url');
+    }
+  }, [hasGithubToken, scanMode]);
+
   const runScan = async (url: string) => {
     const normalizedUrl = url.trim().replace(/\/$/, '');
     setValidationError('');
     setScanBlocked(false);
     setCopied(false);
+    setRestoredReport(null);
     scanMutation.reset();
 
-    // Re-fetch usage to get a fresh count before every scan
+    // Re-fetch usage to get a fresh count before every scan.
     await refreshUsage();
 
-    // Re-check limit with latest data
     const { data: freshUsage } = await supabase
       .from('usage')
       .select('scans_used, scans_limit')
@@ -586,8 +798,14 @@ function Home() {
     scanMutation.mutate(
       { data: { repoUrl: normalizedUrl } },
       {
-        onSuccess: async () => {
-          // Increment scans_used after a successful scan
+        onSuccess: async (rawData) => {
+          // Save this scan to localStorage for the next-session last-scan card.
+          const scanned = rawData as unknown as ScanReport;
+          if (user?.id) {
+            saveLastScan(user.id, scanned);
+            setLastScan(scanned);
+          }
+          // Increment scans_used.
           if (usage) {
             await supabase
               .from('usage')
@@ -609,26 +827,31 @@ function Home() {
     runScan(repoUrl);
   };
 
-  const handleRescan = () => runScan(report?.repoUrl ?? repoUrl);
+  const handleRescan = () => runScan(displayReport?.repoUrl ?? repoUrl);
 
   const handleReset = () => {
     scanMutation.reset();
+    setRestoredReport(null);
     setRepoUrl('');
     setValidationError('');
     setScanBlocked(false);
     setCopied(false);
   };
 
+  const handleViewLastScan = () => {
+    if (lastScan) setRestoredReport(lastScan);
+  };
+
   const handleCopy = async () => {
-    if (!report) return;
+    if (!displayReport) return;
     const text = [
-      `VibeSane report — ${report.repo}`,
-      `Repository: ${report.repoUrl}`,
-      `Scanned: ${formatDate(report.scannedAt)}`,
-      `Files scanned: ${report.filesScanned}`,
+      `VibeSane report — ${displayReport.repo}`,
+      `Repository: ${displayReport.repoUrl}`,
+      `Scanned: ${formatDate(displayReport.scannedAt)}`,
+      `Files scanned: ${displayReport.filesScanned}`,
       '',
-      report.findings.length ? 'Findings:' : 'No high-signal issues found.',
-      ...report.findings.map((f, i) =>
+      displayReport.findings.length ? 'Findings:' : 'No high-signal issues found.',
+      ...displayReport.findings.map((f, i) =>
         `${i + 1}. [${f.severity}] ${f.title}\n   ${f.description}\n   ${f.filePath}:${f.line}`
       ),
     ].join('\n');
@@ -639,7 +862,15 @@ function Home() {
     } catch { setCopied(false); }
   };
 
-  const showLanding = !report && !isScanning && !scanBlocked;
+  // Derive first name from Supabase user metadata.
+  const firstName = (
+    user?.user_metadata?.full_name?.split(' ')[0] ||
+    user?.user_metadata?.name?.split(' ')[0] ||
+    user?.email?.split('@')[0] ||
+    'there'
+  ) as string;
+
+  const showLanding = !displayReport && !isScanning && !scanBlocked;
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background">
@@ -648,109 +879,81 @@ function Home() {
         <div className="vg-grid pointer-events-none absolute inset-x-0 top-0 h-[340px] opacity-50" />
         <div className="relative mx-auto w-full max-w-[1040px] px-5 sm:px-8">
 
-          {/* ── Landing hero ── */}
+          {/* ── Landing ── */}
           {showLanding && (
             <section className="vg-rise pb-4 pt-20 sm:pt-28">
               <div className="max-w-[760px]">
-                <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
-                  <span className="inline-block h-px w-8 bg-primary" />
-                  Next.js · Supabase · Security
-                </div>
-                <h1 className="mt-6 max-w-[720px] text-[42px] font-extrabold leading-[1.04] tracking-[-0.055em] sm:text-[64px]">
-                  Catch the security bugs<br className="hidden sm:block" /> vibecoding tools miss —<br className="hidden sm:block" />
-                  <span className="text-primary">before you ship.</span>
-                </h1>
-                <p className="mt-6 max-w-[560px] text-[16px] leading-7 text-muted-foreground sm:text-[17px]">
-                  Six high-signal checks: missing RLS policies, unauthenticated database writes, client-side service keys, unprotected SECURITY DEFINER functions, committed secrets, and exposed credentials in <code className="font-mono text-[15px] text-foreground">.env.example</code> files — all in seconds.
-                </p>
 
-                {/* CTA: gated by auth */}
-                {!user ? (
-                  <div className="mt-10 flex flex-wrap items-center gap-3">
-                    <Link
-                      href="/auth?mode=signup"
-                      className="vg-button vg-focus inline-flex items-center gap-3 border border-primary bg-primary px-5 py-3.5 text-[13px] font-bold text-primary-foreground hover:bg-primary/90"
-                    >
-                      <KeyRound size={16} strokeWidth={2} />
-                      Sign up to scan — it's free
-                      <ArrowRight size={15} />
-                    </Link>
-                    <Link
-                      href="/auth?mode=signin"
-                      className="vg-button vg-focus border border-border bg-card px-5 py-3.5 text-[13px] font-semibold text-foreground hover:border-primary/50"
-                    >
-                      Sign in
-                    </Link>
-                  </div>
-                ) : isAtLimit ? (
-                  <UpgradeWall />
-                ) : (
-                  <div className="mt-8 max-w-[680px]">
-                    {/* Mode toggle: paste URL or pick from connected repos */}
-                    <div className="flex w-fit rounded-full border border-border bg-card p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setScanMode('url')}
-                        className={`vg-button vg-focus rounded-full px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'url' ? 'bg-primary text-primary-foreground shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-muted-foreground hover:text-foreground'}`}
-                      >
-                        Paste URL
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setScanMode('picker')}
-                        className={`vg-button vg-focus rounded-full px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'picker' ? 'bg-primary text-primary-foreground shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-muted-foreground hover:text-foreground'}`}
-                      >
-                        My repos
-                      </button>
+                {/* ── LOGGED-OUT: full marketing hero (unchanged) ── */}
+                {!user && (
+                  <>
+                    <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
+                      <span className="inline-block h-px w-8 bg-primary" />
+                      Next.js · Supabase · Security
                     </div>
+                    <h1 className="mt-6 max-w-[720px] text-[42px] font-extrabold leading-[1.04] tracking-[-0.055em] sm:text-[64px]">
+                      Catch the security bugs<br className="hidden sm:block" /> vibecoding tools miss —<br className="hidden sm:block" />
+                      <span className="text-primary">before you ship.</span>
+                    </h1>
+                    <p className="mt-6 max-w-[560px] text-[16px] leading-7 text-muted-foreground sm:text-[17px]">
+                      Six high-signal checks: missing RLS policies, unauthenticated database writes, client-side service keys, unprotected SECURITY DEFINER functions, committed secrets, and exposed credentials in <code className="font-mono text-[15px] text-foreground">.env.example</code> files — all in seconds.
+                    </p>
+                    <div className="mt-10 flex flex-wrap items-center gap-3">
+                      <Link
+                        href="/auth?mode=signup"
+                        className="vg-button vg-focus inline-flex items-center gap-3 border border-primary bg-primary px-5 py-3.5 text-[13px] font-bold text-primary-foreground hover:bg-primary/90"
+                      >
+                        <KeyRound size={16} strokeWidth={2} />
+                        Sign up to scan — it's free
+                        <ArrowRight size={15} />
+                      </Link>
+                      <Link
+                        href="/auth?mode=signin"
+                        className="vg-button vg-focus border border-border bg-card px-5 py-3.5 text-[13px] font-semibold text-foreground hover:border-primary/50"
+                      >
+                        Sign in
+                      </Link>
+                    </div>
+                  </>
+                )}
 
-                    {scanMode === 'url' ? (
-                      <form className="mt-4" onSubmit={handleSubmit}>
-                        <label className="mb-2.5 block font-mono text-[10px] font-medium uppercase tracking-[0.14em]" htmlFor="repo-url">
-                          GitHub repository URL
-                        </label>
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <div className="relative min-w-0 flex-1">
-                            <Github className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                            <input
-                              ref={inputRef}
-                              id="repo-url"
-                              type="url"
-                              value={repoUrl}
-                              onChange={(e) => { setRepoUrl(e.target.value); setValidationError(''); }}
-                              placeholder="https://github.com/owner/repository"
-                              className={`vg-focus h-12 w-full border bg-card pl-10 pr-4 text-[14px] outline-none transition-colors placeholder:text-muted-foreground/60 ${validationError ? 'border-[#b56b5c]' : 'border-input focus:border-primary'}`}
-                            />
-                          </div>
-                          <button
-                            type="submit"
-                            disabled={isScanning || (!canScan && repoUrl.length > 0)}
-                            className="vg-button vg-focus inline-flex h-12 items-center justify-center gap-2 bg-primary px-5 text-[13px] font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45"
-                          >
-                            Scan repository <ArrowRight size={15} />
-                          </button>
-                        </div>
-                        {validationError ? (
-                          <p className="mt-2.5 flex items-center gap-2 text-[12px] text-[#963f34]">
-                            <AlertCircle size={13} /> {validationError}
-                          </p>
-                        ) : (
-                          <p className="mt-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-                            Public &amp; private repositories · read-only scan
-                            {usage && (
-                              <> · <span className="text-primary">{Math.max(0, usage.scans_limit - usage.scans_used)} scan{usage.scans_limit - usage.scans_used !== 1 ? 's' : ''} remaining</span></>
-                            )}
-                          </p>
-                        )}
-                      </form>
+                {/* ── LOGGED-IN: personalized hero ── */}
+                {user && (
+                  <>
+                    <WelcomeShield />
+                    <h1 className="mt-5 text-[42px] font-extrabold leading-[1.04] tracking-[-0.055em] sm:text-[56px]">
+                      Welcome back, {firstName}.
+                    </h1>
+                    <p className="mt-3 max-w-sm text-[16px] leading-6 text-muted-foreground">
+                      Ready for your next scan?
+                    </p>
+
+                    {/* Last scan card — only shown if a previous scan exists */}
+                    {lastScan && (
+                      <LastScanCard scan={lastScan} onView={handleViewLastScan} />
+                    )}
+
+                    {isAtLimit ? (
+                      <UpgradeWall />
                     ) : (
-                      <RepoPicker
+                      <ScanForm
+                        scanMode={scanMode}
+                        setScanMode={setScanMode}
+                        hasGithubToken={hasGithubToken}
                         session={session}
-                        onSelect={(url) => runScan(url)}
-                        disabled={isScanning}
+                        isScanning={isScanning}
+                        repoUrl={repoUrl}
+                        setRepoUrl={setRepoUrl}
+                        validationError={validationError}
+                        setValidationError={setValidationError}
+                        canScan={canScan}
+                        usage={usage}
+                        inputRef={inputRef}
+                        handleSubmit={handleSubmit}
+                        runScan={runScan}
                       />
                     )}
-                  </div>
+                  </>
                 )}
 
                 {apiError && (
@@ -770,7 +973,8 @@ function Home() {
               <TrustBar />
               <ChecksGrid />
               <HowItWorks />
-              <BottomCTA />
+              {/* BottomCTA only for logged-out visitors */}
+              {!user && <BottomCTA />}
             </section>
           )}
 
@@ -785,8 +989,8 @@ function Home() {
           )}
 
           {/* ── Results ── */}
-          {report && !isScanning && (
-            <Report copied={copied} onCopy={handleCopy} onRescan={handleRescan} report={report} onBack={handleReset} />
+          {displayReport && !isScanning && (
+            <Report copied={copied} onCopy={handleCopy} onRescan={handleRescan} report={displayReport} onBack={handleReset} />
           )}
         </div>
       </main>
