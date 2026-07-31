@@ -138,7 +138,7 @@ function FindingCard({ finding, index }: { finding: Finding; index: number }) {
   const s = severityStyles(finding.severity);
   return (
     <article
-      className="vg-rise border border-border bg-card p-5 transition-colors hover:border-primary/40 sm:p-7"
+      className="vg-rise border-b border-border p-5 transition-colors sm:p-7"
       style={{ animationDelay: `${index * 70}ms` }}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -172,7 +172,7 @@ function FindingCard({ finding, index }: { finding: Finding; index: number }) {
 function CleanResult({ report }: { report: ScanReport }) {
   return (
     <div className="vg-rise border border-[#d2dbc1] bg-[#f1f4e9] p-8 sm:p-10">
-      <div className="flex h-10 w-10 items-center justify-center border border-[#aebe8c] text-[#66763e]">
+      <div className="flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#aebe8c] bg-[#66763e]/[0.06] text-[#66763e]">
         <ShieldCheck size={21} strokeWidth={1.6} />
       </div>
       <h2 className="mt-6 text-[24px] font-bold tracking-[-0.035em]">No high-signal issues found.</h2>
@@ -193,7 +193,7 @@ function CleanResult({ report }: { report: ScanReport }) {
 function UpgradeWall() {
   return (
     <div className="vg-rise mt-10 border border-[#e7d3b3] bg-[#f8efe1] p-8 sm:p-10">
-      <div className="flex h-10 w-10 items-center justify-center border border-[#d4a96a] text-[#a06427]">
+      <div className="flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#d4a96a] bg-[#a06427]/[0.06] text-[#a06427]">
         <ShieldOff size={20} strokeWidth={1.6} />
       </div>
       <h2 className="mt-6 text-[22px] font-bold tracking-[-0.03em] text-foreground">
@@ -350,11 +350,16 @@ function TrustBar() {
     { icon: <Wifi size={12} strokeWidth={2} />, label: 'Results in seconds' },
   ];
   return (
-    <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border pt-7">
-      {items.map((item) => (
-        <span key={item.label} className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-          <span className="text-primary">{item.icon}</span>
-          {item.label}
+    <div className="mt-10 flex flex-wrap items-center gap-y-3 border-t border-border pt-7">
+      {items.map((item, i) => (
+        <span key={item.label} className="flex items-center">
+          {i > 0 && (
+            <span className="mx-4 h-3.5 w-px bg-border/80" aria-hidden="true" />
+          )}
+          <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            <span className="text-primary">{item.icon}</span>
+            {item.label}
+          </span>
         </span>
       ))}
     </div>
@@ -422,9 +427,9 @@ function ChecksGrid() {
       </p>
       <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {checks.map((check) => (
-          <div key={check.title} className="group border border-border bg-card p-5 transition-colors hover:border-primary/40">
+          <div key={check.title} className="group border-b border-border py-5 transition-colors">
             <div className="flex items-start justify-between gap-2">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-primary/30 text-primary group-hover:border-primary/60 transition-colors">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-primary/30 bg-primary/[0.06] text-primary group-hover:border-primary/60 transition-colors">
                 {check.icon}
               </div>
               <span className={`inline-flex items-center border px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-[0.12em] ${badgeColor[check.severity]}`}>
@@ -449,7 +454,10 @@ function BottomCTA() {
         <span className="inline-block h-px w-8 bg-primary" />
         Free to start
       </div>
-      <h2 className="mt-5 max-w-xl text-[26px] font-extrabold tracking-[-0.04em] sm:text-[34px]">
+      <div className="mt-5 flex h-11 w-11 items-center justify-center rounded-[10px] border border-primary/40 bg-primary/[0.08] text-primary">
+        <ShieldCheck size={22} strokeWidth={1.6} />
+      </div>
+      <h2 className="mt-4 max-w-xl text-[26px] font-extrabold tracking-[-0.04em] sm:text-[34px]">
         Ship with confidence.<br className="hidden sm:block" /> Catch the bugs before your users do.
       </h2>
       <p className="mt-3 max-w-lg text-[14px] leading-6 text-muted-foreground">
@@ -510,9 +518,9 @@ function HowItWorks() {
       </h2>
       <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
         {steps.map((step) => (
-          <div key={step.num} className="border border-border bg-card p-6">
+          <div key={step.num} className="border-b border-border py-6 px-1">
             <div className="flex items-start justify-between">
-              <div className="flex h-10 w-10 items-center justify-center border border-primary/40 text-primary">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[9px] border border-primary/40 bg-primary/[0.06] text-primary">
                 {step.icon}
               </div>
               <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60">
@@ -679,18 +687,18 @@ function Home() {
                 ) : (
                   <div className="mt-8 max-w-[680px]">
                     {/* Mode toggle: paste URL or pick from connected repos */}
-                    <div className="flex w-fit border border-border bg-card p-0.5">
+                    <div className="flex w-fit rounded-full border border-border bg-card p-0.5">
                       <button
                         type="button"
                         onClick={() => setScanMode('url')}
-                        className={`vg-button vg-focus px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'url' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                        className={`vg-button vg-focus rounded-full px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'url' ? 'bg-primary text-primary-foreground shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-muted-foreground hover:text-foreground'}`}
                       >
                         Paste URL
                       </button>
                       <button
                         type="button"
                         onClick={() => setScanMode('picker')}
-                        className={`vg-button vg-focus px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'picker' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                        className={`vg-button vg-focus rounded-full px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'picker' ? 'bg-primary text-primary-foreground shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-muted-foreground hover:text-foreground'}`}
                       >
                         My repos
                       </button>
