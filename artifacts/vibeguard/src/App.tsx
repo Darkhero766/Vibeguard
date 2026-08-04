@@ -3,11 +3,11 @@ import { useCreateScan, setAuthTokenGetter, setBaseUrl } from '@workspace/api-cl
 import {
   AlertCircle, ArrowLeft, ArrowRight, Check, Clipboard, Code2, Database,
   ExternalLink, Eye, FileSearch, FileWarning, Github, KeyRound, Lock,
-  RefreshCw, ShieldCheck, ShieldOff, Terminal, Wifi, Zap,
+  RefreshCw, ShieldCheck, ShieldOff, Terminal, Wifi, Zap, Heart
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Route, Router as WouterRouter, Switch } from 'wouter';
+import { Link, Route, Router as WouterRouter, Switch, useLocation } from 'wouter';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Nav } from '@/components/Nav';
@@ -163,6 +163,7 @@ function ScanSkeleton() {
 // ─── Finding card ────────────────────────────────────────────────────────────
 
 function FindingCard({ finding, index }: { finding: Finding; index: number }) {
+  const [liked, setLiked] = useState(false);
   const s = severityStyles(finding.severity);
   return (
     <article
@@ -174,9 +175,19 @@ function FindingCard({ finding, index }: { finding: Finding; index: number }) {
           <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
           {finding.severity}
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-          {finding.check.replaceAll('_', ' ')}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+            {finding.check.replaceAll('_', ' ')}
+          </span>
+          <button
+            onClick={() => setLiked(!liked)}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            type="button"
+            aria-label="Like this finding"
+          >
+            <Heart size={14} className={liked ? 'fill-[#e85577] text-[#e85577]' : ''} />
+          </button>
+        </div>
       </div>
       <h3 className="mt-5 max-w-2xl text-[18px] font-bold leading-snug tracking-[-0.025em] sm:text-[20px]">
         {finding.title}
@@ -508,9 +519,9 @@ function ChecksGrid() {
       <p className="mt-4 max-w-[520px] text-[14px] leading-6 text-[#a4aaa3]">
         These patterns are responsible for the overwhelming majority of Next.js and Supabase security incidents — and vibecoding assistants introduce them constantly.
       </p>
-      <div className="mt-12 grid grid-cols-1 gap-px bg-[#3a3d3a] sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {checks.map((check) => (
-          <div key={check.title} className="group bg-[#0d0d0d] p-6 transition-colors hover:bg-[#171918]">
+          <div key={check.title} className={`group border border-[#2a2f2a] bg-[#111312] p-7 transition hover:border-[#2db8a8]/40 hover:bg-[#141916] ${check.severity === 'Critical' ? 'border-t-2 border-t-[#963f34]' : 'border-t-2 border-t-[#a06427]'}`}>
             <div className="flex items-start justify-between gap-2">
                <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#2db8a8]/50 bg-[#2db8a8]/10 text-[#62d4c5] transition-colors group-hover:border-[#2db8a8]">
                 {check.icon}
@@ -519,7 +530,7 @@ function ChecksGrid() {
                 {check.severity}
               </span>
             </div>
-             <h3 className="mt-5 text-[15px] font-bold tracking-[-0.03em] leading-snug">{check.title}</h3>
+             <h3 className="mt-6 text-[15px] font-bold tracking-[-0.03em] leading-snug">{check.title}</h3>
              <p className="mt-2 text-[12px] leading-5 text-[#a4aaa3]">{check.desc}</p>
           </div>
         ))}
@@ -602,12 +613,12 @@ function HowItWorks() {
       </h2>
       <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
         {steps.map((step) => (
-          <div key={step.num} className="border-b border-border py-6 px-1">
+          <div key={step.num} className="border border-border bg-card p-7 transition-colors hover:border-primary/30 hover:bg-primary/[0.02]">
             <div className="flex items-start justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[9px] border border-primary/40 bg-primary/[0.06] text-primary">
+              <div className="flex h-11 w-11 items-center justify-center rounded-[9px] border border-primary/40 bg-primary/[0.06] text-primary">
                 {step.icon}
               </div>
-              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60">
+              <span className="text-[32px] font-black text-primary/20 tracking-tighter leading-none">
                 {step.num}
               </span>
             </div>
@@ -725,6 +736,7 @@ function ScanForm({
 
 function Home() {
   const { user, session, usage, usageLoading, refreshUsage, hasGithubToken } = useAuth();
+  const [, setLocation] = useLocation();
   const [repoUrl, setRepoUrl] = useState('');
   const [validationError, setValidationError] = useState('');
   const [copied, setCopied] = useState(false);
@@ -905,7 +917,35 @@ function Home() {
                     <p className="mt-6 max-w-[560px] text-[16px] leading-7 text-muted-foreground sm:text-[17px]">
                       Six high-signal checks: missing RLS policies, unauthenticated database writes, client-side service keys, unprotected SECURITY DEFINER functions, committed secrets, and exposed credentials in <code className="font-mono text-[15px] text-foreground">.env.example</code> files — all in seconds.
                     </p>
-                    <div className="mt-10 flex flex-wrap items-center gap-3">
+                    <form 
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const val = new FormData(e.currentTarget).get('demo-url')?.toString();
+                        if (val) setLocation(`/auth?mode=signup&url=${encodeURIComponent(val)}`);
+                        else setLocation(`/auth?mode=signup`);
+                      }}
+                      className="mt-10 max-w-[640px]"
+                    >
+                      <div className="flex h-14 w-full items-center border border-[#1a1a1a] bg-[#fbf9f4] pl-4">
+                        <Github size={20} className="text-[#1a1a1a]/60" />
+                        <input
+                          name="demo-url"
+                          type="url"
+                          placeholder="https://github.com/owner/repository"
+                          className="h-full flex-1 bg-transparent px-3 text-[15px] text-[#1a1a1a] placeholder:text-[#1a1a1a]/40 focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          className="h-full bg-[#e8622a] px-8 text-[15px] font-bold text-white transition-colors hover:bg-[#d95620]"
+                        >
+                          Scan
+                        </button>
+                      </div>
+                      <p className="mt-2 text-[12px] text-muted-foreground">
+                        Free for logged-out preview · sign up for full results
+                      </p>
+                    </form>
+                    <div className="mt-8 flex flex-wrap items-center gap-3">
                       <Link
                         href="/auth?mode=signup"
                         className="vg-button vg-focus inline-flex items-center gap-3 border border-primary bg-primary px-5 py-3.5 text-[13px] font-bold text-primary-foreground hover:bg-primary/90"
