@@ -496,32 +496,34 @@ function ChecksGrid() {
   };
 
   return (
-    <section className="mt-20 border-t border-border pt-14 pb-6">
-      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
-        <span className="inline-block h-px w-8 bg-primary" />
+    <section className="relative -mx-5 mt-20 bg-[#0d0d0d] px-5 pb-14 pt-16 text-[#f4f1ea] sm:-mx-8 sm:px-8">
+      <div className="mx-auto max-w-[1040px]">
+      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#2db8a8]">
+        <span className="inline-block h-px w-8 bg-[#2db8a8]" />
         What VibeSane catches
       </div>
-      <h2 className="mt-5 max-w-lg text-[28px] font-extrabold tracking-[-0.04em] sm:text-[36px]">
+      <h2 className="mt-5 max-w-lg text-[32px] font-extrabold leading-[.96] tracking-[-0.06em] sm:text-[48px]">
         Six checks. The ones that actually matter.
       </h2>
-      <p className="mt-3 max-w-[520px] text-[14px] leading-6 text-muted-foreground">
+      <p className="mt-4 max-w-[520px] text-[14px] leading-6 text-[#a4aaa3]">
         These patterns are responsible for the overwhelming majority of Next.js and Supabase security incidents — and vibecoding assistants introduce them constantly.
       </p>
-      <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-12 grid grid-cols-1 gap-px bg-[#3a3d3a] sm:grid-cols-2 lg:grid-cols-3">
         {checks.map((check) => (
-          <div key={check.title} className="group border-b border-border py-5 transition-colors">
+          <div key={check.title} className="group bg-[#0d0d0d] p-6 transition-colors hover:bg-[#171918]">
             <div className="flex items-start justify-between gap-2">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-primary/30 bg-primary/[0.06] text-primary group-hover:border-primary/60 transition-colors">
+               <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#2db8a8]/50 bg-[#2db8a8]/10 text-[#62d4c5] transition-colors group-hover:border-[#2db8a8]">
                 {check.icon}
               </div>
               <span className={`inline-flex items-center border px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-[0.12em] ${badgeColor[check.severity]}`}>
                 {check.severity}
               </span>
             </div>
-            <h3 className="mt-4 text-[14px] font-bold tracking-[-0.02em] leading-snug">{check.title}</h3>
-            <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">{check.desc}</p>
+             <h3 className="mt-5 text-[15px] font-bold tracking-[-0.03em] leading-snug">{check.title}</h3>
+             <p className="mt-2 text-[12px] leading-5 text-[#a4aaa3]">{check.desc}</p>
           </div>
         ))}
+      </div>
       </div>
     </section>
   );
@@ -531,7 +533,7 @@ function ChecksGrid() {
 
 function BottomCTA() {
   return (
-    <section className="mt-6 mb-20 border border-primary/20 bg-primary/[0.04] p-10 sm:p-14">
+    <section className="relative mt-6 mb-20 overflow-hidden border border-[#2db8a8]/30 bg-[#dce9df] p-10 sm:p-14">
       <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
         <span className="inline-block h-px w-8 bg-primary" />
         Free to start
@@ -539,7 +541,7 @@ function BottomCTA() {
       <div className="mt-5 flex h-11 w-11 items-center justify-center rounded-[10px] border border-primary/40 bg-primary/[0.08] text-primary">
         <ShieldCheck size={22} strokeWidth={1.6} />
       </div>
-      <h2 className="mt-4 max-w-xl text-[26px] font-extrabold tracking-[-0.04em] sm:text-[34px]">
+      <h2 className="mt-4 max-w-xl text-[30px] font-extrabold leading-[.96] tracking-[-0.06em] sm:text-[46px]">
         Ship with confidence.<br className="hidden sm:block" /> Catch the bugs before your users do.
       </h2>
       <p className="mt-3 max-w-lg text-[14px] leading-6 text-muted-foreground">
@@ -882,18 +884,23 @@ function Home() {
           {/* ── Landing ── */}
           {showLanding && (
             <section className="vg-rise pb-4 pt-20 sm:pt-28">
-              <div className="max-w-[760px]">
+              <div className="relative max-w-[820px]">
 
                 {/* ── LOGGED-OUT: full marketing hero (unchanged) ── */}
                 {!user && (
                   <>
-                    <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
+                    <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#168f82]">
                       <span className="inline-block h-px w-8 bg-primary" />
                       Next.js · Supabase · Security
                     </div>
-                    <h1 className="mt-6 max-w-[720px] text-[42px] font-extrabold leading-[1.04] tracking-[-0.055em] sm:text-[64px]">
+                    <div className="pointer-events-none absolute -right-28 -top-24 hidden h-[270px] w-[480px] -rotate-[17deg] sm:block" aria-hidden="true">
+                      <div className="absolute right-0 top-8 h-5 w-[430px] bg-[#e8622a]" />
+                      <div className="absolute right-[-18px] top-24 h-5 w-[430px] bg-[#e85577]" />
+                      <div className="absolute right-[-36px] top-40 h-5 w-[430px] bg-[#1a2550]" />
+                    </div>
+                    <h1 className="relative mt-6 max-w-[790px] text-[48px] font-extrabold leading-[.94] tracking-[-0.065em] sm:text-[82px]">
                       Catch the security bugs<br className="hidden sm:block" /> vibecoding tools miss —<br className="hidden sm:block" />
-                      <span className="text-primary">before you ship.</span>
+                      <span className="text-[#168f82]">before you ship.</span>
                     </h1>
                     <p className="mt-6 max-w-[560px] text-[16px] leading-7 text-muted-foreground sm:text-[17px]">
                       Six high-signal checks: missing RLS policies, unauthenticated database writes, client-side service keys, unprotected SECURITY DEFINER functions, committed secrets, and exposed credentials in <code className="font-mono text-[15px] text-foreground">.env.example</code> files — all in seconds.

@@ -43,28 +43,28 @@ export function Nav({ onReset }: { onReset?: () => void } = {}) {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border/80 bg-background/95 backdrop-blur-sm">
-      <div className="mx-auto flex w-full max-w-[1040px] items-center justify-between gap-4 px-5 py-4 sm:px-8">
+    <header className="sticky top-0 z-50 px-3 pt-3 sm:px-5">
+      <div className="mx-auto flex w-full max-w-[1040px] items-center justify-between gap-4 rounded-full bg-[#101111] px-4 py-3 text-[#f4f1ea] shadow-[0_12px_35px_rgba(15,15,15,.12)] sm:px-6">
         {/* Logo */}
         <Link href="/" onClick={onReset} className="flex items-center gap-2.5 shrink-0">
-          <span className="relative flex h-6 w-6 items-center justify-center border border-primary/60 text-primary">
-            <span className="absolute h-2.5 w-2.5 border border-primary/80" />
-            <span className="h-1 w-1 bg-primary" />
+          <span className="relative flex h-6 w-6 items-center justify-center border border-[#2db8a8] text-[#2db8a8]">
+            <span className="absolute h-2.5 w-2.5 border border-[#2db8a8]" />
+            <span className="h-1 w-1 bg-[#2db8a8]" />
           </span>
-          <span className="text-[15px] font-extrabold tracking-[-0.03em]">VibeSane</span>
+          <span className="text-[15px] font-extrabold tracking-[-0.04em]">VibeGuard</span>
         </Link>
 
         {/* Desktop nav links */}
-        <nav className="hidden items-center gap-6 md:flex">
+        <nav className="hidden items-center gap-1 md:flex">
           <a
             href="/#how-it-works"
-            className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground"
+            className="rounded-full px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#b8bbb5] transition-colors hover:bg-white/10 hover:text-white"
           >
             How it works
           </a>
           <Link
             href="/pricing"
-            className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground"
+            className="rounded-full px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#b8bbb5] transition-colors hover:bg-white/10 hover:text-white"
           >
             Pricing
           </Link>
@@ -76,21 +76,21 @@ export function Nav({ onReset }: { onReset?: () => void } = {}) {
             <div className="relative">
               <button
                 onClick={() => { setAccountOpen((o) => !o); setShowDisconnectConfirm(false); }}
-                className="vg-button vg-focus flex items-center gap-2 border border-border bg-card px-3 py-2 text-[12px] font-medium text-foreground hover:border-primary/50"
+                 className="vg-button vg-focus flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-[12px] font-medium text-white hover:border-[#2db8a8]"
               >
                 <span className="max-w-[160px] truncate text-muted-foreground">{displayName}</span>
                 {scansRemaining !== null && (
-                  <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[10px] text-primary">
+                     <span className="shrink-0 rounded-full bg-[#2db8a8]/15 px-2 py-0.5 font-mono text-[10px] text-[#62d4c5]">
                     {scansRemaining} scan{scansRemaining !== 1 ? 's' : ''} left
                   </span>
                 )}
                 <ChevronDown size={13} className={`shrink-0 transition-transform ${accountOpen ? 'rotate-180' : ''}`} />
               </button>
 
-              {accountOpen && (
+               {accountOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => { setAccountOpen(false); setShowDisconnectConfirm(false); }} />
-                  <div className="absolute right-0 top-full z-50 mt-1.5 w-64 border border-border bg-card shadow-lg">
+                   <div className="absolute right-0 top-full z-50 mt-1.5 w-64 border border-[#303331] bg-[#171918] text-[#f4f1ea] shadow-lg">
                     <div className="border-b border-border p-3">
                       <p className="truncate text-[11px] font-semibold text-foreground">{displayName}</p>
                       {scansRemaining !== null && (
@@ -152,13 +152,13 @@ export function Nav({ onReset }: { onReset?: () => void } = {}) {
             <>
               <Link
                 href="/auth?mode=signin"
-                className="vg-button vg-focus border border-border bg-card px-3.5 py-2 text-[12px] font-semibold text-foreground hover:border-primary/50 hover:text-primary"
+                className="vg-button vg-focus rounded-full border border-white/15 bg-white/10 px-3.5 py-2 text-[12px] font-semibold text-white hover:border-[#2db8a8] hover:text-[#62d4c5]"
               >
                 Sign in
               </Link>
               <Link
                 href="/auth?mode=signup"
-                className="vg-button vg-focus border border-primary bg-primary px-3.5 py-2 text-[12px] font-semibold text-primary-foreground hover:bg-primary/90"
+                className="vg-button vg-focus rounded-full border border-[#2db8a8] bg-[#2db8a8] px-3.5 py-2 text-[12px] font-semibold text-[#101111] hover:bg-[#62d4c5]"
               >
                 Sign up
               </Link>
@@ -168,7 +168,7 @@ export function Nav({ onReset }: { onReset?: () => void } = {}) {
 
         {/* Mobile hamburger */}
         <button
-          className="vg-focus flex h-8 w-8 items-center justify-center text-muted-foreground md:hidden"
+           className="vg-focus flex h-8 w-8 items-center justify-center text-[#d8dad3] md:hidden"
           onClick={() => setMenuOpen((o) => !o)}
           aria-label={menuOpen ? 'Close menu' : 'Open menu'}
         >
@@ -178,7 +178,7 @@ export function Nav({ onReset }: { onReset?: () => void } = {}) {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="border-t border-border bg-background md:hidden">
+        <div className="border-t border-[#303331] bg-[#101111] md:hidden">
           <div className="mx-auto max-w-[1040px] space-y-0 px-5 py-3 sm:px-8">
             <a
               href="/#how-it-works"
