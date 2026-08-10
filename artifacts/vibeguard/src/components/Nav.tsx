@@ -44,12 +44,12 @@ export function Nav({ onReset }: { onReset?: () => void } = {}) {
 
   return (
     <header className="sticky top-0 z-50 px-3 pt-3 sm:px-5">
-      <div className="mx-auto flex w-full max-w-[1040px] items-center justify-between gap-4 rounded-full bg-[#101111] px-4 py-3 text-[#f4f1ea] shadow-[0_12px_35px_rgba(15,15,15,.12)] sm:px-6">
+      <div className="mx-auto flex w-full max-w-[1040px] items-center justify-between gap-4 border-2 border-[#101111] bg-[#101111] px-4 py-3 text-[#f4f1ea] shadow-[5px_5px_0_#e34a3b] sm:px-6">
         {/* Logo */}
         <Link href="/" onClick={onReset} className="flex items-center gap-2.5 shrink-0">
-          <span className="relative flex h-6 w-6 items-center justify-center border border-[#2db8a8] text-[#2db8a8]">
-            <span className="absolute h-2.5 w-2.5 border border-[#2db8a8]" />
-            <span className="h-1 w-1 bg-[#2db8a8]" />
+          <span className="relative flex h-6 w-6 items-center justify-center border border-[#f4c842] text-[#f4c842]">
+            <span className="absolute h-2.5 w-2.5 border border-[#f4c842]" />
+            <span className="h-1 w-1 bg-[#f4c842]" />
           </span>
           <span className="text-[15px] font-extrabold tracking-[-0.04em]">VibeGuard</span>
         </Link>
@@ -58,13 +58,13 @@ export function Nav({ onReset }: { onReset?: () => void } = {}) {
         <nav className="hidden items-center gap-1 md:flex">
           <a
             href="/#how-it-works"
-            className="rounded-full px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#b8bbb5] transition-colors hover:bg-white/10 hover:text-white"
+            className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#b8bbb5] transition-colors hover:bg-[#f4c842] hover:text-[#101111]"
           >
             How it works
           </a>
           <Link
             href="/pricing"
-            className="rounded-full px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#b8bbb5] transition-colors hover:bg-white/10 hover:text-white"
+            className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#b8bbb5] transition-colors hover:bg-[#f4c842] hover:text-[#101111]"
           >
             Pricing
           </Link>
@@ -76,11 +76,11 @@ export function Nav({ onReset }: { onReset?: () => void } = {}) {
             <div className="relative">
               <button
                 onClick={() => { setAccountOpen((o) => !o); setShowDisconnectConfirm(false); }}
-                 className="vg-button vg-focus flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-[12px] font-medium text-white hover:border-[#2db8a8]"
+                 className="vg-button vg-focus flex items-center gap-2 border border-white/15 bg-white/10 px-3 py-2 text-[12px] font-medium text-white hover:border-[#f4c842]"
               >
                 <span className="max-w-[160px] truncate text-muted-foreground">{displayName}</span>
                 {scansRemaining !== null && (
-                     <span className="shrink-0 rounded-full bg-[#2db8a8]/15 px-2 py-0.5 font-mono text-[10px] text-[#62d4c5]">
+                     <span className="shrink-0 bg-[#f4c842] px-2 py-0.5 font-mono text-[10px] text-[#101111]">
                     {scansRemaining} scan{scansRemaining !== 1 ? 's' : ''} left
                   </span>
                 )}
@@ -104,7 +104,7 @@ export function Nav({ onReset }: { onReset?: () => void } = {}) {
                     {showDisconnectConfirm ? (
                       <div className="p-3 space-y-2.5">
                         <p className="text-[11px] leading-5 text-foreground">
-                          This will remove VibeSane's access to your GitHub repositories. You can also revoke access directly from GitHub's settings (Settings → Applications → Authorized OAuth Apps). Continue?
+                          This will remove VibeGuard's access to your GitHub repositories. You can also revoke access directly from GitHub's settings (Settings → Applications → Authorized OAuth Apps). Continue?
                         </p>
                         <div className="flex gap-2">
                           <button
@@ -152,13 +152,13 @@ export function Nav({ onReset }: { onReset?: () => void } = {}) {
             <>
               <Link
                 href="/auth?mode=signin"
-                className="vg-button vg-focus rounded-full border border-white/15 bg-white/10 px-3.5 py-2 text-[12px] font-semibold text-white hover:border-[#2db8a8] hover:text-[#62d4c5]"
+                className="vg-button vg-focus border border-white/15 bg-white/10 px-3.5 py-2 text-[12px] font-semibold text-white hover:border-[#f4c842] hover:text-[#f4c842]"
               >
                 Sign in
               </Link>
               <Link
                 href="/auth?mode=signup"
-                className="vg-button vg-focus rounded-full border border-[#2db8a8] bg-[#2db8a8] px-3.5 py-2 text-[12px] font-semibold text-[#101111] hover:bg-[#62d4c5]"
+                className="vg-button vg-focus border border-[#f4c842] bg-[#f4c842] px-3.5 py-2 text-[12px] font-semibold text-[#101111] hover:bg-[#ffe27b]"
               >
                 Sign up
               </Link>
@@ -205,7 +205,7 @@ export function Nav({ onReset }: { onReset?: () => void } = {}) {
                     showDisconnectConfirm ? (
                       <div className="space-y-2 rounded border border-border bg-card p-3">
                         <p className="text-[11px] leading-5 text-foreground">
-                          This will remove VibeSane's access to your GitHub repositories. You can also revoke access directly from GitHub's settings. Continue?
+                          This will remove VibeGuard's access to your GitHub repositories. You can also revoke access directly from GitHub's settings. Continue?
                         </p>
                         <div className="flex gap-2">
                           <button

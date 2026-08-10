@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -30,46 +30,47 @@
 }
 
 :root {
-  --background: 42 23% 94%;
-  --foreground: 210 16% 10%;
-  --border: 40 12% 80%;
-  --input: 40 12% 74%;
-  --ring: 173 60% 45%;
-  --card: 42 25% 97%;
-  --card-foreground: 210 16% 10%;
-  --primary: 173 60% 45%;
-  --primary-foreground: 210 18% 9%;
-  --secondary: 47 17% 91%;
-  --secondary-foreground: 198 16% 22%;
-  --muted: 47 13% 91%;
-  --muted-foreground: 210 9% 42%;
-  --accent: 173 35% 86%;
-  --accent-foreground: 173 55% 24%;
-  --destructive: 8 51% 43%;
-  --destructive-foreground: 48 20% 97%;
+  --background: 45 33% 93%;
+  --foreground: 12 17% 11%;
+  --border: 35 17% 73%;
+  --input: 35 18% 64%;
+  --ring: 5 76% 53%;
+  --card: 45 38% 97%;
+  --card-foreground: 12 17% 11%;
+  --primary: 5 76% 53%;
+  --primary-foreground: 45 38% 97%;
+  --secondary: 44 24% 86%;
+  --secondary-foreground: 12 17% 16%;
+  --muted: 43 24% 88%;
+  --muted-foreground: 25 10% 39%;
+  --accent: 45 92% 61%;
+  --accent-foreground: 12 17% 11%;
+  --destructive: 5 76% 42%;
+  --destructive-foreground: 45 38% 97%;
   --app-font-sans: 'Manrope', ui-sans-serif, sans-serif;
   --app-font-mono: 'DM Mono', ui-monospace, monospace;
-  --radius: 0.5rem;
+  --app-font-display: 'Bebas Neue', Impact, sans-serif;
+  --radius: 0.08rem;
 }
 
 .dark {
-  --background: 198 16% 12%;
-  --foreground: 48 20% 94%;
-  --border: 198 11% 27%;
-  --input: 198 11% 31%;
-  --ring: 187 37% 57%;
-  --card: 198 15% 15%;
-  --card-foreground: 48 20% 94%;
-  --primary: 187 37% 59%;
-  --primary-foreground: 198 16% 12%;
-  --secondary: 198 12% 22%;
-  --secondary-foreground: 48 20% 94%;
-  --muted: 198 12% 21%;
-  --muted-foreground: 198 8% 67%;
-  --accent: 187 24% 25%;
-  --accent-foreground: 187 37% 78%;
-  --destructive: 8 51% 58%;
-  --destructive-foreground: 198 16% 12%;
+  --background: 12 17% 11%;
+  --foreground: 45 38% 97%;
+  --border: 25 12% 28%;
+  --input: 25 12% 35%;
+  --ring: 44 92% 61%;
+  --card: 12 15% 15%;
+  --card-foreground: 45 38% 97%;
+  --primary: 5 76% 58%;
+  --primary-foreground: 45 38% 97%;
+  --secondary: 25 12% 22%;
+  --secondary-foreground: 45 38% 97%;
+  --muted: 25 12% 21%;
+  --muted-foreground: 35 10% 67%;
+  --accent: 44 70% 26%;
+  --accent-foreground: 45 38% 97%;
+  --destructive: 5 76% 58%;
+  --destructive-foreground: 12 17% 11%;
 }
 
 @layer base {
@@ -84,6 +85,14 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
     min-width: 320px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--app-font-display);
+    font-weight: 400;
+    letter-spacing: 0.01em;
   }
 
   button,
@@ -148,16 +157,44 @@
 }
 
 .vg-button {
-  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease,
-    transform 180ms ease;
+  border-radius: 0;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease,
+    transform 140ms ease;
 }
 
 .vg-button:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: translate(-2px, -2px);
+  box-shadow: 3px 3px 0 hsl(var(--foreground));
 }
 
 .vg-button:active:not(:disabled) {
-  transform: translateY(0);
+  transform: translate(0, 0);
+  box-shadow: none;
+}
+
+.vg-display {
+  font-family: var(--app-font-display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.vg-tab {
+  border-radius: 0;
+  border: 1px solid hsl(var(--foreground));
+}
+
+.vg-block-input {
+  border: 2px solid hsl(var(--foreground));
+  box-shadow: 4px 4px 0 hsl(var(--foreground) / 0.14);
+}
+
+.vg-block-button {
+  border: 2px solid hsl(var(--foreground));
+  box-shadow: 4px 4px 0 hsl(var(--foreground));
+}
+
+.vg-block-button:hover:not(:disabled) {
+  box-shadow: 6px 6px 0 hsl(var(--foreground));
 }
 
 .vg-skeleton {

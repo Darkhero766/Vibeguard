@@ -101,7 +101,7 @@ export function RepoPicker({
     : repos;
 
   return (
-    <div className="mt-4 space-y-2">
+    <div className="mt-5 space-y-3">
       {/* Search input */}
       <div className="relative">
         <Search
@@ -113,13 +113,13 @@ export function RepoPicker({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search repositories…"
-          className="vg-focus h-10 w-full border border-input bg-card pl-9 pr-4 text-[13px] outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary"
+          className="vg-focus vg-block-input h-12 w-full border-2 border-foreground bg-card pl-9 pr-4 text-[13px] outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary"
           disabled={loading || disabled}
         />
       </div>
 
       {/* List */}
-      <div className="max-h-64 divide-y divide-border overflow-y-auto border border-border bg-card">
+      <div className="max-h-72 divide-y divide-border overflow-y-auto border-2 border-foreground bg-card shadow-[4px_4px_0_hsl(var(--foreground)/.15)]">
         {loading && (
           <div className="flex items-center justify-center gap-2 py-8 text-[13px] text-muted-foreground">
             <Loader2 size={15} className="animate-spin" />
@@ -147,7 +147,7 @@ export function RepoPicker({
               key={repo.id}
               disabled={disabled}
               onClick={() => { console.log("[RepoPicker] htmlUrl selected:", JSON.stringify(repo.htmlUrl)); onSelect(repo.htmlUrl); }}
-              className="vg-button vg-focus flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+              className="vg-button vg-focus flex w-full items-start gap-3 px-4 py-3.5 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div className="mt-0.5 shrink-0 text-muted-foreground">
                 {repo.private ? (

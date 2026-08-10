@@ -216,7 +216,7 @@ function CleanResult({ report }: { report: ScanReport }) {
       </div>
       <h2 className="mt-6 text-[24px] font-bold tracking-[-0.035em]">No high-signal issues found.</h2>
       <p className="mt-2.5 max-w-xl text-[14px] leading-6 text-muted-foreground">
-        VibeSane checked all {report.filesScanned} files and did not find any of the security patterns it looks for.
+        VibeGuard checked all {report.filesScanned} files and did not find any of the security patterns it looks for.
       </p>
       <div className="mt-6 flex flex-wrap gap-5 font-mono text-[11px] uppercase tracking-[0.1em] text-[#66763e]">
         <span>{report.filesScanned} files scanned</span>
@@ -265,7 +265,7 @@ function UpgradeWall() {
 function BadgeSnippet({ report }: { report: ScanReport }) {
   const [copied, setCopied] = useState(false);
   const badgeUrl = `${window.location.origin}/api/badge/${report.repo}`;
-  const markdown = `![VibeSane](${badgeUrl})`;
+  const markdown = `![VibeGuard](${badgeUrl})`;
 
   const copy = async () => {
     try {
@@ -509,11 +509,11 @@ function ChecksGrid() {
   return (
     <section className="relative -mx-5 mt-20 bg-[#0d0d0d] px-5 pb-14 pt-16 text-[#f4f1ea] sm:-mx-8 sm:px-8">
       <div className="mx-auto max-w-[1040px]">
-      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#2db8a8]">
-        <span className="inline-block h-px w-8 bg-[#2db8a8]" />
-        What VibeSane catches
+      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#f4c842]">
+        <span className="inline-block h-1.5 w-1.5 bg-[#f4c842]" />
+        What VibeGuard catches
       </div>
-      <h2 className="mt-5 max-w-lg text-[32px] font-extrabold leading-[.96] tracking-[-0.06em] sm:text-[48px]">
+      <h2 className="vg-display mt-5 max-w-lg text-[42px] leading-[.86] tracking-[0.01em] sm:text-[64px]">
         Six checks. The ones that actually matter.
       </h2>
       <p className="mt-4 max-w-[520px] text-[14px] leading-6 text-[#a4aaa3]">
@@ -521,9 +521,9 @@ function ChecksGrid() {
       </p>
       <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {checks.map((check) => (
-          <div key={check.title} className={`group border border-[#2a2f2a] bg-[#111312] p-7 transition hover:border-[#2db8a8]/40 hover:bg-[#141916] ${check.severity === 'Critical' ? 'border-t-2 border-t-[#963f34]' : 'border-t-2 border-t-[#a06427]'}`}>
+          <div key={check.title} className={`group border border-[#30302b] bg-[#121212] p-7 transition hover:border-[#f4c842]/70 hover:bg-[#181817] ${check.severity === 'Critical' ? 'border-t-2 border-t-[#e34a3b]' : 'border-t-2 border-t-[#f4c842]'}`}>
             <div className="flex items-start justify-between gap-2">
-               <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#2db8a8]/50 bg-[#2db8a8]/10 text-[#62d4c5] transition-colors group-hover:border-[#2db8a8]">
+               <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#f4c842]/50 bg-[#f4c842]/10 text-[#f4c842] transition-colors group-hover:border-[#f4c842]">
                 {check.icon}
               </div>
               <span className={`inline-flex items-center border px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-[0.12em] ${badgeColor[check.severity]}`}>
@@ -544,7 +544,7 @@ function ChecksGrid() {
 
 function BottomCTA() {
   return (
-    <section className="relative mt-6 mb-20 overflow-hidden border border-[#2db8a8]/30 bg-[#dce9df] p-10 sm:p-14">
+    <section className="relative mt-6 mb-20 overflow-hidden border-2 border-foreground bg-accent p-8 shadow-[6px_6px_0_hsl(var(--foreground))] sm:p-14">
       <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
         <span className="inline-block h-px w-8 bg-primary" />
         Free to start
@@ -552,7 +552,7 @@ function BottomCTA() {
       <div className="mt-5 flex h-11 w-11 items-center justify-center rounded-[10px] border border-primary/40 bg-primary/[0.08] text-primary">
         <ShieldCheck size={22} strokeWidth={1.6} />
       </div>
-      <h2 className="mt-4 max-w-xl text-[30px] font-extrabold leading-[.96] tracking-[-0.06em] sm:text-[46px]">
+      <h2 className="vg-display mt-4 max-w-xl text-[42px] leading-[.86] tracking-[0.01em] sm:text-[64px]">
         Ship with confidence.<br className="hidden sm:block" /> Catch the bugs before your users do.
       </h2>
       <p className="mt-3 max-w-lg text-[14px] leading-6 text-muted-foreground">
@@ -592,7 +592,7 @@ function HowItWorks() {
       icon: <FileSearch size={22} strokeWidth={1.6} />,
       num: '02',
       title: 'We scan for six security patterns',
-      desc: 'VibeSane checks for RLS gaps, unauthenticated database writes, client-side service_role keys, unprotected SECURITY DEFINER functions, committed .env secrets, and real credentials hidden in .env.example files.',
+      desc: 'VibeGuard checks for RLS gaps, unauthenticated database writes, client-side service_role keys, unprotected SECURITY DEFINER functions, committed .env secrets, and real credentials hidden in .env.example files.',
     },
     {
       icon: <Lock size={22} strokeWidth={1.6} />,
@@ -656,7 +656,7 @@ function ScanForm({
   const remaining = usage ? Math.max(0, usage.scans_limit - usage.scans_used) : null;
 
   return (
-    <div className="mt-8 max-w-[680px]">
+    <div className="mt-8 max-w-[720px]">
       {/* Scans remaining — visible right where user is about to act */}
       {remaining !== null && (
         <p className="mb-4 font-mono text-[11px] text-muted-foreground">
@@ -668,18 +668,18 @@ function ScanForm({
       )}
 
       {/* Mode toggle: paste URL or pick from connected repos */}
-      <div className="flex w-fit rounded-full border border-border bg-card p-0.5">
+      <div className="flex w-full max-w-[360px] border-2 border-foreground bg-card p-0.5">
         <button
           type="button"
           onClick={() => setScanMode('url')}
-          className={`vg-button vg-focus rounded-full px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'url' ? 'bg-primary text-primary-foreground shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`vg-button vg-focus vg-tab flex-1 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'url' ? 'bg-primary text-primary-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
           Paste URL
         </button>
         <button
           type="button"
           onClick={() => setScanMode('picker')}
-          className={`vg-button vg-focus rounded-full px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'picker' ? 'bg-primary text-primary-foreground shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`vg-button vg-focus vg-tab flex-1 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${scanMode === 'picker' ? 'bg-primary text-primary-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
           My repos
         </button>
@@ -700,13 +700,13 @@ function ScanForm({
                 value={repoUrl}
                 onChange={(e) => { setRepoUrl(e.target.value); setValidationError(''); }}
                 placeholder="https://github.com/owner/repository"
-                className={`vg-focus h-12 w-full border bg-card pl-10 pr-4 text-[14px] outline-none transition-colors placeholder:text-muted-foreground/60 ${validationError ? 'border-[#b56b5c]' : 'border-input focus:border-primary'}`}
+                className={`vg-focus vg-block-input h-14 w-full bg-card pl-11 pr-4 text-[14px] outline-none transition-colors placeholder:text-muted-foreground/60 ${validationError ? 'border-[#b56b5c]' : 'border-foreground focus:border-primary'}`}
               />
             </div>
             <button
               type="submit"
               disabled={isScanning || (!canScan && repoUrl.length > 0)}
-              className="vg-button vg-focus inline-flex h-12 items-center justify-center gap-2 bg-primary px-5 text-[13px] font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45"
+              className="vg-button vg-focus vg-block-button inline-flex h-14 items-center justify-center gap-2 bg-primary px-5 text-[13px] font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45 sm:min-w-[172px]"
             >
               Scan repository <ArrowRight size={15} />
             </button>
@@ -812,7 +812,7 @@ function Home() {
     scanMutation.mutate(
       { data: { repoUrl: normalizedUrl } },
       {
-        onSuccess: async (rawData) => {
+        onSuccess: async (rawData: unknown) => {
           // Save this scan to localStorage for the next-session last-scan card.
           const scanned = rawData as unknown as ScanReport;
           if (user?.id) {
@@ -859,7 +859,7 @@ function Home() {
   const handleCopy = async () => {
     if (!displayReport) return;
     const text = [
-      `VibeSane report — ${displayReport.repo}`,
+      `VibeGuard report — ${displayReport.repo}`,
       `Repository: ${displayReport.repoUrl}`,
       `Scanned: ${formatDate(displayReport.scannedAt)}`,
       `Files scanned: ${displayReport.filesScanned}`,
@@ -901,18 +901,18 @@ function Home() {
                 {/* ── LOGGED-OUT: full marketing hero (unchanged) ── */}
                 {!user && (
                   <>
-                    <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#168f82]">
-                      <span className="inline-block h-px w-8 bg-primary" />
-                      Next.js · Supabase · Security
+                    <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
+                      <span className="inline-block h-1.5 w-1.5 bg-primary" />
+                      GitHub · source security
                     </div>
                     <div className="pointer-events-none absolute -right-28 -top-24 hidden h-[270px] w-[480px] -rotate-[17deg] sm:block" aria-hidden="true">
-                      <div className="absolute right-0 top-8 h-5 w-[430px] bg-[#e8622a]" />
-                      <div className="absolute right-[-18px] top-24 h-5 w-[430px] bg-[#e85577]" />
-                      <div className="absolute right-[-36px] top-40 h-5 w-[430px] bg-[#1a2550]" />
+                      <div className="absolute right-0 top-8 h-5 w-[430px] bg-primary" />
+                      <div className="absolute right-[-18px] top-24 h-5 w-[430px] bg-accent" />
+                      <div className="absolute right-[-36px] top-40 h-5 w-[430px] bg-foreground" />
                     </div>
-                    <h1 className="relative mt-6 max-w-[790px] text-[48px] font-extrabold leading-[.94] tracking-[-0.065em] sm:text-[82px]">
+                    <h1 className="vg-display relative mt-6 max-w-[790px] text-[58px] leading-[.84] tracking-[0.005em] sm:text-[104px]">
                       Catch the security bugs<br className="hidden sm:block" /> vibecoding tools miss —<br className="hidden sm:block" />
-                      <span className="text-[#168f82]">before you ship.</span>
+                      <span className="text-primary">before you ship.</span>
                     </h1>
                     <p className="mt-6 max-w-[560px] text-[16px] leading-7 text-muted-foreground sm:text-[17px]">
                       Six high-signal checks: missing RLS policies, unauthenticated database writes, client-side service keys, unprotected SECURITY DEFINER functions, committed secrets, and exposed credentials in <code className="font-mono text-[15px] text-foreground">.env.example</code> files — all in seconds.
@@ -926,17 +926,17 @@ function Home() {
                       }}
                       className="mt-10 max-w-[640px]"
                     >
-                      <div className="flex h-14 w-full items-center border border-[#1a1a1a] bg-[#fbf9f4] pl-4">
-                        <Github size={20} className="text-[#1a1a1a]/60" />
+                      <div className="vg-block-input flex h-14 w-full items-center bg-card pl-4">
+                        <Github size={20} className="text-foreground/60" />
                         <input
                           name="demo-url"
                           type="url"
                           placeholder="https://github.com/owner/repository"
-                          className="h-full flex-1 bg-transparent px-3 text-[15px] text-[#1a1a1a] placeholder:text-[#1a1a1a]/40 focus:outline-none"
+                          className="h-full flex-1 bg-transparent px-3 text-[15px] text-foreground placeholder:text-foreground/40 focus:outline-none"
                         />
                         <button
                           type="submit"
-                          className="h-full bg-[#e8622a] px-8 text-[15px] font-bold text-white transition-colors hover:bg-[#d95620]"
+                          className="vg-button h-full border-l-2 border-foreground bg-primary px-8 text-[15px] font-bold text-primary-foreground transition-colors hover:bg-primary/90"
                         >
                           Scan
                         </button>

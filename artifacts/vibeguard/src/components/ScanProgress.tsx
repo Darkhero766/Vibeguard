@@ -71,7 +71,7 @@ export function ScanProgress() {
       </div>
 
       {/* Progress bar */}
-      <div className="mt-5 h-0.5 w-full overflow-hidden bg-border">
+      <div className="mt-5 h-2 w-full overflow-hidden border border-foreground bg-border">
         <div
           className="h-full bg-primary transition-all duration-700 ease-out"
           style={{ width: `${rawProgress}%` }}
@@ -85,19 +85,19 @@ export function ScanProgress() {
       </div>
 
       {/* Check rows */}
-      <div className="mt-5 divide-y divide-border border border-border">
+      <div className="mt-5 divide-y divide-border border-2 border-foreground bg-card shadow-[4px_4px_0_hsl(var(--foreground)/.15)]">
         {CHECKS.map((check, i) => {
           const state = states[i];
           return (
             <div
               key={check.id}
-              className="flex items-center gap-4 bg-card px-5 py-3"
+              className="flex items-center gap-4 bg-card px-4 py-3.5 sm:px-5"
               style={{ animationDelay: `${i * 40}ms` }}
             >
               {/* Status icon — fixed width to prevent layout shift */}
               <div className="flex h-5 w-5 shrink-0 items-center justify-center">
                 {state === 'complete' ? (
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#d2dbc1] text-[#66763e]">
+                  <span className="flex h-5 w-5 items-center justify-center bg-accent text-foreground">
                     <Check size={11} strokeWidth={2.5} />
                   </span>
                 ) : state === 'running' ? (
