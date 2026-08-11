@@ -9,17 +9,15 @@ type AuthContextValue = {
   usage: UsageRow | null;
   authLoading: boolean;
   usageLoading: boolean;
-  /** Incremented each time a GitHub OAuth token has been successfully persisted server-side. */
   githubTokenVersion: number;
-  /** Whether the current user has a stored GitHub token. null = not yet checked. */
   hasGithubToken: boolean | null;
   signOut: () => Promise<void>;
   refreshUsage: () => Promise<void>;
-  /** Deletes the stored GitHub token and clears the connected state. */
   disconnectGithub: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const ADMIN_EMAIL = 'nightowlclub72@gmail.com';
 
 async function ensureUsageRow(userId: string): Promise<UsageRow | null> {
   const { data: existing } = await supabase
@@ -37,6 +35,12 @@ async function ensureUsageRow(userId: string): Promise<UsageRow | null> {
     .single();
 
   return (inserted as UsageRow) ?? null;
+}
+
+function setVibeSaneIdentity(user: User | null) {
+  const isAdmin = user?.email?.trim().toLowerCase() === ADMIN_EMAIL;
+  document.documentElement.dataset.vgAdmin = isAdmin ? 'true' : 'false';
+  document.documentElement.dataset.vgSignedIn = user ? 'true' : 'false';
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -71,17 +75,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    let active = true;
+
+    // getSession() restores the persisted Supabase session and refreshes it when
+    // necessary. We intentionally do not force refreshSession() on startup.
     supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (!active) return;
       setSession(s);
       setUser(s?.user ?? null);
+      setVibeSaneIdentity(s?.user ?? null);
       setAuthLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, s) => {
+        if (!active) return;
         setSession(s);
         const u = s?.user ?? null;
         setUser(u);
+        setVibeSaneIdentity(u);
         setAuthLoading(false);
 
         if (u && u.id !== lastUserId.current) {
@@ -89,28 +101,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUsageLoading(true);
           try {
             const row = await ensureUsageRow(u.id);
-            setUsage(row);
+            if (active) setUsage(row);
           } finally {
-            setUsageLoading(false);
+            if (active) setUsageLoading(false);
           }
 
-          // Check whether this user has a stored GitHub token.
-          supabase
+          // This is only a connection-state check. It does not attempt to fetch
+          // GitHub repositories or create a new OAuth token.
+          const { data } = await supabase
             .from('github_tokens')
             .select('id')
             .eq('owner', u.id)
-            .maybeSingle()
-            .then(({ data }) => setHasGithubToken(!!data));
+            .maybeSingle();
+          if (active) setHasGithubToken(!!data);
         } else if (!u) {
           lastUserId.current = null;
           setUsage(null);
           setHasGithubToken(null);
         }
 
-        // After a GitHub OAuth sign-in, persist the provider token server-side.
-        // provider_token is only available right after the OAuth redirect.
-        // Check identities (not app_metadata.provider) so this works for users
-        // whose primary Supabase provider is Google but who also linked GitHub.
+        // Provider tokens are available immediately after OAuth redirect. Persist
+        // that token once, server-side, so My Repos works after the browser closes.
         const hasGithubIdentity = s?.user?.identities?.some(
           (id: { provider: string }) => id.provider === 'github'
         );
@@ -121,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           hasGithubIdentity
         ) {
           try {
-            await fetch(apiUrl('/api/github/token'), {
+            const response = await fetch(apiUrl('/api/github/token'), {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -129,16 +140,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               },
               body: JSON.stringify({ token: s.provider_token }),
             });
-            setGithubTokenVersion((v) => v + 1);
-            setHasGithubToken(true);
+            if (!response.ok) throw new Error('GitHub token persistence failed');
+            if (active) {
+              setGithubTokenVersion((v) => v + 1);
+              setHasGithubToken(true);
+            }
           } catch {
-            // Non-fatal — user can still scan public repos
+            // Keep public-URL scanning available. My Repos will show reconnect
+            // when the user explicitly opens the repository picker.
           }
         }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+      document.documentElement.dataset.vgAdmin = 'false';
+      document.documentElement.dataset.vgSignedIn = 'false';
+    };
   }, []);
 
   const signOut = async () => {
@@ -146,6 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUsage(null);
     setHasGithubToken(null);
     lastUserId.current = null;
+    setVibeSaneIdentity(null);
   };
 
   return (
