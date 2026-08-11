@@ -1,25 +1,7 @@
-import { execFile } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
-import { promisify } from "node:util";
 import type { Finding } from "@workspace/api-zod";
-
-const execFileAsync = promisify(execFile);
+import { readRepositoryFiles } from "./githubRepoReader";
 
 type RepositoryFile = { path: string; content: string };
-
-const MAX_FILES = 300;
-const MAX_FILE_BYTES = 750_000;
-const MAX_TOTAL_BYTES = 12_000_000;
-const IGNORED = new Set(["node_modules", ".git", ".next", "dist", "build", "coverage", "vendor"]);
-const TEXT_PATH = /\.(?:[cm]?[jt]sx?|sql|json|ya?ml|md|mdx|toml|ini|conf|xml|html|css|scss|sh|bash|py|rb|go|rs|java|php)$/i;
-
-function shouldRead(path: string): boolean {
-  const base = path.split("/").pop() ?? "";
-  return (
-    (TEXT_PATH.test(path) || /^Dockerfile(?:\..*)?$/i.test(base) || /^\.npmrc$/i.test(base) || /^\.gitignore$/i.test(base)) &&
-    !path.split("/").some((part) => IGNORED.has(part))
-  );
-}
 
 function lineAt(content: string, index: number): number {
   return content.slice(0, index).split("\n").length;
@@ -59,38 +41,11 @@ function regexFindings(
 }
 
 async function readRepository(repoUrl: string, githubToken?: string): Promise<RepositoryFile[]> {
-  const parsed = new URL(repoUrl);
-  const parts = parsed.pathname.split("/").filter(Boolean);
-  const owner = parts[0];
-  const repo = parts[1]?.replace(/\.git$/, "");
-  if (parsed.protocol !== "https:" || parsed.hostname !== "github.com" || !owner || !repo) {
-    throw new Error("Invalid GitHub repository URL");
-  }
-
-  const parent = await mkdtemp("/tmp/vibesane-extended-");
-  const checkout = `${parent}/repo`;
-  const cloneUrl = `https://github.com/${owner}/${repo}.git`;
-  const resolved = githubToken ? cloneUrl.replace("https://", `https://x-oauth-token:${githubToken}@`) : cloneUrl;
-
-  try {
-    await execFileAsync("git", ["clone", "--no-checkout", "--depth", "1", "--no-tags", "--single-branch", "--quiet", resolved, checkout], { timeout: 120_000, maxBuffer: 2_000_000 });
-    const { stdout } = await execFileAsync("git", ["-C", checkout, "ls-tree", "-r", "--name-only", "-z", "HEAD"], { timeout: 20_000, maxBuffer: 20_000_000 });
-    const paths = stdout.split("\0").filter((p) => p && shouldRead(p)).slice(0, MAX_FILES);
-    const files: RepositoryFile[] = [];
-    let total = 0;
-    for (const path of paths) {
-      try {
-        const { stdout: content } = await execFileAsync("git", ["-C", checkout, "show", `HEAD:${path}`], { timeout: 10_000, maxBuffer: MAX_FILE_BYTES + 1 });
-        const size = Buffer.byteLength(content, "utf8");
-        if (!content || size > MAX_FILE_BYTES || total + size > MAX_TOTAL_BYTES) continue;
-        total += size;
-        files.push({ path, content });
-      } catch { /* skip unreadable/binary files */ }
-    }
-    return files;
-  } finally {
-    await rm(parent, { recursive: true, force: true });
-  }
+  const result = await readRepositoryFiles(repoUrl, githubToken);
+  return result.files.filter((file) => {
+    const base = file.path.split("/").pop() ?? "";
+    return /\.(?:[cm]?[jt]sx?|sql|json|ya?ml|md|mdx|toml|ini|conf|xml|html|css|scss|sh|bash|py|rb|go|rs|java|php)$/i.test(file.path) || /^Dockerfile(?:\..*)?$/i.test(base) || /^\.npmrc$/i.test(base) || /^\.gitignore$/i.test(base) || /(^|\/)\.env(?:\.[\w-]+)?$/i.test(file.path);
+  });
 }
 
 function sqlChecks(files: RepositoryFile[]): Finding[] {
