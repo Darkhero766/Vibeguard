@@ -32,5 +32,6 @@ export const CreateScanResponse = zod.object({
     "check": zod.string()
   })),
   "filesScanned": zod.number().min(createScanResponseFilesScannedMin),
-  "scannedAt": zod.string()
+  "scannedAt": zod.string(),
+  "checksRun": zod.number().int().min(0).optional()
 })
