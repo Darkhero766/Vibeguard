@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { CreateScanBody, CreateScanResponse } from "@workspace/api-zod";
 import { scanPublicRepository } from "../lib/scanner";
 import { runExtendedSecurityChecks } from "../lib/extendedScanner";
+import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { optionalAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
 import { cacheScanResult } from "../lib/scanCache";
@@ -30,8 +31,6 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
   try {
     const report = await scanPublicRepository(parsed.data.repoUrl, githubToken);
 
-    // Run the expanded rule set against the same repository. If one of the
-    // extended heuristics fails, preserve the working core scanner result.
     let extendedFindings = [];
     try {
       extendedFindings = await runExtendedSecurityChecks(parsed.data.repoUrl, githubToken);
@@ -50,7 +49,7 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     }
     findings.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.line - b.line || a.title.localeCompare(b.title));
 
-    const finalReport = { ...report, findings };
+    const finalReport = { ...report, findings, checksRun: TOTAL_SECURITY_CHECKS };
     cacheScanResult(finalReport.repo, finalReport);
     res.json(CreateScanResponse.parse(finalReport));
   } catch (error) {
