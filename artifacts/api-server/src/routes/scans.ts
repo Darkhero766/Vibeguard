@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { CreateScanBody, CreateScanResponse } from "@workspace/api-zod";
 import { scanPublicRepository } from "../lib/scanner";
+import { scanRepositoryViaApi } from "../lib/apiScanner";
 import { runExtendedSecurityChecks } from "../lib/extendedScanner";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { optionalAuth, type AuthedRequest } from "../middlewares/auth";
@@ -24,7 +25,6 @@ function errorMessage(error: unknown): string {
 
 router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<void> => {
   console.log("[scans] repoUrl received:", JSON.stringify(req.body?.repoUrl));
-  console.log("[scans] pattern used:", CreateScanBody.shape.repoUrl.toString());
   const parsed = CreateScanBody.safeParse(req.body);
   if (!parsed.success) {
     req.log.warn({ errors: parsed.error.message }, "Invalid scan request");
@@ -37,7 +37,6 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     try {
       githubToken = (await getGithubTokenForUser(req.userId, req.userJwt)) ?? undefined;
     } catch (error) {
-      // A missing/expired GitHub provider token must not prevent public-repo scans.
       req.log.warn({ err: error }, "Could not load GitHub provider token; trying public access");
     }
   }
@@ -52,14 +51,27 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
       const status = errorStatus(firstError);
       const message = errorMessage(firstError);
 
-      // Public repositories must remain scannable even when a user's stored
-      // GitHub OAuth token is expired/revoked. Retry anonymously before failing.
-      if (githubToken && (status === 401 || status === 403 || status === 404 || status === 502 || /GitHub could not be reached|not found|authentication|auth/i.test(message))) {
-        req.log.warn({ err: firstError }, "Authenticated GitHub clone failed; retrying public repository without token");
-        report = await scanPublicRepository(parsed.data.repoUrl, undefined);
-        tokenUsed = false;
-      } else {
-        throw firstError;
+      // The production runtime may not have git available or outbound Git transport
+      // may fail. Fall back to GitHub's REST Git Trees/Blobs API, which works for both
+      // public repositories and private repositories when the user's OAuth token exists.
+      req.log.warn({ err: firstError, status }, "Git clone scan failed; falling back to GitHub REST API");
+      try {
+        report = await scanRepositoryViaApi(parsed.data.repoUrl, githubToken);
+        tokenUsed = Boolean(githubToken);
+      } catch (apiError) {
+        const apiStatus = errorStatus(apiError);
+        const apiMessage = errorMessage(apiError);
+
+        // If an OAuth token is stale/revoked, public repositories should still scan anonymously.
+        if (githubToken && (apiStatus === 401 || apiStatus === 403 || apiStatus === 404)) {
+          req.log.warn({ err: apiError, status: apiStatus }, "Authenticated GitHub API access failed; retrying anonymously");
+          report = await scanRepositoryViaApi(parsed.data.repoUrl, undefined);
+          tokenUsed = false;
+        } else {
+          const wrapped = new Error(apiMessage || message);
+          Object.assign(wrapped, { status: apiStatus ?? status ?? 502 });
+          throw wrapped;
+        }
       }
     }
 
@@ -67,9 +79,8 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     let extendedSucceeded = false;
 
     try {
-      // Use the same access mode that successfully fetched the repository.
-      // This prevents an expired OAuth token from breaking public scans after
-      // the core repository fetch has already succeeded anonymously.
+      // Extended checks use the same GitHub REST reader as the core fallback,
+      // avoiding a second git clone and making public scans independent of git transport.
       extendedFindings = await runExtendedSecurityChecks(parsed.data.repoUrl, tokenUsed ? githubToken : undefined);
       extendedSucceeded = true;
     } catch (extendedError) {
@@ -99,7 +110,7 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     const message = errorMessage(error);
     req.log.error({ err: error, repoUrl: parsed.data.repoUrl, status }, "Repository scan failed");
 
-    if (status === 404 || /Repository not found|does not exist/i.test(message)) {
+    if (status === 404 || /Repository not found|does not exist|GitHub API 404/i.test(message)) {
       res.status(404).json({ error: `Repository not found or inaccessible: ${message}` });
       return;
     }
@@ -109,6 +120,10 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     }
     if (status === 401) {
       res.status(502).json({ error: `GitHub authorization failed: ${message}` });
+      return;
+    }
+    if (status === 413) {
+      res.status(413).json({ error: message });
       return;
     }
     if (status && status >= 500) {
