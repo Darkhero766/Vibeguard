@@ -51,9 +51,6 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
       const status = errorStatus(firstError);
       const message = errorMessage(firstError);
 
-      // The production runtime may not have git available or outbound Git transport
-      // may fail. Fall back to GitHub's REST Git Trees/Blobs API, which works for both
-      // public repositories and private repositories when the user's OAuth token exists.
       req.log.warn({ err: firstError, status }, "Git clone scan failed; falling back to GitHub REST API");
       try {
         report = await scanRepositoryViaApi(parsed.data.repoUrl, githubToken);
@@ -62,7 +59,6 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
         const apiStatus = errorStatus(apiError);
         const apiMessage = errorMessage(apiError);
 
-        // If an OAuth token is stale/revoked, public repositories should still scan anonymously.
         if (githubToken && (apiStatus === 401 || apiStatus === 403 || apiStatus === 404)) {
           req.log.warn({ err: apiError, status: apiStatus }, "Authenticated GitHub API access failed; retrying anonymously");
           report = await scanRepositoryViaApi(parsed.data.repoUrl, undefined);
@@ -79,13 +75,20 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     let extendedSucceeded = false;
 
     try {
-      // Extended checks use the same GitHub REST reader as the core fallback,
-      // avoiding a second git clone and making public scans independent of git transport.
       extendedFindings = await runExtendedSecurityChecks(parsed.data.repoUrl, tokenUsed ? githubToken : undefined);
       extendedSucceeded = true;
     } catch (extendedError) {
       req.log.warn({ err: extendedError }, "Extended security checks failed; returning core findings");
     }
+
+    // The public API Finding schema supports Critical/High/Medium only.
+    // Some extended detectors intentionally use Low for informational findings.
+    // Normalize those to Medium at the API boundary so one Low finding cannot
+    // invalidate the entire scan response with a Zod enum error.
+    extendedFindings = extendedFindings.map((finding) => ({
+      ...finding,
+      severity: finding.severity === "Low" ? "Medium" : finding.severity,
+    }));
 
     const seen = new Set(report.findings.map((f) => `${f.filePath}:${f.line}:${f.check}:${f.title}`));
     const findings = [...report.findings];
