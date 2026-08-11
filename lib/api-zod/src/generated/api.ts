@@ -7,48 +7,30 @@
  */
 import * as zod from 'zod';
 
-
-/**
- * Returns server health status
- * @summary Health check
- */
 export const HealthCheckResponse = zod.object({
   "status": zod.string()
 })
 
-
-/**
- * Fetches JavaScript and TypeScript source files from a public GitHub repository and checks them for three security issues.
- * @summary Scan a public GitHub repository
- */
-
-
 export const createScanBodyRepoUrlRegExp = new RegExp('^https://github\\.com/[-A-Za-z0-9_.]+/[-A-Za-z0-9_.]+/?$');
-
 
 export const CreateScanBody = zod.object({
   "repoUrl": zod.string().min(1).regex(createScanBodyRepoUrlRegExp)
 })
 
-
 export const createScanResponseFilesScannedMin = 0;
-
-
 
 export const CreateScanResponse = zod.object({
   "repo": zod.string(),
   "repoUrl": zod.string(),
   "findings": zod.array(zod.object({
-  "id": zod.string(),
-  "severity": zod.enum(['Critical', 'High', 'Medium']),
-  "title": zod.string(),
-  "description": zod.string(),
-  "filePath": zod.string(),
-  "line": zod.number().min(1),
-  "check": zod.enum(['rls', 'unauthenticated_write', 'service_role_client', 'unprotected_rpc', 'committed_env_file', 'hardcoded_secret', 'cors_wildcard', 'fake_env_example'])
-})),
+    "id": zod.string(),
+    "severity": zod.enum(['Critical', 'High', 'Medium']),
+    "title": zod.string(),
+    "description": zod.string(),
+    "filePath": zod.string(),
+    "line": zod.number().min(1),
+    "check": zod.string()
+  })),
   "filesScanned": zod.number().min(createScanResponseFilesScannedMin),
   "scannedAt": zod.string()
 })
-
-
