@@ -14,6 +14,7 @@ import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
 import { ScanProgress } from '@/components/ScanProgress';
 import { RepoPicker } from '@/components/RepoPicker';
+import { ReportEnhancements } from '@/components/ReportEnhancements';
 
 // Point the generated API client at the correct API server.
 // On Replit dev the Vite proxy handles /api → localhost:8080 so this is empty.
@@ -359,6 +360,7 @@ function Report({ report, onRescan, onCopy, copied, onBack }: {
             checked {formatDate(report.scannedAt)}
           </p>
           <SummaryBar report={report} />
+          <ReportEnhancements report={report} />
         </div>
       </div>
 
@@ -373,7 +375,7 @@ function Report({ report, onRescan, onCopy, copied, onBack }: {
       <BadgeSnippet report={report} />
 
       <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-        scope: public source files · six high-signal checks
+        scope: public source files · 50 security checks
       </p>
     </section>
   );
@@ -439,7 +441,7 @@ function TrustBar() {
   const items = [
     { icon: <Lock size={12} strokeWidth={2} />, label: 'Read-only clone' },
     { icon: <ShieldCheck size={12} strokeWidth={2} />, label: 'No code stored' },
-    { icon: <Eye size={12} strokeWidth={2} />, label: 'Six signal checks' },
+    { icon: <Eye size={12} strokeWidth={2} />, label: '50 security checks' },
     { icon: <Wifi size={12} strokeWidth={2} />, label: 'Results in seconds' },
   ];
   return (
@@ -514,10 +516,10 @@ function ChecksGrid() {
         What VibeGuard catches
       </div>
       <h2 className="vg-display mt-5 max-w-lg text-[42px] leading-[.86] tracking-[0.01em] sm:text-[64px]">
-        Six checks. The ones that actually matter.
+        50 checks. The signals that actually matter.
       </h2>
       <p className="mt-4 max-w-[520px] text-[14px] leading-6 text-[#a4aaa3]">
-        These patterns are responsible for the overwhelming majority of Next.js and Supabase security incidents — and vibecoding assistants introduce them constantly.
+        Fifty focused signals across database access, secrets, injection, dependencies, containers, browser APIs, and infrastructure patterns commonly introduced by AI-assisted development.
       </p>
       <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {checks.map((check) => (
