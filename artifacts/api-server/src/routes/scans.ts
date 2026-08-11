@@ -8,6 +8,7 @@ import { getGithubTokenForUser } from "../lib/github";
 import { cacheScanResult } from "../lib/scanCache";
 
 const router: IRouter = Router();
+const CORE_SECURITY_CHECKS = 8;
 
 router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<void> => {
   console.log("[scans] repoUrl received:", JSON.stringify(req.body?.repoUrl));
@@ -30,10 +31,12 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
 
   try {
     const report = await scanPublicRepository(parsed.data.repoUrl, githubToken);
-
     let extendedFindings = [];
+    let extendedSucceeded = false;
+
     try {
       extendedFindings = await runExtendedSecurityChecks(parsed.data.repoUrl, githubToken);
+      extendedSucceeded = true;
     } catch (extendedError) {
       req.log.warn({ err: extendedError }, "Extended security checks failed; returning core findings");
     }
@@ -49,7 +52,12 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     }
     findings.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.line - b.line || a.title.localeCompare(b.title));
 
-    const finalReport = { ...report, findings, checksRun: TOTAL_SECURITY_CHECKS };
+    const finalReport = {
+      ...report,
+      findings,
+      // Never claim 50 unless the extended engine actually completed.
+      checksRun: extendedSucceeded ? TOTAL_SECURITY_CHECKS : CORE_SECURITY_CHECKS,
+    };
     cacheScanResult(finalReport.repo, finalReport);
     res.json(CreateScanResponse.parse(finalReport));
   } catch (error) {
