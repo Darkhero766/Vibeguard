@@ -50,15 +50,14 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     } catch (firstError) {
       const status = errorStatus(firstError);
       const message = errorMessage(firstError);
-
       req.log.warn({ err: firstError, status }, "Git clone scan failed; falling back to GitHub REST API");
+
       try {
         report = await scanRepositoryViaApi(parsed.data.repoUrl, githubToken);
         tokenUsed = Boolean(githubToken);
       } catch (apiError) {
         const apiStatus = errorStatus(apiError);
         const apiMessage = errorMessage(apiError);
-
         if (githubToken && (apiStatus === 401 || apiStatus === 403 || apiStatus === 404)) {
           req.log.warn({ err: apiError, status: apiStatus }, "Authenticated GitHub API access failed; retrying anonymously");
           report = await scanRepositoryViaApi(parsed.data.repoUrl, undefined);
@@ -73,7 +72,6 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
 
     let extendedFindings = [];
     let extendedSucceeded = false;
-
     try {
       extendedFindings = await runExtendedSecurityChecks(parsed.data.repoUrl, tokenUsed ? githubToken : undefined);
       extendedSucceeded = true;
@@ -81,10 +79,7 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
       req.log.warn({ err: extendedError }, "Extended security checks failed; returning core findings");
     }
 
-    // The public API Finding schema supports Critical/High/Medium only.
-    // Some extended detectors intentionally use Low for informational findings.
-    // Normalize those to Medium at the API boundary so one Low finding cannot
-    // invalidate the entire scan response with a Zod enum error.
+    // The public Finding schema supports Critical/High/Medium only.
     extendedFindings = extendedFindings.map((finding) => ({
       ...finding,
       severity: finding.severity === "Low" ? "Medium" : finding.severity,
@@ -113,6 +108,10 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     const message = errorMessage(error);
     req.log.error({ err: error, repoUrl: parsed.data.repoUrl, status }, "Repository scan failed");
 
+    if (status === 409 || /repository is empty|empty repository/i.test(message)) {
+      res.status(422).json({ error: "This GitHub repository is empty. Add at least one committed file before scanning." });
+      return;
+    }
     if (status === 404 || /Repository not found|does not exist|GitHub API 404/i.test(message)) {
       res.status(404).json({ error: `Repository not found or inaccessible: ${message}` });
       return;
