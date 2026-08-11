@@ -1,4 +1,7 @@
-import type { RepositoryFile } from "./repositoryTypes";
+export type RepositoryFile = {
+  path: string;
+  content: string;
+};
 
 const API_ROOT = "https://api.github.com";
 const API_VERSION = "2026-03-10";
@@ -81,7 +84,6 @@ export async function readRepositoryFiles(repoUrl: string, token?: string): Prom
       files.push({ path: entry.path, content });
     } catch (error) {
       const status = typeof error === "object" && error !== null && "status" in error ? Number((error as { status: unknown }).status) : 0;
-      // A single unreadable/binary blob should not abort the whole repository scan.
       if (status === 404 || status === 415) continue;
       throw error;
     }
