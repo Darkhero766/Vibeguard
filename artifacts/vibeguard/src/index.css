@@ -99,6 +99,15 @@
   input {
     font: inherit;
   }
+
+  input[type='text'],
+  input[type='url'],
+  input[type='email'],
+  input[type='password'],
+  textarea,
+  select {
+    border-radius: 0;
+  }
 }
 
 @keyframes vg-rise {
@@ -156,20 +165,22 @@
   outline-offset: 3px;
 }
 
+/* Overclock-inspired controls: hard edges, heavy borders and offset shadows. */
 .vg-button {
   border-radius: 0;
+  border-width: 2px;
   transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease,
-    transform 140ms ease;
+    transform 140ms ease, box-shadow 140ms ease;
 }
 
 .vg-button:hover:not(:disabled) {
   transform: translate(-2px, -2px);
-  box-shadow: 3px 3px 0 hsl(var(--foreground));
+  box-shadow: 5px 5px 0 hsl(var(--foreground));
 }
 
 .vg-button:active:not(:disabled) {
   transform: translate(0, 0);
-  box-shadow: none;
+  box-shadow: 2px 2px 0 hsl(var(--foreground));
 }
 
 .vg-display {
@@ -180,21 +191,43 @@
 
 .vg-tab {
   border-radius: 0;
-  border: 1px solid hsl(var(--foreground));
+  border: 2px solid hsl(var(--foreground));
+  box-shadow: none;
+}
+
+.vg-tab:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
 }
 
 .vg-block-input {
   border: 2px solid hsl(var(--foreground));
-  box-shadow: 4px 4px 0 hsl(var(--foreground) / 0.14);
+  border-radius: 0;
+  box-shadow: 5px 5px 0 hsl(var(--foreground));
+  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+
+.vg-block-input:focus {
+  border-color: hsl(var(--primary));
+  box-shadow: 6px 6px 0 hsl(var(--foreground));
+}
+
+.vg-block-input::placeholder {
+  opacity: .48;
 }
 
 .vg-block-button {
   border: 2px solid hsl(var(--foreground));
-  box-shadow: 4px 4px 0 hsl(var(--foreground));
+  border-radius: 0;
+  box-shadow: 5px 5px 0 hsl(var(--foreground));
 }
 
 .vg-block-button:hover:not(:disabled) {
-  box-shadow: 6px 6px 0 hsl(var(--foreground));
+  box-shadow: 7px 7px 0 hsl(var(--foreground));
+}
+
+.vg-block-button:active:not(:disabled) {
+  box-shadow: 2px 2px 0 hsl(var(--foreground));
 }
 
 .vg-skeleton {
