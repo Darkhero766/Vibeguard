@@ -74,82 +74,40 @@
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-
-  html {
-    background: hsl(var(--background));
-  }
-
-  body {
-    @apply font-sans antialiased bg-background text-foreground;
-    min-width: 320px;
-  }
-
-  h1,
-  h2,
-  h3 {
-    font-family: var(--app-font-display);
-    font-weight: 400;
-    letter-spacing: 0.01em;
-  }
-
-  button,
-  input {
-    font: inherit;
-  }
-
-  input[type='text'],
-  input[type='url'],
-  input[type='email'],
-  input[type='password'],
-  textarea,
-  select {
-    border-radius: 0;
-  }
+  * { @apply border-border; }
+  html { background: hsl(var(--background)); }
+  body { @apply font-sans antialiased bg-background text-foreground; min-width: 320px; }
+  h1, h2, h3 { font-family: var(--app-font-display); font-weight: 400; letter-spacing: 0.01em; }
+  button, input { font: inherit; }
+  input[type='text'], input[type='url'], input[type='email'], input[type='password'], textarea, select { border-radius: 0; }
 }
 
 @keyframes vg-rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes vg-scan {
-  from {
-    opacity: 0.45;
-    transform: translateX(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  from { opacity: 0.45; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes vg-shimmer {
+  100% { transform: translateX(100%); }
+}
+@keyframes vg-pulse-line {
+  0%, 100% { opacity: .22; }
+  50% { opacity: .72; }
 }
 
-.vg-rise {
-  animation: vg-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.vg-scan {
-  animation: vg-scan 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
+.vg-rise { animation: vg-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.vg-scan { animation: vg-scan 650ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 .vg-grid {
-  background-image: linear-gradient(to right, hsl(var(--border) / 0.35) 1px, transparent 1px),
-    linear-gradient(to bottom, hsl(var(--border) / 0.35) 1px, transparent 1px);
+  background-image: linear-gradient(to right, hsl(var(--border) / 0.35) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--border) / 0.35) 1px, transparent 1px);
   background-size: 26px 26px;
   mask-image: linear-gradient(to bottom, black, transparent 78%);
 }
 
-.vg-noise {
-  position: relative;
-}
+.vg-noise { position: relative; }
 .vg-noise::after {
   content: '';
   pointer-events: none;
@@ -160,93 +118,96 @@
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.32'/%3E%3C/svg%3E");
 }
 
-.vg-focus:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 3px;
-}
+.vg-focus:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
 
 /* Overclock-inspired controls: hard edges, heavy borders and offset shadows. */
 .vg-button {
   border-radius: 0;
   border-width: 2px;
-  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease,
-    transform 140ms ease, box-shadow 140ms ease;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
 }
+.vg-button:hover:not(:disabled) { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 hsl(var(--foreground)); }
+.vg-button:active:not(:disabled) { transform: translate(0, 0); box-shadow: 2px 2px 0 hsl(var(--foreground)); }
+.vg-display { font-family: var(--app-font-display); font-weight: 400; letter-spacing: 0.01em; }
+.vg-tab { border-radius: 0; border: 2px solid hsl(var(--foreground)); box-shadow: none; }
+.vg-tab:hover:not(:disabled) { transform: none; box-shadow: none; }
+.vg-block-input { border: 2px solid hsl(var(--foreground)); border-radius: 0; box-shadow: 5px 5px 0 hsl(var(--foreground)); transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease; }
+.vg-block-input:focus { border-color: hsl(var(--primary)); box-shadow: 6px 6px 0 hsl(var(--foreground)); }
+.vg-block-input::placeholder { opacity: .48; }
+.vg-block-button { border: 2px solid hsl(var(--foreground)); border-radius: 0; box-shadow: 5px 5px 0 hsl(var(--foreground)); }
+.vg-block-button:hover:not(:disabled) { box-shadow: 7px 7px 0 hsl(var(--foreground)); }
+.vg-block-button:active:not(:disabled) { box-shadow: 2px 2px 0 hsl(var(--foreground)); }
 
-.vg-button:hover:not(:disabled) {
-  transform: translate(-2px, -2px);
-  box-shadow: 5px 5px 0 hsl(var(--foreground));
-}
+.vg-skeleton { position: relative; overflow: hidden; background: hsl(var(--muted)); }
+.vg-skeleton::after { position: absolute; inset: 0; content: ''; transform: translateX(-100%); background: linear-gradient(90deg, transparent, hsl(var(--background) / 0.56), transparent); animation: vg-shimmer 1.4s ease-in-out infinite; }
 
-.vg-button:active:not(:disabled) {
-  transform: translate(0, 0);
-  box-shadow: 2px 2px 0 hsl(var(--foreground));
-}
-
-.vg-display {
-  font-family: var(--app-font-display);
-  font-weight: 400;
-  letter-spacing: 0.01em;
-}
-
-.vg-tab {
-  border-radius: 0;
-  border: 2px solid hsl(var(--foreground));
-  box-shadow: none;
-}
-
-.vg-tab:hover:not(:disabled) {
-  transform: none;
-  box-shadow: none;
-}
-
-.vg-block-input {
-  border: 2px solid hsl(var(--foreground));
-  border-radius: 0;
-  box-shadow: 5px 5px 0 hsl(var(--foreground));
-  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
-}
-
-.vg-block-input:focus {
-  border-color: hsl(var(--primary));
-  box-shadow: 6px 6px 0 hsl(var(--foreground));
-}
-
-.vg-block-input::placeholder {
-  opacity: .48;
-}
-
-.vg-block-button {
-  border: 2px solid hsl(var(--foreground));
-  border-radius: 0;
-  box-shadow: 5px 5px 0 hsl(var(--foreground));
-}
-
-.vg-block-button:hover:not(:disabled) {
-  box-shadow: 7px 7px 0 hsl(var(--foreground));
-}
-
-.vg-block-button:active:not(:disabled) {
-  box-shadow: 2px 2px 0 hsl(var(--foreground));
-}
-
-.vg-skeleton {
-  position: relative;
-  overflow: hidden;
-  background: hsl(var(--muted));
-}
-
-.vg-skeleton::after {
-  position: absolute;
-  inset: 0;
+/* ── VibeSane command-center treatment for the authenticated scan console ── */
+main:has(#repo-url) { position: relative; isolation: isolate; }
+main:has(#repo-url)::before {
   content: '';
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, hsl(var(--background) / 0.56), transparent);
-  animation: vg-shimmer 1.4s ease-in-out infinite;
+  pointer-events: none;
+  position: absolute;
+  inset: 0 0 auto;
+  height: 520px;
+  z-index: -1;
+  background: radial-gradient(circle at 78% 12%, hsl(var(--primary) / .11), transparent 28%), radial-gradient(circle at 12% 8%, hsl(var(--accent) / .16), transparent 25%);
+}
+main:has(#repo-url) .vg-grid {
+  opacity: .82;
+  background-size: 18px 18px;
+  mask-image: linear-gradient(to bottom, black, transparent 92%);
+}
+main:has(#repo-url) h1 {
+  position: relative;
+  text-wrap: balance;
+}
+main:has(#repo-url) h1::before {
+  content: 'VIBESANE / SECURITY CONSOLE';
+  display: block;
+  margin-bottom: 14px;
+  color: hsl(var(--primary));
+  font-family: var(--app-font-mono);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: .18em;
+}
+main:has(#repo-url) h1::after {
+  content: '';
+  display: block;
+  width: 86px;
+  height: 3px;
+  margin-top: 12px;
+  background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)), transparent);
+  animation: vg-pulse-line 2.2s ease-in-out infinite;
+}
+main:has(#repo-url) .vg-block-input { background: hsl(var(--card) / .94); }
+main:has(#repo-url) .vg-tab { letter-spacing: .16em; }
+main:has(#repo-url) #repo-url { caret-color: hsl(var(--primary)); }
+
+/* Admin console: make the unlimited account visibly unlimited without changing DB quotas. */
+html[data-vg-admin='true'] main:has(#repo-url) p.mb-4.font-mono {
+  font-size: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: hsl(var(--primary));
+}
+html[data-vg-admin='true'] main:has(#repo-url) p.mb-4.font-mono::before {
+  content: '∞';
+  font-family: var(--app-font-display);
+  font-size: 22px;
+  line-height: 1;
+  color: hsl(var(--accent));
+}
+html[data-vg-admin='true'] main:has(#repo-url) p.mb-4.font-mono::after {
+  content: 'UNLIMITED SCANS · ADMIN CONSOLE';
+  font-size: 10px;
+  letter-spacing: .14em;
+  color: hsl(var(--muted-foreground));
 }
 
-@keyframes vg-shimmer {
-  100% {
-    transform: translateX(100%);
-  }
+@media (max-width: 640px) {
+  main:has(#repo-url) h1::before { margin-bottom: 11px; font-size: 9px; }
+  main:has(#repo-url) h1::after { margin-top: 10px; }
 }
