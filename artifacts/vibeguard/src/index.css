@@ -87,6 +87,8 @@
 @keyframes vg-console-sweep { 0% { transform: translateX(-115%); opacity: 0; } 12% { opacity: .8; } 55% { opacity: .35; } 100% { transform: translateX(115%); opacity: 0; } }
 @keyframes vg-node-pulse { 0%, 100% { transform: scale(.72); opacity: .25; } 50% { transform: scale(1.08); opacity: 1; } }
 @keyframes vg-grid-drift { from { background-position: 0 0, 0 0; } to { background-position: 26px 26px, 26px 26px; } }
+@keyframes vg-radar-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes vg-radar-pulse { 0%, 100% { transform: scale(.72); opacity: .55; } 50% { transform: scale(1.18); opacity: 1; } }
 
 .vg-rise { animation: vg-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .vg-scan { animation: vg-scan 650ms cubic-bezier(0.22, 1, 0.36, 1) both; }
@@ -141,6 +143,49 @@ main section[class*="bg-[#0d0d0d]"] .group:nth-child(5) { --vg-card-index: 5; }
 main section[class*="bg-[#0d0d0d]"] .group:nth-child(6) { --vg-card-index: 6; }
 main section[class*="bg-[#0d0d0d]"] .group:hover::before { content: ''; position: absolute; width: 6px; height: 6px; right: 18px; bottom: 18px; border-radius: 999px; background: #f4c842; box-shadow: 0 0 0 5px rgba(244,200,66,.08), 0 0 18px rgba(244,200,66,.65); animation: vg-node-pulse 900ms ease-in-out infinite; }
 
+/* Logged-in security radar: turns the existing welcome shield into a live perimeter node. */
+main:has(#repo-url) div[class*="h-12"][class*="w-12"][class*="bg-primary/[0.08]"][class*="border-primary/40"] {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  margin-bottom: 22px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--primary) / .28);
+  background:
+    radial-gradient(circle at center, hsl(var(--accent) / .95) 0 2px, transparent 3px),
+    repeating-radial-gradient(circle at center, transparent 0 17px, hsl(var(--primary) / .18) 18px 19px, transparent 20px 25px),
+    linear-gradient(90deg, transparent 49.6%, hsl(var(--primary) / .12) 50%, transparent 50.4%),
+    linear-gradient(0deg, transparent 49.6%, hsl(var(--primary) / .12) 50%, transparent 50.4%);
+  box-shadow: 0 0 0 8px hsl(var(--primary) / .035), 0 0 42px hsl(var(--primary) / .09), inset 0 0 34px hsl(var(--primary) / .08);
+  overflow: hidden;
+}
+main:has(#repo-url) div[class*="h-12"][class*="w-12"][class*="bg-primary/[0.08]"][class*="border-primary/40"] svg { opacity: 0; }
+main:has(#repo-url) div[class*="h-12"][class*="w-12"][class*="bg-primary/[0.08]"][class*="border-primary/40"]::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: hsl(var(--accent));
+  box-shadow: 0 0 0 5px hsl(var(--accent) / .08), 0 0 20px hsl(var(--accent) / .85);
+  animation: vg-radar-pulse 1.8s ease-in-out infinite;
+  z-index: 2;
+}
+main:has(#repo-url) div[class*="h-12"][class*="w-12"][class*="bg-primary/[0.08]"][class*="border-primary/40"]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, transparent 0deg, hsl(var(--accent) / .34) 20deg, transparent 46deg, transparent 360deg);
+  transform-origin: center;
+  animation: vg-radar-rotate 3.8s linear infinite;
+  z-index: 1;
+}
+main:has(#repo-url) div[class*="h-12"][class*="w-12"][class*="bg-primary/[0.08]"][class*="border-primary/40"]::marker { display: none; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }
@@ -148,4 +193,5 @@ main section[class*="bg-[#0d0d0d]"] .group:hover::before { content: ''; position
   main:has(#repo-url) h1::before { margin-bottom: 11px; font-size: 9px; }
   main:has(#repo-url) h1::after { margin-top: 10px; }
   main section[class*="bg-[#0d0d0d]"] > div > div:nth-of-type(2)::before { display: none; }
+  main:has(#repo-url) div[class*="h-12"][class*="w-12"][class*="bg-primary/[0.08]"][class*="border-primary/40"] { width: 108px; height: 108px; margin-bottom: 18px; }
 }
