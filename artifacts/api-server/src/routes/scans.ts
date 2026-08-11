@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { CreateScanBody, CreateScanResponse } from "@workspace/api-zod";
 import { scanPublicRepository } from "../lib/scanner";
 import { scanRepositoryViaApi } from "../lib/apiScanner";
-import { runExtendedSecurityChecks } from "../lib/extendedScanner";
+import { runExtendedSecurityChecksV2 } from "../lib/extendedScannerV2";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { optionalAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
@@ -24,7 +24,6 @@ function errorMessage(error: unknown): string {
 }
 
 router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<void> => {
-  console.log("[scans] repoUrl received:", JSON.stringify(req.body?.repoUrl));
   const parsed = CreateScanBody.safeParse(req.body);
   if (!parsed.success) {
     req.log.warn({ errors: parsed.error.message }, "Invalid scan request");
@@ -51,7 +50,6 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
       const status = errorStatus(firstError);
       const message = errorMessage(firstError);
       req.log.warn({ err: firstError, status }, "Git clone scan failed; falling back to GitHub REST API");
-
       try {
         report = await scanRepositoryViaApi(parsed.data.repoUrl, githubToken);
         tokenUsed = Boolean(githubToken);
@@ -73,25 +71,24 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     let extendedFindings = [];
     let extendedSucceeded = false;
     try {
-      extendedFindings = await runExtendedSecurityChecks(parsed.data.repoUrl, tokenUsed ? githubToken : undefined);
+      extendedFindings = await runExtendedSecurityChecksV2(parsed.data.repoUrl, tokenUsed ? githubToken : undefined);
       extendedSucceeded = true;
     } catch (extendedError) {
       req.log.warn({ err: extendedError }, "Extended security checks failed; returning core findings");
     }
 
-    // The public Finding schema supports Critical/High/Medium only.
-    extendedFindings = extendedFindings.map((finding) => ({
-      ...finding,
-      severity: finding.severity === "Low" ? "Medium" : finding.severity,
+    const normalizedExtended = extendedFindings.map((item) => ({
+      ...item,
+      severity: item.severity === "Low" ? "Medium" : item.severity,
     }));
 
     const seen = new Set(report.findings.map((f) => `${f.filePath}:${f.line}:${f.check}:${f.title}`));
     const findings = [...report.findings];
-    for (const finding of extendedFindings) {
-      const key = `${finding.filePath}:${finding.line}:${finding.check}:${finding.title}`;
+    for (const item of normalizedExtended) {
+      const key = `${item.filePath}:${item.line}:${item.check}:${item.title}`;
       if (!seen.has(key)) {
         seen.add(key);
-        findings.push(finding);
+        findings.push(item);
       }
     }
     findings.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.line - b.line || a.title.localeCompare(b.title));
