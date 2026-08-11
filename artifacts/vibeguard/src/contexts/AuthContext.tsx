@@ -64,6 +64,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshGithubConnection = async (userId: string, active = true) => {
+    const { data, error } = await supabase
+      .from('github_tokens')
+      .select('id')
+      .eq('owner', userId)
+      .maybeSingle();
+    if (active && !error) setHasGithubToken(!!data);
+    return !!data;
+  };
+
   const disconnectGithub = async () => {
     const currentSession = (await supabase.auth.getSession()).data.session;
     if (!currentSession?.access_token) return;
@@ -72,19 +82,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { Authorization: `Bearer ${currentSession.access_token}` },
     });
     setHasGithubToken(false);
+    setGithubTokenVersion((v) => v + 1);
   };
 
   useEffect(() => {
     let active = true;
 
-    // getSession() restores the persisted Supabase session and refreshes it when
-    // necessary. We intentionally do not force refreshSession() on startup.
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    // Restore the persisted Supabase session on a fresh browser/page load.
+    // IMPORTANT: also restore GitHub connection state here. Previously this
+    // state was only populated from onAuthStateChange, so closing/reopening
+    // the site could leave hasGithubToken=null and the My Repos tab would not
+    // be selected even though the encrypted GitHub token still existed.
+    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
       if (!active) return;
       setSession(s);
-      setUser(s?.user ?? null);
-      setVibeSaneIdentity(s?.user ?? null);
+      const u = s?.user ?? null;
+      setUser(u);
+      setVibeSaneIdentity(u);
       setAuthLoading(false);
+
+      if (u) {
+        lastUserId.current = u.id;
+        setUsageLoading(true);
+        try {
+          const row = await ensureUsageRow(u.id);
+          if (active) setUsage(row);
+        } finally {
+          if (active) setUsageLoading(false);
+        }
+        await refreshGithubConnection(u.id, active);
+      } else {
+        setHasGithubToken(null);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -106,14 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (active) setUsageLoading(false);
           }
 
-          // This is only a connection-state check. It does not attempt to fetch
-          // GitHub repositories or create a new OAuth token.
-          const { data } = await supabase
-            .from('github_tokens')
-            .select('id')
-            .eq('owner', u.id)
-            .maybeSingle();
-          if (active) setHasGithubToken(!!data);
+          await refreshGithubConnection(u.id, active);
         } else if (!u) {
           lastUserId.current = null;
           setUsage(null);
