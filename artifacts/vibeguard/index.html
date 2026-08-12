@@ -13,23 +13,23 @@
     <meta name="twitter:title" content="VibeSane" />
     <meta name="twitter:description" content="VibeSane — security scanning for Next.js and Supabase projects." />
 
-    <!-- Cross-browser favicon setup. PNG is intentionally first for iPadOS/Safari compatibility. -->
-    <link rel="icon" href="/favicon-48.png?v=3" type="image/png" sizes="48x48" />
-    <link rel="shortcut icon" href="/favicon-32.png?v=3" type="image/png" />
-    <link rel="icon" href="/favicon-32.png?v=3" type="image/png" sizes="32x32" />
-    <link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml" />
+    <!-- Safari/iPad favicon: keep PNG + SVG fallbacks and use a stable cache-busting version. -->
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png?v=4" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=4" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=4" />
+    <link rel="shortcut icon" type="image/png" href="/favicon-32.png?v=4" />
 
-    <!-- iPad/iPhone home-screen icon. Keep the PNG URL stable and cache-busted. -->
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3" />
-    <link rel="apple-touch-icon" sizes="167x167" href="/apple-touch-icon.png?v=3" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon.png?v=3" />
-    <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png?v=3" />
+    <!-- iPad/iPhone home-screen icon. iPadOS uses apple-touch-icon for installed/bookmarked sites. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=4" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/apple-touch-icon.png?v=4" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon.png?v=4" />
+    <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/apple-touch-icon.png?v=4" />
 
-    <link rel="manifest" href="/site.webmanifest?v=3" />
+    <link rel="manifest" href="/site.webmanifest?v=4" />
     <meta name="theme-color" content="#2F5F65" />
     <meta name="apple-mobile-web-app-title" content="VibeSane" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
