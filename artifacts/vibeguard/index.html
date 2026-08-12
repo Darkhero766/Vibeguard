@@ -13,16 +13,24 @@
     <meta name="twitter:title" content="VibeSane" />
     <meta name="twitter:description" content="VibeSane — security scanning for Next.js and Supabase projects." />
 
-    <!-- Favicons: explicit PNG fallbacks work more reliably across iPadOS/Safari. -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
-    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png?v=2" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=2" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
-    <link rel="apple-touch-icon" sizes="167x167" href="/apple-touch-icon.png?v=2" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon.png?v=2" />
-    <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png?v=2" />
-    <link rel="manifest" href="/site.webmanifest?v=2" />
+    <!-- Cross-browser favicon setup. PNG is intentionally first for iPadOS/Safari compatibility. -->
+    <link rel="icon" href="/favicon-48.png?v=3" type="image/png" sizes="48x48" />
+    <link rel="shortcut icon" href="/favicon-32.png?v=3" type="image/png" />
+    <link rel="icon" href="/favicon-32.png?v=3" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml" />
+
+    <!-- iPad/iPhone home-screen icon. Keep the PNG URL stable and cache-busted. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/apple-touch-icon.png?v=3" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon.png?v=3" />
+    <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png?v=3" />
+
+    <link rel="manifest" href="/site.webmanifest?v=3" />
     <meta name="theme-color" content="#2F5F65" />
+    <meta name="apple-mobile-web-app-title" content="VibeSane" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
