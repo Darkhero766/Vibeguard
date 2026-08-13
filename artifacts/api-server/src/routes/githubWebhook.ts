@@ -41,11 +41,40 @@ function base64Url(value: string): string {
   return Buffer.from(value).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
-function createAppJwt(): string {
-  const appId = process.env.GITHUB_APP_ID;
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, "\n");
-  if (!appId || !privateKey) throw new Error("GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY are required");
+function getPrivateKey(): string {
+  const encoded = process.env.GITHUB_APP_PRIVATE_KEY_BASE64?.trim();
+  if (encoded) {
+    try {
+      return Buffer.from(encoded, "base64").toString("utf8").replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").trim();
+    } catch {
+      throw new Error("GITHUB_APP_PRIVATE_KEY_BASE64 could not be decoded");
+    }
+  }
 
+  const raw = process.env.GITHUB_APP_PRIVATE_KEY;
+  if (!raw) throw new Error("GITHUB_APP_PRIVATE_KEY is required");
+
+  // Render may store the PEM with literal \\n escapes, JSON quotes, CRLFs, or surrounding whitespace.
+  const normalized = raw
+    .trim()
+    .replace(/^['"]|['"]$/g, "")
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/^\uFEFF/, "")
+    .trim();
+
+  if (!normalized.includes("BEGIN") || !normalized.includes("PRIVATE KEY")) {
+    throw new Error("GITHUB_APP_PRIVATE_KEY is not a valid PEM private key");
+  }
+  return normalized;
+}
+
+function createAppJwt(): string {
+  const appId = process.env.GITHUB_APP_ID?.trim();
+  if (!appId) throw new Error("GITHUB_APP_ID is required");
+
+  const privateKey = getPrivateKey();
   const now = Math.floor(Date.now() / 1000);
   const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const payload = base64Url(JSON.stringify({ iat: now - 60, exp: now + 540, iss: appId }));
@@ -53,7 +82,17 @@ function createAppJwt(): string {
   const signer = crypto.createSign("RSA-SHA256");
   signer.update(unsigned);
   signer.end();
-  const signature = signer.sign(privateKey, "base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+
+  let signature: string;
+  try {
+    signature = signer.sign({ key: privateKey, format: "pem" }, "base64")
+      .replace(/=/g, "")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_");
+  } catch (error) {
+    throw new Error(`GitHub App private key could not be parsed by Node/OpenSSL: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
   return `${unsigned}.${signature}`;
 }
 
