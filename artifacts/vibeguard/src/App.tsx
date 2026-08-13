@@ -15,6 +15,7 @@ import { Footer } from '@/components/Footer';
 import { ScanProgress } from '@/components/ScanProgress';
 import { RepoPicker } from '@/components/RepoPicker';
 import { ReportEnhancements } from '@/components/ReportEnhancements';
+import { SecurityDashboard } from '@/components/SecurityDashboard';
 
 // Point the generated API client at the correct API server.
 // On Replit dev the Vite proxy handles /api → localhost:8080 so this is empty.
@@ -966,43 +967,18 @@ function Home() {
                   </>
                 )}
 
-                {/* ── LOGGED-IN: personalized hero ── */}
+                {/* ── LOGGED-IN: security command center ── */}
                 {user && (
-                  <>
-                    <WelcomeShield />
-                    <h1 className="mt-5 text-[42px] font-extrabold leading-[1.04] tracking-[-0.055em] sm:text-[56px]">
-                      Welcome back, {firstName}.
-                    </h1>
-                    <p className="mt-3 max-w-sm text-[16px] leading-6 text-muted-foreground">
-                      Ready for your next scan?
-                    </p>
-
-                    {/* Last scan card — only shown if a previous scan exists */}
-                    {lastScan && (
-                      <LastScanCard scan={lastScan} onView={handleViewLastScan} />
-                    )}
-
-                    {isAtLimit ? (
-                      <UpgradeWall />
-                    ) : (
-                      <ScanForm
-                        scanMode={scanMode}
-                        setScanMode={setScanMode}
-                        hasGithubToken={hasGithubToken}
-                        session={session}
-                        isScanning={isScanning}
-                        repoUrl={repoUrl}
-                        setRepoUrl={setRepoUrl}
-                        validationError={validationError}
-                        setValidationError={setValidationError}
-                        canScan={canScan}
-                        usage={usage}
-                        inputRef={inputRef}
-                        handleSubmit={handleSubmit}
-                        runScan={runScan}
-                      />
-                    )}
-                  </>
+                  <SecurityDashboard
+                    firstName={firstName}
+                    lastScan={lastScan}
+                    usage={usage}
+                    isAtLimit={isAtLimit}
+                    onViewLastScan={handleViewLastScan}
+                    onProtect={() => {
+                      document.getElementById('repo-url')?.focus();
+                    }}
+                  />
                 )}
 
                 {apiError && (
