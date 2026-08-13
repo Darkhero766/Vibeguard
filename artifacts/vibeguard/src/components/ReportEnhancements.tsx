@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Check, Clipboard, ShieldCheck } from 'lucide-react';
+import { Check, Clipboard, ShieldCheck, Wrench, ArrowRight } from 'lucide-react';
 
 type Severity = 'Critical' | 'High' | 'Medium';
 type Finding = {
@@ -17,9 +17,7 @@ const TOTAL_CHECKS = 50;
 
 function getScore(findings: Finding[]) {
   const unique = new Map<string, Finding>();
-  for (const finding of findings) {
-    unique.set(`${finding.check}:${finding.filePath}:${finding.line}`, finding);
-  }
+  for (const finding of findings) unique.set(`${finding.check}:${finding.filePath}:${finding.line}`, finding);
 
   let penalty = 0;
   for (const finding of unique.values()) {
@@ -46,11 +44,13 @@ function remediation(finding: Finding) {
 
 export function ReportEnhancements({ report }: { report: ReportLike }) {
   const [copied, setCopied] = useState<string | null>(null);
+  const [allFixesCreated, setAllFixesCreated] = useState(false);
   const critical = report.findings.filter((f) => f.severity === 'Critical').length;
   const high = report.findings.filter((f) => f.severity === 'High').length;
   const medium = report.findings.filter((f) => f.severity === 'Medium').length;
   const score = useMemo(() => getScore(report.findings), [report.findings]);
   const passed = Math.max(0, TOTAL_CHECKS - new Set(report.findings.map((f) => f.check)).size);
+
   const scoreLabel = score >= 90 ? 'Strong' : score >= 70 ? 'Needs attention' : score >= 40 ? 'At risk' : 'Critical risk';
 
   const copyFix = async (finding: Finding) => {
@@ -61,62 +61,62 @@ export function ReportEnhancements({ report }: { report: ReportLike }) {
     } catch {}
   };
 
+  const createAllFixes = async () => {
+    if (!report.findings.length) return;
+    const plan = report.findings
+      .map((finding, index) => `${index + 1}. ${finding.title}\n   ${finding.filePath}:${finding.line}\n   Fix: ${remediation(finding)}`)
+      .join('\n\n');
+
+    try {
+      await navigator.clipboard.writeText(`VibeSane remediation plan\n\n${plan}`);
+      setAllFixesCreated(true);
+      window.setTimeout(() => setAllFixesCreated(false), 3000);
+    } catch {}
+  };
+
   return (
     <div className="mt-6 space-y-4">
       <div className="grid gap-4 md:grid-cols-[220px_1fr]">
         <div className="border border-border bg-card p-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Security score</p>
-          <div className="mt-4 flex items-end gap-2">
-            <span className="text-[54px] font-black leading-none tracking-[-0.07em]">{score}</span>
-            <span className="mb-1 font-mono text-[11px] text-muted-foreground">/100</span>
-          </div>
+          <div className="mt-4 flex items-end gap-2"><span className="text-[54px] font-black leading-none tracking-[-0.07em]">{score}</span><span className="mb-1 font-mono text-[11px] text-muted-foreground">/100</span></div>
           <p className="mt-2 text-[12px] font-semibold text-foreground">{scoreLabel}</p>
-          <div className="mt-5 h-2 overflow-hidden bg-muted">
-            <div className="h-full bg-primary transition-all duration-700" style={{ width: `${score}%` }} />
-          </div>
+          <div className="mt-5 h-2 overflow-hidden bg-muted"><div className="h-full bg-primary transition-all duration-700" style={{ width: `${score}%` }} /></div>
         </div>
 
         <div className="border border-border bg-card p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Security checks</p>
-              <p className="mt-1 text-[18px] font-bold tracking-[-0.025em]">{TOTAL_CHECKS} checks active</p>
-            </div>
-            <span className="font-mono text-[11px] text-muted-foreground">{report.filesScanned} files analyzed</span>
-          </div>
-          <div className="mt-5 h-2 bg-muted">
-            <div className="h-full bg-foreground transition-all duration-700" style={{ width: '100%' }} />
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-[0.08em]">
-            <span className="border border-[#e5c8c1] bg-[#f6e9e5] px-2 py-1 text-[#963f34]">{critical} critical</span>
-            <span className="border border-[#e7d3b3] bg-[#f8efe1] px-2 py-1 text-[#a06427]">{high} high</span>
-            <span className="border border-[#d2dbc1] bg-[#eef1e4] px-2 py-1 text-[#66763e]">{medium} medium</span>
-            <span className="border border-border bg-muted px-2 py-1 text-muted-foreground">{passed} no finding</span>
-          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Security checks</p><p className="mt-1 text-[18px] font-bold tracking-[-0.025em]">{TOTAL_CHECKS} checks active</p></div><span className="font-mono text-[11px] text-muted-foreground">{report.filesScanned} files analyzed</span></div>
+          <div className="mt-5 h-2 bg-muted"><div className="h-full bg-foreground transition-all duration-700" style={{ width: '100%' }} /></div>
+          <div className="mt-4 flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-[0.08em]"><span className="border border-[#e5c8c1] bg-[#f6e9e5] px-2 py-1 text-[#963f34]">{critical} critical</span><span className="border border-[#e7d3b3] bg-[#f8efe1] px-2 py-1 text-[#a06427]">{high} high</span><span className="border border-[#d2dbc1] bg-[#eef1e4] px-2 py-1 text-[#66763e]">{medium} medium</span><span className="border border-border bg-muted px-2 py-1 text-muted-foreground">{passed} no finding</span></div>
           <p className="mt-3 text-[12px] leading-5 text-muted-foreground">Every check is evaluated independently; a passed check means no matching evidence was found.</p>
         </div>
       </div>
 
       {report.findings.length > 0 && (
-        <div className="border border-border bg-card p-6 sm:p-7">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={16} className="text-primary" />
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Actionable remediation</p>
+        <div className="border-2 border-foreground bg-[#f3efe4] p-6 shadow-[5px_5px_0_hsl(var(--foreground))] sm:p-7">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center border-2 border-foreground bg-primary text-primary-foreground shadow-[3px_3px_0_hsl(var(--foreground))]"><Wrench size={18} /></div>
+              <div><p className="font-mono text-[10px] uppercase tracking-[0.14em] text-primary">Remediation workspace</p><h2 className="mt-1.5 text-[21px] font-extrabold tracking-[-0.03em]">Fix everything in this scan.</h2><p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">Create one complete remediation plan for all {report.findings.length} findings, then review before applying.</p></div>
+            </div>
+            <button type="button" onClick={createAllFixes} className="vg-button vg-focus inline-flex min-h-12 shrink-0 items-center justify-center gap-2 border-2 border-foreground bg-primary px-5 py-3 text-[12px] font-bold text-primary-foreground shadow-[4px_4px_0_hsl(var(--foreground))] transition-transform hover:-translate-y-0.5 active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">
+              {allFixesCreated ? <Check size={15} /> : <Wrench size={15} />}
+              {allFixesCreated ? 'Fix plan created' : 'Create all fixes'}
+              {!allFixesCreated && <ArrowRight size={14} />}
+            </button>
           </div>
+          <p className="mt-4 border-t border-foreground/15 pt-4 font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">Creates a reviewable remediation plan. Code changes are never applied silently.</p>
+        </div>
+      )}
+
+      {report.findings.length > 0 && (
+        <div className="border border-border bg-card p-6 sm:p-7">
+          <div className="flex items-center gap-2"><ShieldCheck size={16} className="text-primary" /><p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Actionable remediation</p></div>
           <p className="mt-2 text-[14px] text-muted-foreground">Each finding below gets a concrete next step instead of a generic warning.</p>
           <div className="mt-5 divide-y divide-border border-t border-border">
             {report.findings.slice(0, 8).map((finding) => (
               <div key={`${finding.check}:${finding.filePath}:${finding.line}`} className="py-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-bold">{finding.title}</p>
-                    <p className="mt-1 font-mono text-[10px] text-muted-foreground">{finding.filePath}:{finding.line}</p>
-                  </div>
-                  <button type="button" onClick={() => copyFix(finding)} className="vg-button vg-focus inline-flex shrink-0 items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 text-[10px] font-semibold hover:border-primary/50 hover:text-primary">
-                    {copied === finding.title ? <Check size={11} /> : <Clipboard size={11} />}
-                    {copied === finding.title ? 'Copied' : 'Copy fix'}
-                  </button>
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-[13px] font-bold">{finding.title}</p><p className="mt-1 font-mono text-[10px] text-muted-foreground">{finding.filePath}:{finding.line}</p></div><button type="button" onClick={() => copyFix(finding)} className="vg-button vg-focus inline-flex shrink-0 items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 text-[10px] font-semibold hover:border-primary/50 hover:text-primary">{copied === finding.title ? <Check size={11} /> : <Clipboard size={11} />}{copied === finding.title ? 'Copied' : 'Copy fix'}</button></div>
                 <p className="mt-2 text-[12px] leading-5 text-muted-foreground">{remediation(finding)}</p>
               </div>
             ))}
