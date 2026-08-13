@@ -10,7 +10,8 @@ const router = Router();
 
 type RawRequest = { rawBody?: Buffer };
 type GitHubRepo = { full_name: string; html_url: string };
-type WebhookPayload = { action?: string; installation?: { id?: number }; repository?: GitHubRepo; ref?: string; after?: string; pull_request?: { number?: number; html_url?: string; head?: { sha?: string } } };
+type PullRequestData = { number?: number; html_url?: string; head?: { sha?: string }; base?: { sha?: string } };
+type WebhookPayload = { action?: string; installation?: { id?: number }; repository?: GitHubRepo; ref?: string; after?: string; pull_request?: PullRequestData };
 
 function verifySignature(rawBody: Buffer, signature: string | undefined): boolean {
   const secret = process.env.GITHUB_APP_WEBHOOK_SECRET;
@@ -70,18 +71,30 @@ function createAppJwt(): string {
   }
 }
 
+function githubHeaders(token: string): HeadersInit {
+  return { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" };
+}
+
 async function getInstallationToken(installationId: number): Promise<string> {
   const jwt = createAppJwt();
-  const response = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, { method: "POST", headers: { Authorization: `Bearer ${jwt}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" } });
+  const response = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, { method: "POST", headers: githubHeaders(jwt) });
   if (!response.ok) throw new Error(`GitHub installation token failed: ${response.status} ${await response.text()}`);
   const data = (await response.json()) as { token?: string };
   if (!data.token) throw new Error("GitHub did not return an installation token");
   return data.token;
 }
 
+async function getChangedFiles(token: string, repo: string, baseSha: string, headSha: string): Promise<string[]> {
+  const [owner, name] = repo.split("/");
+  const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/compare/${encodeURIComponent(baseSha)}...${encodeURIComponent(headSha)}`, { headers: githubHeaders(token) });
+  if (!response.ok) throw new Error(`GitHub compare failed: ${response.status} ${await response.text()}`);
+  const data = (await response.json()) as { files?: Array<{ filename?: string; status?: string }> };
+  return Array.isArray(data.files) ? data.files.map((file) => file.filename).filter((path): path is string => Boolean(path)) : [];
+}
+
 async function createCheckRun(token: string, repo: string, sha: string, status: "queued" | "in_progress") {
   const [owner, name] = repo.split("/");
-  const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/check-runs`, { method: "POST", headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" }, body: JSON.stringify({ name: "VibeSane Security", head_sha: sha, status }) });
+  const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/check-runs`, { method: "POST", headers: githubHeaders(token), body: JSON.stringify({ name: "VibeSane Security", head_sha: sha, status }) });
   if (!response.ok) throw new Error(`GitHub check creation failed: ${response.status} ${await response.text()}`);
   return (await response.json()) as { id: number; html_url?: string };
 }
@@ -93,9 +106,41 @@ async function completeCheckRun(token: string, repo: string, checkId: number, co
   const high = findings.filter((f: any) => f.severity === "High").length;
   const medium = findings.filter((f: any) => f.severity === "Medium").length;
   const score = Math.max(0, Math.min(100, 100 - critical * 18 - high * 10 - medium * 4));
-  const summary = findings.length === 0 ? `## VibeSane Security\n\n**100/100 — No findings detected.**\n\n${report.filesScanned ?? 0} files scanned across ${report.checksRun ?? TOTAL_SECURITY_CHECKS} security checks.` : `## VibeSane Security\n\n**Security score: ${score}/100**\n\n${findings.length} findings — ${critical} critical, ${high} high, ${medium} medium.\n\n${report.filesScanned ?? 0} files scanned across ${report.checksRun ?? TOTAL_SECURITY_CHECKS} security checks.`;
-  const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/check-runs/${checkId}`, { method: "PATCH", headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" }, body: JSON.stringify({ status: "completed", conclusion, output: { title: `VibeSane Security — ${score}/100`, summary } }) });
+  const mode = report?.scanMode === "pull_request_delta" ? "\n\n**PR mode:** only findings newly introduced by this change are blocking the PR. Existing findings are not counted." : "";
+  const summary = findings.length === 0 ? `## VibeSane Security\n\n**100/100 — No new findings detected.**${mode}\n\n${report.filesScanned ?? 0} changed files checked across ${report.checksRun ?? TOTAL_SECURITY_CHECKS} security checks.` : `## VibeSane Security\n\n**Security score: ${score}/100**${mode}\n\n${findings.length} new findings — ${critical} critical, ${high} high, ${medium} medium.\n\n${report.filesScanned ?? 0} changed files checked across ${report.checksRun ?? TOTAL_SECURITY_CHECKS} security checks.`;
+  const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/check-runs/${checkId}`, { method: "PATCH", headers: githubHeaders(token), body: JSON.stringify({ status: "completed", conclusion, output: { title: `VibeSane Security — ${score}/100`, summary } }) });
   if (!response.ok) throw new Error(`GitHub check completion failed: ${response.status} ${await response.text()}`);
+}
+
+function findingKey(finding: any): string {
+  return `${finding.filePath}:${finding.check}:${finding.title}`;
+}
+
+async function scanPullRequestDelta(repo: string, token: string, headSha: string, baseSha: string) {
+  const repoUrl = `https://github.com/${repo}`;
+  const headUrl = `${repoUrl}?ref=${encodeURIComponent(headSha)}`;
+  const baseUrl = `${repoUrl}?ref=${encodeURIComponent(baseSha)}`;
+  const [changedFiles, baseFindings, headFindings] = await Promise.all([
+    getChangedFiles(token, repo, baseSha, headSha),
+    runExtendedSecurityChecksV2(baseUrl, token),
+    runExtendedSecurityChecksV2(headUrl, token),
+  ]);
+
+  const baseKeys = new Set(baseFindings.map(findingKey));
+  const changedSet = new Set(changedFiles);
+  const newFindings = headFindings
+    .filter((finding) => changedSet.has(finding.filePath) && !baseKeys.has(findingKey(finding)))
+    .map((finding) => ({ ...finding, severity: finding.severity === "Low" ? "Medium" : finding.severity }));
+
+  return {
+    repo,
+    repoUrl,
+    findings: newFindings,
+    filesScanned: changedFiles.length,
+    checksRun: TOTAL_SECURITY_CHECKS,
+    scanMode: "pull_request_delta",
+    scannedAt: new Date().toISOString(),
+  };
 }
 
 async function scanEvent(payload: WebhookPayload, event: string): Promise<void> {
@@ -106,22 +151,31 @@ async function scanEvent(payload: WebhookPayload, event: string): Promise<void> 
   const token = await getInstallationToken(installationId);
   const check = await createCheckRun(token, repo, sha, "in_progress");
   try {
-    const repoUrl = `https://github.com/${repo}`;
-    const baseReport = await scanPublicRepository(repoUrl, token);
-    let extendedFindings: any[] = [];
-    try { extendedFindings = await runExtendedSecurityChecksV2(repoUrl, token); } catch (error) { logger.warn({ err: error, repo }, "Active protection extended checks failed; keeping core findings"); }
-    const seen = new Set(baseReport.findings.map((f) => `${f.filePath}:${f.line}:${f.check}:${f.title}`));
-    const findings = [...baseReport.findings];
-    for (const item of extendedFindings) {
-      const normalized = { ...item, severity: item.severity === "Low" ? "Medium" : item.severity };
-      const key = `${normalized.filePath}:${normalized.line}:${normalized.check}:${normalized.title}`;
-      if (!seen.has(key)) { seen.add(key); findings.push(normalized); }
+    let report: any;
+
+    if (event === "pull_request") {
+      const baseSha = payload.pull_request?.base?.sha;
+      if (!baseSha) throw new Error("GitHub pull_request payload did not include base.sha");
+      report = await scanPullRequestDelta(repo, token, sha, baseSha);
+    } else {
+      const repoUrl = `https://github.com/${repo}`;
+      const baseReport = await scanPublicRepository(repoUrl, token);
+      let extendedFindings: any[] = [];
+      try { extendedFindings = await runExtendedSecurityChecksV2(repoUrl, token); } catch (error) { logger.warn({ err: error, repo }, "Active protection extended checks failed; keeping core findings"); }
+      const seen = new Set(baseReport.findings.map((f) => `${f.filePath}:${f.line}:${f.check}:${f.title}`));
+      const findings = [...baseReport.findings];
+      for (const item of extendedFindings) {
+        const normalized = { ...item, severity: item.severity === "Low" ? "Medium" : item.severity };
+        const key = `${normalized.filePath}:${normalized.line}:${normalized.check}:${normalized.title}`;
+        if (!seen.has(key)) { seen.add(key); findings.push(normalized); }
+      }
+      report = { ...baseReport, findings, checksRun: extendedFindings.length ? TOTAL_SECURITY_CHECKS : baseReport.checksRun };
     }
-    const report = { ...baseReport, findings, checksRun: extendedFindings.length ? TOTAL_SECURITY_CHECKS : baseReport.checksRun };
+
     cacheScanResult(report.repo, report);
-    const hasBlocking = findings.some((f) => f.severity === "Critical" || f.severity === "High");
-    await completeCheckRun(token, repo, check.id, hasBlocking ? "failure" : findings.length ? "neutral" : "success", report);
-    logger.info({ repo, event, sha, findings: findings.length }, "Active protection scan completed");
+    const hasBlocking = report.findings.some((f: any) => f.severity === "Critical" || f.severity === "High");
+    await completeCheckRun(token, repo, check.id, hasBlocking ? "failure" : report.findings.length ? "neutral" : "success", report);
+    logger.info({ repo, event, sha, findings: report.findings.length, scanMode: report.scanMode ?? "full" }, "Active protection scan completed");
   } catch (error) {
     logger.error({ err: error, repo, event, sha }, "Active protection scan failed");
     try { await completeCheckRun(token, repo, check.id, "failure", { findings: [{ severity: "Critical" }], filesScanned: 0, checksRun: 0 }); } catch (completionError) { logger.error({ err: completionError, repo, event, sha }, "Failed to mark active protection check as failed"); }
