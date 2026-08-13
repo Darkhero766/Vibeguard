@@ -1,15 +1,18 @@
+import { useState } from 'react';
 import { ArrowRight, Check, GitPullRequest, ShieldCheck } from 'lucide-react';
 import { RepositorySecurityCenter } from './RepositorySecurityCenter';
+
+type Finding = {
+  severity: 'Critical' | 'High' | 'Medium';
+  title: string;
+  filePath: string;
+  line: number;
+};
 
 type Scan = {
   repo: string;
   repoUrl: string;
-  findings: Array<{
-    severity: 'Critical' | 'High' | 'Medium';
-    title: string;
-    filePath: string;
-    line: number;
-  }>;
+  findings: Finding[];
   filesScanned: number;
   scannedAt: string;
 };
@@ -25,15 +28,34 @@ type Props = {
 
 function score(scan: Scan | null) {
   if (!scan) return null;
-  const penalty = scan.findings.reduce((total, finding) => total + (finding.severity === 'Critical' ? 18 : finding.severity === 'High' ? 10 : 4), 0);
+  const penalty = scan.findings.reduce(
+    (total, finding) => total + (finding.severity === 'Critical' ? 18 : finding.severity === 'High' ? 10 : 4),
+    0,
+  );
   return Math.max(0, 100 - penalty);
 }
 
 export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onViewLastScan, onProtect }: Props) {
+  const [showRepository, setShowRepository] = useState(false);
   const securityScore = score(lastScan);
   const critical = lastScan?.findings.filter((f) => f.severity === 'Critical').length ?? 0;
   const high = lastScan?.findings.filter((f) => f.severity === 'High').length ?? 0;
   const remaining = usage ? Math.max(0, usage.scans_limit - usage.scans_used) : null;
+
+  if (showRepository && lastScan) {
+    return (
+      <RepositorySecurityCenter
+        repo={lastScan.repo}
+        repoUrl={lastScan.repoUrl}
+        score={securityScore ?? 0}
+        findings={lastScan.findings}
+        filesScanned={lastScan.filesScanned}
+        scannedAt={lastScan.scannedAt}
+        protected
+        onBack={() => setShowRepository(false)}
+      />
+    );
+  }
 
   return (
     <section className="mt-12 sm:mt-16">
@@ -72,7 +94,7 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
             {high > 0 && <span className="border border-[#e7d3b3] bg-[#f8efe1] px-2 py-1 text-[#a06427]">{high} high</span>}
             {!critical && !high && lastScan && <span className="border border-[#d2dbc1] bg-[#eef1e4] px-2 py-1 text-[#66763e]">clear</span>}
           </div>
-          <button type="button" onClick={onViewLastScan} disabled={!lastScan} className="vg-focus mt-8 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-primary disabled:opacity-40">View report <ArrowRight size={12} /></button>
+          <button type="button" onClick={() => { onViewLastScan(); setShowRepository(true); }} disabled={!lastScan} className="vg-focus mt-8 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-primary disabled:opacity-40">View security center <ArrowRight size={12} /></button>
         </div>
       </div>
 
@@ -90,19 +112,6 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
           ))}
         </div>
       </div>
-
-      {lastScan && (
-        <RepositorySecurityCenter
-          repo={lastScan.repo}
-          repoUrl={lastScan.repoUrl}
-          score={securityScore ?? 0}
-          findings={lastScan.findings}
-          filesScanned={lastScan.filesScanned}
-          scannedAt={lastScan.scannedAt}
-          protected
-          onBack={() => undefined}
-        />
-      )}
     </section>
   );
 }
