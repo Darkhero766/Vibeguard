@@ -107,13 +107,13 @@ async function completeCheckRun(token: string, repo: string, checkId: number, co
   const medium = findings.filter((f: any) => f.severity === "Medium").length;
   const score = Math.max(0, Math.min(100, 100 - critical * 18 - high * 10 - medium * 4));
   const mode = report?.scanMode === "pull_request_delta" ? "\n\n**PR mode:** only findings newly introduced by this change are blocking the PR. Existing findings are not counted." : "";
-  const summary = findings.length === 0 ? `## VibeSane Security\n\n**100/100 — No new findings detected.**${mode}\n\n${report.filesScanned ?? 0} changed files checked across ${report.checksRun ?? TOTAL_SECURITY_CHECKS} security checks.` : `## VibeSane Security\n\n**Security score: ${score}/100**${mode}\n\n${findings.length} new findings — ${critical} critical, ${high} high, ${medium} medium.\n\n${report.filesScanned ?? 0} changed files checked across ${report.checksRun ?? TOTAL_SECURITY_CHECKS} security checks.`;
+  const summary = findings.length === 0 ? `## VibeSane Security\n\n**100/100 — No new findings detected.**${mode}\n\n${report.changedFiles ?? report.filesScanned ?? 0} changed files checked across ${report.checksRun ?? TOTAL_SECURITY_CHECKS} security checks.` : `## VibeSane Security\n\n**Security score: ${score}/100**${mode}\n\n${findings.length} new findings — ${critical} critical, ${high} high, ${medium} medium.\n\n${report.changedFiles ?? report.filesScanned ?? 0} changed files checked across ${report.checksRun ?? TOTAL_SECURITY_CHECKS} security checks.`;
   const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/check-runs/${checkId}`, { method: "PATCH", headers: githubHeaders(token), body: JSON.stringify({ status: "completed", conclusion, output: { title: `VibeSane Security — ${score}/100`, summary } }) });
   if (!response.ok) throw new Error(`GitHub check completion failed: ${response.status} ${await response.text()}`);
 }
 
 function findingKey(finding: any): string {
-  return `${finding.filePath}:${finding.check}:${finding.title}`;
+  return `${finding.filePath}:${finding.line}:${finding.check}:${finding.title}`;
 }
 
 async function scanPullRequestDelta(repo: string, token: string, headSha: string, baseSha: string) {
@@ -137,6 +137,7 @@ async function scanPullRequestDelta(repo: string, token: string, headSha: string
     repoUrl,
     findings: newFindings,
     filesScanned: changedFiles.length,
+    changedFiles: changedFiles.length,
     checksRun: TOTAL_SECURITY_CHECKS,
     scanMode: "pull_request_delta",
     scannedAt: new Date().toISOString(),
