@@ -22,14 +22,15 @@ function shouldRead(path: string): boolean {
   ) && !path.split("/").some((part) => IGNORED.has(part));
 }
 
-function parseRepo(repoUrl: string): { owner: string; repo: string } {
+function parseRepo(repoUrl: string): { owner: string; repo: string; ref?: string } {
   const parsed = new URL(repoUrl);
   const parts = parsed.pathname.split("/").filter(Boolean);
   const repo = parts[1]?.replace(/\.git$/, "");
   if (parsed.protocol !== "https:" || parsed.hostname !== "github.com" || parts.length !== 2 || !repo) {
     throw Object.assign(new Error("Only valid github.com repository URLs are supported."), { status: 400 });
   }
-  return { owner: parts[0], repo };
+  const ref = parsed.searchParams.get("ref")?.trim() || undefined;
+  return { owner: parts[0], repo, ref };
 }
 
 function headers(token?: string): HeadersInit {
@@ -53,8 +54,9 @@ async function githubGet(url: string, token?: string): Promise<any> {
 }
 
 export async function readRepositoryFiles(repoUrl: string, token?: string): Promise<{ owner: string; repo: string; files: RepositoryFile[] }> {
-  const { owner, repo } = parseRepo(repoUrl);
-  const tree = await githubGet(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/HEAD?recursive=1`, token);
+  const { owner, repo, ref } = parseRepo(repoUrl);
+  const treeRef = ref ? encodeURIComponent(ref) : "HEAD";
+  const tree = await githubGet(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${treeRef}?recursive=1`, token);
 
   if (tree?.truncated) {
     const error = new Error("GitHub repository tree is too large for a single scan.");
@@ -69,7 +71,6 @@ export async function readRepositoryFiles(repoUrl: string, token?: string): Prom
   const files: RepositoryFile[] = [];
   let totalBytes = 0;
 
-  // Fetch blobs serially to avoid GitHub secondary-rate-limit spikes.
   for (const entry of entries) {
     const declaredSize = Number(entry.size ?? 0);
     if (declaredSize > MAX_FILE_BYTES || totalBytes + declaredSize > MAX_TOTAL_BYTES) continue;
