@@ -4,6 +4,7 @@ import scansRouter from "./scans";
 import githubRouter from "./github";
 import githubWebhookRouter from "./githubWebhook";
 import badgeRouter from "./badge";
+import protectionRouter from "./protection";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(scansRouter);
 router.use(githubRouter);
 router.use(githubWebhookRouter);
 router.use(badgeRouter);
+router.use(protectionRouter);
 
 export default router;
