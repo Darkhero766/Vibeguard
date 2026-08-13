@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowRight, Check, GitPullRequest, ShieldCheck } from 'lucide-react';
 import { RepositorySecurityCenter } from './RepositorySecurityCenter';
+import { ProtectRepositoryPanel } from './ProtectRepositoryPanel';
 
 type Finding = {
   severity: 'Critical' | 'High' | 'Medium';
@@ -37,6 +38,7 @@ function score(scan: Scan | null) {
 
 export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onViewLastScan, onProtect }: Props) {
   const [showRepository, setShowRepository] = useState(false);
+  const [showProtectPanel, setShowProtectPanel] = useState(false);
   const securityScore = score(lastScan);
   const critical = lastScan?.findings.filter((f) => f.severity === 'Critical').length ?? 0;
   const high = lastScan?.findings.filter((f) => f.severity === 'High').length ?? 0;
@@ -65,10 +67,12 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
           <h1 className="mt-4 text-[42px] font-extrabold leading-[0.98] tracking-[-0.055em] sm:text-[58px]">Good to see you, {firstName}.</h1>
           <p className="mt-4 max-w-[510px] text-[15px] leading-6 text-muted-foreground">Protect your code once, then let VibeSane watch every push and pull request.</p>
         </div>
-        <button type="button" onClick={onProtect} disabled={isAtLimit} className="vg-button vg-focus inline-flex min-h-12 items-center justify-center gap-2 border-2 border-foreground bg-primary px-5 py-3 text-[13px] font-bold text-primary-foreground shadow-[4px_4px_0_hsl(var(--foreground))] transition-transform hover:-translate-y-0.5 active:translate-x-[3px] active:translate-y-[3px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={() => { onProtect(); setShowProtectPanel(true); }} disabled={isAtLimit} className="vg-button vg-focus inline-flex min-h-12 items-center justify-center gap-2 border-2 border-foreground bg-primary px-5 py-3 text-[13px] font-bold text-primary-foreground shadow-[4px_4px_0_hsl(var(--foreground))] transition-transform hover:-translate-y-0.5 active:translate-x-[3px] active:translate-y-[3px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50">
           + Protect repository <ArrowRight size={15} />
         </button>
       </div>
+
+      {showProtectPanel && <ProtectRepositoryPanel onClose={() => setShowProtectPanel(false)} />}
 
       <div className="mt-10 grid gap-4 lg:grid-cols-[1.15fr_1fr_1fr]">
         <div className="relative min-h-[210px] overflow-hidden border-2 border-foreground bg-foreground p-6 text-background sm:p-7">
