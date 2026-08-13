@@ -21,9 +21,11 @@ function saveLastScan(uid: string, report: ScanReport) {
 }
 
 export function ProtectRepositoryPanel({ onClose }: { onClose: () => void }) {
-  const { user, session, usage, usageLoading, refreshUsage, hasGithubToken } = useAuth();
+  const { user, session, usage, usageLoading, refreshUsage } = useAuth();
   const scanMutation = useCreateScan();
-  const [mode, setMode] = useState<'url' | 'picker'>(hasGithubToken ? 'picker' : 'url');
+  // Always expose both paths. RepoPicker handles the GitHub connection state
+  // itself and can offer the OAuth link when no stored GitHub token exists.
+  const [mode, setMode] = useState<'url' | 'picker'>('picker');
   const [repoUrl, setRepoUrl] = useState('');
   const [error, setError] = useState('');
   const isUnlimited = user?.email === 'nightowlclub72@gmail.com';
@@ -79,10 +81,10 @@ export function ProtectRepositoryPanel({ onClose }: { onClose: () => void }) {
 
       <div className="mt-6 flex w-full max-w-[360px] border-2 border-foreground bg-card p-0.5">
         <button type="button" onClick={() => setMode('url')} className={`vg-button flex-1 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.12em] ${mode === 'url' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>Paste URL</button>
-        {hasGithubToken && <button type="button" onClick={() => setMode('picker')} className={`vg-button flex-1 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.12em] ${mode === 'picker' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>My repos</button>}
+        <button type="button" onClick={() => setMode('picker')} className={`vg-button flex-1 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.12em] ${mode === 'picker' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>My repos</button>
       </div>
 
-      {mode === 'picker' && hasGithubToken ? (
+      {mode === 'picker' ? (
         <div className="mt-5"><RepoPicker session={session} onSelect={runScan} disabled={scanMutation.isPending || isAtLimit} /></div>
       ) : (
         <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-2 sm:flex-row">
