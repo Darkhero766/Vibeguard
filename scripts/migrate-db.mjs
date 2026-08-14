@@ -1,6 +1,6 @@
 /**
  * Creates the github_tokens table in the target Postgres database (Supabase or local).
- * Uses the same robust URL parser as lib/db/src/index.ts to handle special chars in passwords.
+ * Uses the same URL parser as the application and verifies TLS with the Supabase CA.
  *
  * Usage: node scripts/migrate-db.mjs
  */
@@ -8,7 +8,7 @@ import pg from 'pg';
 
 const rawUrl = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
 if (!rawUrl) {
-  console.error('❌  SUPABASE_DB_URL (or DATABASE_URL) is not set.');
+  console.error('❌ SUPABASE_DB_URL (or DATABASE_URL) is not set.');
   process.exit(1);
 }
 
@@ -28,32 +28,32 @@ function parseUrl(url) {
   const queryString = rest.includes('?') ? rest.slice(rest.indexOf('?') + 1) : '';
   const params = new URLSearchParams(queryString);
 
-  const colonInHost = hostPort.lastIndexOf(':');
-  const host = colonInHost === -1 ? hostPort : hostPort.slice(0, colonInHost);
-  const port = colonInHost === -1 ? 5432 : parseInt(hostPort.slice(colonInHost + 1), 10);
+  const isLocal = hostPort.startsWith('localhost') || hostPort.startsWith('127.0.0.1');
+  const ca = process.env.SUPABASE_DB_CA?.replace(/\\n/g, '\n');
+  const ssl = params.get('sslmode') === 'disable' || isLocal
+    ? false
+    : { rejectUnauthorized: true, ...(ca ? { ca } : {}) };
 
-  const ssl = params.get('sslmode') === 'disable' ? false : { rejectUnauthorized: true };
-
-  return { user, password, host, port, database, ssl };
+  return { user, password, host: hostPort.split(':')[0], port: hostPort.includes(':') ? parseInt(hostPort.split(':').pop(), 10) : 5432, database, ssl };
 }
 
 const client = new pg.Client(parseUrl(rawUrl));
 
 const SQL = `
 CREATE TABLE IF NOT EXISTS github_tokens (
-  owner     uuid        PRIMARY KEY,
-  encrypted_token text  NOT NULL,
+  owner uuid PRIMARY KEY,
+  encrypted_token text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 `;
 
 try {
   await client.connect();
-  console.log('✅  Connected to database');
+  console.log('✅ Connected to database');
   await client.query(SQL);
-  console.log('✅  github_tokens table ready');
+  console.log('✅ github_tokens table ready');
 } catch (err) {
-  console.error('❌  Migration failed:', err.message);
+  console.error('❌ Migration failed:', err.message);
   process.exit(1);
 } finally {
   await client.end();
