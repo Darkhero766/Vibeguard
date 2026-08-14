@@ -14,21 +14,32 @@ export function ProtectionActivity({ session }: { session: Session | null }) {
   useEffect(() => {
     if (!session?.access_token) { setLoading(false); return; }
     let cancelled = false;
-    const headers = { Authorization: `Bearer ${session.access_token}` };
-    void fetch(`${apiBase}/api/protection`, { headers })
-      .then(async (response) => response.ok ? response.json() : { repositories: [] })
-      .then(async (data) => {
+
+    const loadActivity = async () => {
+      const headers = { Authorization: `Bearer ${session.access_token}` };
+      try {
+        const response = await fetch(`${apiBase}/api/protection`, { headers, cache: 'no-store' });
+        if (!response.ok) throw new Error('Could not load protected repositories');
+        const data = await response.json();
         if (cancelled) return;
         const first = data.repositories?.[0] as ProtectedRepository | undefined;
         setRepository(first ?? null);
-        if (!first) return;
-        const eventsResponse = await fetch(`${apiBase}/api/protection/${encodeURIComponent(first.repo)}/events`, { headers });
+        if (!first) { setEvents([]); return; }
+        const eventsResponse = await fetch(`${apiBase}/api/protection/${encodeURIComponent(first.repo)}/events`, { headers, cache: 'no-store' });
         const eventsData = eventsResponse.ok ? await eventsResponse.json() : { events: [] };
         if (!cancelled) setEvents(Array.isArray(eventsData.events) ? eventsData.events : []);
-      })
-      .catch(() => { if (!cancelled) setRepository(null); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      } catch {
+        if (!cancelled) setRepository(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void loadActivity();
+    // Webhook processing is asynchronous after GitHub receives the push.
+    // Refresh activity automatically so the user does not need a page reload.
+    const interval = window.setInterval(() => { void loadActivity(); }, 5000);
+    return () => { cancelled = true; window.clearInterval(interval); };
   }, [session?.access_token, apiBase]);
 
   if (loading || !repository) return null;
