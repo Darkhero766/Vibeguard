@@ -20,12 +20,17 @@ function scan(files: RepositoryFile[]): Finding[] {
 
   for (const file of files.filter((f) => /\.sql$/i.test(f.path))) {
     const sql = stripSqlComments(file.content);
-    for (const match of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(\w+)/gi)) {
-      const table = match[1];
+    for (const match of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)/gi)) {
+      const schema = match[1];
+      const table = match[2];
       const line = lineAt(file.content, match.index ?? 0);
-      const escaped = table.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      if (!new RegExp(`alter\\s+table\\s+${escaped}\\s+enable\\s+row\\s+level\\s+security`, "i").test(sql)) {
-        findings.push(finding(`rls-${file.path}-${line}`, "Critical", `RLS is not enabled on "${table}"`, `Table ${table} has no Row-Level Security enabled.`, file.path, line, "rls"));
+      const qualifiedTable = schema ? `${schema}.${table}` : table;
+      const escapedSchema = schema?.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const escapedTable = table.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const tableRef = escapedSchema ? `${escapedSchema}\\.${escapedTable}` : escapedTable;
+      const enablePattern = new RegExp(`alter\\s+table\\s+(?:if\\s+exists\\s+)?${tableRef}\\s+enable\\s+row\\s+level\\s+security`, "i");
+      if (!enablePattern.test(sql)) {
+        findings.push(finding(`rls-${file.path}-${line}`, "Critical", `RLS is not enabled on "${qualifiedTable}"`, `Table ${qualifiedTable} has no Row-Level Security enabled.`, file.path, line, "rls"));
       }
     }
 
@@ -38,11 +43,11 @@ function scan(files: RepositoryFile[]): Finding[] {
   }
 
   for (const file of files.filter((f) => /\.(?:[cm]?[jt]sx?)$/i.test(f.path))) {
-    for (const match of file.content.matchAll(/\b(?:SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|service_role)\b/gi)) {
+    const serviceRoleUsage = /(?:process\.env\.[A-Z0-9_]*SERVICE_ROLE_KEY|import\.meta\.env\.[A-Z0-9_]*SERVICE_ROLE_KEY|Deno\.env\.get\(\s*["'][^"']*SERVICE_ROLE_KEY[^"']*["']\)|createClient\s*\([\s\S]{0,500}(?:service[_-]?role|SERVICE_ROLE_KEY))/gi;
+    for (const match of file.content.matchAll(serviceRoleUsage)) {
       const line = lineAt(file.content, match.index ?? 0);
       if (/(^|\/)api\/|(^|\/)server\/|(^|\/)middleware\.|\.server\./i.test(file.path)) continue;
-      if (/^\s*(?:\/\/|\/\*|\*|#)/.test(file.content.split("\n")[line - 1] ?? "")) continue;
-      findings.push(finding(`service-role-${file.path}-${line}`, "Critical", "Supabase service_role key is referenced in client code", "The service_role key bypasses Row-Level Security and must stay server-side.", file.path, line, "service_role_client"));
+      findings.push(finding(`service-role-${file.path}-${line}`, "Critical", "Supabase service_role key is referenced in client code", "The service_role key bypasses Row-Level Security and must stay server-side. A client bundle must never receive this credential.", file.path, line, "service_role_client"));
     }
 
     const write = file.content.search(/\.(?:insert|update|delete|upsert)\s*\(/i);
@@ -70,7 +75,7 @@ function scan(files: RepositoryFile[]): Finding[] {
   }
 
   for (const file of files.filter((f) => /next\.config\.[cm]?[jt]sx?$/i.test(f.path))) {
-    for (const match of file.content.matchAll(/['"]Access-Control-Allow-Origin['"]\s*:\s*['"]\*['"]/gi)) {
+    for (const match of file.content.matchAll(/["']Access-Control-Allow-Origin["']\s*:\s*["']\*["']/gi)) {
       const line = lineAt(file.content, match.index ?? 0);
       findings.push(finding(`cors-${file.path}-${line}`, "Medium", "CORS wildcard allows any origin", "Access-Control-Allow-Origin is configured as a wildcard.", file.path, line, "cors_wildcard"));
     }
