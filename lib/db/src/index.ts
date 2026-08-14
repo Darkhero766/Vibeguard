@@ -6,7 +6,7 @@ const { Pool } = pg;
 const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
 if (!connectionString) throw new Error("SUPABASE_DB_URL is not set. Add the Supabase Postgres connection string as a Replit Secret.");
 const isLocal = connectionString.includes("localhost") || connectionString.includes("127.0.0.1") || connectionString.includes("helium") || connectionString.includes("sslmode=disable");
-export const pool = new Pool({ connectionString, ssl: isLocal ? false : { rejectUnauthorized: false } });
+export const pool = new Pool({ connectionString, ssl: isLocal ? false : { rejectUnauthorized: true } });
 export const db = drizzle(pool, { schema });
 
 export async function ensureTables(): Promise<void> {
