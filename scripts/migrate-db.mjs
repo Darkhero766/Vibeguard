@@ -32,7 +32,7 @@ function parseUrl(url) {
   const host = colonInHost === -1 ? hostPort : hostPort.slice(0, colonInHost);
   const port = colonInHost === -1 ? 5432 : parseInt(hostPort.slice(colonInHost + 1), 10);
 
-  const ssl = params.get('sslmode') === 'disable' ? false : { rejectUnauthorized: false };
+  const ssl = params.get('sslmode') === 'disable' ? false : { rejectUnauthorized: true };
 
   return { user, password, host, port, database, ssl };
 }
