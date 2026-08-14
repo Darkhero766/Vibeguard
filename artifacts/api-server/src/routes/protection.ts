@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
+import { getInstallationIdForUser, getInstallationToken } from "../lib/githubApp";
 import { scanPublicRepository } from "../lib/scanner";
 import { runExtendedSecurityChecksV2 } from "../lib/extendedScannerV2";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
@@ -28,6 +29,12 @@ async function currentSha(repoUrl: string, token?: string) {
   return commit.sha;
 }
 
+async function getBestGithubToken(userId: string, userJwt: string): Promise<string | undefined> {
+  const installationId = await getInstallationIdForUser(userId);
+  if (installationId) return getInstallationToken(installationId);
+  return getGithubTokenForUser(userId, userJwt) ?? undefined;
+}
+
 router.get("/protection", requireAuth, async (req: AuthedRequest, res) => {
   try { res.json({ repositories: await listProtectedRepositories(req.userId!) }); }
   catch (error) { req.log.error({ err: error }, "Could not list protected repositories"); res.status(500).json({ error: "Could not load protected repositories" }); }
@@ -47,13 +54,13 @@ router.post("/protection", requireAuth, async (req: AuthedRequest, res) => {
   if (!githubUrlPattern.test(repoUrl)) { res.status(400).json({ error: "Enter a valid GitHub repository URL." }); return; }
 
   try {
-    const token = await getGithubTokenForUser(req.userId!, req.userJwt!);
+    const token = await getBestGithubToken(req.userId!, req.userJwt!);
     const [repoOwner, repoName] = new URL(repoUrl).pathname.split("/").filter(Boolean);
     const repo = `${repoOwner}/${repoName}`;
-    const sha = await currentSha(repoUrl, token ?? undefined);
-    let report = await scanPublicRepository(repoUrl, token ?? undefined);
+    const sha = await currentSha(repoUrl, token);
+    let report = await scanPublicRepository(repoUrl, token);
     try {
-      const extended = await runExtendedSecurityChecksV2(repoUrl, token ?? undefined);
+      const extended = await runExtendedSecurityChecksV2(repoUrl, token);
       const normalized = extended.map((finding) => ({ ...finding, severity: finding.severity === "Low" ? "Medium" : finding.severity }));
       const seen = new Set(report.findings.map((f) => `${f.filePath}:${f.line}:${f.check}:${f.title}`));
       report = { ...report, findings: [...report.findings, ...normalized.filter((f) => !seen.has(`${f.filePath}:${f.line}:${f.check}:${f.title}`))] };
