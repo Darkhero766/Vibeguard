@@ -44,8 +44,20 @@ function remediation(finding: Finding) {
   return 'Review the highlighted code, remove the risky pattern, and verify the fix with a fresh VibeSane scan.';
 }
 
+function buildFixPrompt(findings: Finding[]) {
+  const items = findings.map((finding, index) => [
+    `${index + 1}. [${finding.severity}] ${finding.title}`,
+    `   Check: ${finding.check}`,
+    `   Location: ${finding.filePath}:${finding.line}`,
+    `   Evidence: ${finding.description}`,
+    `   Required fix: ${remediation(finding)}`,
+  ].join('\n')).join('\n\n');
+
+  return `Fix all security findings identified by VibeSane in this repository.\n\nIMPORTANT:\n- Inspect the actual code before changing anything.\n- Fix every finding listed below, not just the first one.\n- Make the smallest safe changes necessary and do not break existing functionality.\n- Follow least-privilege and secure-by-default practices.\n- Do not expose, hard-code, or commit secrets.\n- If a credential has been exposed, remove it from source and recommend/perform rotation where appropriate.\n- Preserve the application's intended behavior.\n- After making the fixes, run the relevant tests/typechecks/build and resolve any regressions.\n- Summarize exactly what was changed and any remaining risk.\n\nFINDINGS TO FIX:\n\n${items}`;
+}
+
 export function ReportEnhancements({ report }: { report: ReportLike }) {
-  const [copied, setCopied] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const critical = report.findings.filter((f) => f.severity === 'Critical').length;
   const high = report.findings.filter((f) => f.severity === 'High').length;
   const medium = report.findings.filter((f) => f.severity === 'Medium').length;
@@ -53,11 +65,11 @@ export function ReportEnhancements({ report }: { report: ReportLike }) {
   const passed = Math.max(0, TOTAL_CHECKS - new Set(report.findings.map((f) => f.check)).size);
   const scoreLabel = score >= 90 ? 'Strong' : score >= 70 ? 'Needs attention' : score >= 40 ? 'At risk' : 'Critical risk';
 
-  const copyFix = async (finding: Finding) => {
+  const copyFixPrompt = async () => {
     try {
-      await navigator.clipboard.writeText(remediation(finding));
-      setCopied(finding.title);
-      window.setTimeout(() => setCopied(null), 2200);
+      await navigator.clipboard.writeText(buildFixPrompt(report.findings));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2200);
     } catch {}
   };
 
@@ -98,30 +110,37 @@ export function ReportEnhancements({ report }: { report: ReportLike }) {
       </div>
 
       {report.findings.length > 0 && (
-        <div className="border border-border bg-card p-6 sm:p-7">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={16} className="text-primary" />
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Actionable remediation</p>
+        <div className="relative overflow-hidden border-2 border-foreground bg-card p-6 shadow-[5px_5px_0_hsl(var(--foreground))] sm:p-8">
+          <div className="absolute right-[-30px] top-[-30px] h-28 w-28 rounded-full border border-primary/20" />
+          <div className="absolute right-[-10px] top-[-10px] h-16 w-16 rounded-full border border-primary/20" />
+
+          <div className="relative">
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={17} className="text-primary" />
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">Fix all findings</p>
+            </div>
+            <h3 className="mt-4 text-[24px] font-black tracking-[-0.04em] sm:text-[30px]">One prompt. Every fix.</h3>
+            <p className="mt-2 max-w-xl text-[13px] leading-5 text-muted-foreground">
+              We bundle all {report.findings.length} findings, exact file locations, evidence, and concrete remediation instructions into one prompt you can paste into your coding agent.
+            </p>
+
+            <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="border border-[#e5c8c1] bg-[#f6e9e5] px-3 py-2.5"><p className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#963f34]">Critical</p><p className="mt-1 text-lg font-black text-[#963f34]">{critical}</p></div>
+              <div className="border border-[#e7d3b3] bg-[#f8efe1] px-3 py-2.5"><p className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#a06427]">High</p><p className="mt-1 text-lg font-black text-[#a06427]">{high}</p></div>
+              <div className="border border-[#d2dbc1] bg-[#eef1e4] px-3 py-2.5"><p className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#66763e]">Medium</p><p className="mt-1 text-lg font-black text-[#66763e]">{medium}</p></div>
+              <div className="border border-border bg-muted px-3 py-2.5"><p className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">Files</p><p className="mt-1 text-lg font-black">{report.filesScanned}</p></div>
+            </div>
+
+            <button
+              type="button"
+              onClick={copyFixPrompt}
+              className="vg-button vg-focus mt-7 flex w-full items-center justify-center gap-2 border-2 border-foreground bg-primary px-5 py-4 text-[14px] font-black text-primary-foreground shadow-[5px_5px_0_hsl(var(--foreground))] transition-transform hover:-translate-y-0.5 active:translate-x-[5px] active:translate-y-[5px] active:shadow-none"
+            >
+              {copied ? <Check size={17} /> : <Clipboard size={17} />}
+              {copied ? 'Complete fix prompt copied' : 'Copy complete fix prompt'}
+            </button>
+            <p className="mt-3 text-center font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">Includes every finding · file + line · evidence · remediation</p>
           </div>
-          <p className="mt-2 text-[14px] text-muted-foreground">Each finding below gets a concrete next step instead of a generic warning.</p>
-          <div className="mt-5 divide-y divide-border border-t border-border">
-            {report.findings.slice(0, 8).map((finding) => (
-              <div key={`${finding.check}:${finding.filePath}:${finding.line}`} className="py-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-bold">{finding.title}</p>
-                    <p className="mt-1 font-mono text-[10px] text-muted-foreground">{finding.filePath}:{finding.line}</p>
-                  </div>
-                  <button type="button" onClick={() => copyFix(finding)} className="vg-button vg-focus inline-flex shrink-0 items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 text-[10px] font-semibold hover:border-primary/50 hover:text-primary">
-                    {copied === finding.title ? <Check size={11} /> : <Clipboard size={11} />}
-                    {copied === finding.title ? 'Copied' : 'Copy fix'}
-                  </button>
-                </div>
-                <p className="mt-2 text-[12px] leading-5 text-muted-foreground">{remediation(finding)}</p>
-              </div>
-            ))}
-          </div>
-          {report.findings.length > 8 && <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">+ {report.findings.length - 8} more remediation steps below</p>}
         </div>
       )}
     </div>
