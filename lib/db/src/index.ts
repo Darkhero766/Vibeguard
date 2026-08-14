@@ -4,9 +4,22 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
-if (!connectionString) throw new Error("SUPABASE_DB_URL is not set. Add the Supabase Postgres connection string as a Replit Secret.");
+if (!connectionString) throw new Error("SUPABASE_DB_URL is not set. Add the Supabase Postgres connection string as a server secret.");
+
 const isLocal = connectionString.includes("localhost") || connectionString.includes("127.0.0.1") || connectionString.includes("helium") || connectionString.includes("sslmode=disable");
-export const pool = new Pool({ connectionString, ssl: isLocal ? false : { rejectUnauthorized: true } });
+const ca = process.env.SUPABASE_DB_CA?.replace(/\\n/g, "\n");
+
+// Production connections keep certificate verification enabled. Supabase's
+// database CA is supplied through SUPABASE_DB_CA so Render can verify the
+// server certificate instead of disabling TLS verification.
+const ssl = isLocal
+  ? false
+  : {
+      rejectUnauthorized: true,
+      ...(ca ? { ca } : {}),
+    };
+
+export const pool = new Pool({ connectionString, ssl });
 export const db = drizzle(pool, { schema });
 
 export async function ensureTables(): Promise<void> {
