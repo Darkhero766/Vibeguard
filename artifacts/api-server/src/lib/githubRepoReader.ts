@@ -39,7 +39,7 @@ function shouldRead(path: string): boolean {
   ) && !path.split("/").some((part) => IGNORED.has(part));
 }
 
-function parseRepo(repoUrl: string): { owner: string; repo: string; ref?: string } {
+function parseRepo(repoUrl: string): { owner: string; repo: string; ref?: string; paths?: Set<string> } {
   const parsed = new URL(repoUrl);
   const parts = parsed.pathname.split("/").filter(Boolean);
   const repo = parts[1]?.replace(/\.git$/, "");
@@ -47,7 +47,18 @@ function parseRepo(repoUrl: string): { owner: string; repo: string; ref?: string
     throw Object.assign(new Error("Only valid github.com repository URLs are supported."), { status: 400 });
   }
   const ref = parsed.searchParams.get("ref")?.trim() || undefined;
-  return { owner: parts[0], repo, ref };
+  const encodedPaths = parsed.searchParams.get("paths")?.trim();
+  let paths: Set<string> | undefined;
+  if (encodedPaths) {
+    try {
+      const decoded = decodeURIComponent(encodedPaths);
+      const parsedPaths = decoded.split("\n").map((path) => path.trim()).filter(Boolean).slice(0, MAX_FILES);
+      if (parsedPaths.length) paths = new Set(parsedPaths);
+    } catch {
+      throw Object.assign(new Error("Invalid scan paths parameter."), { status: 400 });
+    }
+  }
+  return { owner: parts[0], repo, ref, paths };
 }
 
 function headers(token?: string): HeadersInit {
@@ -71,7 +82,7 @@ async function githubGet(url: string, token?: string): Promise<any> {
 }
 
 export async function readRepositoryFiles(repoUrl: string, token?: string): Promise<{ owner: string; repo: string; files: RepositoryFile[] }> {
-  const { owner, repo, ref } = parseRepo(repoUrl);
+  const { owner, repo, ref, paths } = parseRepo(repoUrl);
   const treeRef = ref ? encodeURIComponent(ref) : "HEAD";
   const selfScan = owner.toLowerCase() === "darkhero766" && repo.toLowerCase() === "vibeguard";
   const tree = await githubGet(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${treeRef}?recursive=1`, token);
@@ -85,6 +96,7 @@ export async function readRepositoryFiles(repoUrl: string, token?: string): Prom
   const entries = Array.isArray(tree?.tree)
     ? tree.tree
         .filter((entry: any) => entry?.type === "blob" && typeof entry.path === "string" && shouldRead(entry.path))
+        .filter((entry: any) => !paths || paths.has(entry.path))
         .filter((entry: any) => !selfScan || !isSelfScanExcluded(entry.path))
         .slice(0, MAX_FILES)
     : [];
