@@ -17,7 +17,7 @@ const url = rawUrl.endsWith('/') ? `${rawUrl}postgres` : rawUrl;
 
 const client = new Client({
   connectionString: url,
-  ssl: { rejectUnauthorized: false },
+  ssl: { rejectUnauthorized: true },
 });
 
 const SQL = `
