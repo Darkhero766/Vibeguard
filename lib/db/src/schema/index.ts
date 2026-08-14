@@ -1,4 +1,4 @@
-import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Stores encrypted GitHub OAuth tokens keyed by Supabase user UUID.
@@ -8,6 +8,17 @@ export const githubTokens = pgTable("github_tokens", {
   owner: uuid("owner").primaryKey(),
   encryptedToken: text("encrypted_token").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Stores the GitHub App installation selected by a VibeGuard account. */
+export const githubAppInstallations = pgTable("github_app_installations", {
+  owner: uuid("owner").primaryKey(),
+  installationId: bigint("installation_id", { mode: "number" }).notNull().unique(),
+  accountLogin: text("account_login").notNull(),
+  accountId: bigint("account_id", { mode: "number" }).notNull(),
+  accountType: text("account_type").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 /** A repository selected for continuous VibeSane protection. */
@@ -44,5 +55,6 @@ export const protectionEvents = pgTable("protection_events", {
 });
 
 export type GithubToken = typeof githubTokens.$inferSelect;
+export type GithubAppInstallation = typeof githubAppInstallations.$inferSelect;
 export type ProtectedRepository = typeof protectedRepositories.$inferSelect;
 export type ProtectionEvent = typeof protectionEvents.$inferSelect;
