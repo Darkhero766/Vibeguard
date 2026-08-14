@@ -1,0 +1,2 @@
+VibeGuard protection webhook test commit.
+Created to verify that a push event is detected and recorded by the protection activity feed.
