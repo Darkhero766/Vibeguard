@@ -37,6 +37,13 @@ yarn-error.log
 testem.log
 /typings
 
+# Environment secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
 # System Files
 .DS_Store
 Thumbs.db
