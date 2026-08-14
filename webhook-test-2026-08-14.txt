@@ -1,0 +1,2 @@
+VibeGuard GitHub protection webhook deployment test.
+Created to verify that the latest delta-scan webhook code is deployed and receives push events correctly.
