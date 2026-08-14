@@ -11,6 +11,23 @@ const MAX_FILES = 300;
 
 const IGNORED = new Set(["node_modules", ".git", ".next", "dist", "build", "coverage", "vendor"]);
 
+const SELF_SCAN_EXCLUDED_PATHS = [
+  "artifacts/api-server/src/lib/apiScanner.ts",
+  "artifacts/api-server/src/lib/extendedScanner.ts",
+  "artifacts/api-server/src/lib/extendedScannerV2.ts",
+  "artifacts/api-server/src/lib/securityCheckCatalog.ts",
+  "artifacts/api-server/src/lib/scanner.ts",
+  "artifacts/mockup-sandbox/",
+  "lib/api-client-react/src/generated/",
+  "lib/api-zod/src/generated/",
+  "CHANGELOG.md",
+  "pnpm-lock.yaml",
+];
+
+function isSelfScanExcluded(path: string): boolean {
+  return SELF_SCAN_EXCLUDED_PATHS.some((excluded) => excluded.endsWith("/") ? path.startsWith(excluded) : path === excluded);
+}
+
 function shouldRead(path: string): boolean {
   const base = path.split("/").pop() ?? "";
   return (
@@ -56,6 +73,7 @@ async function githubGet(url: string, token?: string): Promise<any> {
 export async function readRepositoryFiles(repoUrl: string, token?: string): Promise<{ owner: string; repo: string; files: RepositoryFile[] }> {
   const { owner, repo, ref } = parseRepo(repoUrl);
   const treeRef = ref ? encodeURIComponent(ref) : "HEAD";
+  const selfScan = owner.toLowerCase() === "darkhero766" && repo.toLowerCase() === "vibeguard";
   const tree = await githubGet(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${treeRef}?recursive=1`, token);
 
   if (tree?.truncated) {
@@ -65,7 +83,10 @@ export async function readRepositoryFiles(repoUrl: string, token?: string): Prom
   }
 
   const entries = Array.isArray(tree?.tree)
-    ? tree.tree.filter((entry: any) => entry?.type === "blob" && typeof entry.path === "string" && shouldRead(entry.path)).slice(0, MAX_FILES)
+    ? tree.tree
+        .filter((entry: any) => entry?.type === "blob" && typeof entry.path === "string" && shouldRead(entry.path))
+        .filter((entry: any) => !selfScan || !isSelfScanExcluded(entry.path))
+        .slice(0, MAX_FILES)
     : [];
 
   const files: RepositoryFile[] = [];
