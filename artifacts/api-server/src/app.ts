@@ -35,6 +35,11 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true }));
 
+// Render health check / root endpoint.
+app.get("/", (_req, res) => {
+  res.status(200).json({ status: "ok", service: "vibeguard-api" });
+});
+
 app.use("/api", router);
 
 export default app;
