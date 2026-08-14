@@ -87,9 +87,19 @@ function addTargetedChecks(files: RepoFile[]): Finding[] {
   return findings;
 }
 
-export async function runExtendedSecurityChecksV2(repoUrl: string, githubToken?: string): Promise<Finding[]> {
-  const result = await readRepositoryFiles(repoUrl, githubToken);
-  const baseFindings = await runExtendedSecurityChecks(repoUrl, githubToken);
+function scopedRepoUrl(repoUrl: string, scanPaths?: string[]): string {
+  if (!scanPaths?.length) return repoUrl;
+  const url = new URL(repoUrl);
+  // Keep the path list in the URL so the existing scanner stack can reuse its normal
+  // repository reader while limiting blob downloads to the changed files.
+  url.searchParams.set("paths", scanPaths.join("\n"));
+  return url.toString();
+}
+
+export async function runExtendedSecurityChecksV2(repoUrl: string, githubToken?: string, scanPaths?: string[]): Promise<Finding[]> {
+  const scopedUrl = scopedRepoUrl(repoUrl, scanPaths);
+  const result = await readRepositoryFiles(scopedUrl, githubToken);
+  const baseFindings = await runExtendedSecurityChecks(scopedUrl, githubToken);
   const targeted = addTargetedChecks(result.files);
   const findings = [...baseFindings, ...targeted].filter((finding) => shouldKeepFinding(finding, result.files));
   const seen = new Set<string>();
