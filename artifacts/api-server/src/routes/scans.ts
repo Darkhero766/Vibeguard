@@ -44,25 +44,28 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     let report;
     let tokenUsed = Boolean(githubToken);
 
+    // Prefer the GitHub REST reader. It avoids spawning a local git clone and
+    // downloads independent blobs concurrently. The clone scanner remains the
+    // fallback for unusual GitHub API failures.
     try {
-      report = await scanPublicRepository(parsed.data.repoUrl, githubToken);
+      report = await scanRepositoryViaApi(parsed.data.repoUrl, githubToken);
     } catch (firstError) {
       const status = errorStatus(firstError);
       const message = errorMessage(firstError);
-      req.log.warn({ err: firstError, status }, "Git clone scan failed; falling back to GitHub REST API");
+      req.log.warn({ err: firstError, status }, "GitHub API scan failed; falling back to Git clone");
       try {
-        report = await scanRepositoryViaApi(parsed.data.repoUrl, githubToken);
+        report = await scanPublicRepository(parsed.data.repoUrl, githubToken);
         tokenUsed = Boolean(githubToken);
-      } catch (apiError) {
-        const apiStatus = errorStatus(apiError);
-        const apiMessage = errorMessage(apiError);
-        if (githubToken && (apiStatus === 401 || apiStatus === 403 || apiStatus === 404)) {
-          req.log.warn({ err: apiError, status: apiStatus }, "Authenticated GitHub API access failed; retrying anonymously");
+      } catch (cloneError) {
+        const cloneStatus = errorStatus(cloneError);
+        const cloneMessage = errorMessage(cloneError);
+        if (githubToken && (cloneStatus === 401 || cloneStatus === 403 || cloneStatus === 404)) {
+          req.log.warn({ err: cloneError, status: cloneStatus }, "Authenticated Git clone failed; retrying API anonymously");
           report = await scanRepositoryViaApi(parsed.data.repoUrl, undefined);
           tokenUsed = false;
         } else {
-          const wrapped = new Error(apiMessage || message);
-          Object.assign(wrapped, { status: apiStatus ?? status ?? 502 });
+          const wrapped = new Error(cloneMessage || message);
+          Object.assign(wrapped, { status: cloneStatus ?? status ?? 502 });
           throw wrapped;
         }
       }
