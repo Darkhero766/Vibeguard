@@ -1,27 +1,21 @@
 name: Apply VibeSane speedup
 
-on:
-  push:
-    branches: [main]
+on: push
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Optimize scanners and apply VibeSane branding
+      - name: Optimize scanners and branding
         run: |
           python3 <<'PY'
           from pathlib import Path
 
-          # Rename only the user-visible brand in the frontend. Keep repository/package
-          # paths and internal identifiers such as artifacts/vibeguard unchanged.
           frontend = Path('artifacts/vibeguard')
           for path in frontend.rglob('*'):
               if not path.is_file() or '.git' in path.parts:
@@ -36,7 +30,6 @@ jobs:
               if updated != text:
                   path.write_text(updated, encoding='utf-8')
 
-          # Parallelize GitHub blob reads in the extended repository reader.
           reader = Path('artifacts/api-server/src/lib/githubRepoReader.ts')
           text = reader.read_text(encoding='utf-8')
           old = '''  const files: RepositoryFile[] = [];
@@ -62,10 +55,7 @@ jobs:
   }
 
   return { owner, repo, files };'''
-          new = '''  // Keep the byte cap deterministic before starting requests, then fetch
-  // independent Git blobs concurrently. The old implementation made one HTTP
-  // request at a time, which made medium repositories unnecessarily slow.
-  const selectedEntries: typeof entries = [];
+          new = '''  const selectedEntries: typeof entries = [];
   let selectedBytes = 0;
   for (const entry of entries) {
     const declaredSize = Number(entry.size ?? 0);
@@ -77,7 +67,6 @@ jobs:
   const files: RepositoryFile[] = [];
   const CONCURRENCY = 8;
   let nextIndex = 0;
-
   const worker = async () => {
     while (true) {
       const index = nextIndex++;
@@ -97,16 +86,13 @@ jobs:
       }
     }
   };
-
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, selectedEntries.length) }, () => worker()));
   files.sort((a, b) => a.path.localeCompare(b.path));
-
   return { owner, repo, files };'''
           if old not in text:
-              raise SystemExit('githubRepoReader.ts optimization target not found')
+              raise SystemExit('reader target not found')
           reader.write_text(text.replace(old, new), encoding='utf-8')
 
-          # Parallelize the local git blob reads used by the baseline scanner.
           scanner = Path('artifacts/api-server/src/lib/scanner.ts')
           text = scanner.read_text(encoding='utf-8')
           old = '''    const files: RepositoryFile[] = [];
@@ -127,12 +113,9 @@ jobs:
     }
 
     return { repo, files };'''
-          new = '''    // Read independent source files concurrently. The previous loop spawned a
-    // separate git process for every file serially, which dominated scan time.
-    const files: RepositoryFile[] = [];
+          new = '''    const files: RepositoryFile[] = [];
     const CONCURRENCY = 8;
     let nextIndex = 0;
-
     const worker = async () => {
       while (true) {
         const index = nextIndex++;
@@ -148,25 +131,19 @@ jobs:
         files.push({ path: relativePath, content });
       }
     };
-
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, paths.length) }, () => worker()));
     files.sort((a, b) => a.path.localeCompare(b.path));
-
     return { repo, files };'''
           if old not in text:
-              raise SystemExit('scanner.ts optimization target not found')
+              raise SystemExit('scanner target not found')
           scanner.write_text(text.replace(old, new), encoding='utf-8')
           PY
-
-      - name: Commit changes
+      - name: Commit and remove temporary workflow
         run: |
           rm -f .github/workflows/apply-vibesane-speedup.yml .vibesane-speedup-trigger
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add artifacts/vibeguard artifacts/api-server/src/lib/githubRepoReader.ts artifacts/api-server/src/lib/scanner.ts .github/workflows/apply-vibesane-speedup.yml .vibesane-speedup-trigger
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
+          if git diff --cached --quiet; then exit 0; fi
           git commit -m "perf: speed up scans and finish VibeSane branding"
           git push
