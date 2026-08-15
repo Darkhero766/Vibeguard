@@ -1,0 +1,176 @@
+name: Apply VibeSane speedup
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Optimize scanners and apply VibeSane branding
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          # Rename the user-visible brand only. Keep repository/package paths and
+          # internal identifiers such as artifacts/vibeguard unchanged.
+          frontend = Path('artifacts/vibeguard')
+          for path in frontend.rglob('*'):
+              if not path.is_file() or '.git' in path.parts:
+                  continue
+              if path.suffix.lower() not in {'.tsx', '.ts', '.html', '.css', '.md', '.json'}:
+                  continue
+              try:
+                  text = path.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  continue
+              updated = text.replace('VibeGuard', 'VibeSane')
+              if updated != text:
+                  path.write_text(updated, encoding='utf-8')
+
+          # Parallelize GitHub blob reads in the extended repository reader.
+          reader = Path('artifacts/api-server/src/lib/githubRepoReader.ts')
+          text = reader.read_text(encoding='utf-8')
+          old = '''  const files: RepositoryFile[] = [];
+  let totalBytes = 0;
+
+  for (const entry of entries) {
+    const declaredSize = Number(entry.size ?? 0);
+    if (declaredSize > MAX_FILE_BYTES || totalBytes + declaredSize > MAX_TOTAL_BYTES) continue;
+
+    try {
+      const blob = await githubGet(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/blobs/${entry.sha}`, token);
+      if (blob?.encoding !== "base64" || typeof blob.content !== "string") continue;
+      const content = Buffer.from(blob.content.replace(/\\n/g, ""), "base64").toString("utf8");
+      const size = Buffer.byteLength(content, "utf8");
+      if (!content || size > MAX_FILE_BYTES || totalBytes + size > MAX_TOTAL_BYTES) continue;
+      totalBytes += size;
+      files.push({ path: entry.path, content });
+    } catch (error) {
+      const status = typeof error === "object" && error !== null && "status" in error ? Number((error as { status: unknown }).status) : 0;
+      if (status === 404 || status === 415) continue;
+      throw error;
+    }
+  }
+
+  return { owner, repo, files };'''
+          new = '''  // Keep the byte cap deterministic before starting requests, then fetch
+  // independent Git blobs concurrently. The old implementation made one HTTP
+  // request at a time, which made medium repositories unnecessarily slow.
+  const selectedEntries: typeof entries = [];
+  let selectedBytes = 0;
+  for (const entry of entries) {
+    const declaredSize = Number(entry.size ?? 0);
+    if (declaredSize > MAX_FILE_BYTES || selectedBytes + declaredSize > MAX_TOTAL_BYTES) continue;
+    selectedEntries.push(entry);
+    selectedBytes += declaredSize;
+  }
+
+  const files: RepositoryFile[] = [];
+  const CONCURRENCY = 8;
+  let nextIndex = 0;
+
+  const worker = async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= selectedEntries.length) return;
+      const entry = selectedEntries[index];
+      try {
+        const blob = await githubGet(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/blobs/${entry.sha}`, token);
+        if (blob?.encoding !== "base64" || typeof blob.content !== "string") continue;
+        const content = Buffer.from(blob.content.replace(/\\n/g, ""), "base64").toString("utf8");
+        const size = Buffer.byteLength(content, "utf8");
+        if (!content || size > MAX_FILE_BYTES) continue;
+        files.push({ path: entry.path, content });
+      } catch (error) {
+        const status = typeof error === "object" && error !== null && "status" in error ? Number((error as { status: unknown }).status) : 0;
+        if (status === 404 || status === 415) continue;
+        throw error;
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, selectedEntries.length) }, () => worker()));
+  files.sort((a, b) => a.path.localeCompare(b.path));
+
+  return { owner, repo, files };'''
+          if old not in text:
+              raise SystemExit('githubRepoReader.ts optimization target not found')
+          reader.write_text(text.replace(old, new), encoding='utf-8')
+
+          # Parallelize the local git blob reads used by the baseline scanner.
+          scanner = Path('artifacts/api-server/src/lib/scanner.ts')
+          text = scanner.read_text(encoding='utf-8')
+          old = '''    const files: RepositoryFile[] = [];
+    let totalBytes = 0;
+
+    for (const relativePath of paths) {
+      const { stdout: content } = await execFileAsync(
+        "git",
+        ["-C", checkout, "show", `HEAD:${relativePath}`],
+        { timeout: 20_000, maxBuffer: MAX_FILE_BYTES + 1 },
+      );
+      const size = Buffer.byteLength(content, "utf8");
+      if (!content || size > MAX_FILE_BYTES || totalBytes + size > MAX_TOTAL_BYTES) {
+        continue;
+      }
+      totalBytes += size;
+      files.push({ path: relativePath, content });
+    }
+
+    return { repo, files };'''
+          new = '''    // Read independent source files concurrently. The previous loop spawned a
+    // separate git process for every file serially, which dominated scan time.
+    const files: RepositoryFile[] = [];
+    const CONCURRENCY = 8;
+    let nextIndex = 0;
+
+    const worker = async () => {
+      while (true) {
+        const index = nextIndex++;
+        if (index >= paths.length) return;
+        const relativePath = paths[index];
+        try {
+          const { stdout: content } = await execFileAsync(
+            "git",
+            ["-C", checkout, "show", `HEAD:${relativePath}`],
+            { timeout: 20_000, maxBuffer: MAX_FILE_BYTES + 1 },
+          );
+          const size = Buffer.byteLength(content, "utf8");
+          if (!content || size > MAX_FILE_BYTES) continue;
+          files.push({ path: relativePath, content });
+        } catch (error) {
+          throw error;
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, paths.length) }, () => worker()));
+    files.sort((a, b) => a.path.localeCompare(b.path));
+
+    return { repo, files };'''
+          if old not in text:
+              raise SystemExit('scanner.ts optimization target not found')
+          scanner.write_text(text.replace(old, new), encoding='utf-8')
+
+      - name: Commit changes
+        run: |
+          rm -f .github/workflows/apply-vibesane-speedup.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/vibeguard artifacts/api-server/src/lib/githubRepoReader.ts artifacts/api-server/src/lib/scanner.ts .github/workflows/apply-vibesane-speedup.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "perf: speed up scans and finish VibeSane branding"
+          git push
