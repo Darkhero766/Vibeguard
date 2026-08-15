@@ -19,6 +19,11 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 const ADMIN_EMAIL = 'nightowlclub72@gmail.com';
 
+// One-time launch-flow reset. Existing users who already consumed their test
+// scan are reset to 0 once after this marker. The marker is then stored in
+// reset_at, so a scan made after the reset is not wiped on every login.
+const TEST_USAGE_RESET_MARKER = '2026-08-15T00:00:00.000Z';
+
 async function ensureUsageRow(userId: string): Promise<UsageRow | null> {
   const { data: existing } = await supabase
     .from('usage')
@@ -26,11 +31,23 @@ async function ensureUsageRow(userId: string): Promise<UsageRow | null> {
     .eq('owner', userId)
     .maybeSingle();
 
-  if (existing) return existing as UsageRow;
+  if (existing) {
+    const row = existing as UsageRow;
+    if (row.scans_used > 0 && (!row.reset_at || new Date(row.reset_at).getTime() < new Date(TEST_USAGE_RESET_MARKER).getTime())) {
+      const { data: resetRow } = await supabase
+        .from('usage')
+        .update({ scans_used: 0, reset_at: TEST_USAGE_RESET_MARKER })
+        .eq('owner', userId)
+        .select()
+        .single();
+      if (resetRow) return resetRow as UsageRow;
+    }
+    return row;
+  }
 
   const { data: inserted } = await supabase
     .from('usage')
-    .insert({ owner: userId, scans_used: 0, scans_limit: 1 })
+    .insert({ owner: userId, scans_used: 0, scans_limit: 1, reset_at: TEST_USAGE_RESET_MARKER })
     .select()
     .single();
 
@@ -65,11 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshGithubConnection = async (userId: string, active = true) => {
-    const { data, error } = await supabase
-      .from('github_tokens')
-      .select('id')
-      .eq('owner', userId)
-      .maybeSingle();
+    const { data, error } = await supabase.from('github_tokens').select('id').eq('owner', userId).maybeSingle();
     if (active && !error) setHasGithubToken(!!data);
     return !!data;
   };
@@ -77,22 +90,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const disconnectGithub = async () => {
     const currentSession = (await supabase.auth.getSession()).data.session;
     if (!currentSession?.access_token) return;
-    await fetch(apiUrl('/api/github/token'), {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${currentSession.access_token}` },
-    });
+    await fetch(apiUrl('/api/github/token'), { method: 'DELETE', headers: { Authorization: `Bearer ${currentSession.access_token}` } });
     setHasGithubToken(false);
     setGithubTokenVersion((v) => v + 1);
   };
 
   useEffect(() => {
     let active = true;
-
-    // Restore the persisted Supabase session on a fresh browser/page load.
-    // IMPORTANT: also restore GitHub connection state here. Previously this
-    // state was only populated from onAuthStateChange, so closing/reopening
-    // the site could leave hasGithubToken=null and the My Repos tab would not
-    // be selected even though the encrypted GitHub token still existed.
     supabase.auth.getSession().then(async ({ data: { session: s } }) => {
       if (!active) return;
       setSession(s);
@@ -100,7 +104,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(u);
       setVibeSaneIdentity(u);
       setAuthLoading(false);
-
       if (u) {
         lastUserId.current = u.id;
         setUsageLoading(true);
@@ -111,69 +114,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (active) setUsageLoading(false);
         }
         await refreshGithubConnection(u.id, active);
-      } else {
-        setHasGithubToken(null);
-      }
+      } else setHasGithubToken(null);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, s) => {
-        if (!active) return;
-        setSession(s);
-        const u = s?.user ?? null;
-        setUser(u);
-        setVibeSaneIdentity(u);
-        setAuthLoading(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
+      if (!active) return;
+      setSession(s);
+      const u = s?.user ?? null;
+      setUser(u);
+      setVibeSaneIdentity(u);
+      setAuthLoading(false);
 
-        if (u && u.id !== lastUserId.current) {
-          lastUserId.current = u.id;
-          setUsageLoading(true);
-          try {
-            const row = await ensureUsageRow(u.id);
-            if (active) setUsage(row);
-          } finally {
-            if (active) setUsageLoading(false);
-          }
-
-          await refreshGithubConnection(u.id, active);
-        } else if (!u) {
-          lastUserId.current = null;
-          setUsage(null);
-          setHasGithubToken(null);
+      if (u && u.id !== lastUserId.current) {
+        lastUserId.current = u.id;
+        setUsageLoading(true);
+        try {
+          const row = await ensureUsageRow(u.id);
+          if (active) setUsage(row);
+        } finally {
+          if (active) setUsageLoading(false);
         }
+        await refreshGithubConnection(u.id, active);
+      } else if (!u) {
+        lastUserId.current = null;
+        setUsage(null);
+        setHasGithubToken(null);
+      }
 
-        // Provider tokens are available immediately after OAuth redirect. Persist
-        // that token once, server-side, so My Repos works after the browser closes.
-        const hasGithubIdentity = s?.user?.identities?.some(
-          (id: { provider: string }) => id.provider === 'github'
-        );
-        if (
-          _event === 'SIGNED_IN' &&
-          s?.provider_token &&
-          s.access_token &&
-          hasGithubIdentity
-        ) {
-          try {
-            const response = await fetch(apiUrl('/api/github/token'), {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${s.access_token}`,
-              },
-              body: JSON.stringify({ token: s.provider_token }),
-            });
-            if (!response.ok) throw new Error('GitHub token persistence failed');
-            if (active) {
-              setGithubTokenVersion((v) => v + 1);
-              setHasGithubToken(true);
-            }
-          } catch {
-            // Keep public-URL scanning available. My Repos will show reconnect
-            // when the user explicitly opens the repository picker.
+      const hasGithubIdentity = s?.user?.identities?.some((id: { provider: string }) => id.provider === 'github');
+      if (_event === 'SIGNED_IN' && s?.provider_token && s.access_token && hasGithubIdentity) {
+        try {
+          const response = await fetch(apiUrl('/api/github/token'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.access_token}` },
+            body: JSON.stringify({ token: s.provider_token }),
+          });
+          if (!response.ok) throw new Error('GitHub token persistence failed');
+          if (active) {
+            setGithubTokenVersion((v) => v + 1);
+            setHasGithubToken(true);
           }
+        } catch {
+          // Public URL scanning remains available if token persistence fails.
         }
       }
-    );
+    });
 
     return () => {
       active = false;
@@ -191,11 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setVibeSaneIdentity(null);
   };
 
-  return (
-    <AuthContext.Provider value={{ user, session, usage, authLoading, usageLoading, githubTokenVersion, hasGithubToken, signOut, refreshUsage, disconnectGithub }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ user, session, usage, authLoading, usageLoading, githubTokenVersion, hasGithubToken, signOut, refreshUsage, disconnectGithub }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
