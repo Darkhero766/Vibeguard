@@ -16,13 +16,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Optimize scanners and apply VibeSane branding
-        shell: python
         run: |
+          python3 <<'PY'
           from pathlib import Path
-          import re
 
-          # Rename the user-visible brand only. Keep repository/package paths and
-          # internal identifiers such as artifacts/vibeguard unchanged.
+          # Rename only the user-visible brand in the frontend. Keep repository/package
+          # paths and internal identifiers such as artifacts/vibeguard unchanged.
           frontend = Path('artifacts/vibeguard')
           for path in frontend.rglob('*'):
               if not path.is_file() or '.git' in path.parts:
@@ -139,18 +138,14 @@ jobs:
         const index = nextIndex++;
         if (index >= paths.length) return;
         const relativePath = paths[index];
-        try {
-          const { stdout: content } = await execFileAsync(
-            "git",
-            ["-C", checkout, "show", `HEAD:${relativePath}`],
-            { timeout: 20_000, maxBuffer: MAX_FILE_BYTES + 1 },
-          );
-          const size = Buffer.byteLength(content, "utf8");
-          if (!content || size > MAX_FILE_BYTES) continue;
-          files.push({ path: relativePath, content });
-        } catch (error) {
-          throw error;
-        }
+        const { stdout: content } = await execFileAsync(
+          "git",
+          ["-C", checkout, "show", `HEAD:${relativePath}`],
+          { timeout: 20_000, maxBuffer: MAX_FILE_BYTES + 1 },
+        );
+        const size = Buffer.byteLength(content, "utf8");
+        if (!content || size > MAX_FILE_BYTES) continue;
+        files.push({ path: relativePath, content });
       }
     };
 
@@ -161,13 +156,14 @@ jobs:
           if old not in text:
               raise SystemExit('scanner.ts optimization target not found')
           scanner.write_text(text.replace(old, new), encoding='utf-8')
+          PY
 
       - name: Commit changes
         run: |
-          rm -f .github/workflows/apply-vibesane-speedup.yml
+          rm -f .github/workflows/apply-vibesane-speedup.yml .vibesane-speedup-trigger
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add artifacts/vibeguard artifacts/api-server/src/lib/githubRepoReader.ts artifacts/api-server/src/lib/scanner.ts .github/workflows/apply-vibesane-speedup.yml
+          git add artifacts/vibeguard artifacts/api-server/src/lib/githubRepoReader.ts artifacts/api-server/src/lib/scanner.ts .github/workflows/apply-vibesane-speedup.yml .vibesane-speedup-trigger
           if git diff --cached --quiet; then
             echo "No changes to commit"
             exit 0
