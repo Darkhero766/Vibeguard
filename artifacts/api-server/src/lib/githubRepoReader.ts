@@ -8,6 +8,7 @@ const API_VERSION = "2026-03-10";
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 12_000_000;
 const MAX_FILES = 300;
+const BLOB_CONCURRENCY = 8;
 
 const IGNORED = new Set(["node_modules", ".git", ".next", "dist", "build", "coverage", "vendor"]);
 
@@ -101,27 +102,43 @@ export async function readRepositoryFiles(repoUrl: string, token?: string): Prom
         .slice(0, MAX_FILES)
     : [];
 
-  const files: RepositoryFile[] = [];
-  let totalBytes = 0;
-
+  // Apply the size budget before network work, then fetch independent blobs in
+  // parallel. The previous implementation fetched every blob serially, making
+  // medium repositories spend minutes waiting on HTTP round trips.
+  const selectedEntries: typeof entries = [];
+  let selectedBytes = 0;
   for (const entry of entries) {
     const declaredSize = Number(entry.size ?? 0);
-    if (declaredSize > MAX_FILE_BYTES || totalBytes + declaredSize > MAX_TOTAL_BYTES) continue;
-
-    try {
-      const blob = await githubGet(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/blobs/${entry.sha}`, token);
-      if (blob?.encoding !== "base64" || typeof blob.content !== "string") continue;
-      const content = Buffer.from(blob.content.replace(/\n/g, ""), "base64").toString("utf8");
-      const size = Buffer.byteLength(content, "utf8");
-      if (!content || size > MAX_FILE_BYTES || totalBytes + size > MAX_TOTAL_BYTES) continue;
-      totalBytes += size;
-      files.push({ path: entry.path, content });
-    } catch (error) {
-      const status = typeof error === "object" && error !== null && "status" in error ? Number((error as { status: unknown }).status) : 0;
-      if (status === 404 || status === 415) continue;
-      throw error;
-    }
+    if (declaredSize > MAX_FILE_BYTES || selectedBytes + declaredSize > MAX_TOTAL_BYTES) continue;
+    selectedEntries.push(entry);
+    selectedBytes += declaredSize;
   }
+
+  const files: RepositoryFile[] = [];
+  let nextIndex = 0;
+
+  const worker = async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= selectedEntries.length) return;
+      const entry = selectedEntries[index];
+      try {
+        const blob = await githubGet(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/blobs/${entry.sha}`, token);
+        if (blob?.encoding !== "base64" || typeof blob.content !== "string") continue;
+        const content = Buffer.from(blob.content.replace(/\n/g, ""), "base64").toString("utf8");
+        const size = Buffer.byteLength(content, "utf8");
+        if (!content || size > MAX_FILE_BYTES) continue;
+        files.push({ path: entry.path, content });
+      } catch (error) {
+        const status = typeof error === "object" && error !== null && "status" in error ? Number((error as { status: unknown }).status) : 0;
+        if (status === 404 || status === 415) continue;
+        throw error;
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(BLOB_CONCURRENCY, selectedEntries.length) }, () => worker()));
+  files.sort((a, b) => a.path.localeCompare(b.path));
 
   return { owner, repo, files };
 }
