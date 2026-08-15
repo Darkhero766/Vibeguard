@@ -44,6 +44,14 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     let report;
     let tokenUsed = Boolean(githubToken);
 
+    // Start the 50-check pass immediately. It uses the same optimized GitHub
+    // reader, so it can run in parallel with the core pass instead of doubling
+    // the wall-clock time of a scan.
+    const extendedPromise = runExtendedSecurityChecksV2(
+      parsed.data.repoUrl,
+      githubToken,
+    );
+
     // Prefer the GitHub REST reader. It avoids spawning a local git clone and
     // downloads independent blobs concurrently. The clone scanner remains the
     // fallback for unusual GitHub API failures.
@@ -74,7 +82,7 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     let extendedFindings = [];
     let extendedSucceeded = false;
     try {
-      extendedFindings = await runExtendedSecurityChecksV2(parsed.data.repoUrl, tokenUsed ? githubToken : undefined);
+      extendedFindings = await extendedPromise;
       extendedSucceeded = true;
     } catch (extendedError) {
       req.log.warn({ err: extendedError }, "Extended security checks failed; returning core findings");
