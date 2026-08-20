@@ -2,6 +2,9 @@ import { useEffect } from 'react';
 import OriginalApp from './AppOriginal';
 import AffiliatePage from './pages/AffiliatePage';
 import { AuthProvider } from './contexts/AuthContext';
+import { supabase } from './lib/supabase';
+
+const REFERRAL_STORAGE_KEY = 'vs_referral_code';
 
 function BrandMigration() {
   useEffect(() => {
@@ -29,6 +32,21 @@ function BrandMigration() {
   return null;
 }
 
+function ReferralAttribution() {
+  useEffect(() => {
+    const claim = async () => {
+      const code = localStorage.getItem(REFERRAL_STORAGE_KEY);
+      if (!code) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      const { error } = await supabase.rpc('claim_affiliate_referral', { p_code: code });
+      if (!error) localStorage.removeItem(REFERRAL_STORAGE_KEY);
+    };
+    void claim();
+  }, []);
+  return null;
+}
+
 export default function App() {
   const isAffiliatePage = window.location.pathname.replace(/\/$/, '') === '/refer';
 
@@ -36,6 +54,7 @@ export default function App() {
     return (
       <>
         <BrandMigration />
+        <ReferralAttribution />
         <AuthProvider>
           <AffiliatePage />
         </AuthProvider>
@@ -46,6 +65,7 @@ export default function App() {
   return (
     <>
       <BrandMigration />
+      <ReferralAttribution />
       <OriginalApp />
     </>
   );
