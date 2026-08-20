@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import OriginalApp from './AppOriginal';
+import AffiliatePage from './pages/AffiliatePage';
+import { AuthProvider } from './contexts/AuthContext';
 
 function BrandMigration() {
   useEffect(() => {
@@ -28,6 +30,19 @@ function BrandMigration() {
 }
 
 export default function App() {
+  const isAffiliatePage = window.location.pathname.replace(/\/$/, '') === '/refer';
+
+  if (isAffiliatePage) {
+    return (
+      <>
+        <BrandMigration />
+        <AuthProvider>
+          <AffiliatePage />
+        </AuthProvider>
+      </>
+    );
+  }
+
   return (
     <>
       <BrandMigration />
