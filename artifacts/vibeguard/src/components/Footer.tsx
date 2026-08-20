@@ -9,13 +9,10 @@ export function Footer() {
             VibeSane scans public repositories only and does not store submitted code.
             This tool is not a substitute for a full security audit.
           </p>
-          <div className="flex shrink-0 items-center gap-5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-            <Link href="/terms" className="hover:text-foreground transition-colors">
-              Terms
-            </Link>
-            <Link href="/privacy" className="hover:text-foreground transition-colors">
-              Privacy
-            </Link>
+          <div className="flex shrink-0 flex-wrap items-center gap-5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            <Link href="/refer" className="text-primary transition-colors hover:text-foreground">Refer &amp; Earn</Link>
+            <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
           </div>
         </div>
       </div>
