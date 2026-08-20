@@ -1,13 +1,29 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Gift, X } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 const SEEN_KEY = 'vs_affiliate_welcome_seen';
+const ADMIN_EMAIL = 'nightowlclub72@gmail.com';
 
 export default function AffiliateWelcomePopup() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    // Show once after a fresh signup, not on every returning login.
+    let mounted = true;
+
+    const showForAdmin = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
+      if (session?.user?.email?.toLowerCase() === ADMIN_EMAIL) {
+        // Admin is always eligible so the popup can be previewed/tested even
+        // after it has already been dismissed or the account already existed.
+        setOpen(true);
+      }
+    };
+
+    void showForAdmin();
+
+    // Regular users see it once after a fresh signup.
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ createdAt?: string }>).detail;
       if (localStorage.getItem(SEEN_KEY)) return;
@@ -17,19 +33,32 @@ export default function AffiliateWelcomePopup() {
     };
 
     window.addEventListener('vibesane:new-signup', handler);
-    return () => window.removeEventListener('vibesane:new-signup', handler);
+    return () => {
+      mounted = false;
+      window.removeEventListener('vibesane:new-signup', handler);
+    };
   }, []);
 
   if (!open) return null;
 
   const close = () => {
-    localStorage.setItem(SEEN_KEY, '1');
     setOpen(false);
+    // Keep the admin eligible on the next visit. Normal users are dismissed permanently.
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email?.toLowerCase() !== ADMIN_EMAIL) {
+        localStorage.setItem(SEEN_KEY, '1');
+      }
+    });
   };
 
   const goToReferral = () => {
-    localStorage.setItem(SEEN_KEY, '1');
-    window.location.href = '/refer';
+    setOpen(false);
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email?.toLowerCase() !== ADMIN_EMAIL) {
+        localStorage.setItem(SEEN_KEY, '1');
+      }
+      window.location.href = '/refer';
+    });
   };
 
   return (
@@ -56,18 +85,9 @@ export default function AffiliateWelcomePopup() {
           </p>
 
           <div className="mt-6 grid grid-cols-3 gap-2">
-            <div className="border border-[#101111]/15 bg-white/70 p-3">
-              <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#777a74]">Share</div>
-              <div className="mt-1 text-[13px] font-bold">Your link</div>
-            </div>
-            <div className="border border-[#101111]/15 bg-white/70 p-3">
-              <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#777a74]">Earn</div>
-              <div className="mt-1 text-[13px] font-bold">$5 / sale</div>
-            </div>
-            <div className="border border-[#101111]/15 bg-white/70 p-3">
-              <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#777a74]">Track</div>
-              <div className="mt-1 text-[13px] font-bold">Your referrals</div>
-            </div>
+            <div className="border border-[#101111]/15 bg-white/70 p-3"><div className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#777a74]">Share</div><div className="mt-1 text-[13px] font-bold">Your link</div></div>
+            <div className="border border-[#101111]/15 bg-white/70 p-3"><div className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#777a74]">Earn</div><div className="mt-1 text-[13px] font-bold">$5 / sale</div></div>
+            <div className="border border-[#101111]/15 bg-white/70 p-3"><div className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#777a74]">Track</div><div className="mt-1 text-[13px] font-bold">Your referrals</div></div>
           </div>
 
           <button onClick={goToReferral} className="mt-7 flex w-full items-center justify-center gap-2 border-2 border-[#101111] bg-[#101111] px-5 py-3 text-[13px] font-bold text-[#f4f1ea] shadow-[4px_4px_0_#f4c842] transition-transform hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0_#f4c842]">
