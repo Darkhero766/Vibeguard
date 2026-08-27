@@ -1,2 +1,9 @@
 User-agent: *
 Allow: /
+
+# Keep private/authenticated areas out of search results.
+Disallow: /auth
+Disallow: /dashboard
+Disallow: /refer
+
+Sitemap: https://vibesane.app/sitemap.xml
