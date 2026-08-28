@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, Check, GitPullRequest, ShieldCheck, Wrench } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { RepositorySecurityCenter } from './RepositorySecurityCenter';
@@ -7,6 +7,7 @@ import { ProtectionActivity } from './ProtectionActivity';
 
 type Finding = { severity: 'Critical' | 'High' | 'Medium'; title: string; filePath: string; line: number };
 type Scan = { repo: string; repoUrl: string; findings: Finding[]; filesScanned: number; scannedAt: string };
+type ProtectedRepository = { repo: string; repoUrl: string; baselineSha: string; lastSha: string; status: string; lastScore: number; criticalCount: number; highCount: number; mediumCount: number; };
 type Props = { firstName: string; lastScan: Scan | null; usage: { scans_used: number; scans_limit: number } | null; isAtLimit: boolean; onViewLastScan: () => void; onProtect: () => void };
 const TOTAL_CHECKS = 50;
 function score(scan: Scan | null) {
@@ -21,13 +22,38 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
   const { session } = useAuth();
   const [showRepository, setShowRepository] = useState(false);
   const [showProtectPanel, setShowProtectPanel] = useState(false);
-  const securityScore = score(lastScan);
-  const critical = lastScan?.findings.filter((f) => f.severity === 'Critical').length ?? 0;
-  const high = lastScan?.findings.filter((f) => f.severity === 'High').length ?? 0;
-  const medium = lastScan?.findings.filter((f) => f.severity === 'Medium').length ?? 0;
-  const totalFindings = lastScan?.findings.length ?? 0;
-  const isClear = Boolean(lastScan && totalFindings === 0);
+  const [protectedRepo, setProtectedRepo] = useState<ProtectedRepository | null>(null);
+  const [protectionLoading, setProtectionLoading] = useState(true);
+  const securityScore = score(lastScan) ?? (protectedRepo?.lastScore ?? null);
+  const critical = lastScan?.findings.filter((f) => f.severity === 'Critical').length ?? protectedRepo?.criticalCount ?? 0;
+  const high = lastScan?.findings.filter((f) => f.severity === 'High').length ?? protectedRepo?.highCount ?? 0;
+  const medium = lastScan?.findings.filter((f) => f.severity === 'Medium').length ?? protectedRepo?.mediumCount ?? 0;
+  const totalFindings = lastScan?.findings.length ?? (critical + high + medium);
+  const isClear = Boolean((lastScan && totalFindings === 0) || (protectedRepo && !lastScan && protectedRepo.lastScore >= 100 && totalFindings === 0));
   const remaining = usage ? Math.max(0, usage.scans_limit - usage.scans_used) : null;
+  const hasProtection = Boolean(protectedRepo || lastScan);
+  const repoName = protectedRepo?.repo ?? lastScan?.repo ?? null;
+  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ?? '';
+
+  useEffect(() => {
+    if (!session?.access_token) { setProtectionLoading(false); return; }
+    let cancelled = false;
+    const loadProtection = async () => {
+      try {
+        const response = await fetch(`${apiBase}/api/protection`, { headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store' });
+        if (!response.ok) throw new Error('Could not load protection state');
+        const data = await response.json() as { repositories?: ProtectedRepository[] };
+        if (!cancelled) setProtectedRepo(data.repositories?.[0] ?? null);
+      } catch {
+        if (!cancelled) setProtectedRepo(null);
+      } finally {
+        if (!cancelled) setProtectionLoading(false);
+      }
+    };
+    void loadProtection();
+    const interval = window.setInterval(() => { void loadProtection(); }, 5000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [session?.access_token, apiBase]);
 
   if (showRepository && lastScan) return <RepositorySecurityCenter repo={lastScan.repo} repoUrl={lastScan.repoUrl} score={securityScore ?? 0} findings={lastScan.findings} filesScanned={lastScan.filesScanned} scannedAt={lastScan.scannedAt} protected onBack={() => setShowRepository(false)} />;
   const openSecurityCenter = () => { if (!lastScan) return; onViewLastScan(); setShowRepository(true); };
@@ -57,19 +83,20 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
               {isClear && <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#d8e2bd]">No security findings detected</p>}
             </div>
             <div className="flex flex-col items-end gap-2 text-right">
-              <span className={`inline-flex items-center gap-2 border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] ${isClear ? 'border-[#aebe8c]/80 bg-[#eef1e4]/15 text-[#d8e2bd]' : 'border-[#aebe8c]/70 bg-[#eef1e4]/10 text-[#d8e2bd]'}`}><span className="h-1.5 w-1.5 rounded-full bg-[#b7ca83]" />{lastScan ? (isClear ? 'Protected · Clean' : 'Protected') : 'Ready to protect'}</span>
-              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-background/45">{lastScan ? 'Push + PR checks active' : 'GitHub App connection required'}</span>
+              <span className={`inline-flex items-center gap-2 border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] ${isClear ? 'border-[#aebe8c]/80 bg-[#eef1e4]/15 text-[#d8e2bd]' : 'border-[#aebe8c]/70 bg-[#eef1e4]/10 text-[#d8e2bd]'}`}><span className="h-1.5 w-1.5 rounded-full bg-[#b7ca83]" />{hasProtection ? (isClear ? 'Protected · Clean' : 'Protected') : 'Ready to protect'}</span>
+              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-background/45">{hasProtection ? 'Push + PR checks active' : protectionLoading ? 'Checking GitHub App connection…' : 'GitHub App connection required'}</span>
             </div>
           </div>
           <div className="relative mt-8 flex flex-wrap items-end justify-between gap-5 border-t border-background/15 pt-5">
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-[0.1em] text-background/60"><span>{lastScan ? 'Last scan protected' : 'No repository protected yet'}</span><span>{lastScan?.filesScanned ?? 0} files scanned</span><span>50 checks</span></div>
-            {totalFindings > 0 ? <button type="button" onClick={openSecurityCenter} className="vg-button vg-focus inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))]"><Wrench size={14} />Review &amp; fix findings<ArrowRight size={13} /></button> : lastScan ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />All clear</span> : <button type="button" onClick={() => { onProtect(); setShowProtectPanel(true); }} disabled={isAtLimit} className="inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))] disabled:opacity-50">Connect GitHub &amp; protect <ArrowRight size={13} /></button>}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-[0.1em] text-background/60"><span>{hasProtection ? `Protected · ${repoName ?? 'repository'}` : 'No repository protected yet'}</span><span>{lastScan?.filesScanned ?? 0} files scanned</span><span>50 checks</span></div>
+            {totalFindings > 0 && lastScan ? <button type="button" onClick={openSecurityCenter} className="vg-button vg-focus inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))]"><Wrench size={14} />Review &amp; fix findings<ArrowRight size={13} /></button> : lastScan ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />All clear</span> : hasProtection ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />Protection active</span> : <button type="button" onClick={() => { onProtect(); setShowProtectPanel(true); }} disabled={isAtLimit} className="inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))] disabled:opacity-50">Connect GitHub &amp; protect <ArrowRight size={13} /></button>}
           </div>
         </div>
 
         <div className={`border p-6 shadow-[3px_3px_0_hsl(var(--foreground)/0.08)] sm:p-7 ${isClear ? 'border-[#b7ca83] bg-[#f1f4e9]' : 'border-border bg-card'}`}>
           <div className="flex items-start justify-between gap-4"><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Latest scan</p><ShieldCheck size={18} className={isClear ? 'text-[#66763e]' : 'text-muted-foreground'} /></div>
-          <p className="mt-7 truncate text-[18px] font-bold">{lastScan?.repo ?? 'No repository yet'}</p>
+          <p className="mt-7 truncate text-[18px] font-bold">{lastScan?.repo ?? protectedRepo?.repo ?? 'No scan yet'}</p>
+          {protectedRepo && !lastScan && <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">Protected · waiting for scan data</p>}
           <div className="mt-3 flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-[0.1em]">{critical > 0 && <span className="border border-[#e5c8c1] bg-[#f6e9e5] px-2 py-1 text-[#963f34]">{critical} critical</span>}{high > 0 && <span className="border border-[#e7d3b3] bg-[#f8efe1] px-2 py-1 text-[#a06427]">{high} high</span>}{medium > 0 && <span className="border border-[#d2dbc1] bg-[#eef1e4] px-2 py-1 text-[#66763e]">{medium} medium</span>}{isClear && <span className="border border-[#b7ca83] bg-[#e4ead8] px-2 py-1 text-[#66763e]">0 findings · clear</span>}</div>
           <button type="button" onClick={openSecurityCenter} disabled={!lastScan} className="vg-focus mt-8 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-primary disabled:opacity-40">View security center <ArrowRight size={12} /></button>
         </div>
@@ -77,8 +104,8 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
 
       <ProtectionActivity session={session} />
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
-        <div className="border border-border bg-card p-5"><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Repositories</p><p className="mt-3 text-[30px] font-black tracking-[-0.05em]">{lastScan ? '1' : '0'}</p><p className="mt-1 text-[12px] text-muted-foreground">currently protected</p></div>
-        <div className={`border p-5 ${isClear ? 'border-[#b7ca83] bg-[#f1f4e9]' : 'border-border bg-card'}`}><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Findings</p><p className={`mt-3 text-[30px] font-black tracking-[-0.05em] ${isClear ? 'text-[#66763e]' : ''}`}>{totalFindings}</p><p className="mt-1 text-[12px] text-muted-foreground">{isClear ? 'all checks passed' : 'from latest scan'}</p></div>
+        <div className="border border-border bg-card p-5"><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Repositories</p><p className="mt-3 text-[30px] font-black tracking-[-0.05em]">{hasProtection ? '1' : '0'}</p><p className="mt-1 text-[12px] text-muted-foreground">currently protected</p></div>
+        <div className={`border p-5 ${isClear ? 'border-[#b7ca83] bg-[#f1f4e9]' : 'border-border bg-card'}`}><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Findings</p><p className={`mt-3 text-[30px] font-black tracking-[-0.05em] ${isClear ? 'text-[#66763e]' : ''}`}>{totalFindings}</p><p className="mt-1 text-[12px] text-muted-foreground">{isClear ? 'all checks passed' : lastScan ? 'from latest scan' : hasProtection ? 'waiting for first scan' : 'from latest scan'}</p></div>
         <div className="border border-border bg-card p-5"><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Scans remaining</p><p className="mt-3 text-[30px] font-black tracking-[-0.05em]">{remaining ?? '—'}</p><p className="mt-1 text-[12px] text-muted-foreground">this month</p></div>
       </div>
 
