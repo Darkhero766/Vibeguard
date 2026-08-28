@@ -8,13 +8,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 
 const REFERRAL_STORAGE_KEY = 'vs_referral_code';
-const SEO_PATHS = new Set([
-  '/github-security-scanner',
-  '/github-protection',
-  '/vibe-coding-security',
-  '/supabase-security',
-  '/nextjs-security',
-]);
+const SEO_PATHS = new Set(['/github-security-scanner','/github-protection','/vibe-coding-security','/supabase-security','/nextjs-security']);
 
 function BrandMigration() {
   useEffect(() => {
@@ -23,9 +17,7 @@ function BrandMigration() {
       const nodes: Text[] = [];
       let node: Node | null;
       while ((node = walker.nextNode())) nodes.push(node as Text);
-      for (const text of nodes) {
-        if (text.nodeValue?.includes('VibeGuard')) text.nodeValue = text.nodeValue.replaceAll('VibeGuard', 'VibeSane');
-      }
+      for (const text of nodes) if (text.nodeValue?.includes('VibeGuard')) text.nodeValue = text.nodeValue.replaceAll('VibeGuard', 'VibeSane');
       if (document.title.includes('VibeGuard')) document.title = document.title.replaceAll('VibeGuard', 'VibeSane');
     };
     replaceBrand();
@@ -56,39 +48,8 @@ export default function App() {
   const isAffiliatePage = path === '/refer';
   const isCheckoutPage = path === '/checkout';
 
-  if (isCheckoutPage) {
-    return (
-      <>
-        <BrandMigration />
-        <AuthProvider><CheckoutPage /></AuthProvider>
-      </>
-    );
-  }
-
-  if (isAffiliatePage) {
-    return (
-      <>
-        <BrandMigration />
-        <ReferralAttribution />
-        <AuthProvider><AffiliatePage /></AuthProvider>
-      </>
-    );
-  }
-
-  if (SEO_PATHS.has(path)) {
-    return (
-      <AuthProvider>
-        <SEOPage path={path} />
-      </AuthProvider>
-    );
-  }
-
-  return (
-    <>
-      <BrandMigration />
-      <ReferralAttribution />
-      <OriginalApp />
-      <AffiliateWelcomePopup />
-    </>
-  );
+  if (isCheckoutPage) return <><BrandMigration /><AuthProvider><CheckoutPage /></AuthProvider></>;
+  if (isAffiliatePage) return <><BrandMigration /><ReferralAttribution /><AuthProvider><AffiliatePage /></AuthProvider></>;
+  if (SEO_PATHS.has(path)) return <AuthProvider><SEOPage path={path} /></AuthProvider>;
+  return <><BrandMigration /><ReferralAttribution /><OriginalApp /><AffiliateWelcomePopup /></>;
 }
