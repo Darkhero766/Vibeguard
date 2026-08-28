@@ -3,6 +3,7 @@ import OriginalApp from './AppOriginal';
 import AffiliatePage from './pages/AffiliatePage';
 import AffiliateWelcomePopup from './components/AffiliateWelcomePopup';
 import SEOPage from './pages/SEOPage';
+import CheckoutPage from './pages/CheckoutPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 
@@ -53,6 +54,16 @@ function ReferralAttribution() {
 export default function App() {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   const isAffiliatePage = path === '/refer';
+  const isCheckoutPage = path === '/checkout';
+
+  if (isCheckoutPage) {
+    return (
+      <>
+        <BrandMigration />
+        <AuthProvider><CheckoutPage /></AuthProvider>
+      </>
+    );
+  }
 
   if (isAffiliatePage) {
     return (
