@@ -65,7 +65,11 @@ export default function App() {
   }
 
   if (SEO_PATHS.has(path)) {
-    return <SEOPage path={path} />;
+    return (
+      <AuthProvider>
+        <SEOPage path={path} />
+      </AuthProvider>
+    );
   }
 
   return (
