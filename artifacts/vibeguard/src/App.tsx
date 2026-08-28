@@ -2,10 +2,18 @@ import { useEffect } from 'react';
 import OriginalApp from './AppOriginal';
 import AffiliatePage from './pages/AffiliatePage';
 import AffiliateWelcomePopup from './components/AffiliateWelcomePopup';
+import SEOPage from './pages/SEOPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 
 const REFERRAL_STORAGE_KEY = 'vs_referral_code';
+const SEO_PATHS = new Set([
+  '/github-security-scanner',
+  '/github-protection',
+  '/vibe-coding-security',
+  '/supabase-security',
+  '/nextjs-security',
+]);
 
 function BrandMigration() {
   useEffect(() => {
@@ -43,7 +51,8 @@ function ReferralAttribution() {
 }
 
 export default function App() {
-  const isAffiliatePage = window.location.pathname.replace(/\/$/, '') === '/refer';
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  const isAffiliatePage = path === '/refer';
 
   if (isAffiliatePage) {
     return (
@@ -53,6 +62,10 @@ export default function App() {
         <AuthProvider><AffiliatePage /></AuthProvider>
       </>
     );
+  }
+
+  if (SEO_PATHS.has(path)) {
+    return <SEOPage path={path} />;
   }
 
   return (
