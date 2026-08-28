@@ -66,19 +66,56 @@ function setMeta(name: string, content: string) {
   tag.content = content;
 }
 
+function setProperty(property: string, content: string) {
+  let tag = document.querySelector(`meta[property="${property}"]`) as HTMLMetaElement | null;
+  if (!tag) {
+    tag = document.createElement('meta');
+    tag.setAttribute('property', property);
+    document.head.appendChild(tag);
+  }
+  tag.content = content;
+}
+
 export default function SEOPage({ path }: { path: string }) {
   const config = PAGES[path] ?? PAGES['/github-security-scanner'];
 
   useEffect(() => {
+    const canonicalUrl = `https://vibesane.app${path}`;
     document.title = config.title;
     setMeta('description', config.description);
+    setProperty('og:title', config.title);
+    setProperty('og:description', config.description);
+    setProperty('og:url', canonicalUrl);
+    setProperty('og:type', 'website');
+    setProperty('og:site_name', 'VibeSane');
+    setProperty('twitter:title', config.title);
+    setProperty('twitter:description', config.description);
+    setMeta('twitter:card', 'summary');
+
     let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
     if (!canonical) {
       canonical = document.createElement('link');
       canonical.rel = 'canonical';
       document.head.appendChild(canonical);
     }
-    canonical.href = `https://vibesane.app${path}`;
+    canonical.href = canonicalUrl;
+
+    let schema = document.getElementById('vibesane-seo-schema') as HTMLScriptElement | null;
+    if (!schema) {
+      schema = document.createElement('script');
+      schema.id = 'vibesane-seo-schema';
+      schema.type = 'application/ld+json';
+      document.head.appendChild(schema);
+    }
+    schema.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'WebPage',
+      name: config.title,
+      description: config.description,
+      url: canonicalUrl,
+      isPartOf: { '@type': 'WebSite', name: 'VibeSane', url: 'https://vibesane.app/' },
+    });
+
     window.scrollTo(0, 0);
   }, [config, path]);
 
