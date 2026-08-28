@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, Check, Tag } from 'lucide-react';
-import { Link, useLocation } from 'wouter';
+import { Link } from 'wouter';
 import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
 import { useMemo, useState } from 'react';
@@ -8,7 +8,6 @@ const PLAN_PRICE = 11.99;
 const CHECKOUT_FEE = 0.01;
 
 export default function CheckoutPage() {
-  const [, setLocation] = useLocation();
   const [coupon, setCoupon] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState('');
   const [message, setMessage] = useState('');
