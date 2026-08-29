@@ -28,4 +28,9 @@ export type UsageRow = {
   scans_limit: number;
   reset_at: string | null;
   created_at: string;
+  plan?: 'free' | 'pro' | string | null;
+  pro_expires_at?: string | null;
+  monthly_scans_used?: number;
+  monthly_scans_limit?: number;
+  monthly_reset_at?: string | null;
 };
