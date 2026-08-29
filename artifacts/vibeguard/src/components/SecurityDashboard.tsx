@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Check, Crown, GitPullRequest, ShieldCheck, Wrench } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { RepositorySecurityCenter } from './RepositorySecurityCenter';
@@ -34,17 +34,23 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
       return legacy ? [JSON.parse(legacy) as ProtectedRepository] : [];
     } catch { return []; }
   });
+  const [selectedRepoName, setSelectedRepoName] = useState<string | null>(() => {
+    try { return sessionStorage.getItem('vs_selected_repo'); } catch { return null; }
+  });
   const [protectionLoading, setProtectionLoading] = useState(false);
-  const protectedRepo = protectedRepos.find((repo) => repo.repo === lastScan?.repo) ?? protectedRepos[0] ?? null;
-  const securityScore = score(lastScan) ?? (protectedRepo?.lastScore ?? null);
-  const critical = lastScan?.findings.filter((f) => f.severity === 'Critical').length ?? protectedRepo?.criticalCount ?? 0;
-  const high = lastScan?.findings.filter((f) => f.severity === 'High').length ?? protectedRepo?.highCount ?? 0;
-  const medium = lastScan?.findings.filter((f) => f.severity === 'Medium').length ?? protectedRepo?.mediumCount ?? 0;
-  const totalFindings = lastScan?.findings.length ?? (critical + high + medium);
-  const isClear = Boolean((lastScan && totalFindings === 0) || (protectedRepo && !lastScan && protectedRepo.lastScore >= 100 && totalFindings === 0));
+
+  const protectedRepo = protectedRepos.find((repo) => repo.repo === selectedRepoName) ?? protectedRepos.find((repo) => repo.repo === lastScan?.repo) ?? protectedRepos[0] ?? null;
+  const selectedRepo = selectedRepoName ?? protectedRepo?.repo ?? lastScan?.repo ?? null;
+  const selectedScan = lastScan?.repo === selectedRepo ? lastScan : null;
+  const securityScore = score(selectedScan) ?? (protectedRepo?.lastScore ?? null);
+  const critical = selectedScan?.findings.filter((f) => f.severity === 'Critical').length ?? protectedRepo?.criticalCount ?? 0;
+  const high = selectedScan?.findings.filter((f) => f.severity === 'High').length ?? protectedRepo?.highCount ?? 0;
+  const medium = selectedScan?.findings.filter((f) => f.severity === 'Medium').length ?? protectedRepo?.mediumCount ?? 0;
+  const totalFindings = selectedScan?.findings.length ?? (critical + high + medium);
+  const isClear = Boolean((selectedScan && totalFindings === 0) || (protectedRepo && !selectedScan && protectedRepo.lastScore >= 100 && totalFindings === 0));
   const remaining = usage ? Math.max(0, (isPro ? PRO_SCAN_LIMIT : usage.scans_limit) - usage.scans_used) : null;
   const hasProtection = protectedRepos.length > 0;
-  const repoName = protectedRepo?.repo ?? lastScan?.repo ?? null;
+  const repoName = selectedRepo ?? 'repository';
   const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ?? '';
 
   useEffect(() => {
@@ -76,8 +82,27 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [session?.access_token, apiBase]);
 
-  if (showRepository && lastScan) return <RepositorySecurityCenter repo={lastScan.repo} repoUrl={lastScan.repoUrl} score={securityScore ?? 0} findings={lastScan.findings} filesScanned={lastScan.filesScanned} scannedAt={lastScan.scannedAt} protected onBack={() => setShowRepository(false)} />;
-  const openSecurityCenter = () => { if (!lastScan) return; onViewLastScan(); setShowRepository(true); };
+  useEffect(() => {
+    if (!protectedRepos.length) return;
+    const stillExists = selectedRepoName && protectedRepos.some((repo) => repo.repo === selectedRepoName);
+    const next = stillExists ? selectedRepoName : (lastScan?.repo && protectedRepos.some((repo) => repo.repo === lastScan.repo) ? lastScan.repo : protectedRepos[0].repo);
+    if (next !== selectedRepoName) setSelectedRepoName(next);
+    try { if (next) sessionStorage.setItem('vs_selected_repo', next); } catch { /* storage is optional */ }
+  }, [protectedRepos, selectedRepoName, lastScan?.repo]);
+
+  const selectRepository = (repo: ProtectedRepository) => {
+    setSelectedRepoName(repo.repo);
+    setShowRepository(false);
+    try { sessionStorage.setItem('vs_selected_repo', repo.repo); } catch { /* storage is optional */ }
+  };
+
+  const openSecurityCenter = () => {
+    if (!selectedScan) return;
+    onViewLastScan();
+    setShowRepository(true);
+  };
+
+  if (showRepository && selectedScan) return <RepositorySecurityCenter repo={selectedScan.repo} repoUrl={selectedScan.repoUrl} score={securityScore ?? 0} findings={selectedScan.findings} filesScanned={selectedScan.filesScanned} scannedAt={selectedScan.scannedAt} protected onBack={() => setShowRepository(false)} />;
 
   return (
     <section className="mt-12 sm:mt-16">
@@ -114,29 +139,37 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
             </div>
           </div>
           <div className="relative mt-8 flex flex-wrap items-end justify-between gap-5 border-t border-background/15 pt-5">
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-[0.1em] text-background/60"><span>{hasProtection ? `Protected · ${repoName ?? 'repository'}` : 'No repository protected yet'}</span><span>{lastScan?.filesScanned ?? 0} files scanned</span><span>50 checks</span></div>
-            {totalFindings > 0 && lastScan ? <button type="button" onClick={openSecurityCenter} className="vg-button vg-focus inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))]"><Wrench size={14} />Review &amp; fix findings<ArrowRight size={13} /></button> : lastScan ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />All clear</span> : hasProtection ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />Protection active</span> : <button type="button" onClick={() => { onProtect(); setShowProtectPanel(true); }} disabled={isAtLimit} className="inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))] disabled:opacity-50">Connect GitHub &amp; protect <ArrowRight size={13} /></button>}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-[0.1em] text-background/60"><span>{hasProtection ? `Protected · ${repoName}` : 'No repository protected yet'}</span><span>{selectedScan?.filesScanned ?? 0} files scanned</span><span>50 checks</span></div>
+            {totalFindings > 0 && selectedScan ? <button type="button" onClick={openSecurityCenter} className="vg-button vg-focus inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))]"><Wrench size={14} />Review &amp; fix findings<ArrowRight size={13} /></button> : selectedScan ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />All clear</span> : hasProtection ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />Protection active</span> : <button type="button" onClick={() => { onProtect(); setShowProtectPanel(true); }} disabled={isAtLimit} className="inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))] disabled:opacity-50">Connect GitHub &amp; protect <ArrowRight size={13} /></button>}
           </div>
         </div>
 
         <div className={`border p-6 shadow-[3px_3px_0_hsl(var(--foreground)/0.08)] sm:p-7 ${isClear ? 'border-[#b7ca83] bg-[#f1f4e9]' : 'border-border bg-card'}`}>
-          <div className="flex items-start justify-between gap-4"><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Latest scan</p><ShieldCheck size={18} className={isClear ? 'text-[#66763e]' : 'text-muted-foreground'} /></div>
-          <p className="mt-7 truncate text-[18px] font-bold">{lastScan?.repo ?? protectedRepo?.repo ?? 'No scan yet'}</p>
-          {protectedRepo && !lastScan && <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">Protected · waiting for scan data</p>}
+          <div className="flex items-start justify-between gap-4"><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Selected repository</p><ShieldCheck size={18} className={isClear ? 'text-[#66763e]' : 'text-muted-foreground'} /></div>
+          <p className="mt-7 truncate text-[18px] font-bold">{selectedRepo ?? 'No repository selected'}</p>
+          {protectedRepo && !selectedScan && <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">Protected · waiting for scan data</p>}
           <div className="mt-3 flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-[0.1em]">{critical > 0 && <span className="border border-[#e5c8c1] bg-[#f6e9e5] px-2 py-1 text-[#963f34]">{critical} critical</span>}{high > 0 && <span className="border border-[#e7d3b3] bg-[#f8efe1] px-2 py-1 text-[#a06427]">{high} high</span>}{medium > 0 && <span className="border border-[#d2dbc1] bg-[#eef1e4] px-2 py-1 text-[#66763e]">{medium} medium</span>}{isClear && <span className="border border-[#b7ca83] bg-[#e4ead8] px-2 py-1 text-[#66763e]">0 findings · clear</span>}</div>
-          <button type="button" onClick={openSecurityCenter} disabled={!lastScan} className="vg-focus mt-8 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-primary disabled:opacity-40">View security center <ArrowRight size={12} /></button>
+          <button type="button" onClick={openSecurityCenter} disabled={!selectedScan} className="vg-focus mt-8 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-primary disabled:opacity-40">View security center <ArrowRight size={12} /></button>
         </div>
       </div>
 
       {hasProtection && <div className="mt-4 border border-border bg-card p-5 sm:p-6">
-        <div className="flex items-center justify-between gap-4"><div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">Protected repositories</p><p className="mt-1 text-[12px] text-muted-foreground">All repositories stay protected independently.</p></div><span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em]">{protectedRepos.length} / {isPro ? 5 : 1}</span></div>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">{protectedRepos.map((repo) => <div key={repo.repo} className="flex items-center justify-between gap-3 border border-border px-4 py-3"><div className="min-w-0"><p className="truncate text-[12px] font-semibold">{repo.repo}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[0.08em] text-muted-foreground">Protected · baseline {repo.baselineSha.slice(0, 7)}</p></div><span className="shrink-0 inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.08em] text-[#66763e]"><span className="h-1.5 w-1.5 rounded-full bg-[#8fa66b]" />Active</span></div>)}</div>
+        <div className="flex items-center justify-between gap-4"><div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">Protected repositories</p><p className="mt-1 text-[12px] text-muted-foreground">Tap a repository to switch the dashboard.</p></div><span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em]">{protectedRepos.length} / {isPro ? 5 : 1}</span></div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {protectedRepos.map((repo) => {
+            const selected = repo.repo === selectedRepo;
+            return <button key={repo.repo} type="button" onClick={() => selectRepository(repo)} aria-pressed={selected} className={`group flex w-full items-center justify-between gap-3 border px-4 py-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${selected ? 'border-primary bg-primary/[0.08] shadow-[3px_3px_0_hsl(var(--primary))]' : 'border-border bg-card hover:border-primary/60 hover:bg-primary/[0.03]'}`}>
+              <div className="min-w-0"><p className="truncate text-[12px] font-semibold">{repo.repo}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[0.08em] text-muted-foreground">Protected · baseline {repo.baselineSha.slice(0, 7)}</p></div>
+              <span className={`shrink-0 inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.08em] ${selected ? 'text-primary' : 'text-[#66763e]'}`}><span className={`h-1.5 w-1.5 rounded-full ${selected ? 'bg-primary' : 'bg-[#8fa66b]'}`} />{selected ? 'Selected' : 'Active'}</span>
+            </button>;
+          })}
+        </div>
       </div>}
 
       <ProtectionActivity session={session} />
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <div className="border border-border bg-card p-5"><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Repositories</p><p className="mt-3 text-[30px] font-black tracking-[-0.05em]">{protectedRepos.length}</p><p className="mt-1 text-[12px] text-muted-foreground">currently protected</p></div>
-        <div className={`border p-5 ${isClear ? 'border-[#b7ca83] bg-[#f1f4e9]' : 'border-border bg-card'}`}><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Findings</p><p className={`mt-3 text-[30px] font-black tracking-[-0.05em] ${isClear ? 'text-[#66763e]' : ''}`}>{totalFindings}</p><p className="mt-1 text-[12px] text-muted-foreground">{isClear ? 'all checks passed' : lastScan ? 'from latest scan' : hasProtection ? 'waiting for first scan' : 'from latest scan'}</p></div>
+        <div className={`border p-5 ${isClear ? 'border-[#b7ca83] bg-[#f1f4e9]' : 'border-border bg-card'}`}><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Findings</p><p className={`mt-3 text-[30px] font-black tracking-[-0.05em] ${isClear ? 'text-[#66763e]' : ''}`}>{totalFindings}</p><p className="mt-1 text-[12px] text-muted-foreground">{isClear ? 'all checks passed' : selectedScan ? 'from selected scan' : hasProtection ? 'waiting for scan data' : 'from latest scan'}</p></div>
         <div className="border border-border bg-card p-5"><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Scans remaining</p><p className="mt-3 text-[30px] font-black tracking-[-0.05em]">{remaining ?? '—'}</p><p className="mt-1 text-[12px] text-muted-foreground">this month · {isPro ? 'Pro' : 'Free'}</p></div>
       </div>
 
