@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 
 type Overview = { users: number; proUsers: number; freeUsers: number; scans: number; protectedRepositories: number; events30d: number; proLimits: { monthlyScans: number; repositories: number } };
 type UserRow = { id: string; email: string; created_at: string; plan: string; scans_used: number; scans_limit: number; pro_expires_at: string | null };
+const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ?? '';
 
 function Stat({ icon: Icon, label, value, detail }: { icon: typeof Users; label: string; value: string | number; detail?: string }) {
   return <div className="relative overflow-hidden border border-border bg-card p-5 shadow-[6px_6px_0_hsl(var(--foreground)/0.08)]">
@@ -27,7 +28,7 @@ export default function AdminPage() {
   async function api(path: string, options?: RequestInit) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('Please sign in as the administrator.');
-    const response = await fetch(`/api${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(options?.headers ?? {}), Authorization: `Bearer ${session.access_token}` } });
+    const response = await fetch(`${apiBase}/api${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(options?.headers ?? {}), Authorization: `Bearer ${session.access_token}` } });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error ?? 'Admin request failed');
     return data;
