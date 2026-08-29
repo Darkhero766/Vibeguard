@@ -15,18 +15,25 @@ export function ProtectionActivity({ session }: { session: Session | null }) {
     if (!session?.access_token) { setLoading(false); return; }
     let cancelled = false;
 
+    const getSelectedRepo = () => {
+      try { return sessionStorage.getItem('vs_selected_repo'); } catch { return null; }
+    };
+
     const loadActivity = async () => {
       const headers = { Authorization: `Bearer ${session.access_token}` };
       try {
         const response = await fetch(`${apiBase}/api/protection`, { headers, cache: 'no-store' });
         if (!response.ok) throw new Error('Could not load protected repositories');
-        const data = await response.json();
+        const data = await response.json() as { repositories?: ProtectedRepository[] };
         if (cancelled) return;
-        const first = data.repositories?.[0] as ProtectedRepository | undefined;
-        setRepository(first ?? null);
-        if (!first) { setEvents([]); return; }
-        const eventsResponse = await fetch(`${apiBase}/api/protection/${encodeURIComponent(first.repo)}/events`, { headers, cache: 'no-store' });
-        const eventsData = eventsResponse.ok ? await eventsResponse.json() : { events: [] };
+        const repositories = Array.isArray(data.repositories) ? data.repositories : [];
+        const selectedName = getSelectedRepo();
+        const selected = (selectedName && repositories.find((repo) => repo.repo === selectedName)) || repositories[0];
+        setRepository(selected ?? null);
+        if (!selected) { setEvents([]); return; }
+
+        const eventsResponse = await fetch(`${apiBase}/api/protection/${encodeURIComponent(selected.repo)}/events`, { headers, cache: 'no-store' });
+        const eventsData = eventsResponse.ok ? await eventsResponse.json() as { events?: Event[] } : { events: [] };
         if (!cancelled) setEvents(Array.isArray(eventsData.events) ? eventsData.events : []);
       } catch {
         if (!cancelled) setRepository(null);
@@ -36,9 +43,9 @@ export function ProtectionActivity({ session }: { session: Session | null }) {
     };
 
     void loadActivity();
-    // Webhook processing is asynchronous after GitHub receives the push.
-    // Refresh activity automatically so the user does not need a page reload.
-    const interval = window.setInterval(() => { void loadActivity(); }, 5000);
+    // The repository selector lives in the parent dashboard, so watch its
+    // sessionStorage selection and refresh this section immediately after a switch.
+    const interval = window.setInterval(() => { void loadActivity(); }, 1000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [session?.access_token, apiBase]);
 
