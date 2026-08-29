@@ -7,6 +7,7 @@ import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { optionalAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
 import { cacheScanResult } from "../lib/scanCache";
+import { ensurePlanForUser, consumeScan } from "../lib/plan";
 
 const router: IRouter = Router();
 const CORE_SECURITY_CHECKS = 8;
@@ -31,6 +32,18 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     return;
   }
 
+  if (req.userId) {
+    try {
+      const plan = await ensurePlanForUser(req.userId);
+      if (plan.scansUsed >= plan.scansLimit) {
+        res.status(429).json({ error: `Monthly scan limit reached (${plan.scansLimit}).`, plan });
+        return;
+      }
+    } catch (error) {
+      req.log.warn({ err: error }, "Could not load plan; continuing scan for compatibility");
+    }
+  }
+
   let githubToken: string | undefined;
   if (req.userId && req.userJwt) {
     try {
@@ -44,17 +57,8 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     let report;
     let tokenUsed = Boolean(githubToken);
 
-    // Start the 50-check pass immediately. It uses the same optimized GitHub
-    // reader, so it can run in parallel with the core pass instead of doubling
-    // the wall-clock time of a scan.
-    const extendedPromise = runExtendedSecurityChecksV2(
-      parsed.data.repoUrl,
-      githubToken,
-    );
+    const extendedPromise = runExtendedSecurityChecksV2(parsed.data.repoUrl, githubToken);
 
-    // Prefer the GitHub REST reader. It avoids spawning a local git clone and
-    // downloads independent blobs concurrently. The clone scanner remains the
-    // fallback for unusual GitHub API failures.
     try {
       report = await scanRepositoryViaApi(parsed.data.repoUrl, githubToken);
     } catch (firstError) {
@@ -110,6 +114,9 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
       checksRun: extendedSucceeded ? TOTAL_SECURITY_CHECKS : CORE_SECURITY_CHECKS,
     };
     cacheScanResult(finalReport.repo, finalReport);
+    if (req.userId) {
+      try { await consumeScan(req.userId); } catch (error) { req.log.warn({ err: error }, "Could not record scan usage"); }
+    }
     res.json(CreateScanResponse.parse(finalReport));
   } catch (error) {
     const status = errorStatus(error);
