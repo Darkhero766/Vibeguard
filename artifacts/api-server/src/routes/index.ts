@@ -6,6 +6,7 @@ import githubAppRouter from "./githubApp";
 import githubWebhookRouter from "./githubWebhook";
 import badgeRouter from "./badge";
 import protectionRouter from "./protection";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(githubAppRouter);
 router.use(githubWebhookRouter);
 router.use(badgeRouter);
 router.use(protectionRouter);
+router.use(adminRouter);
 
 export default router;
