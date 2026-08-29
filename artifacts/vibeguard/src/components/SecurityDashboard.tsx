@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, GitPullRequest, ShieldCheck, Wrench } from 'lucide-react';
+import { ArrowRight, Check, Crown, GitPullRequest, ShieldCheck, Wrench } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { RepositorySecurityCenter } from './RepositorySecurityCenter';
 import { ProtectRepositoryPanel } from './ProtectRepositoryPanel';
@@ -8,8 +8,11 @@ import { ProtectionActivity } from './ProtectionActivity';
 type Finding = { severity: 'Critical' | 'High' | 'Medium'; title: string; filePath: string; line: number };
 type Scan = { repo: string; repoUrl: string; findings: Finding[]; filesScanned: number; scannedAt: string };
 type ProtectedRepository = { repo: string; repoUrl: string; baselineSha: string; lastSha: string; status: string; lastScore: number; criticalCount: number; highCount: number; mediumCount: number; };
-type Props = { firstName: string; lastScan: Scan | null; usage: { scans_used: number; scans_limit: number } | null; isAtLimit: boolean; onViewLastScan: () => void; onProtect: () => void };
+type Props = { firstName: string; lastScan: Scan | null; usage: { scans_used: number; scans_limit: number; plan?: string | null } | null; isAtLimit: boolean; onViewLastScan: () => void; onProtect: () => void };
 const TOTAL_CHECKS = 50;
+const ADMIN_EMAIL = 'nightowlclub72@gmail.com';
+const PRO_SCAN_LIMIT = 10;
+
 function score(scan: Scan | null) {
   if (!scan) return null;
   const critical = scan.findings.filter((f) => f.severity === 'Critical').length;
@@ -19,19 +22,25 @@ function score(scan: Scan | null) {
 }
 
 export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onViewLastScan, onProtect }: Props) {
-  const { session } = useAuth();
+  const { session, user } = useAuth();
+  const isPro = user?.email?.trim().toLowerCase() === ADMIN_EMAIL || usage?.plan === 'pro';
   const [showRepository, setShowRepository] = useState(false);
   const [showProtectPanel, setShowProtectPanel] = useState(false);
-  const [protectedRepo, setProtectedRepo] = useState<ProtectedRepository | null>(null);
-  const [protectionLoading, setProtectionLoading] = useState(true);
+  const [protectedRepo, setProtectedRepo] = useState<ProtectedRepository | null>(() => {
+    try {
+      const raw = sessionStorage.getItem('vs_protected_repo');
+      return raw ? JSON.parse(raw) as ProtectedRepository : null;
+    } catch { return null; }
+  });
+  const [protectionLoading, setProtectionLoading] = useState(false);
   const securityScore = score(lastScan) ?? (protectedRepo?.lastScore ?? null);
   const critical = lastScan?.findings.filter((f) => f.severity === 'Critical').length ?? protectedRepo?.criticalCount ?? 0;
   const high = lastScan?.findings.filter((f) => f.severity === 'High').length ?? protectedRepo?.highCount ?? 0;
   const medium = lastScan?.findings.filter((f) => f.severity === 'Medium').length ?? protectedRepo?.mediumCount ?? 0;
   const totalFindings = lastScan?.findings.length ?? (critical + high + medium);
   const isClear = Boolean((lastScan && totalFindings === 0) || (protectedRepo && !lastScan && protectedRepo.lastScore >= 100 && totalFindings === 0));
-  const remaining = usage ? Math.max(0, usage.scans_limit - usage.scans_used) : null;
-  const hasProtection = Boolean(protectedRepo || lastScan);
+  const remaining = usage ? Math.max(0, (isPro ? PRO_SCAN_LIMIT : usage.scans_limit) - usage.scans_used) : null;
+  const hasProtection = Boolean(protectedRepo);
   const repoName = protectedRepo?.repo ?? lastScan?.repo ?? null;
   const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ?? '';
 
@@ -39,13 +48,21 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
     if (!session?.access_token) { setProtectionLoading(false); return; }
     let cancelled = false;
     const loadProtection = async () => {
+      if (!cancelled) setProtectionLoading(true);
       try {
         const response = await fetch(`${apiBase}/api/protection`, { headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store' });
         if (!response.ok) throw new Error('Could not load protection state');
         const data = await response.json() as { repositories?: ProtectedRepository[] };
-        if (!cancelled) setProtectedRepo(data.repositories?.[0] ?? null);
+        if (!cancelled) {
+          const next = data.repositories?.[0] ?? null;
+          setProtectedRepo(next);
+          try {
+            if (next) sessionStorage.setItem('vs_protected_repo', JSON.stringify(next));
+            else sessionStorage.removeItem('vs_protected_repo');
+          } catch { /* storage is optional */ }
+        }
       } catch {
-        if (!cancelled) setProtectedRepo(null);
+        // Keep the last known state instead of flashing an incorrect empty state.
       } finally {
         if (!cancelled) setProtectionLoading(false);
       }
@@ -62,7 +79,12 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
     <section className="mt-12 sm:mt-16">
       <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary">Security command center</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary">Security command center</p>
+            <span className={`inline-flex items-center gap-1.5 border px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.12em] ${isPro ? 'border-primary/50 bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground'}`}>
+              {isPro && <Crown size={11} />} {isPro ? 'Pro' : 'Free'}
+            </span>
+          </div>
           <h1 className="mt-4 text-[42px] font-extrabold leading-[0.98] tracking-[-0.055em] sm:text-[58px]">Good to see you, {firstName}.</h1>
           <p className="mt-4 max-w-[510px] text-[15px] leading-6 text-muted-foreground">Protect your code once, then let VibeGuard watch every push and pull request.</p>
         </div>
@@ -83,8 +105,8 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
               {isClear && <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#d8e2bd]">No security findings detected</p>}
             </div>
             <div className="flex flex-col items-end gap-2 text-right">
-              <span className={`inline-flex items-center gap-2 border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] ${isClear ? 'border-[#aebe8c]/80 bg-[#eef1e4]/15 text-[#d8e2bd]' : 'border-[#aebe8c]/70 bg-[#eef1e4]/10 text-[#d8e2bd]'}`}><span className="h-1.5 w-1.5 rounded-full bg-[#b7ca83]" />{hasProtection ? (isClear ? 'Protected · Clean' : 'Protected') : 'Ready to protect'}</span>
-              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-background/45">{hasProtection ? 'Push + PR checks active' : protectionLoading ? 'Checking GitHub App connection…' : 'GitHub App connection required'}</span>
+              <span className={`inline-flex items-center gap-2 border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] ${isClear ? 'border-[#aebe8c]/80 bg-[#eef1e4]/15 text-[#d8e2bd]' : 'border-[#aebe8c]/70 bg-[#eef1e4]/10 text-[#d8e2bd]'}`}><span className="h-1.5 w-1.5 rounded-full bg-[#b7ca83]" />{protectionLoading && !hasProtection ? 'Checking…' : hasProtection ? (isClear ? 'Protected · Clean' : 'Protected') : 'Ready to protect'}</span>
+              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-background/45">{hasProtection ? 'Push + PR checks active' : protectionLoading ? 'Checking protection state…' : 'GitHub App connection required'}</span>
             </div>
           </div>
           <div className="relative mt-8 flex flex-wrap items-end justify-between gap-5 border-t border-background/15 pt-5">
@@ -106,7 +128,7 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <div className="border border-border bg-card p-5"><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Repositories</p><p className="mt-3 text-[30px] font-black tracking-[-0.05em]">{hasProtection ? '1' : '0'}</p><p className="mt-1 text-[12px] text-muted-foreground">currently protected</p></div>
         <div className={`border p-5 ${isClear ? 'border-[#b7ca83] bg-[#f1f4e9]' : 'border-border bg-card'}`}><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Findings</p><p className={`mt-3 text-[30px] font-black tracking-[-0.05em] ${isClear ? 'text-[#66763e]' : ''}`}>{totalFindings}</p><p className="mt-1 text-[12px] text-muted-foreground">{isClear ? 'all checks passed' : lastScan ? 'from latest scan' : hasProtection ? 'waiting for first scan' : 'from latest scan'}</p></div>
-        <div className="border border-border bg-card p-5"><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Scans remaining</p><p className="mt-3 text-[30px] font-black tracking-[-0.05em]">{remaining ?? '—'}</p><p className="mt-1 text-[12px] text-muted-foreground">this month</p></div>
+        <div className="border border-border bg-card p-5"><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Scans remaining</p><p className="mt-3 text-[30px] font-black tracking-[-0.05em]">{remaining ?? '—'}</p><p className="mt-1 text-[12px] text-muted-foreground">this month · {isPro ? 'Pro' : 'Free'}</p></div>
       </div>
 
       <div className="mt-10 border-t border-border pt-8"><div className="flex items-center justify-between gap-4"><div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">Security coverage</p><h2 className="mt-2 text-[22px] font-bold tracking-[-0.03em]">50 checks, one clear signal.</h2></div><GitPullRequest size={20} className="hidden text-muted-foreground sm:block" /></div><div className="mt-6 grid gap-3 sm:grid-cols-2">{['Secrets & credentials', 'Database & RLS', 'Authentication', 'Injection & browser APIs'].map((label, index) => <div key={label} className="flex items-center gap-4 border border-border bg-card px-4 py-4"><span className="flex h-7 w-7 shrink-0 items-center justify-center border border-primary/30 bg-primary/[0.06] text-primary"><Check size={13} /></span><div className="min-w-0 flex-1"><p className="text-[12px] font-semibold">{label}</p><div className="mt-2 h-1.5 bg-muted"><div className="h-full bg-primary" style={{ width: `${[100, 96, 92, 88][index]}%` }} /></div></div><span className="font-mono text-[10px] text-muted-foreground">{[100, 96, 92, 88][index]}%</span></div>)}</div></div>
