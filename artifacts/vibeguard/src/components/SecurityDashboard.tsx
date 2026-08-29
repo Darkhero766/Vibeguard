@@ -32,7 +32,9 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
       return raw ? JSON.parse(raw) as ProtectedRepository : null;
     } catch { return null; }
   });
-  const [protectionLoading, setProtectionLoading] = useState(false);
+  const [protectionLoading, setProtectionLoading] = useState(() => {
+    try { return !sessionStorage.getItem('vs_protected_repo'); } catch { return true; }
+  });
   const securityScore = score(lastScan) ?? (protectedRepo?.lastScore ?? null);
   const critical = lastScan?.findings.filter((f) => f.severity === 'Critical').length ?? protectedRepo?.criticalCount ?? 0;
   const high = lastScan?.findings.filter((f) => f.severity === 'High').length ?? protectedRepo?.highCount ?? 0;
