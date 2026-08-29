@@ -36,6 +36,13 @@ export async function ensureTables(): Promise<void> {
     await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS monthly_reset_at timestamptz`);
     await pool.query(`CREATE INDEX IF NOT EXISTS usage_plan_idx ON usage(plan)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS usage_pro_expires_idx ON usage(pro_expires_at)`);
+    await pool.query(`
+      INSERT INTO public.usage (owner, scans_used, scans_limit, plan, pro_expires_at, monthly_scans_used, monthly_scans_limit, monthly_reset_at)
+      SELECT id, 0, 10, 'pro', NULL, 0, 10, now() + interval '30 days'
+      FROM auth.users
+      WHERE lower(email) = lower('nightowlclub72@gmail.com')
+      ON CONFLICT (owner) DO UPDATE SET plan = 'pro', scans_limit = 10, monthly_scans_limit = 10, pro_expires_at = NULL
+    `);
   } catch (err) {
     console.warn("[db] ensureTables() could not reach the database — skipping migration.", (err as Error).message);
   }
