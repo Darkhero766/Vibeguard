@@ -6,6 +6,7 @@ import { scanPublicRepository } from "../lib/scanner";
 import { runExtendedSecurityChecksV2 } from "../lib/extendedScannerV2";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { getProtectedRepository, listProtectedRepositories, listProtectionEvents, saveProtectedRepository } from "../lib/protectionStore";
+import { assertRepositoryCapacity } from "../lib/plan";
 
 const router = Router();
 const githubUrlPattern = /^https:\/\/github\.com\/[-A-Za-z0-9_.]+\/[-A-Za-z0-9_.]+\/?$/;
@@ -57,6 +58,13 @@ router.post("/protection", requireAuth, async (req: AuthedRequest, res) => {
     const token = await getBestGithubToken(req.userId!, req.userJwt!);
     const [repoOwner, repoName] = new URL(repoUrl).pathname.split("/").filter(Boolean);
     const repo = `${repoOwner}/${repoName}`;
+    const existing = await getProtectedRepository(repo);
+    if (existing && existing.owner !== req.userId) {
+      res.status(409).json({ error: "This repository is already protected by another VibeSane account." });
+      return;
+    }
+    if (!existing) await assertRepositoryCapacity(req.userId!);
+
     const sha = await currentSha(repoUrl, token);
     let report = await scanPublicRepository(repoUrl, token);
     try {
@@ -69,7 +77,8 @@ router.post("/protection", requireAuth, async (req: AuthedRequest, res) => {
     res.json({ repository: saved, baseline: { sha, filesScanned: report.filesScanned, findings: report.findings, checksRun: TOTAL_SECURITY_CHECKS } });
   } catch (error) {
     req.log.error({ err: error, repoUrl }, "Could not protect repository");
-    res.status(502).json({ error: error instanceof Error ? error.message : "Could not protect repository" });
+    const status = typeof error === "object" && error !== null && "status" in error ? Number((error as { status: unknown }).status) : 502;
+    res.status(status === 429 ? 429 : 502).json({ error: error instanceof Error ? error.message : "Could not protect repository" });
   }
 });
 
