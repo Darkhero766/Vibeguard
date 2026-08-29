@@ -28,6 +28,14 @@ export async function ensureTables(): Promise<void> {
     await pool.query(`CREATE INDEX IF NOT EXISTS protected_repositories_owner_idx ON protected_repositories(owner)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS protection_events (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), repo text NOT NULL, event text NOT NULL, sha text NOT NULL, status text NOT NULL, findings_count integer NOT NULL DEFAULT 0, critical_count integer NOT NULL DEFAULT 0, high_count integer NOT NULL DEFAULT 0, medium_count integer NOT NULL DEFAULT 0, created_at timestamptz NOT NULL DEFAULT now())`);
     await pool.query(`CREATE INDEX IF NOT EXISTS protection_events_repo_created_idx ON protection_events(repo, created_at DESC)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS usage (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), owner uuid NOT NULL UNIQUE, scans_used integer NOT NULL DEFAULT 0, scans_limit integer NOT NULL DEFAULT 1, reset_at timestamptz, created_at timestamptz NOT NULL DEFAULT now())`);
+    await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS plan text NOT NULL DEFAULT 'free'`);
+    await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS pro_expires_at timestamptz`);
+    await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS monthly_scans_used integer NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS monthly_scans_limit integer NOT NULL DEFAULT 1`);
+    await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS monthly_reset_at timestamptz`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS usage_plan_idx ON usage(plan)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS usage_pro_expires_idx ON usage(pro_expires_at)`);
   } catch (err) {
     console.warn("[db] ensureTables() could not reach the database — skipping migration.", (err as Error).message);
   }
