@@ -75,12 +75,22 @@ export async function getInstallationToken(installationId: number): Promise<stri
   return data.token;
 }
 
-export async function listInstallationRepos(installationId: number) {
+type GithubRepo = { id: number; name: string; fullName: string; private: boolean; htmlUrl: string; updatedAt: string; description: string | null };
+type RepoCacheEntry = { repositories: GithubRepo[]; expiresAt: number };
+const repoCache = new Map<number, RepoCacheEntry>();
+const REPO_CACHE_TTL_MS = 2 * 60 * 1000;
+
+export async function listInstallationRepos(installationId: number, forceRefresh = false): Promise<GithubRepo[]> {
+  const cached = repoCache.get(installationId);
+  if (!forceRefresh && cached && cached.expiresAt > Date.now()) return cached.repositories;
+
   const token = await getInstallationToken(installationId);
   const response = await fetch("https://api.github.com/installation/repositories?per_page=100", { headers: githubHeaders(token) });
   if (!response.ok) throw new Error(`GitHub installation repositories failed: ${response.status} ${await response.text()}`);
   const data = (await response.json()) as { repositories?: Array<{ id: number; name: string; full_name: string; private: boolean; html_url: string; updated_at: string; description: string | null }> };
-  return (data.repositories ?? []).map((repo) => ({ id: repo.id, name: repo.name, fullName: repo.full_name, private: repo.private, htmlUrl: repo.html_url, updatedAt: repo.updated_at, description: repo.description }));
+  const repositories = (data.repositories ?? []).map((repo) => ({ id: repo.id, name: repo.name, fullName: repo.full_name, private: repo.private, htmlUrl: repo.html_url, updatedAt: repo.updated_at, description: repo.description }));
+  repoCache.set(installationId, { repositories, expiresAt: Date.now() + REPO_CACHE_TTL_MS });
+  return repositories;
 }
 
 function stateSecret(): string {
