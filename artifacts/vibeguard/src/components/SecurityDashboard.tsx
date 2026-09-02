@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Check, Crown, GitPullRequest, ShieldCheck, Wrench } from 'lucide-react';
+import { ArrowRight, Check, Crown, GitPullRequest, LoaderCircle, ShieldCheck, Wrench } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { RepositorySecurityCenter } from './RepositorySecurityCenter';
 import { ProtectRepositoryPanel } from './ProtectRepositoryPanel';
@@ -12,6 +12,8 @@ type Props = { firstName: string; lastScan: Scan | null; usage: { scans_used: nu
 const TOTAL_CHECKS = 50;
 const ADMIN_EMAIL = 'nightowlclub72@gmail.com';
 const PRO_SCAN_LIMIT = 10;
+const PROTECTION_CACHE_TTL_MS = 2 * 60 * 1000;
+const PROTECTION_REFRESH_MS = 2 * 60 * 1000;
 
 function score(scan: Scan | null) {
   if (!scan) return null;
@@ -38,6 +40,9 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
     try { return sessionStorage.getItem('vs_selected_repo'); } catch { return null; }
   });
   const [protectionLoading, setProtectionLoading] = useState(false);
+  const [hasCachedProtection, setHasCachedProtection] = useState(() => {
+    try { return Boolean(sessionStorage.getItem('vs_protected_repos') || sessionStorage.getItem('vs_protected_repo')); } catch { return false; }
+  });
 
   const protectedRepo = protectedRepos.find((repo) => repo.repo === selectedRepoName) ?? protectedRepos.find((repo) => repo.repo === lastScan?.repo) ?? protectedRepos[0] ?? null;
   const selectedRepo = selectedRepoName ?? protectedRepo?.repo ?? lastScan?.repo ?? null;
@@ -57,6 +62,12 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
     if (!session?.access_token) { setProtectionLoading(false); return; }
     let cancelled = false;
     const loadProtection = async () => {
+      let cachedAt = 0;
+      try { cachedAt = Number(sessionStorage.getItem('vs_protected_repos_cached_at') ?? 0); } catch { /* storage is optional */ }
+      if (Date.now() - cachedAt < PROTECTION_CACHE_TTL_MS && hasCachedProtection) {
+        setProtectionLoading(false);
+        return;
+      }
       if (!cancelled) setProtectionLoading(true);
       try {
         const response = await fetch(`${apiBase}/api/protection`, { headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store' });
@@ -65,10 +76,12 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
         if (!cancelled) {
           const next = Array.isArray(data.repositories) ? data.repositories : [];
           setProtectedRepos(next);
+          setHasCachedProtection(next.length > 0);
           try {
             if (next.length) sessionStorage.setItem('vs_protected_repos', JSON.stringify(next));
             else sessionStorage.removeItem('vs_protected_repos');
             sessionStorage.removeItem('vs_protected_repo');
+            sessionStorage.setItem('vs_protected_repos_cached_at', String(Date.now()));
           } catch { /* storage is optional */ }
         }
       } catch {
@@ -78,9 +91,9 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
       }
     };
     void loadProtection();
-    const interval = window.setInterval(() => { void loadProtection(); }, 5000);
+    const interval = window.setInterval(() => { void loadProtection(); }, PROTECTION_REFRESH_MS);
     return () => { cancelled = true; window.clearInterval(interval); };
-  }, [session?.access_token, apiBase]);
+  }, [session?.access_token, apiBase, hasCachedProtection]);
 
   useEffect(() => {
     if (!protectedRepos.length) return;
@@ -130,12 +143,26 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
           <div className="relative flex flex-wrap items-start justify-between gap-5">
             <div>
               <p className={`font-mono text-[10px] uppercase tracking-[0.16em] ${isClear ? 'text-[#b7ca83]' : 'text-primary'}`}>Security health</p>
-              <div className="mt-7 flex items-end gap-2"><span className="text-[68px] font-black leading-none tracking-[-0.07em] sm:text-[76px]">{securityScore ?? '—'}</span><span className="mb-2 font-mono text-[11px] text-background/50">/100</span></div>
+              {protectionLoading && !hasCachedProtection ? (
+                <div className="mt-6 flex h-[82px] items-center gap-4">
+                  <div className="relative flex h-16 w-16 items-center justify-center rounded-full border border-primary/35 bg-primary/[0.06]">
+                    <span className="absolute inset-2 animate-ping rounded-full border border-primary/25" />
+                    <span className="absolute h-2.5 w-2.5 animate-pulse rounded-full bg-primary" />
+                    <LoaderCircle size={27} className="relative animate-spin text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-mono text-[12px] font-bold uppercase tracking-[0.12em] text-background">Syncing GitHub</p>
+                    <p className="mt-1 max-w-[190px] font-mono text-[9px] uppercase leading-4 tracking-[0.08em] text-background/45">Pulling your protected repositories…</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-7 flex items-end gap-2"><span className="text-[68px] font-black leading-none tracking-[-0.07em] sm:text-[76px]">{securityScore ?? '—'}</span><span className="mb-2 font-mono text-[11px] text-background/50">/100</span></div>
+              )}
               {isClear && <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#d8e2bd]">No security findings detected</p>}
             </div>
             <div className="flex flex-col items-end gap-2 text-right">
-              <span className={`inline-flex items-center gap-2 border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] ${isClear ? 'border-[#aebe8c]/80 bg-[#eef1e4]/15 text-[#d8e2bd]' : 'border-[#aebe8c]/70 bg-[#eef1e4]/10 text-[#d8e2bd]'}`}><span className="h-1.5 w-1.5 rounded-full bg-[#b7ca83]" />{protectionLoading && !hasProtection ? 'Checking…' : hasProtection ? (isClear ? 'Protected · Clean' : 'Protected') : 'Ready to protect'}</span>
-              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-background/45">{hasProtection ? `${protectedRepos.length} repo${protectedRepos.length === 1 ? '' : 's'} protected · push + PR checks active` : protectionLoading ? 'Checking protection state…' : 'GitHub App connection required'}</span>
+              <span className={`inline-flex items-center gap-2 border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] ${isClear ? 'border-[#aebe8c]/80 bg-[#eef1e4]/15 text-[#d8e2bd]' : 'border-[#aebe8c]/70 bg-[#eef1e4]/10 text-[#d8e2bd]'}`}><span className="h-1.5 w-1.5 rounded-full bg-[#b7ca83]" />{protectionLoading && !hasCachedProtection ? 'Syncing…' : hasProtection ? (isClear ? 'Protected · Clean' : 'Protected') : 'Ready to protect'}</span>
+              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-background/45">{hasProtection ? `${protectedRepos.length} repo${protectedRepos.length === 1 ? '' : 's'} protected · push + PR checks active` : protectionLoading ? 'Connecting to GitHub App…' : 'GitHub App connection required'}</span>
             </div>
           </div>
           <div className="relative mt-8 flex flex-wrap items-end justify-between gap-5 border-t border-background/15 pt-5">
