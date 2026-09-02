@@ -38,7 +38,7 @@ router.post("/github/app/complete", requireAuth, async (req: AuthedRequest, res)
       return;
     }
     await saveInstallation(req.userId!, installationId, account.login, account.id, account.type ?? "User");
-    const repositories = await listInstallationRepos(installationId);
+    const repositories = await listInstallationRepos(installationId, true);
     res.json({ ok: true, account: { login: account.login, type: account.type ?? "User" }, repositories });
   } catch (error) {
     req.log.error({ err: error, installationId }, "Could not complete GitHub App installation");
@@ -53,7 +53,10 @@ router.get("/github/app/repos", requireAuth, async (req: AuthedRequest, res): Pr
       res.status(404).json({ error: "No GitHub App installation found" });
       return;
     }
-    res.json(await listInstallationRepos(installationId));
+    const forceRefresh = String(req.query.refresh ?? "").toLowerCase() === "true";
+    const repositories = await listInstallationRepos(installationId, forceRefresh);
+    res.setHeader("Cache-Control", forceRefresh ? "no-store" : "private, max-age=30, stale-while-revalidate=120");
+    res.json(repositories);
   } catch (error) {
     req.log.error({ err: error }, "Could not list GitHub App repositories");
     res.status(502).json({ error: error instanceof Error ? error.message : "Could not list GitHub repositories" });
