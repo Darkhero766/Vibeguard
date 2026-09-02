@@ -93,7 +93,7 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
     void loadProtection();
     const interval = window.setInterval(() => { void loadProtection(); }, PROTECTION_REFRESH_MS);
     return () => { cancelled = true; window.clearInterval(interval); };
-  }, [session?.access_token, apiBase, hasCachedProtection]);
+  }, [session?.access_token, apiBase]);
 
   useEffect(() => {
     if (!protectedRepos.length) return;
