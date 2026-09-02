@@ -67,30 +67,60 @@ export async function getInstallation(installationId: number) {
   return (await response.json()) as { id: number; account?: { login?: string; id?: number; type?: string }; repository_selection?: string };
 }
 
-export async function getInstallationToken(installationId: number): Promise<string> {
-  const response = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, { method: "POST", headers: githubHeaders(createAppJwt()) });
-  if (!response.ok) throw new Error(`GitHub installation token failed: ${response.status} ${await response.text()}`);
-  const data = (await response.json()) as { token?: string };
-  if (!data.token) throw new Error("GitHub did not return an installation token");
-  return data.token;
+// Reuse installation tokens instead of minting a fresh GitHub token on every tab
+// switch or repository list request. GitHub tokens are normally valid for about
+// an hour; we keep them for at most 10 minutes in this process.
+type TokenCacheEntry = { token: string; expiresAt: number };
+const tokenCache = new Map<number, TokenCacheEntry>();
+const tokenInflight = new Map<number, Promise<string>>();
+const TOKEN_CACHE_TTL_MS = 10 * 60 * 1000;
+
+export async function getInstallationToken(installationId: number, forceRefresh = false): Promise<string> {
+  const cached = tokenCache.get(installationId);
+  if (!forceRefresh && cached && cached.expiresAt > Date.now()) return cached.token;
+  const pending = tokenInflight.get(installationId);
+  if (!forceRefresh && pending) return pending;
+
+  const request = (async () => {
+    const response = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, { method: "POST", headers: githubHeaders(createAppJwt()) });
+    if (!response.ok) throw new Error(`GitHub installation token failed: ${response.status} ${await response.text()}`);
+    const data = (await response.json()) as { token?: string; expires_at?: string };
+    if (!data.token) throw new Error("GitHub did not return an installation token");
+    const githubExpiry = data.expires_at ? new Date(data.expires_at).getTime() : Date.now() + TOKEN_CACHE_TTL_MS;
+    tokenCache.set(installationId, { token: data.token, expiresAt: Math.min(githubExpiry - 30_000, Date.now() + TOKEN_CACHE_TTL_MS) });
+    return data.token;
+  })();
+
+  tokenInflight.set(installationId, request);
+  try { return await request; }
+  finally { tokenInflight.delete(installationId); }
 }
 
 type GithubRepo = { id: number; name: string; fullName: string; private: boolean; htmlUrl: string; updatedAt: string; description: string | null };
 type RepoCacheEntry = { repositories: GithubRepo[]; expiresAt: number };
 const repoCache = new Map<number, RepoCacheEntry>();
+const repoInflight = new Map<number, Promise<GithubRepo[]>>();
 const REPO_CACHE_TTL_MS = 2 * 60 * 1000;
 
 export async function listInstallationRepos(installationId: number, forceRefresh = false): Promise<GithubRepo[]> {
   const cached = repoCache.get(installationId);
   if (!forceRefresh && cached && cached.expiresAt > Date.now()) return cached.repositories;
+  const pending = repoInflight.get(installationId);
+  if (!forceRefresh && pending) return pending;
 
-  const token = await getInstallationToken(installationId);
-  const response = await fetch("https://api.github.com/installation/repositories?per_page=100", { headers: githubHeaders(token) });
-  if (!response.ok) throw new Error(`GitHub installation repositories failed: ${response.status} ${await response.text()}`);
-  const data = (await response.json()) as { repositories?: Array<{ id: number; name: string; full_name: string; private: boolean; html_url: string; updated_at: string; description: string | null }> };
-  const repositories = (data.repositories ?? []).map((repo) => ({ id: repo.id, name: repo.name, fullName: repo.full_name, private: repo.private, htmlUrl: repo.html_url, updatedAt: repo.updated_at, description: repo.description }));
-  repoCache.set(installationId, { repositories, expiresAt: Date.now() + REPO_CACHE_TTL_MS });
-  return repositories;
+  const request = (async () => {
+    const token = await getInstallationToken(installationId, forceRefresh);
+    const response = await fetch("https://api.github.com/installation/repositories?per_page=100", { headers: githubHeaders(token) });
+    if (!response.ok) throw new Error(`GitHub installation repositories failed: ${response.status} ${await response.text()}`);
+    const data = (await response.json()) as { repositories?: Array<{ id: number; name: string; full_name: string; private: boolean; html_url: string; updated_at: string; description: string | null }> };
+    const repositories = (data.repositories ?? []).map((repo) => ({ id: repo.id, name: repo.name, fullName: repo.full_name, private: repo.private, htmlUrl: repo.html_url, updatedAt: repo.updated_at, description: repo.description }));
+    repoCache.set(installationId, { repositories, expiresAt: Date.now() + REPO_CACHE_TTL_MS });
+    return repositories;
+  })();
+
+  repoInflight.set(installationId, request);
+  try { return await request; }
+  finally { repoInflight.delete(installationId); }
 }
 
 function stateSecret(): string {
@@ -120,6 +150,8 @@ export function verifyInstallState(state: string, maxAgeMs = 15 * 60 * 1000): st
 
 export async function saveInstallation(owner: string, installationId: number, accountLogin: string, accountId: number, accountType: string): Promise<void> {
   await db.insert(githubAppInstallations).values({ owner, installationId, accountLogin, accountId, accountType }).onConflictDoUpdate({ target: githubAppInstallations.owner, set: { installationId, accountLogin, accountId, accountType, updatedAt: new Date() } });
+  tokenCache.delete(installationId);
+  repoCache.delete(installationId);
 }
 
 export async function getInstallationIdForUser(owner: string): Promise<number | null> {
