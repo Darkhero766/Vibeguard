@@ -11,11 +11,40 @@ type ScanReport = {
   scannedAt: string;
 };
 
+type ProtectedRepository = {
+  repo: string;
+  repoUrl: string;
+  baselineSha: string;
+  lastSha: string;
+  status: string;
+  lastScore: number;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+};
+
 const githubUrlPattern = /^https:\/\/github\.com\/[-A-Za-z0-9_.]+\/[-A-Za-z0-9_.]+\/?$/;
 const LAST_SCAN_KEY = (uid: string) => `vs_last_scan_${uid}`;
+const PROTECTED_REPOS_KEY = 'vs_protected_repos';
+const SELECTED_REPO_KEY = 'vs_selected_repo';
+const PROTECTION_CACHE_KEY = 'vs_protected_repos_cached_at';
 
 function saveLastScan(uid: string, report: ScanReport) {
   try { localStorage.setItem(LAST_SCAN_KEY(uid), JSON.stringify(report)); } catch { /* storage is optional */ }
+}
+
+function cacheProtectedRepository(repository: ProtectedRepository) {
+  try {
+    const raw = sessionStorage.getItem(PROTECTED_REPOS_KEY);
+    const existing = raw ? JSON.parse(raw) as ProtectedRepository[] : [];
+    const list = Array.isArray(existing) ? existing : [];
+    const withoutDuplicate = list.filter((item) => item.repo !== repository.repo);
+    const next = [...withoutDuplicate, repository];
+    sessionStorage.setItem(PROTECTED_REPOS_KEY, JSON.stringify(next));
+    sessionStorage.removeItem('vs_protected_repo');
+    sessionStorage.setItem(SELECTED_REPO_KEY, repository.repo);
+    sessionStorage.setItem(PROTECTION_CACHE_KEY, String(Date.now()));
+  } catch { /* storage is optional */ }
 }
 
 export function ProtectRepositoryPanel({ onClose }: { onClose: () => void }) {
@@ -47,7 +76,9 @@ export function ProtectRepositoryPanel({ onClose }: { onClose: () => void }) {
       if (!response.ok) throw new Error(payload?.error || 'The repository could not be protected.');
 
       const report = payload?.baseline;
-      if (!report) throw new Error('The baseline scan completed without a report.');
+      const repository = payload?.repository as ProtectedRepository | undefined;
+      if (!report || !repository?.repo) throw new Error('The baseline scan completed without a saved protection record.');
+
       const savedReport: ScanReport = {
         repo: normalizedUrl.replace('https://github.com/', ''),
         repoUrl: normalizedUrl,
@@ -56,6 +87,12 @@ export function ProtectRepositoryPanel({ onClose }: { onClose: () => void }) {
         scannedAt: new Date().toISOString(),
       };
       if (user?.id) saveLastScan(user.id, savedReport);
+
+      // Keep the dashboard's multi-repository cache in sync before any navigation.
+      // Previously the page reloaded without updating this cache, so the newly
+      // protected repository could appear to vanish until the next API refresh.
+      cacheProtectedRepository(repository);
+
       setScanStarted(false);
       onClose();
       window.location.reload();
