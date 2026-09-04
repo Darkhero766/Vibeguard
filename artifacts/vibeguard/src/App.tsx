@@ -45,7 +45,18 @@ function ReferralAttribution() {
 }
 
 export default function App() {
-  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  const rawPath = window.location.pathname.replace(/\/$/, '') || '/';
+
+  // Dodo's successful-payment return URL historically used /dashboard, but
+  // the main app's Wouter router intentionally serves the dashboard at '/'.
+  // Normalize the legacy return path synchronously so users never hit the
+  // NotFound screen after a successful payment. Keep the query string so the
+  // dashboard can still know this was an upgrade return.
+  if (rawPath === '/dashboard') {
+    window.history.replaceState(null, '', `/?${window.location.search.replace(/^\?/, '') || 'upgraded=true'}`);
+  }
+
+  const path = rawPath === '/dashboard' ? '/' : rawPath;
   const isAffiliatePage = path === '/refer';
   const isCheckoutPage = path === '/checkout';
   const isAdminPage = path === '/admin';
