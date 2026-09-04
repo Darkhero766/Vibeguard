@@ -28,6 +28,38 @@ function setVibeSaneIdentity(user: User | null) {
   document.documentElement.dataset.vgSignedIn = user ? 'true' : 'false';
 }
 
+async function syncDodoReturn(session: Session, userId: string): Promise<boolean> {
+  const params = new URLSearchParams(window.location.search);
+  const subscriptionId = params.get('subscription_id');
+  const status = params.get('status');
+  const upgraded = params.get('upgraded');
+
+  // Dodo appends subscription_id + status to the configured return_url.
+  // Only sync when this navigation is actually a successful upgrade return.
+  if (!subscriptionId || (status !== 'active' && upgraded !== 'true')) return false;
+
+  try {
+    const response = await fetch(apiUrl('/api/billing/sync'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ subscription_id: subscriptionId }),
+    });
+
+    if (!response.ok) return false;
+
+    // Remove the payment-return parameters after a successful sync so a normal
+    // refresh does not repeatedly hit the billing API.
+    const cleanUrl = `${window.location.pathname}`;
+    window.history.replaceState(null, '', cleanUrl);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -47,13 +79,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session: s } }) => {
       if (!active) return;
       setSession(s); const u = s?.user ?? null; setUser(u); setVibeSaneIdentity(u); setAuthLoading(false);
-      if (u) { lastUserId.current = u.id; setUsageLoading(true); try { const row = await ensureUsageRow(u.id); if (active) setUsage(row); } finally { if (active) setUsageLoading(false); } await refreshGithubConnection(u.id, active); } else setHasGithubToken(null);
+      if (u) {
+        lastUserId.current = u.id;
+        setUsageLoading(true);
+        try {
+          const didSync = s ? await syncDodoReturn(s, u.id) : false;
+          const row = await ensureUsageRow(u.id);
+          if (active) setUsage(row);
+          if (didSync) {
+            // The billing sync writes the authoritative Pro entitlement. Read it again
+            // immediately so the dashboard never remains on the stale free-tier row.
+            const refreshed = await ensureUsageRow(u.id);
+            if (active) setUsage(refreshed);
+          }
+        } finally { if (active) setUsageLoading(false); }
+        await refreshGithubConnection(u.id, active);
+      } else setHasGithubToken(null);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
       if (!active) return;
       setSession(s); const u = s?.user ?? null; setUser(u); setVibeSaneIdentity(u); setAuthLoading(false);
-      if (u && u.id !== lastUserId.current) { lastUserId.current = u.id; setUsageLoading(true); try { const row = await ensureUsageRow(u.id); if (active) setUsage(row); } finally { if (active) setUsageLoading(false); } await refreshGithubConnection(u.id, active); }
-      else if (!u) { lastUserId.current = null; setUsage(null); setHasGithubToken(null); }
+      if (u && u.id !== lastUserId.current) {
+        lastUserId.current = u.id;
+        setUsageLoading(true);
+        try {
+          const didSync = s ? await syncDodoReturn(s, u.id) : false;
+          const row = await ensureUsageRow(u.id);
+          if (active) setUsage(row);
+          if (didSync) {
+            const refreshed = await ensureUsageRow(u.id);
+            if (active) setUsage(refreshed);
+          }
+        } finally { if (active) setUsageLoading(false); }
+        await refreshGithubConnection(u.id, active);
+      } else if (!u) { lastUserId.current = null; setUsage(null); setHasGithubToken(null); }
       const hasGithubIdentity = s?.user?.identities?.some((id: { provider: string }) => id.provider === 'github');
       if (_event === 'SIGNED_IN' && s?.provider_token && s.access_token && hasGithubIdentity) {
         try { const response = await fetch(apiUrl('/api/github/token'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.access_token}` }, body: JSON.stringify({ token: s.provider_token }) }); if (!response.ok) throw new Error('GitHub token persistence failed'); if (active) { setGithubTokenVersion((v) => v + 1); setHasGithubToken(true); } } catch { /* public URL scanning remains available */ }
