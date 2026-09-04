@@ -1,36 +1,71 @@
-import { ArrowLeft, ArrowRight, Check, Tag } from 'lucide-react';
-import { Link } from 'wouter';
+import { ArrowLeft, ArrowRight, Check, Tag, Loader2, ShieldCheck } from 'lucide-react';
+import { Link, useLocation } from 'wouter';
 import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
 import { useMemo, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { apiUrl } from '@/lib/api';
 
 const PLAN_PRICE = 11.99;
-const CHECKOUT_FEE = 0.01;
+const HACKATHON_COUPON = 'HACKATHON60';
 
 export default function CheckoutPage() {
+  const [, navigate] = useLocation();
+  const { session, refreshUsage } = useAuth();
   const [coupon, setCoupon] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState('');
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const total = useMemo(() => PLAN_PRICE + CHECKOUT_FEE, []);
+  const total = useMemo(() => PLAN_PRICE, []);
 
   const applyCoupon = () => {
-    const code = coupon.trim();
+    const code = coupon.trim().toUpperCase();
     if (!code) {
       setMessage('Enter a coupon code first.');
       return;
     }
-    setAppliedCoupon(code.toUpperCase());
-    setMessage(`Coupon ${code.toUpperCase()} saved for checkout.`);
+    setAppliedCoupon(code);
+    setMessage(code === HACKATHON_COUPON
+      ? 'Hackathon code verified. Pro will be activated at no cost.'
+      : `Coupon ${code} saved for checkout.`);
   };
 
-  const handleBuyNow = () => {
-    const gatewayUrl = (import.meta.env.VITE_PAYMENT_GATEWAY_URL as string | undefined)?.trim();
-    if (gatewayUrl) {
-      window.location.href = gatewayUrl;
+  const handleBuyNow = async () => {
+    if (!session?.access_token) {
+      navigate('/auth?mode=signin');
       return;
     }
-    setMessage('Payment gateway is not configured yet. Your order details are ready for the gateway connection.');
+
+    setLoading(true);
+    setMessage('');
+    try {
+      const response = await fetch(apiUrl('/api/checkout'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ coupon: appliedCoupon || coupon.trim().toUpperCase() || undefined }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Unable to start checkout');
+
+      if (data.free) {
+        await refreshUsage();
+        setMessage(data.message || 'Pro activated successfully.');
+        window.setTimeout(() => navigate('/dashboard?upgraded=true'), 700);
+        return;
+      }
+
+      if (!data.checkout_url) throw new Error('Checkout URL was not returned by the payment gateway.');
+      window.location.href = data.checkout_url;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to start checkout. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -54,7 +89,7 @@ export default function CheckoutPage() {
               Get VibeSane Pro.
             </h1>
             <p className="mt-3 max-w-xl text-[14px] leading-6 text-muted-foreground">
-              One simple checkout. No cart, no distractions — just your plan and the final amount.
+              Secure hosted checkout. Your Pro access is activated only after the payment system confirms it.
             </p>
           </div>
 
@@ -63,7 +98,7 @@ export default function CheckoutPage() {
               <div>
                 <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Plan</p>
                 <h2 className="mt-2 text-[22px] font-bold tracking-[-0.03em]">VibeSane Pro</h2>
-                <p className="mt-1 text-[13px] text-muted-foreground">Unlimited scans · priority queue · history · team sharing</p>
+                <p className="mt-1 text-[13px] text-muted-foreground">10 complete scans/month · 5 repositories · reports · priority features</p>
               </div>
               <div className="text-right">
                 <p className="text-[30px] font-extrabold tracking-[-0.05em]">$11.99</p>
@@ -76,16 +111,6 @@ export default function CheckoutPage() {
                 <span className="text-muted-foreground">Pro subscription</span>
                 <span className="font-semibold">$11.99</span>
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Checkout processing</span>
-                <span className="font-semibold">$0.01</span>
-              </div>
-              {appliedCoupon && (
-                <div className="flex items-center justify-between gap-4 text-primary">
-                  <span>Coupon · {appliedCoupon}</span>
-                  <span>Applied at gateway</span>
-                </div>
-              )}
               <div className="border-t border-border pt-5">
                 <div className="flex items-end justify-between gap-4">
                   <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Total</span>
@@ -104,19 +129,26 @@ export default function CheckoutPage() {
                   <input
                     id="coupon-code"
                     value={coupon}
-                    onChange={(e) => { setCoupon(e.target.value); setMessage(''); }}
+                    onChange={(e) => { setCoupon(e.target.value); setAppliedCoupon(''); setMessage(''); }}
                     placeholder="Enter code"
                     className="vg-focus h-12 w-full border border-foreground bg-card pl-10 pr-3 text-[14px] uppercase outline-none focus:border-primary"
+                    autoComplete="off"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={applyCoupon}
-                  className="vg-button vg-focus h-12 border border-border bg-card px-5 text-[12px] font-bold hover:border-primary/50"
+                  disabled={loading}
+                  className="vg-button vg-focus h-12 border border-border bg-card px-5 text-[12px] font-bold hover:border-primary/50 disabled:opacity-50"
                 >
                   Apply
                 </button>
               </div>
+              {appliedCoupon && (
+                <p className="mt-3 text-[11px] text-primary" aria-live="polite">
+                  {appliedCoupon} applied
+                </p>
+              )}
             </div>
 
             {message && (
@@ -128,14 +160,15 @@ export default function CheckoutPage() {
             <button
               type="button"
               onClick={handleBuyNow}
-              className="vg-button vg-focus mt-7 flex h-14 w-full items-center justify-center gap-2 border border-primary bg-primary px-5 text-[14px] font-bold text-primary-foreground hover:bg-primary/90"
+              disabled={loading}
+              className="vg-button vg-focus mt-7 flex h-14 w-full items-center justify-center gap-2 border border-primary bg-primary px-5 text-[14px] font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-wait disabled:opacity-70"
             >
-              Buy now — ${total.toFixed(2)} <ArrowRight size={16} />
+              {loading ? <><Loader2 size={17} className="animate-spin" /> Securing checkout…</> : <>Buy now — ${total.toFixed(2)} <ArrowRight size={16} /></>}
             </button>
 
             <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5"><Check size={12} /> Secure checkout</span>
-              <span>Gateway-ready</span>
+              <span className="inline-flex items-center gap-1.5"><ShieldCheck size={12} /> Dodo secure checkout</span>
+              <span className="inline-flex items-center gap-1.5"><Check size={12} /> Webhook verified</span>
             </div>
           </div>
         </section>
