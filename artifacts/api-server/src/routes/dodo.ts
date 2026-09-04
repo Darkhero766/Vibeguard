@@ -126,6 +126,33 @@ async function activateProByEmail(email: string, values: {
   return true;
 }
 
+async function activateProByUserId(userId: string, values: {
+  customerId?: string | null;
+  subscriptionId?: string | null;
+  status?: string;
+  expiresAt?: string | null;
+  source?: string;
+}) {
+  await pool.query(`
+    INSERT INTO public.usage (
+      owner, scans_used, scans_limit, plan, pro_expires_at,
+      monthly_scans_used, monthly_scans_limit, monthly_reset_at,
+      dodo_customer_id, dodo_subscription_id, dodo_subscription_status, pro_source, pro_started_at
+    )
+    VALUES ($1, 0, $2, 'pro', $3, 0, $2, now() + interval '30 days', $4, $5, $6, $7, now())
+    ON CONFLICT (owner) DO UPDATE SET
+      plan = 'pro',
+      scans_limit = $2,
+      monthly_scans_limit = $2,
+      pro_expires_at = $3,
+      dodo_customer_id = COALESCE($4, usage.dodo_customer_id),
+      dodo_subscription_id = COALESCE($5, usage.dodo_subscription_id),
+      dodo_subscription_status = COALESCE($6, usage.dodo_subscription_status),
+      pro_source = COALESCE($7, usage.pro_source),
+      pro_started_at = COALESCE(usage.pro_started_at, now())
+  `, [userId, PRO_SCAN_LIMIT, values.expiresAt ?? null, values.customerId ?? null, values.subscriptionId ?? null, values.status ?? "active", values.source ?? "dodo"]);
+}
+
 async function deactivatePro(subscriptionId: string | null, email: string | null, status: string) {
   const clauses: string[] = [];
   const params: unknown[] = [];
@@ -211,16 +238,92 @@ router.post("/checkout", requireAuth, async (req: AuthedRequest, res: Response):
         customer: { email: user.email, name: user.name || undefined },
         return_url: `${origin}/dashboard?upgraded=true`,
         cancel_url: `${origin}/pricing`,
+        redirect_immediately: true,
         metadata: { user_id: userId, product: "vibesane_pro" },
       }),
     });
 
     const checkoutUrl = typeof session.checkout_url === "string" ? session.checkout_url : null;
     if (!checkoutUrl) throw new Error("Dodo did not return a checkout URL");
-    res.json({ checkout_url: checkoutUrl });
+    res.json({
+      checkout_url: checkoutUrl,
+      session_id: typeof session.session_id === "string" ? session.session_id : null,
+    });
   } catch (error) {
     console.error("[dodo] checkout failed", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Unable to start checkout" });
+  }
+});
+
+// Dodo redirects back immediately after checkout and appends subscription_id/status.
+// This endpoint closes the gap where the webhook is still in flight: the authenticated
+// user can prove the subscription belongs to them, and we read the authoritative state
+// directly from Dodo before granting Pro access.
+router.post("/billing/sync", requireAuth, async (req: AuthedRequest, res: Response): Promise<void> => {
+  try {
+    await ensureDodoTables();
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+
+    const subscriptionId = typeof req.body?.subscription_id === "string"
+      ? req.body.subscription_id.trim()
+      : "";
+    if (!subscriptionId) {
+      res.status(400).json({ error: "subscription_id is required" });
+      return;
+    }
+
+    const userResult = await pool.query(`SELECT email FROM auth.users WHERE id = $1 LIMIT 1`, [userId]);
+    const accountEmail = String(userResult.rows[0]?.email ?? "").trim().toLowerCase();
+    if (!accountEmail) {
+      res.status(400).json({ error: "Account email not available" });
+      return;
+    }
+
+    const subscription = await dodoFetch(`/subscriptions/${encodeURIComponent(subscriptionId)}`);
+    const productId = typeof subscription.product_id === "string" ? subscription.product_id : null;
+    const status = typeof subscription.status === "string" ? subscription.status : "";
+    const customer = subscription.customer && typeof subscription.customer === "object"
+      ? subscription.customer as Record<string, unknown>
+      : {};
+    const customerEmail = typeof customer.email === "string" ? customer.email.trim().toLowerCase() : "";
+    const customerId = typeof customer.customer_id === "string" ? customer.customer_id : null;
+    const metadata = subscription.metadata && typeof subscription.metadata === "object"
+      ? subscription.metadata as Record<string, unknown>
+      : {};
+    const metadataUserId = typeof metadata.user_id === "string" ? metadata.user_id : null;
+
+    if (productId !== PRODUCT_ID) {
+      res.status(409).json({ error: "Subscription product does not match VibeSane Pro" });
+      return;
+    }
+    if (metadataUserId !== userId && customerEmail !== accountEmail) {
+      res.status(403).json({ error: "Subscription does not belong to this account" });
+      return;
+    }
+
+    if (status === "active") {
+      const nextBilling = typeof subscription.next_billing_date === "string"
+        ? subscription.next_billing_date
+        : (typeof subscription.expires_at === "string" ? subscription.expires_at : null);
+      await activateProByUserId(userId, {
+        customerId,
+        subscriptionId,
+        status,
+        expiresAt: nextBilling,
+        source: "dodo_return_sync",
+      });
+      res.json({ activated: true, plan: "pro", status, subscription_id: subscriptionId });
+      return;
+    }
+
+    res.status(409).json({ activated: false, plan: "free", status, message: `Subscription is ${status || "not active"}.` });
+  } catch (error) {
+    console.error("[dodo] return sync failed", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unable to sync subscription" });
   }
 });
 
