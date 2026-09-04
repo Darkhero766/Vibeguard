@@ -2,7 +2,7 @@ import { Router, type Response } from "express";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
-import { PRO_REPO_LIMIT, PRO_SCAN_LIMIT } from "../lib/plan";
+import { PRO_SCAN_LIMIT } from "../lib/plan";
 
 const router = Router();
 
@@ -14,6 +14,19 @@ function dodoBaseUrl() {
   return (process.env.DODO_PAYMENTS_ENVIRONMENT || "live_mode") === "test_mode"
     ? "https://test.dodopayments.com"
     : "https://live.dodopayments.com";
+}
+
+async function ensureDodoTables() {
+  await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS dodo_customer_id text`);
+  await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS dodo_subscription_id text`);
+  await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS dodo_subscription_status text`);
+  await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS pro_source text`);
+  await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS pro_started_at timestamptz`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS usage_dodo_subscription_idx ON usage(dodo_subscription_id)`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS dodo_webhook_events (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), webhook_id text UNIQUE NOT NULL, event_type text NOT NULL, payload jsonb NOT NULL, processed boolean NOT NULL DEFAULT false, attempts integer NOT NULL DEFAULT 0, error_message text, created_at timestamptz NOT NULL DEFAULT now(), processed_at timestamptz)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS dodo_webhook_events_created_idx ON dodo_webhook_events(created_at DESC)`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS hackathon_redemptions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), owner uuid NOT NULL UNIQUE, coupon_code text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS hackathon_redemptions_coupon_idx ON hackathon_redemptions(coupon_code)`);
 }
 
 async function dodoFetch(path: string, init: RequestInit = {}) {
@@ -136,6 +149,7 @@ async function deactivatePro(subscriptionId: string | null, email: string | null
 
 router.post("/checkout", requireAuth, async (req: AuthedRequest, res: Response): Promise<void> => {
   try {
+    await ensureDodoTables();
     const userId = req.userId;
     if (!userId) {
       res.status(401).json({ error: "Authentication required" });
@@ -145,26 +159,38 @@ router.post("/checkout", requireAuth, async (req: AuthedRequest, res: Response):
     const coupon = typeof req.body?.coupon === "string" ? req.body.coupon.trim().toUpperCase() : "";
 
     if (coupon === HACKATHON_COUPON) {
-      await pool.query("SELECT pg_advisory_xact_lock(hashtext($1))", [HACKATHON_COUPON]);
-      const countResult = await pool.query("SELECT count(*)::int AS count FROM public.hackathon_redemptions");
-      const existing = await pool.query("SELECT 1 FROM public.hackathon_redemptions WHERE owner = $1 LIMIT 1", [userId]);
-      if (existing.rowCount) {
-        res.json({ free: true, alreadyRedeemed: true, message: "Hackathon Pro is already active on this account." });
-        return;
-      }
-      if (Number(countResult.rows[0]?.count ?? 0) >= HACKATHON_LIMIT) {
-        res.status(409).json({ error: "This hackathon Pro coupon has reached its 60-user limit." });
-        return;
-      }
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [HACKATHON_COUPON]);
+        const existing = await client.query("SELECT 1 FROM public.hackathon_redemptions WHERE owner = $1 LIMIT 1", [userId]);
+        if (existing.rowCount) {
+          await client.query("COMMIT");
+          res.json({ free: true, alreadyRedeemed: true, message: "Hackathon Pro is already active on this account." });
+          return;
+        }
+        const countResult = await client.query("SELECT count(*)::int AS count FROM public.hackathon_redemptions WHERE coupon_code = $1", [HACKATHON_COUPON]);
+        if (Number(countResult.rows[0]?.count ?? 0) >= HACKATHON_LIMIT) {
+          await client.query("ROLLBACK");
+          res.status(409).json({ error: "This hackathon Pro coupon has reached its 60-user limit." });
+          return;
+        }
 
-      await pool.query("INSERT INTO public.hackathon_redemptions (owner, coupon_code) VALUES ($1, $2)", [userId, HACKATHON_COUPON]);
-      await pool.query(`
-        INSERT INTO public.usage (owner, scans_used, scans_limit, plan, pro_expires_at, monthly_scans_used, monthly_scans_limit, monthly_reset_at, pro_source, pro_started_at)
-        VALUES ($1, 0, $2, 'pro', now() + interval '30 days', 0, $2, now() + interval '30 days', 'hackathon', now())
-        ON CONFLICT (owner) DO UPDATE SET
-          plan = 'pro', scans_limit = $2, monthly_scans_limit = $2,
-          pro_expires_at = now() + interval '30 days', pro_source = 'hackathon', pro_started_at = now()
-      `, [userId, PRO_SCAN_LIMIT]);
+        await client.query("INSERT INTO public.hackathon_redemptions (owner, coupon_code) VALUES ($1, $2)", [userId, HACKATHON_COUPON]);
+        await client.query(`
+          INSERT INTO public.usage (owner, scans_used, scans_limit, plan, pro_expires_at, monthly_scans_used, monthly_scans_limit, monthly_reset_at, pro_source, pro_started_at)
+          VALUES ($1, 0, $2, 'pro', now() + interval '30 days', 0, $2, now() + interval '30 days', 'hackathon', now())
+          ON CONFLICT (owner) DO UPDATE SET
+            plan = 'pro', scans_limit = $2, monthly_scans_limit = $2,
+            pro_expires_at = now() + interval '30 days', pro_source = 'hackathon', pro_started_at = now()
+        `, [userId, PRO_SCAN_LIMIT]);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
 
       res.json({ free: true, redeemed: true, message: "Hackathon Pro activated for 30 days." });
       return;
@@ -201,6 +227,7 @@ router.post("/checkout", requireAuth, async (req: AuthedRequest, res: Response):
 router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise<void> => {
   const rawBody = (req as AuthedRequest & { rawBody?: Buffer }).rawBody?.toString("utf8") ?? "";
   try {
+    await ensureDodoTables();
     if (!verifyDodoWebhook(rawBody, req)) {
       res.status(401).json({ error: "Invalid webhook signature" });
       return;
