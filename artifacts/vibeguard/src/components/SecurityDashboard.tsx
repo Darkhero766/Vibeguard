@@ -110,7 +110,13 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
   };
 
   const openSecurityCenter = () => {
-    if (!selectedScan) return;
+    if (!selectedScan) {
+      // A protected repository can have persisted finding counts even when its
+      // detailed scan is not the current last-scan record. Keep the CTA useful
+      // instead of hiding it; opening the latest report is the safest fallback.
+      onViewLastScan();
+      return;
+    }
     onViewLastScan();
     setShowRepository(true);
   };
@@ -167,7 +173,7 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
           </div>
           <div className="relative mt-8 flex flex-wrap items-end justify-between gap-5 border-t border-background/15 pt-5">
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-[0.1em] text-background/60"><span>{hasProtection ? `Protected · ${repoName}` : 'No repository protected yet'}</span><span>{selectedScan?.filesScanned ?? 0} files scanned</span><span>50 checks</span></div>
-            {totalFindings > 0 && selectedScan ? <button type="button" onClick={openSecurityCenter} className="vg-button vg-focus inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))]"><Wrench size={14} />Review &amp; fix findings<ArrowRight size={13} /></button> : selectedScan ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />All clear</span> : hasProtection ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />Protection active</span> : <button type="button" onClick={() => { onProtect(); setShowProtectPanel(true); }} disabled={isAtLimit} className="inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))] disabled:opacity-50">Connect GitHub &amp; protect <ArrowRight size={13} /></button>}
+            {totalFindings > 0 ? <button type="button" onClick={openSecurityCenter} className="vg-button vg-focus inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))]"><Wrench size={14} />Review &amp; fix findings<ArrowRight size={13} /></button> : selectedScan ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />All clear</span> : hasProtection ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />Protection active</span> : <button type="button" onClick={() => { onProtect(); setShowProtectPanel(true); }} disabled={isAtLimit} className="inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))] disabled:opacity-50">Connect GitHub &amp; protect <ArrowRight size={13} /></button>}
           </div>
         </div>
 
@@ -176,7 +182,7 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
           <p className="mt-7 truncate text-[18px] font-bold">{selectedRepo ?? 'No repository selected'}</p>
           {protectedRepo && !selectedScan && <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">Protected · waiting for scan data</p>}
           <div className="mt-3 flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-[0.1em]">{critical > 0 && <span className="border border-[#e5c8c1] bg-[#f6e9e5] px-2 py-1 text-[#963f34]">{critical} critical</span>}{high > 0 && <span className="border border-[#e7d3b3] bg-[#f8efe1] px-2 py-1 text-[#a06427]">{high} high</span>}{medium > 0 && <span className="border border-[#d2dbc1] bg-[#eef1e4] px-2 py-1 text-[#66763e]">{medium} medium</span>}{isClear && <span className="border border-[#b7ca83] bg-[#e4ead8] px-2 py-1 text-[#66763e]">0 findings · clear</span>}</div>
-          <button type="button" onClick={openSecurityCenter} disabled={!selectedScan} className="vg-focus mt-8 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-primary disabled:opacity-40">View security center <ArrowRight size={12} /></button>
+          <button type="button" onClick={openSecurityCenter} disabled={!selectedScan && totalFindings === 0} className="vg-focus mt-8 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-primary disabled:opacity-40">View security center <ArrowRight size={12} /></button>
         </div>
       </div>
 
