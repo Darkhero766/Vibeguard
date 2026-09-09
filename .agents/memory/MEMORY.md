@@ -1,2 +1,3 @@
 - [Repository scanning boundary](repository-scanning-boundary.md) — read untrusted Git repositories as bounded Git objects; never check out or execute repository code.
 - [Supabase server runtime](supabase-server-runtime.md) — auth-only Node clients should avoid initializing Supabase Realtime when native WebSocket support is unavailable.
+- [SPA SEO indexing](spa-seo-indexing.md) — client-side route metadata may arrive too late for crawlers; emit static route HTML during production builds.

@@ -2,6 +2,14 @@
 
 Short, human-readable notes for contributors and reviewers.
 
+## 2026-09-09
+
+### Replit setup and SEO
+
+- Installed the locked pnpm workspace dependencies and confirmed the VibeSane frontend, API, and component-preview workflows start successfully.
+- Added static production HTML snapshots for the public SEO landing pages so crawlers receive route-specific titles, descriptions, canonicals, and structured data without changing the app UI or API.
+- Added an explicit sitemap link to the frontend document head.
+
 ## 2026-07-27
 
 ### Replit setup

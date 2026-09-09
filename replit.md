@@ -6,6 +6,7 @@ VibeGuard scans public Next.js + Supabase repositories for three high-signal sec
 
 - `pnpm --filter @workspace/vibeguard run dev` — run the VibeGuard web app (port 19155)
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
+- `pnpm --filter @workspace/vibeguard run build` — build the frontend and emit crawlable HTML for the public SEO landing pages
 - `pnpm run typecheck` — full typecheck across all packages
 - `PORT=19155 BASE_PATH=/ pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -51,6 +52,7 @@ Users can submit a public GitHub repository, review findings for disabled Supaba
 
 - GitHub fetches can take up to two minutes for a large public repository and are bounded by file and byte limits.
 - Run `pnpm --filter @workspace/api-spec run codegen` after changing the OpenAPI contract.
+- The public SEO pages are listed in `artifacts/vibeguard/public/sitemap.xml`; submit `https://vibesane.app/sitemap.xml` in Google Search Console after publishing.
 
 ## Pointers
 
