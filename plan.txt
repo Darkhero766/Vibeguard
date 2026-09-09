@@ -38,6 +38,15 @@ CHANGE LOG
 - Do NOT record or expose secret API key/webhook-secret values in this file.
 - Required verification after deployment: real checkout, successful webhook delivery, Pro entitlement activation, and failed-payment behavior.
 
+2026-09-09 — Dodo live checkout authentication failure
+- First real production checkout attempt from https://vibesane.app/checkout reached the backend successfully but Dodo returned HTTP 401 during POST /checkouts.
+- Frontend behavior is correct: /api/checkout is called with the authenticated Supabase bearer token; backend creates the Dodo Checkout Session and returns checkout_url on success; loading state is cleared on failure.
+- Root cause class: Dodo rejected the backend's payment API credentials for the selected live environment. HTTP 401 is an authentication/credential problem, not a normal product-cart validation error.
+- Most likely production configuration issue: DODO_PAYMENTS_ENVIRONMENT is now live_mode but DODO_PAYMENTS_API_KEY is still a test/invalid key, was copied incorrectly, or Render has not redeployed with the updated live secret. The live DODO_PRO_PRODUCT_ID must also belong to the same live Dodo account/environment, but a wrong product ID would normally produce a different validation/resource error rather than an authentication 401.
+- Action required: In Render, verify DODO_PAYMENTS_API_KEY is the LIVE Dodo API key generated in the Dodo live environment. Do not paste or commit the secret into chat/repo. Verify DODO_PAYMENTS_ENVIRONMENT is exactly live_mode and DODO_PRO_PRODUCT_ID is the live pdt_... Pro product ID. Redeploy after changes.
+- Dodo's current documentation confirms Checkout Sessions use Bearer authentication and support live_mode/test_mode; a 401 indicates the credential/authentication path needs correction.
+- No secret values recorded here.
+
 2026-09-09 — SEO / Google indexing investigation
 - Google Search Console reported “Page with redirect” for pages on the VibeSane site.
 - Existing SEO setup was reviewed: robots.txt, sitemap.xml, homepage canonical, and index/follow directives were already present.
@@ -60,10 +69,10 @@ WORKING RULES
 
 CURRENT NEXT STEPS
 ------------------
-1. Deploy/redeploy the current VibeSane/Vibeguard backend after Dodo live environment changes.
-2. Perform one controlled real Dodo Pro purchase and verify checkout -> webhook/sync -> database -> Pro entitlement.
-3. Confirm Dodo live product ID matches DODO_PRO_PRODUCT_ID in Render.
-4. Confirm DODO_PAYMENTS_ENVIRONMENT is exactly live_mode.
-5. Confirm DODO_PAYMENTS_API_KEY is a LIVE API key and is not a product ID.
+1. In Render, verify DODO_PAYMENTS_API_KEY is a LIVE Dodo API key and redeploy the backend; do not share the secret value.
+2. Keep DODO_PAYMENTS_ENVIRONMENT exactly live_mode.
+3. Confirm DODO_PRO_PRODUCT_ID is the LIVE Pro product ID from the same Dodo live environment/account.
+4. Retry one controlled real Dodo Pro checkout and verify checkout -> webhook/sync -> database -> Pro entitlement.
+5. Confirm failed-payment behavior and subscription renewal/cancellation handling.
 6. Restore/verify the “Get Prompt” workflow in Finding Detail if it is required by the current product UX.
 7. Continue Google Search Console indexing investigation after production site changes.
