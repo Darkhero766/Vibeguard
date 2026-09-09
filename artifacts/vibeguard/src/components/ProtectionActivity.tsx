@@ -8,7 +8,7 @@ type Event = { id: string; event: string; sha: string; status: string; findingsC
 const INITIAL_EVENT_LIMIT = 7;
 const EVENT_PAGE_SIZE = 7;
 
-export function ProtectionActivity({ session, onReview }: { session: Session | null; onReview?: () => void }) {
+export function ProtectionActivity({ session }: { session: Session | null }) {
   const [repository, setRepository] = useState<ProtectedRepository | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [visibleCount, setVisibleCount] = useState(INITIAL_EVENT_LIMIT);
@@ -70,6 +70,12 @@ export function ProtectionActivity({ session, onReview }: { session: Session | n
   const visibleEvents = events.slice(0, visibleCount);
   const hasMoreEvents = visibleCount < events.length;
   const blocking = alertEvent ? alertEvent.criticalCount > 0 || alertEvent.highCount > 0 : false;
+  const reviewFindings = () => {
+    setAlertEvent(null);
+    const buttons = Array.from(document.querySelectorAll('button'));
+    const reviewButton = buttons.find((button) => /review\s*&\s*fix findings/i.test(button.textContent ?? '')) as HTMLButtonElement | undefined;
+    if (reviewButton) { reviewButton.click(); reviewButton.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  };
 
   return (
     <>
@@ -80,7 +86,7 @@ export function ProtectionActivity({ session, onReview }: { session: Session | n
             <h3 className="mt-2 text-[17px] font-bold">{alertEvent.event === 'pull_request' ? 'New pull request needs attention' : 'New commit has security findings'}</h3>
             <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-background/50">{repository.repo} · {alertEvent.sha.slice(0, 7)}</p>
             <div className="mt-4 flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-[0.08em]"><span className="border border-background/20 bg-background/5 px-2 py-1">{alertEvent.findingsCount} finding{alertEvent.findingsCount === 1 ? '' : 's'}</span>{alertEvent.criticalCount > 0 && <span className="border border-[#e5c8c1]/50 bg-[#963f34]/20 px-2 py-1 text-[#f0b7ae]">{alertEvent.criticalCount} critical</span>}{alertEvent.highCount > 0 && <span className="border border-[#e7d3b3]/50 bg-[#a06427]/20 px-2 py-1 text-[#f1c895]">{alertEvent.highCount} high</span>}{alertEvent.mediumCount > 0 && <span className="border border-[#d2dbc1]/40 bg-[#66763e]/20 px-2 py-1 text-[#d8e2bd]">{alertEvent.mediumCount} medium</span>}</div>
-            <button type="button" onClick={() => { setAlertEvent(null); onReview?.(); }} className="vg-button vg-focus mt-5 inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[3px_3px_0_hsl(var(--background))]"><Wrench size={13} />Review &amp; Fix Findings <ArrowRight size={12} /></button>
+            <button type="button" onClick={reviewFindings} className="vg-button vg-focus mt-5 inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[3px_3px_0_hsl(var(--background))]"><Wrench size={13} />Review &amp; Fix Findings <ArrowRight size={12} /></button>
             {blocking && <p className="mt-3 font-mono text-[9px] uppercase tracking-[0.08em] text-[#f0b7ae]">Critical/high findings should be resolved before merging.</p>}
           </div>
         </div>
