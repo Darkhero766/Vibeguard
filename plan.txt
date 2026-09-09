@@ -75,6 +75,16 @@ CHANGE LOG
 - Code commit: ba74bb1c3630ef6476fddf4ae2735ee65082be82.
 - Deployment status: code committed; Vercel deployment verification pending.
 
+2026-09-09 — Pro commit/PR live security alert UX
+- Product decision: Pro users should receive an immediate in-app alert when a protected repository's new commit or pull request introduces security findings, rather than discovering the issue only in the dashboard activity list.
+- Existing backend capability confirmed: artifacts/api-server/src/routes/githubWebhook.ts already handles GitHub push and pull_request events, computes a delta scan against the base/baseline, creates a GitHub Check Run named “VibeSane Security”, and records the protection event. Critical/high findings produce a failing GitHub check; clean changes produce success.
+- UI action: Updated artifacts/vibeguard/src/components/ProtectionActivity.tsx to poll protection events, detect a newly arrived event without showing an alert for the initial historical load, and display a prominent VibeSane Security Alert for new events with findings.
+- Alert includes repository name, commit SHA, finding count, severity counts, and a Review & Fix Findings action. Critical/high alerts explicitly warn that the change should be resolved before merging.
+- Review action is wired to the existing dashboard Review & Fix Findings button so the user enters the current security-review flow instead of creating a duplicate findings UI.
+- Code commit: 1c82fb208443030566957041ce44ceadabc870ed.
+- Important implementation note: the backend already performs the actual push/PR delta scan; this change adds the missing user-facing live alert layer and reuses the existing Review & Fix action.
+- Deployment status: code committed; Vercel/Render production verification pending.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
@@ -92,5 +102,6 @@ CURRENT NEXT STEPS
 4. Verify the paid Pro checkout and confirm checkout -> webhook/sync -> database -> Pro entitlement.
 5. Confirm failed-payment behavior and subscription renewal/cancellation handling.
 6. Verify the new Pricing page Pro-active state after Vercel deployment.
-7. Restore/verify the “Get Prompt” workflow in Finding Detail if it is required by the current product UX.
-8. Continue Google Search Console indexing investigation after production site changes.
+7. Verify the new commit/PR Security Alert by pushing a controlled test change to a protected repo and confirming the alert + Review & Fix action.
+8. Restore/verify the “Get Prompt” workflow in Finding Detail if it is required by the current product UX.
+9. Continue Google Search Console indexing investigation after production site changes.
