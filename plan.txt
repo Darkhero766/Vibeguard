@@ -58,6 +58,14 @@ CHANGE LOG
 - Public-domain page was reported as not opening on both iPad and another device on the same Wi-Fi.
 - Likely network/DNS/router-level issue rather than device-specific; keep as separate infrastructure investigation unless revisited.
 
+2026-09-09 — Dodo live-mode $0 test product created
+- User created an additional Dodo product specifically for a controlled live-mode checkout test without charging for the transaction.
+- Live test product ID supplied by user: pdt_0NnCwrdKUXghcYu8rP3SN.
+- This product ID is non-secret and is intended for temporary Render DODO_PRO_PRODUCT_ID testing only; do not replace the paid Pro product permanently unless intentionally decided.
+- Test objective: verify live API authentication, Dodo checkout-session creation, redirect/hosted checkout flow, webhook delivery, and Pro entitlement synchronization using a $0 live product.
+- Before testing, ensure the Dodo product belongs to the same live account/environment as the LIVE DODO_PAYMENTS_API_KEY.
+- After test completion, restore the paid live Pro product ID in Render and record the result.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
@@ -69,10 +77,11 @@ WORKING RULES
 
 CURRENT NEXT STEPS
 ------------------
-1. In Render, verify DODO_PAYMENTS_API_KEY is a LIVE Dodo API key and redeploy the backend; do not share the secret value.
+1. In Render, temporarily set DODO_PRO_PRODUCT_ID to the supplied live $0 test product pdt_0NnCwrdKUXghcYu8rP3SN for controlled checkout testing.
 2. Keep DODO_PAYMENTS_ENVIRONMENT exactly live_mode.
-3. Confirm DODO_PRO_PRODUCT_ID is the LIVE Pro product ID from the same Dodo live environment/account.
-4. Retry one controlled real Dodo Pro checkout and verify checkout -> webhook/sync -> database -> Pro entitlement.
-5. Confirm failed-payment behavior and subscription renewal/cancellation handling.
-6. Restore/verify the “Get Prompt” workflow in Finding Detail if it is required by the current product UX.
-7. Continue Google Search Console indexing investigation after production site changes.
+3. Verify DODO_PAYMENTS_API_KEY is a LIVE Dodo API key and redeploy the backend; do not share the secret value.
+4. Retry the $0 live Dodo checkout and verify checkout -> webhook/sync -> database -> Pro entitlement.
+5. If the $0 test succeeds, restore the paid LIVE Pro product ID and test the paid checkout carefully.
+6. Confirm failed-payment behavior and subscription renewal/cancellation handling.
+7. Restore/verify the “Get Prompt” workflow in Finding Detail if it is required by the current product UX.
+8. Continue Google Search Console indexing investigation after production site changes.
