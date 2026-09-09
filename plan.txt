@@ -1,0 +1,69 @@
+VIBESANE / VIBEGUARD — PROJECT PLAN & CHANGE LOG
+================================================
+Purpose
+-------
+Single source of truth for major project actions, decisions, repository changes, deployments, environment changes, bugs, fixes, and next steps. This file MUST be updated after every major offline or online action and every meaningful commit. Before major work, read this file first.
+
+PROJECT BASELINE
+----------------
+- Product: VibeSane / VibeGuard developer-security platform.
+- Core workflow: GitHub repository connection, security scanning, findings, security health, repository protection, and Pro functionality.
+- Hosting context: frontend on Vercel; backend/API on Render.
+- GitHub integration is active and supports repository access/workflows.
+- Pro supports multiple protected repositories; current target is up to 5 repositories.
+- Payment provider: Dodo Payments.
+
+CHANGE LOG
+----------
+2026-09-09 — Multi-repository Review & Fix CTA
+- Problem: Review & Fix Findings CTA could disappear when the selected protected repository had persisted finding counts but was not the current lastScan record.
+- Root cause: CTA rendering was gated on selectedScan instead of the selected repository's available finding counts.
+- Action: Updated artifacts/vibeguard/src/components/SecurityDashboard.tsx so the Review & Fix Findings CTA is driven by total findings and remains usable for a selected protected repository even when detailed scan data is not the current lastScan.
+- Also added safer fallback behavior for opening the latest available security report.
+- Repository: Darkhero766/Vibeguard.
+- Important follow-up: FindingDetail currently needs the remembered/desired “Get Prompt” workflow restored if that UI is still expected.
+
+2026-09-09 — Dodo Payments production activation
+- Existing Dodo Payments integration was inspected before changing configuration.
+- Backend expects these environment variables:
+  DODO_PAYMENTS_API_KEY = secret Dodo API credential.
+  DODO_PAYMENTS_ENVIRONMENT = mode selector.
+  DODO_PRO_PRODUCT_ID = Dodo Pro product ID.
+  DODO_WEBHOOK_SECRET = webhook verification secret.
+- Backend mode logic is exact/case-sensitive: test_mode uses https://test.dodopayments.com; every other value uses https://live.dodopayments.com.
+- Production mode value must therefore be exactly: live_mode.
+- DODO_PRO_PRODUCT_ID must contain the live Dodo Pro product ID (pdt_...).
+- DODO_PAYMENTS_API_KEY must contain the LIVE API key, not a product ID.
+- User updated Render environment variables to activate live mode.
+- Do NOT record or expose secret API key/webhook-secret values in this file.
+- Required verification after deployment: real checkout, successful webhook delivery, Pro entitlement activation, and failed-payment behavior.
+
+2026-09-09 — SEO / Google indexing investigation
+- Google Search Console reported “Page with redirect” for pages on the VibeSane site.
+- Existing SEO setup was reviewed: robots.txt, sitemap.xml, homepage canonical, and index/follow directives were already present.
+- Conclusion: “Page with redirect” means the redirecting URL itself is excluded; it does not by itself mean the VibeSane homepage is blocked from indexing.
+- Main remaining concern: brand indexing/ranking and whether old VibeSane URLs/results are outranking the current site.
+- Follow-up: inspect old vs current URLs and Search Console URL Inspection before changing redirects.
+
+2026-09-06 — Public-domain / network issue
+- Public-domain page was reported as not opening on both iPad and another device on the same Wi-Fi.
+- Likely network/DNS/router-level issue rather than device-specific; keep as separate infrastructure investigation unless revisited.
+
+WORKING RULES
+-------------
+1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
+2. Every major online change (Render/Vercel settings, production environment, payment configuration, domains, webhooks, GitHub settings) MUST be recorded here.
+3. Every major offline change/decision must also be recorded here, even if no commit is created.
+4. Never store secrets, API keys, webhook secrets, passwords, tokens, or private credentials in this file.
+5. Before making major changes, read this file and preserve existing architecture/decisions unless intentionally changing them.
+6. When a change affects production, record deployment/verification status separately from code-complete status.
+
+CURRENT NEXT STEPS
+------------------
+1. Deploy/redeploy the current VibeSane/Vibeguard backend after Dodo live environment changes.
+2. Perform one controlled real Dodo Pro purchase and verify checkout -> webhook/sync -> database -> Pro entitlement.
+3. Confirm Dodo live product ID matches DODO_PRO_PRODUCT_ID in Render.
+4. Confirm DODO_PAYMENTS_ENVIRONMENT is exactly live_mode.
+5. Confirm DODO_PAYMENTS_API_KEY is a LIVE API key and is not a product ID.
+6. Restore/verify the “Get Prompt” workflow in Finding Detail if it is required by the current product UX.
+7. Continue Google Search Console indexing investigation after production site changes.
