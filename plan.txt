@@ -64,7 +64,16 @@ CHANGE LOG
 - This product ID is non-secret and is intended for temporary Render DODO_PRO_PRODUCT_ID testing only; do not replace the paid Pro product permanently unless intentionally decided.
 - Test objective: verify live API authentication, Dodo checkout-session creation, redirect/hosted checkout flow, webhook delivery, and Pro entitlement synchronization using a $0 live product.
 - Before testing, ensure the Dodo product belongs to the same live account/environment as the LIVE DODO_PAYMENTS_API_KEY.
-- After test completion, restore the paid live Pro product ID in Render and record the result.
+- Result: $0 live checkout succeeded. Live Dodo authentication, checkout-session creation, and hosted checkout flow are confirmed working.
+- Next: restore the paid live Pro product ID in Render before production sales.
+
+2026-09-09 — Purchased Pro pricing state
+- Product decision: users who already have an active Pro entitlement should not be shown the normal Pro purchase CTA as if they need to buy Pro again.
+- Action: Updated artifacts/vibeguard/src/pages/PricingPage.tsx to read the authoritative Pro state from AuthContext usage.plan (with the existing admin override).
+- When Pro is active, the pricing card now becomes a designed “Pro active / VibeSane Pro is yours” state with an Open security dashboard CTA and feature highlights instead of the Get Pro purchase CTA.
+- While entitlement state is loading, a neutral Pro loading state is shown to avoid briefly offering a duplicate purchase.
+- Code commit: ba74bb1c3630ef6476fddf4ae2735ee65082be82.
+- Deployment status: code committed; Vercel deployment verification pending.
 
 WORKING RULES
 -------------
@@ -77,11 +86,11 @@ WORKING RULES
 
 CURRENT NEXT STEPS
 ------------------
-1. In Render, temporarily set DODO_PRO_PRODUCT_ID to the supplied live $0 test product pdt_0NnCwrdKUXghcYu8rP3SN for controlled checkout testing.
+1. Restore the paid LIVE Pro product ID in Render after the successful $0 test.
 2. Keep DODO_PAYMENTS_ENVIRONMENT exactly live_mode.
-3. Verify DODO_PAYMENTS_API_KEY is a LIVE Dodo API key and redeploy the backend; do not share the secret value.
-4. Retry the $0 live Dodo checkout and verify checkout -> webhook/sync -> database -> Pro entitlement.
-5. If the $0 test succeeds, restore the paid LIVE Pro product ID and test the paid checkout carefully.
-6. Confirm failed-payment behavior and subscription renewal/cancellation handling.
+3. Verify DODO_PAYMENTS_API_KEY remains the LIVE Dodo API key; do not share the secret value.
+4. Verify the paid Pro checkout and confirm checkout -> webhook/sync -> database -> Pro entitlement.
+5. Confirm failed-payment behavior and subscription renewal/cancellation handling.
+6. Verify the new Pricing page Pro-active state after Vercel deployment.
 7. Restore/verify the “Get Prompt” workflow in Finding Detail if it is required by the current product UX.
 8. Continue Google Search Console indexing investigation after production site changes.
