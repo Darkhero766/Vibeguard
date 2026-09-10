@@ -26,7 +26,7 @@ export default function PublicScanPage() {
   const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ?? '';
   const canScan = useMemo(() => githubUrlPattern.test(repoUrl.trim()), [repoUrl]);
   const publicUsed = Number(usage?.public_scans_used ?? 0);
-  const publicLimit = Number(usage?.public_scans_limit ?? 0);
+  const publicLimit = Number(usage?.public_scans_limit ?? (usage?.plan === 'pro' ? 5 : 0));
   const publicRemaining = Math.max(0, publicLimit - publicUsed);
 
   const runScan = async (event?: FormEvent) => {
