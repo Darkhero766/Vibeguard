@@ -121,6 +121,15 @@ CHANGE LOG
 - Code commits: 7316aa7884ef25bed985423628a9dac141807041 (UsageRow quota fields), 08bf7df53879fd91d72435eb573d2da5aaa5b83b (quota refresh/repeat-flow hardening), 213785b4c0ee41d8b48bb305c49095122aa39b28 (query URL passed directly to scan), 8b3bd203fdf49250090c1fa8fdf7ae07c545b63e (remove route-bridge auto-click race).
 - Deployment status: code committed; Vercel/Render deployment and live mobile verification required before marking production fixed.
 
+2026-09-10 — Repeat-scan route hardening + quota reset bug fix
+- User reproduced that /scan-public could still show the Wouter 404 screen after repeated scans, and the Pro aggregate “scans remaining” stayed at 10 after a successful public scan.
+- Additional root cause found: the production entrypoint could still reach the legacy AppOriginal Wouter router for /scan-public, whose route list does not include /scan-public. The entrypoint now hard-renders PublicScanPage for /scan-public before App/AppOriginal routing can run.
+- PublicScanPage now removes the ?repo= query immediately after capturing it, preventing refresh from accidentally triggering another scan, while still auto-starting the captured repository after authentication is ready.
+- Critical quota bug found in AuthContext: a temporary TEST_USAGE_RESET_MARKER was resetting scans_used back to zero whenever refreshUsage ran after a scan. That test-only reset defeated the real split-quota counters. The reset logic was removed; refreshUsage now reads the authoritative usage row without mutating scan counts.
+- PublicScanPage continues to refresh usage after every successful public scan, so the visible public and aggregate counters now update immediately.
+- Code commits: f8f2735e066434865f12bf9919118ee747be0745 (entrypoint route fallback), 435bc1d5b12b1a085ddf25f4adcd5d4a59c6e479 (repeat-scan/query hardening), 8b37f8657e44b31ce907b75cd14500a482a6b27a (remove test quota reset).
+- Deployment status: code committed; Vercel/Render deployment and live mobile verification required before marking production fixed.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
@@ -136,6 +145,7 @@ WORKING RULES
 11. Do not replace the two-tab Paste URL / My repos UX with a separate public-scan card unless intentionally approved and recorded first.
 12. PublicScanPage owns the lifecycle of /scan-public query-driven scans; do not add simulated button-click effects in the global route bridge.
 13. After every successful public scan, the frontend MUST refresh authoritative usage so the public quota counter changes immediately.
+14. Test-only quota reset logic must never run in production; testing limits must be changed explicitly in the database or through a clearly isolated test mechanism.
 
 CURRENT NEXT STEPS
 ------------------
