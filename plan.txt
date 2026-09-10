@@ -96,6 +96,15 @@ CHANGE LOG
 - Code commits: 59bcbe09b38c9e76aa90d12465be6e37d3015e55 (new page), 9ebd440889331dc04990f4d5c317953e5dd77250 (route), 9a7749404c531468bea2d028158c1596f732afae (protection panel).
 - Deployment status: Vercel deployment and live end-to-end UI/quota verification pending.
 
+2026-09-10 — Restore Paste URL / My repos tab UX and launch public scan page
+- User feedback: the two-tab scan UI (Paste URL / My repos) must remain in the main security-center flow. The Paste URL tab is the public one-time scan entry point; My repos remains the protected-repository flow.
+- Action: preserved the existing ScanForm tab UI in artifacts/vibeguard/src/AppOriginal.tsx and added a flow bridge in artifacts/vibeguard/src/App.tsx so submitting a valid Paste URL navigates to /scan-public instead of consuming the protected-repository path.
+- The /scan-public page now auto-starts the pasted URL scan after navigation, giving the requested dedicated page/loading animation and repository details before the temporary result.
+- The public scan allowance display now falls back to 5 for Pro when the usage payload does not yet expose public_scans_limit, preventing the incorrect “0 of 0 public scans” display while preserving server-side enforcement.
+- Protected repository protection remains separate; the My repos tab continues to be the protected workflow.
+- Code commits: 004758570a555b401a6ed5a3bf30d8ad04adf2b5 (tab-to-public-scan flow bridge), eeae48750d9cba19b87b8d84dd5f4cb17da34ff3 (public quota display fallback).
+- Deployment status: Vercel deployment and mobile verification pending.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
@@ -107,6 +116,7 @@ WORKING RULES
 7. Referral UI may remain in the repository while the referral program is disabled until approximately 100 customers; do not remove the existing page/assets when pausing it.
 8. Pro manual scan quota is permanently defined as 5 protected-repository setup scans + 5 public GitHub URL scans per monthly cycle unless intentionally changed and recorded here.
 9. Public URL scanning must never call the repository-protection endpoint or create a protected repository. It is a temporary scan workflow and uses only the public scan bucket.
+10. The main security-center ScanForm must retain the two-tab UX: Paste URL and My repos. Paste URL launches the temporary public scan flow; My repos is for protected repositories.
 
 CURRENT NEXT STEPS
 ------------------
@@ -121,4 +131,4 @@ CURRENT NEXT STEPS
 9. Continue Google Search Console indexing investigation after production site changes.
 10. Keep referral/affiliate acquisition paused until approximately 100 customers; preserve the UI and reactivate the mechanics only when intentionally decided.
 11. Verify Pro quota end-to-end: add 5 protected repositories and confirm protected setup quota reaches 5/5 while public URL scanning remains available at 0/5; then perform 5 public URL scans and confirm the public bucket reaches 5/5 and the aggregate reaches 10/10.
-12. Verify /scan-public on mobile: paste a public repo after 5 protected repositories are already present, confirm it does not show “Repository limit reached (5)”, confirm the dedicated loading page appears, and confirm the result disappears on leaving/reloading rather than being saved as history.
+12. Verify /scan-public on mobile: paste a public repo in the main Paste URL tab after 5 protected repositories are already present, confirm it navigates to the dedicated scan page, confirm the loading animation/details appear, and confirm the result disappears on leaving/reloading rather than being saved as history.
