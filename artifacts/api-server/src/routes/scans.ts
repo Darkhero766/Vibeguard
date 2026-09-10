@@ -7,7 +7,7 @@ import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { optionalAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
 import { cacheScanResult } from "../lib/scanCache";
-import { ensurePlanForUser, consumeScan } from "../lib/plan";
+import { ensurePlanForUser, consumePublicScan } from "../lib/plan";
 
 const router: IRouter = Router();
 const CORE_SECURITY_CHECKS = 8;
@@ -35,8 +35,8 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
   if (req.userId) {
     try {
       const plan = await ensurePlanForUser(req.userId);
-      if (plan.scansUsed >= plan.scansLimit) {
-        res.status(429).json({ error: `Monthly scan limit reached (${plan.scansLimit}).`, plan });
+      if (plan.publicScansUsed >= plan.publicScansLimit) {
+        res.status(429).json({ error: `Public repository scan limit reached (${plan.publicScansLimit}).`, plan });
         return;
       }
     } catch (error) {
@@ -115,7 +115,7 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
     };
     cacheScanResult(finalReport.repo, finalReport);
     if (req.userId) {
-      try { await consumeScan(req.userId); } catch (error) { req.log.warn({ err: error }, "Could not record scan usage"); }
+      try { await consumePublicScan(req.userId); } catch (error) { req.log.warn({ err: error }, "Could not record public scan usage"); }
     }
     res.json(CreateScanResponse.parse(finalReport));
   } catch (error) {
