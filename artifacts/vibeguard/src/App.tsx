@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import OriginalApp from './AppOriginal';
 import AffiliatePage from './pages/AffiliatePage';
 import AffiliateWelcomePopup from './components/AffiliateWelcomePopup';
@@ -45,6 +45,66 @@ function ReferralAttribution() {
   return null;
 }
 
+/**
+ * Keeps the existing dashboard scan tabs intact while routing the Paste URL
+ * action into the dedicated temporary public-scan experience. The existing
+ * AppOriginal scan form is intentionally not used for public URL scans because
+ * those scans have their own quota and must never become protected history.
+ */
+function PublicScanFlowBridge() {
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    const onSubmit = (event: Event) => {
+      const target = event.target as HTMLFormElement | null;
+      if (!target || !(target instanceof HTMLFormElement)) return;
+      const input = target.querySelector<HTMLInputElement>('#repo-url');
+      if (!input) return;
+
+      const repoUrl = input.value.trim().replace(/\/$/, '');
+      if (!/^https:\/\/github\.com\/[-A-Za-z0-9_.]+\/[-A-Za-z0-9_.]+$/.test(repoUrl)) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.location.assign(`/scan-public?repo=${encodeURIComponent(repoUrl)}`);
+    };
+
+    document.addEventListener('submit', onSubmit, true);
+    return () => document.removeEventListener('submit', onSubmit, true);
+  }, []);
+
+  useEffect(() => {
+    const path = window.location.pathname.replace(/\/$/, '');
+    if (path !== '/scan-public' || startedRef.current) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const repo = params.get('repo');
+    if (!repo) return;
+
+    startedRef.current = true;
+    let attempts = 0;
+    const launch = () => {
+      attempts += 1;
+      const input = document.querySelector<HTMLInputElement>('input[placeholder="https://github.com/owner/repository"]');
+      const button = input?.form?.querySelector<HTMLButtonElement>('button[type="submit"]');
+      if (!input || !button) {
+        if (attempts < 30) window.setTimeout(launch, 100);
+        return;
+      }
+
+      const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      nativeSetter?.call(input, repo);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      window.setTimeout(() => button.click(), 80);
+    };
+
+    window.setTimeout(launch, 120);
+  }, []);
+
+  return null;
+}
+
 export default function App() {
   const rawPath = window.location.pathname.replace(/\/$/, '') || '/';
 
@@ -60,8 +120,8 @@ export default function App() {
 
   if (isAdminPage) return <><BrandMigration /><AuthProvider><AdminPage /></AuthProvider></>;
   if (isCheckoutPage) return <><BrandMigration /><AuthProvider><CheckoutPage /></AuthProvider></>;
-  if (isPublicScanPage) return <><BrandMigration /><AuthProvider><PublicScanPage /></AuthProvider></>;
+  if (isPublicScanPage) return <><BrandMigration /><AuthProvider><PublicScanFlowBridge /><PublicScanPage /></AuthProvider></>;
   if (isAffiliatePage) return <><BrandMigration /><ReferralAttribution /><AuthProvider><AffiliatePage /></AuthProvider></>;
   if (SEO_PATHS.has(path)) return <AuthProvider><SEOPage path={path} /></AuthProvider>;
-  return <><BrandMigration /><ReferralAttribution /><OriginalApp /><AffiliateWelcomePopup /></>;
+  return <><BrandMigration /><ReferralAttribution /><PublicScanFlowBridge /><OriginalApp /><AffiliateWelcomePopup /></>;
 }
