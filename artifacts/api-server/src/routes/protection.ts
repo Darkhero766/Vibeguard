@@ -6,7 +6,7 @@ import { scanPublicRepository } from "../lib/scanner";
 import { runExtendedSecurityChecksV2 } from "../lib/extendedScannerV2";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { getProtectedRepository, listProtectedRepositories, listProtectionEvents, saveProtectedRepository } from "../lib/protectionStore";
-import { assertRepositoryCapacity } from "../lib/plan";
+import { assertRepositoryCapacity, consumeProtectedScan } from "../lib/plan";
 
 const router = Router();
 const githubUrlPattern = /^https:\/\/github\.com\/[-A-Za-z0-9_.]+\/[-A-Za-z0-9_.]+\/?$/;
@@ -73,7 +73,9 @@ router.post("/protection", requireAuth, async (req: AuthedRequest, res) => {
       const seen = new Set(report.findings.map((f) => `${f.filePath}:${f.line}:${f.check}:${f.title}`));
       report = { ...report, findings: [...report.findings, ...normalized.filter((f) => !seen.has(`${f.filePath}:${f.line}:${f.check}:${f.title}`))] };
     } catch { /* core scan is still a valid baseline */ }
+
     const saved = await saveProtectedRepository({ owner: req.userId!, repo, repoUrl, baselineSha: sha, score: score(report.findings), report });
+    if (!existing) await consumeProtectedScan(req.userId!);
     res.json({ repository: saved, baseline: { sha, filesScanned: report.filesScanned, findings: report.findings, checksRun: TOTAL_SECURITY_CHECKS } });
   } catch (error) {
     req.log.error({ err: error, repoUrl }, "Could not protect repository");
