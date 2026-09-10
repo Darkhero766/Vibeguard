@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, ExternalLink, Github, Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Link } from 'wouter';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,11 +18,12 @@ function severityClass(severity: FindingSeverity) {
 }
 
 export default function PublicScanPage() {
-  const { session, usage, usageLoading } = useAuth();
+  const { session, usage, usageLoading, refreshUsage } = useAuth();
   const [repoUrl, setRepoUrl] = useState('');
   const [report, setReport] = useState<ScanReport | null>(null);
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
+  const startedQueryScan = useRef(false);
   const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ?? '';
   const canScan = useMemo(() => githubUrlPattern.test(repoUrl.trim()), [repoUrl]);
   const publicUsed = Number(usage?.public_scans_used ?? 0);
@@ -47,12 +48,31 @@ export default function PublicScanPage() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || 'The public repository scan could not be completed.');
       setReport(payload as ScanReport);
+      // The server consumes the public bucket only after a successful scan.
+      // Refresh the authoritative Supabase usage row so the remaining-credit UI
+      // changes immediately instead of waiting for a page refresh/navigation.
+      await refreshUsage();
     } catch (scanError) {
       setError(scanError instanceof Error ? scanError.message : 'The public repository scan could not be completed.');
     } finally {
       setScanning(false);
     }
   };
+
+  // A Paste URL submission navigates to /scan-public?repo=... . Start the
+  // dedicated scan here rather than simulating a click on the page's own form.
+  // This makes repeated scans and browser navigation deterministic.
+  useEffect(() => {
+    if (startedQueryScan.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const queryRepo = params.get('repo')?.trim().replace(/\/$/, '');
+    if (!queryRepo || !githubUrlPattern.test(queryRepo)) return;
+    if (!session?.access_token) return;
+
+    startedQueryScan.current = true;
+    setRepoUrl(queryRepo);
+    void runScan();
+  }, [session?.access_token]);
 
   const findings = report?.findings ?? [];
   const critical = findings.filter((f) => f.severity === 'Critical').length;
@@ -134,7 +154,7 @@ export default function PublicScanPage() {
             {clean ? <div className="p-7 sm:p-8"><h3 className="text-[22px] font-bold">No high-signal issues found.</h3><p className="mt-2 text-[14px] leading-6 text-muted-foreground">The public repository completed its one-time scan cleanly. This report is temporary and is not turned into a protected repository.</p></div> : <>
               <div className="border-b border-border bg-[#f6e9e5] p-5 sm:p-6"><p className="font-mono text-[10px] uppercase tracking-[0.13em] text-[#963f34]">Security findings</p><p className="mt-2 text-[13px] text-[#7f3a31]">Review these findings now. Nothing from this public scan is added to your protected-repository history.</p></div>
               <div>{findings.map((finding) => <article key={finding.id} className="border-b border-border p-6 last:border-b-0 sm:p-7"><div className="flex flex-wrap items-center justify-between gap-3"><span className={`border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.12em] ${severityClass(finding.severity)}`}>{finding.severity}</span><span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">{finding.check.replaceAll('_', ' ')}</span></div><h3 className="mt-4 text-[18px] font-bold">{finding.title}</h3><p className="mt-2 text-[13px] leading-6 text-muted-foreground">{finding.description}</p><p className="mt-5 font-mono text-[10px] text-muted-foreground"><span className="text-primary">file</span> {finding.filePath} <span className="ml-4 text-primary">line</span> {finding.line}</p></article>)}</div>
-              <div className="flex flex-wrap gap-3 border-t border-border p-6 sm:p-7"><Link href="/" className="vg-button inline-flex items-center gap-2 border border-foreground bg-primary px-4 py-2.5 text-[12px] font-bold text-primary-foreground">Back to security center <ArrowRight size={14} /></Link><button type="button" onClick={() => { setReport(null); setRepoUrl(''); }} className="vg-button inline-flex items-center gap-2 border border-border bg-card px-4 py-2.5 text-[12px] font-semibold hover:border-primary/50">Scan another public repo</button></div>
+              <div className="flex flex-wrap gap-3 border-t border-border p-6 sm:p-7"><Link href="/" className="vg-button inline-flex items-center gap-2 border border-foreground bg-primary px-4 py-2.5 text-[12px] font-bold text-primary-foreground">Back to security center <ArrowRight size={14} /></Link><button type="button" onClick={() => { setReport(null); setRepoUrl(''); window.history.replaceState(null, '', '/scan-public'); }} className="vg-button inline-flex items-center gap-2 border border-border bg-card px-4 py-2.5 text-[12px] font-semibold hover:border-primary/50">Scan another public repo</button></div>
             </>}
           </section>
         )}
