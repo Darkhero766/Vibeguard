@@ -38,6 +38,7 @@ export default function PublicScanPage() {
 
     setError('');
     setReport(null);
+    setRepoUrl(normalizedUrl);
     setScanning(true);
     try {
       const response = await fetch(`${apiBase}/api/scans`, {
@@ -60,8 +61,8 @@ export default function PublicScanPage() {
   };
 
   // A Paste URL submission navigates to /scan-public?repo=... . Start the
-  // dedicated scan here rather than simulating a click on the page's own form.
-  // This makes repeated scans and browser navigation deterministic.
+  // dedicated scan here and remove the query immediately so refreshing this
+  // page cannot accidentally trigger another paid/public scan.
   useEffect(() => {
     if (startedQueryScan.current) return;
     const params = new URLSearchParams(window.location.search);
@@ -70,6 +71,7 @@ export default function PublicScanPage() {
     if (!session?.access_token) return;
 
     startedQueryScan.current = true;
+    window.history.replaceState(null, '', '/scan-public');
     setRepoUrl(queryRepo);
     void runScan(undefined, queryRepo);
   }, [session?.access_token]);
