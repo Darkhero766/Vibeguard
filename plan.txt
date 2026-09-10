@@ -85,6 +85,15 @@ CHANGE LOG
 - Important implementation note: the backend already performs the actual push/PR delta scan; this change adds the missing user-facing live alert layer and reuses the existing Review & Fix action.
 - Deployment status: code committed; Vercel/Render production verification pending.
 
+2026-09-10 — Referral/Affiliate program intentionally paused
+- Existing referral/affiliate UI is preserved: artifacts/vibeguard/src/components/AffiliateWelcomePopup.tsx and artifacts/vibeguard/src/pages/AffiliatePage.tsx remain in the repository.
+- Product decision: pause the referral acquisition program during the early customer phase rather than deleting it.
+- Action: Added a local REFERRALS_ENABLED feature flag set to false in AffiliateWelcomePopup.tsx so the new-account referral popup is not displayed and referral logic does not run.
+- The referral page and underlying affiliate assets are preserved for later activation; this is a pause, not a removal.
+- Intended activation point: approximately the first 100 customers, followed by a full end-to-end referral tracking/reward verification.
+- Code commit: ac399c2784f3d174d5f46afb34c93ecc94e6cdc7.
+- Deployment status: code committed; frontend deployment verification pending.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
@@ -93,6 +102,7 @@ WORKING RULES
 4. Never store secrets, API keys, webhook secrets, passwords, tokens, or private credentials in this file.
 5. Before making major changes, read this file and preserve existing architecture/decisions unless intentionally changing them.
 6. When a change affects production, record deployment/verification status separately from code-complete status.
+7. Referral UI may remain in the repository while the referral program is disabled until approximately 100 customers; do not remove the existing page/assets when pausing it.
 
 CURRENT NEXT STEPS
 ------------------
@@ -105,3 +115,4 @@ CURRENT NEXT STEPS
 7. Verify the new commit/PR Security Alert by pushing a controlled test change to a protected repo and confirming the alert + Review & Fix action.
 8. Restore/verify the “Get Prompt” workflow in Finding Detail if it is required by the current product UX.
 9. Continue Google Search Console indexing investigation after production site changes.
+10. Keep referral/affiliate acquisition paused until approximately 100 customers; preserve the UI and reactivate the mechanics only when intentionally decided.
