@@ -30,9 +30,9 @@ export default function PublicScanPage() {
   const publicLimit = Number(usage?.public_scans_limit ?? (usage?.plan === 'pro' ? 5 : 0));
   const publicRemaining = Math.max(0, publicLimit - publicUsed);
 
-  const runScan = async (event?: FormEvent) => {
+  const runScan = async (event?: FormEvent, repoOverride?: string) => {
     event?.preventDefault();
-    const normalizedUrl = repoUrl.trim().replace(/\/$/, '');
+    const normalizedUrl = (repoOverride ?? repoUrl).trim().replace(/\/$/, '');
     if (!githubUrlPattern.test(normalizedUrl)) { setError('Enter a valid public GitHub repository URL.'); return; }
     if (!session?.access_token) { setError('Your session expired. Sign in again and retry.'); return; }
 
@@ -71,7 +71,7 @@ export default function PublicScanPage() {
 
     startedQueryScan.current = true;
     setRepoUrl(queryRepo);
-    void runScan();
+    void runScan(undefined, queryRepo);
   }, [session?.access_token]);
 
   const findings = report?.findings ?? [];
