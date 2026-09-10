@@ -6,19 +6,11 @@ import { apiUrl } from '@/lib/api';
 type AuthContextValue = { user: User | null; session: Session | null; usage: UsageRow | null; authLoading: boolean; usageLoading: boolean; githubTokenVersion: number; hasGithubToken: boolean | null; signOut: () => Promise<void>; refreshUsage: () => Promise<void>; disconnectGithub: () => Promise<void> };
 const AuthContext = createContext<AuthContextValue | null>(null);
 const ADMIN_EMAIL = 'nightowlclub72@gmail.com';
-const TEST_USAGE_RESET_MARKER = '2026-08-15T00:00:00.000Z';
 
 async function ensureUsageRow(userId: string): Promise<UsageRow | null> {
   const { data: existing } = await supabase.from('usage').select('*').eq('owner', userId).maybeSingle();
-  if (existing) {
-    const row = existing as UsageRow;
-    if (row.scans_used > 0 && row.reset_at !== TEST_USAGE_RESET_MARKER) {
-      const { data: resetRow } = await supabase.from('usage').update({ scans_used: 0, reset_at: TEST_USAGE_RESET_MARKER }).eq('owner', userId).select().single();
-      if (resetRow) return resetRow as UsageRow;
-    }
-    return row;
-  }
-  const { data: inserted } = await supabase.from('usage').insert({ owner: userId, scans_used: 0, scans_limit: 1, reset_at: TEST_USAGE_RESET_MARKER }).select().single();
+  if (existing) return existing as UsageRow;
+  const { data: inserted } = await supabase.from('usage').insert({ owner: userId, scans_used: 0, scans_limit: 1, reset_at: null }).select().single();
   return (inserted as UsageRow) ?? null;
 }
 
