@@ -6,7 +6,7 @@ import { scanPublicRepository } from "../lib/scanner";
 import { runExtendedSecurityChecksV2 } from "../lib/extendedScannerV2";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { getProtectedRepository, listProtectedRepositories, listProtectionEvents, saveProtectedRepository } from "../lib/protectionStore";
-import { assertRepositoryCapacity, consumeProtectedScan } from "../lib/plan";
+import { assertRepositoryCapacity, consumeProtectedScan, ensurePlanForUser } from "../lib/plan";
 
 const router = Router();
 const githubUrlPattern = /^https:\/\/github\.com\/[-A-Za-z0-9_.]+\/[-A-Za-z0-9_.]+\/?$/;
@@ -63,7 +63,15 @@ router.post("/protection", requireAuth, async (req: AuthedRequest, res) => {
       res.status(409).json({ error: "This repository is already protected by another VibeSane account." });
       return;
     }
-    if (!existing) await assertRepositoryCapacity(req.userId!);
+    if (!existing) {
+      await assertRepositoryCapacity(req.userId!);
+      const plan = await ensurePlanForUser(req.userId!);
+      if (plan.protectedScansUsed >= plan.protectedScansLimit) {
+        const error = new Error(`Protected repository scan limit reached (${plan.protectedScansLimit}).`);
+        Object.assign(error, { status: 429 });
+        throw error;
+      }
+    }
 
     const sha = await currentSha(repoUrl, token);
     let report = await scanPublicRepository(repoUrl, token);
