@@ -25,26 +25,18 @@ CHANGE LOG
 
 2026-09-09 — Dodo Payments production activation
 - Existing Dodo Payments integration was inspected before changing configuration.
-- Backend expects these environment variables:
-  DODO_PAYMENTS_API_KEY = secret Dodo API credential.
-  DODO_PAYMENTS_ENVIRONMENT = mode selector.
-  DODO_PRO_PRODUCT_ID = Dodo Pro product ID.
-  DODO_WEBHOOK_SECRET = webhook verification secret.
-- Backend mode logic is exact/case-sensitive: test_mode uses https://test.dodopayments.com; every other value uses https://live.dodopayments.com.
-- Production mode value must therefore be exactly: live_mode.
+- Backend expects these environment variables: DODO_PAYMENTS_API_KEY, DODO_PAYMENTS_ENVIRONMENT, DODO_PRO_PRODUCT_ID, DODO_WEBHOOK_SECRET.
+- Backend mode logic is exact/case-sensitive: test_mode uses the test API; every other value uses the live API.
+- Production mode value must therefore be exactly live_mode.
 - DODO_PRO_PRODUCT_ID must contain the live Dodo Pro product ID (pdt_...).
 - DODO_PAYMENTS_API_KEY must contain the LIVE API key, not a product ID.
 - User updated Render environment variables to activate live mode.
 - Do NOT record or expose secret API key/webhook-secret values in this file.
-- Required verification after deployment: real checkout, successful webhook delivery, Pro entitlement activation, and failed-payment behavior.
 
 2026-09-09 — Dodo live checkout authentication failure
-- First real production checkout attempt from https://vibesane.app/checkout reached the backend successfully but Dodo returned HTTP 401 during POST /checkouts.
-- Frontend behavior is correct: /api/checkout is called with the authenticated Supabase bearer token; backend creates the Dodo Checkout Session and returns checkout_url on success; loading state is cleared on failure.
-- Root cause class: Dodo rejected the backend's payment API credentials for the selected live environment. HTTP 401 is an authentication/credential problem, not a normal product-cart validation error.
-- Most likely production configuration issue: DODO_PAYMENTS_ENVIRONMENT is now live_mode but DODO_PAYMENTS_API_KEY is still a test/invalid key, was copied incorrectly, or Render has not redeployed with the updated live secret. The live DODO_PRO_PRODUCT_ID must also belong to the same live Dodo account/environment, but a wrong product ID would normally produce a different validation/resource error rather than an authentication 401.
-- Action required: In Render, verify DODO_PAYMENTS_API_KEY is the LIVE Dodo API key generated in the Dodo live environment. Do not paste or commit the secret into chat/repo. Verify DODO_PAYMENTS_ENVIRONMENT is exactly live_mode and DODO_PRO_PRODUCT_ID is the live pdt_... Pro product ID. Redeploy after changes.
-- Dodo's current documentation confirms Checkout Sessions use Bearer authentication and support live_mode/test_mode; a 401 indicates the credential/authentication path needs correction.
+- First real production checkout attempt reached the backend successfully but Dodo returned HTTP 401 during checkout creation.
+- Root cause class: Dodo rejected the backend's payment API credentials for the selected live environment.
+- Action: Verify LIVE DODO_PAYMENTS_API_KEY, exact live_mode, matching live product ID, and redeploy.
 - No secret values recorded here.
 
 2026-09-09 — SEO / Google indexing investigation
@@ -52,59 +44,57 @@ CHANGE LOG
 - Existing SEO setup was reviewed: robots.txt, sitemap.xml, homepage canonical, and index/follow directives were already present.
 - Conclusion: “Page with redirect” means the redirecting URL itself is excluded; it does not by itself mean the VibeSane homepage is blocked from indexing.
 - Main remaining concern: brand indexing/ranking and whether old VibeSane URLs/results are outranking the current site.
-- Follow-up: inspect old vs current URLs and Search Console URL Inspection before changing redirects.
 
 2026-09-06 — Public-domain / network issue
 - Public-domain page was reported as not opening on both iPad and another device on the same Wi-Fi.
 - Likely network/DNS/router-level issue rather than device-specific; keep as separate infrastructure investigation unless revisited.
 
 2026-09-09 — Dodo live-mode $0 test product created
-- User created an additional Dodo product specifically for a controlled live-mode checkout test without charging for the transaction.
-- Live test product ID supplied by user: pdt_0NnCwrdKUXghcYu8rP3SN.
-- This product ID is non-secret and is intended for temporary Render DODO_PRO_PRODUCT_ID testing only; do not replace the paid Pro product permanently unless intentionally decided.
-- Test objective: verify live API authentication, Dodo checkout-session creation, redirect/hosted checkout flow, webhook delivery, and Pro entitlement synchronization using a $0 live product.
-- Before testing, ensure the Dodo product belongs to the same live account/environment as the LIVE DODO_PAYMENTS_API_KEY.
+- User created an additional Dodo product for a controlled live-mode checkout test without charging.
+- Live test product ID: pdt_0NnCwrdKUXghcYu8rP3SN.
 - Result: $0 live checkout succeeded. Live Dodo authentication, checkout-session creation, and hosted checkout flow are confirmed working.
 - Next: restore the paid live Pro product ID in Render before production sales.
 
 2026-09-09 — Purchased Pro pricing state
 - Product decision: users who already have an active Pro entitlement should not be shown the normal Pro purchase CTA as if they need to buy Pro again.
-- Action: Updated artifacts/vibeguard/src/pages/PricingPage.tsx to read the authoritative Pro state from AuthContext usage.plan (with the existing admin override).
-- When Pro is active, the pricing card now becomes a designed “Pro active / VibeSane Pro is yours” state with an Open security dashboard CTA and feature highlights instead of the Get Pro purchase CTA.
-- While entitlement state is loading, a neutral Pro loading state is shown to avoid briefly offering a duplicate purchase.
+- Action: Updated artifacts/vibeguard/src/pages/PricingPage.tsx to read authoritative Pro state from AuthContext usage.plan.
 - Code commit: ba74bb1c3630ef6476fddf4ae2735ee65082be82.
-- Deployment status: code committed; Vercel deployment verification pending.
+- Deployment status: code committed; Vercel verification pending.
 
 2026-09-09 — Pro commit/PR live security alert UX
-- Product decision: Pro users should receive an immediate in-app alert when a protected repository's new commit or pull request introduces security findings, rather than discovering the issue only in the dashboard activity list.
-- Existing backend capability confirmed: artifacts/api-server/src/routes/githubWebhook.ts already handles GitHub push and pull_request events, computes a delta scan against the base/baseline, creates a GitHub Check Run named “VibeSane Security”, and records the protection event. Critical/high findings produce a failing GitHub check; clean changes produce success.
-- UI action: Updated artifacts/vibeguard/src/components/ProtectionActivity.tsx to poll protection events, detect a newly arrived event without showing an alert for the initial historical load, and display a prominent VibeSane Security Alert for new events with findings.
-- Alert includes repository name, commit SHA, finding count, severity counts, and a Review & Fix Findings action. Critical/high alerts explicitly warn that the change should be resolved before merging.
-- Review action is wired to the existing dashboard Review & Fix Findings button so the user enters the current security-review flow instead of creating a duplicate findings UI.
+- Pro users should receive an immediate in-app alert when a protected repository's new commit or pull request introduces security findings.
+- Existing backend already handles GitHub push/pull_request events, delta scans, GitHub Check Runs, and protection events.
+- Updated artifacts/vibeguard/src/components/ProtectionActivity.tsx with new-event detection and VibeSane Security Alert UI containing repository, SHA, findings, severity counts, and Review & Fix Findings action.
 - Code commit: 1c82fb208443030566957041ce44ceadabc870ed.
-- Important implementation note: the backend already performs the actual push/PR delta scan; this change adds the missing user-facing live alert layer and reuses the existing Review & Fix action.
-- Deployment status: code committed; Vercel/Render production verification pending.
+- Deployment status: production verification pending.
 
 2026-09-10 — Referral/Affiliate program intentionally paused
 - Existing referral/affiliate UI is preserved: artifacts/vibeguard/src/components/AffiliateWelcomePopup.tsx and artifacts/vibeguard/src/pages/AffiliatePage.tsx remain in the repository.
-- Product decision: pause the referral acquisition program during the early customer phase rather than deleting it.
-- Action: Added a local REFERRALS_ENABLED feature flag set to false in AffiliateWelcomePopup.tsx so the new-account referral popup is not displayed and referral logic does not run.
-- The referral page and underlying affiliate assets are preserved for later activation; this is a pause, not a removal.
-- Intended activation point: approximately the first 100 customers, followed by a full end-to-end referral tracking/reward verification.
+- Added a local REFERRALS_ENABLED feature flag set to false so the new-account referral popup is not displayed and referral logic does not run.
+- Referral page/assets remain preserved. Full referral tracking/reward activation is deferred until approximately the first 100 customers.
 - Code commit: ac399c2784f3d174d5f46afb34c93ecc94e6cdc7.
-- Deployment status: code committed; frontend deployment verification pending.
+- Deployment status: frontend verification pending.
 
 2026-09-10 — Pro split scan quota: protected repositories + public URL scans
-- Product decision confirmed: Pro has 10 total monthly scan credits, split into two independent buckets: 5 protected-repository setup scans and 5 public-repository URL scans.
-- Adding a new protected repository consumes exactly 1 protected-repository setup scan from the 5-credit protected bucket. Updating/reprotecting an already protected repository does not consume another setup credit.
-- The public “paste a GitHub URL and scan” endpoint consumes only the 5-credit public bucket. Public scans therefore remain available even after all 5 protected-repository setup scans have been used, and protected setup credits cannot be spent through the public URL scanner.
-- Both buckets reset together on the existing monthly reset cycle. The aggregate scans_used/scans_limit fields remain compatible with existing UI while the backend also tracks protected_scans_used and public_scans_used separately.
-- Backend action: artifacts/api-server/src/lib/plan.ts now creates/maintains the split quota columns, preserves historical scan usage during the one-time schema transition, exposes separate quota counters, and provides consumeProtectedScan/consumePublicScan with server-side enforcement.
-- Public scan action: artifacts/api-server/src/routes/scans.ts now checks/enforces the public bucket and records successful standalone URL scans against public_scans_used.
-- Protected setup action: artifacts/api-server/src/routes/protection.ts now checks the protected bucket before scanning a new repository and records the successful baseline scan against protected_scans_used. Existing repository updates do not consume a second setup credit.
-- Important: continuous push/PR protection remains a separate webhook/delta-scan workflow and is not converted into the 5+5 manual scan allowance.
-- Code commits: 35d804392b8fd7ee974acbdd756bc71a1a59a2ed (quota model), 6ef3df61e2831ba0669992db6cf077f2eca1e3ad (public scanner), 1458b50c0f3ff705fd8c72b04e284e833f408037 (protected setup preflight).
-- Deployment status: backend commits created; Render deployment and end-to-end quota verification pending.
+- Pro has 10 total monthly manual scan credits, split into two independent buckets: 5 protected-repository setup scans and 5 public-repository URL scans.
+- Protected setup scans are consumed only by creating a new protected repository; updating/reprotecting an existing protected repository does not consume another setup credit.
+- Public URL scans consume only the public bucket and remain available after all 5 protected-repository slots are used.
+- Both buckets reset together on the monthly reset cycle; aggregate scans_used/scans_limit remain compatible with existing UI.
+- Backend split quota logic exists in artifacts/api-server/src/lib/plan.ts with consumeProtectedScan/consumePublicScan and separate counters.
+- Code commits: 35d804392b8fd7ee974acbdd756bc71a1a59a2ed, 6ef3df61e2831ba0669992db6cf077f2eca1e3ad, 1458b50c0f3ff705fd8c72b04e284e833f408037.
+- Deployment status: backend deployment/end-to-end verification pending.
+
+2026-09-10 — Dedicated public repository scan UX
+- Bug confirmed: the Protect Repository panel still exposed a “Paste URL” tab that submitted the URL to /api/protection. Once 5 protected repositories existed, this incorrectly showed “Repository limit reached (5)” even though the user still had 5 separate public URL scan credits.
+- Product decision: public URL scanning must be a separate workflow from repository protection.
+- Added artifacts/vibeguard/src/pages/PublicScanPage.tsx at /scan-public. It accepts a public GitHub URL, calls the standalone /api/scans endpoint, shows a dedicated loading/scan state with the repository URL and progress details, then shows the temporary result with file/finding/severity details.
+- Public scan results are intentionally ephemeral: no localStorage report persistence, no protected_repository record, no GitHub event protection, and no permanent repository history. The only persisted effect is the required server-side public scan quota consumption.
+- The result page explicitly states that the scan is temporary and not saved to repository history. User can scan another public repo after a completed result.
+- Updated artifacts/vibeguard/src/App.tsx to route /scan-public to PublicScanPage.
+- Updated artifacts/vibeguard/src/components/ProtectRepositoryPanel.tsx to remove the Paste URL protection path. The protection modal now uses My repos for protection and provides a dedicated “Scan public repository” link to /scan-public.
+- This guarantees that having 5 protected repositories does not block the separate public scan allowance.
+- Code commits: 59bcbe09b38c9e76aa90d12465be6e37d3015e55 (new page), 9ebd440889331dc04990f4d5c317953e5dd77250 (route), 9a7749404c531468bea2d028158c1596f732afae (protection panel).
+- Deployment status: Vercel deployment and live end-to-end UI/quota verification pending.
 
 WORKING RULES
 -------------
@@ -116,6 +106,7 @@ WORKING RULES
 6. When a change affects production, record deployment/verification status separately from code-complete status.
 7. Referral UI may remain in the repository while the referral program is disabled until approximately 100 customers; do not remove the existing page/assets when pausing it.
 8. Pro manual scan quota is permanently defined as 5 protected-repository setup scans + 5 public GitHub URL scans per monthly cycle unless intentionally changed and recorded here.
+9. Public URL scanning must never call the repository-protection endpoint or create a protected repository. It is a temporary scan workflow and uses only the public scan bucket.
 
 CURRENT NEXT STEPS
 ------------------
@@ -130,3 +121,4 @@ CURRENT NEXT STEPS
 9. Continue Google Search Console indexing investigation after production site changes.
 10. Keep referral/affiliate acquisition paused until approximately 100 customers; preserve the UI and reactivate the mechanics only when intentionally decided.
 11. Verify Pro quota end-to-end: add 5 protected repositories and confirm protected setup quota reaches 5/5 while public URL scanning remains available at 0/5; then perform 5 public URL scans and confirm the public bucket reaches 5/5 and the aggregate reaches 10/10.
+12. Verify /scan-public on mobile: paste a public repo after 5 protected repositories are already present, confirm it does not show “Repository limit reached (5)”, confirm the dedicated loading page appears, and confirm the result disappears on leaving/reloading rather than being saved as history.
