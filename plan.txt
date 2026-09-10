@@ -94,6 +94,18 @@ CHANGE LOG
 - Code commit: ac399c2784f3d174d5f46afb34c93ecc94e6cdc7.
 - Deployment status: code committed; frontend deployment verification pending.
 
+2026-09-10 — Pro split scan quota: protected repositories + public URL scans
+- Product decision confirmed: Pro has 10 total monthly scan credits, split into two independent buckets: 5 protected-repository setup scans and 5 public-repository URL scans.
+- Adding a new protected repository consumes exactly 1 protected-repository setup scan from the 5-credit protected bucket. Updating/reprotecting an already protected repository does not consume another setup credit.
+- The public “paste a GitHub URL and scan” endpoint consumes only the 5-credit public bucket. Public scans therefore remain available even after all 5 protected-repository setup scans have been used, and protected setup credits cannot be spent through the public URL scanner.
+- Both buckets reset together on the existing monthly reset cycle. The aggregate scans_used/scans_limit fields remain compatible with existing UI while the backend also tracks protected_scans_used and public_scans_used separately.
+- Backend action: artifacts/api-server/src/lib/plan.ts now creates/maintains the split quota columns, preserves historical scan usage during the one-time schema transition, exposes separate quota counters, and provides consumeProtectedScan/consumePublicScan with server-side enforcement.
+- Public scan action: artifacts/api-server/src/routes/scans.ts now checks/enforces the public bucket and records successful standalone URL scans against public_scans_used.
+- Protected setup action: artifacts/api-server/src/routes/protection.ts now checks the protected bucket before scanning a new repository and records the successful baseline scan against protected_scans_used. Existing repository updates do not consume a second setup credit.
+- Important: continuous push/PR protection remains a separate webhook/delta-scan workflow and is not converted into the 5+5 manual scan allowance.
+- Code commits: 35d804392b8fd7ee974acbdd756bc71a1a59a2ed (quota model), 6ef3df61e2831ba0669992db6cf077f2eca1e3ad (public scanner), 1458b50c0f3ff705fd8c72b04e284e833f408037 (protected setup preflight).
+- Deployment status: backend commits created; Render deployment and end-to-end quota verification pending.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
@@ -103,6 +115,7 @@ WORKING RULES
 5. Before making major changes, read this file and preserve existing architecture/decisions unless intentionally changing them.
 6. When a change affects production, record deployment/verification status separately from code-complete status.
 7. Referral UI may remain in the repository while the referral program is disabled until approximately 100 customers; do not remove the existing page/assets when pausing it.
+8. Pro manual scan quota is permanently defined as 5 protected-repository setup scans + 5 public GitHub URL scans per monthly cycle unless intentionally changed and recorded here.
 
 CURRENT NEXT STEPS
 ------------------
@@ -116,3 +129,4 @@ CURRENT NEXT STEPS
 8. Restore/verify the “Get Prompt” workflow in Finding Detail if it is required by the current product UX.
 9. Continue Google Search Console indexing investigation after production site changes.
 10. Keep referral/affiliate acquisition paused until approximately 100 customers; preserve the UI and reactivate the mechanics only when intentionally decided.
+11. Verify Pro quota end-to-end: add 5 protected repositories and confirm protected setup quota reaches 5/5 while public URL scanning remains available at 0/5; then perform 5 public URL scans and confirm the public bucket reaches 5/5 and the aggregate reaches 10/10.
