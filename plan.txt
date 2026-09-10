@@ -113,6 +113,14 @@ CHANGE LOG
 - Code commit: 37bd5f74110faeee82c33d03dfb27a5b1a24497f.
 - Deployment status: Vercel deployment and mobile verification pending.
 
+2026-09-10 — Public scan repeat-scan 404 + stale quota counter fix
+- User reproduced two production issues: after repeated public scans the /scan-public flow could fall into the app's 404/not-found route until refresh, and the “public scans remaining” counter did not decrease immediately after a successful scan.
+- Root cause for the counter: /api/scans correctly consumes the server-side public bucket only after a successful scan, but PublicScanPage did not refresh AuthContext usage afterward. The frontend therefore displayed the stale pre-scan usage row.
+- Root cause/risk for repeat-scan navigation: App.tsx used a second effect in PublicScanFlowBridge to simulate a click on the dedicated scan page's form after navigation. That introduced timing/routing races on repeated navigation. The scan page now owns query-driven auto-start after the authenticated session is ready, and the bridge only performs the main Paste URL -> /scan-public navigation.
+- Action: extended UsageRow with protected/public quota fields; PublicScanPage now refreshes authoritative usage immediately after successful scans; query URL scanning now passes the query URL directly to runScan; removed the simulated form-click effect from App.tsx; “Scan another public repo” also clears the query URL before another scan.
+- Code commits: 7316aa7884ef25bed985423628a9dac141807041 (UsageRow quota fields), 08bf7df53879fd91d72435eb573d2da5aaa5b83b (quota refresh/repeat-flow hardening), 213785b4c0ee41d8b48bb305c49095122aa39b28 (query URL passed directly to scan), 8b3bd203fdf49250090c1fa8fdf7ae07c545b63e (remove route-bridge auto-click race).
+- Deployment status: code committed; Vercel/Render deployment and live mobile verification required before marking production fixed.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
@@ -126,6 +134,8 @@ WORKING RULES
 9. Public URL scanning must never call the repository-protection endpoint or create a protected repository. It is a temporary scan workflow and uses only the public scan bucket.
 10. The main security-center ScanForm must retain the two-tab UX: Paste URL and My repos. Paste URL launches the temporary public scan flow; My repos is for protected repositories.
 11. Do not replace the two-tab Paste URL / My repos UX with a separate public-scan card unless intentionally approved and recorded first.
+12. PublicScanPage owns the lifecycle of /scan-public query-driven scans; do not add simulated button-click effects in the global route bridge.
+13. After every successful public scan, the frontend MUST refresh authoritative usage so the public quota counter changes immediately.
 
 CURRENT NEXT STEPS
 ------------------
@@ -140,5 +150,5 @@ CURRENT NEXT STEPS
 9. Continue Google Search Console indexing investigation after production site changes.
 10. Keep referral/affiliate acquisition paused until approximately 100 customers; preserve the UI and reactivate the mechanics only when intentionally decided.
 11. Verify Pro quota end-to-end: add 5 protected repositories and confirm protected setup quota reaches 5/5 while public URL scanning remains available at 0/5; then perform 5 public URL scans and confirm the public bucket reaches 5/5 and the aggregate reaches 10/10.
-12. Verify /scan-public on mobile: paste a public repo in the main Paste URL tab after 5 protected repositories are already present, confirm it navigates to the dedicated scan page, confirm the loading animation/details appear, and confirm the result disappears on leaving/reloading rather than being saved as history.
+12. Deploy and verify the public-scan repeat-flow fix on mobile: run at least 3 consecutive public scans, confirm no 404/not-found transition, confirm the dedicated loading animation appears each time, and confirm the public counter decreases after every successful scan.
 13. Verify the restored two-tab Protect Repository panel on mobile after Vercel deployment: Paste URL tab must accept a public GitHub URL and launch /scan-public; My repos tab must remain the protected flow.
