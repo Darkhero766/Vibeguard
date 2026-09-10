@@ -33,4 +33,8 @@ export type UsageRow = {
   monthly_scans_used?: number;
   monthly_scans_limit?: number;
   monthly_reset_at?: string | null;
+  protected_scans_used?: number;
+  public_scans_used?: number;
+  protected_scans_limit?: number;
+  public_scans_limit?: number;
 };
