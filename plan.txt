@@ -176,6 +176,19 @@ CHANGE LOG
 - Code commit: db16bd3a1203d4a989ba375e155e65bc3dcbd49c.
 - Deployment status: production build and live checkout verification required.
 
+2026-09-14 — No-refund-by-default launch policy
+- Updated artifacts/vibeguard/src/pages/TermsPage.tsx section 8 to make the commercial policy explicit: subscriptions are non-refundable by default; cancellation stops future renewals but does not automatically reverse the current billing period.
+- The policy preserves mandatory consumer/statutory rights and any refund that VibeSane expressly agrees to provide.
+- Code commit: ffd8772b25d6c7cdd0d2c2d872427f1fcbba12b9.
+- Deployment status: production build and direct /terms verification required.
+- Legal note: this is a no-refund-by-default policy, not a guarantee against claims or chargebacks; local counsel should review it before launch.
+
+2026-09-14 — Pre-launch PR/push security-alert audit
+- Audited artifacts/api-server/src/routes/githubWebhook.ts: protected push events and pull_request events (opened, reopened, synchronize) create GitHub Check Runs, run delta security scans, complete the check with success/neutral/failure, and record a protection event.
+- Audited artifacts/vibeguard/src/components/ProtectionActivity.tsx: it polls protection events, detects a newly received event, and opens an in-app VibeSane Security Alert when the new event contains findings. The alert shows repository, SHA, finding count, severity counts, and a Review & Fix Findings action; critical/high findings are explicitly flagged before merge.
+- Important limitation: this audit confirms the implementation path exists, but a live end-to-end GitHub push and pull-request test has NOT yet been performed after the latest deployment. Do not mark this feature production-verified until a real protected-repository push and PR synchronization are tested and the popup, Check Run, event record, and Review & Fix flow are observed.
+- Deployment status: implementation present; live PR/push verification pending.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
