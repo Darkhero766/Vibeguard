@@ -130,6 +130,18 @@ CHANGE LOG
 - Code commits: f8f2735e066434865f12bf9919118ee747be0745 (entrypoint route fallback), 435bc1d5b12b1a085ddf25f4adcd5d4a59c6e479 (repeat-scan/query hardening), 8b37f8657e44b31ce907b75cd14500a482a6b27a (remove test quota reset).
 - Deployment status: code committed; Vercel/Render deployment and live mobile verification required before marking production fixed.
 
+2026-09-14 — Professional Settings / Account Control Center
+- Product decision: add a dedicated /settings page appropriate for a production SaaS/security startup while preserving the existing VibeSane visual language.
+- Added artifacts/vibeguard/src/pages/SettingsPage.tsx with responsive sections for Account, Plan & Billing, Security, Notifications, Scan & Repository Data, Appearance, and a Danger Zone.
+- UI uses existing VibeSane typography/theme tokens plus block shadows, security-console grid, status lights, layered circular/radar-style decoration, and 3D offset cards. It is designed for mobile and desktop.
+- Settings exposes the existing authenticated identity, Pro/Admin state, scan allowance, GitHub connection state, logout, notification preferences, theme selection, public-scan data behavior, and billing/dashboard links without inventing unsupported backend operations.
+- Account deletion is intentionally gated as a verified deletion-flow placeholder rather than pretending a client-side button can safely delete a Supabase account. Server-side deletion should be implemented only after the exact data-retention/cascade policy is defined.
+- Added /settings routing in artifacts/vibeguard/src/App.tsx.
+- Added Settings entry to the authenticated desktop account dropdown and mobile navigation in artifacts/vibeguard/src/components/Nav.tsx.
+- Code commits: 0e511caf94750986a3fada61f59a758832e0f08c (SettingsPage), 8deb34a8346abf7cb4026d2c6af23a7188a4defd (route), d38d7da5b4226b91363168442f5f05f1556b96fb (navigation).
+- Deployment status: code committed; Vercel build/mobile verification pending.
+- Important safety rule: do not claim Supabase account deletion/export is functional until corresponding server-side operations and database cascade behavior are implemented and tested.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
@@ -146,6 +158,9 @@ WORKING RULES
 12. PublicScanPage owns the lifecycle of /scan-public query-driven scans; do not add simulated button-click effects in the global route bridge.
 13. After every successful public scan, the frontend MUST refresh authoritative usage so the public quota counter changes immediately.
 14. Test-only quota reset logic must never run in production; testing limits must be changed explicitly in the database or through a clearly isolated test mechanism.
+15. Settings must not claim an operation is functional unless the corresponding backend/database behavior exists and has been tested. UI-only controls must be marked honestly as coming soon, request-based, or placeholder.
+16. The admin account email nightowlclub72@gmail.com permanently bypasses normal scan/repository quotas and must retain unlimited scan access. Never store its credentials or secrets in this file.
+17. Before declaring Supabase and code “in sync,” compare application table/column/RPC usage against the actual production schema and migration history; frontend types alone are not proof of database compatibility.
 
 CURRENT NEXT STEPS
 ------------------
@@ -162,3 +177,6 @@ CURRENT NEXT STEPS
 11. Verify Pro quota end-to-end: add 5 protected repositories and confirm protected setup quota reaches 5/5 while public URL scanning remains available at 0/5; then perform 5 public URL scans and confirm the public bucket reaches 5/5 and the aggregate reaches 10/10.
 12. Deploy and verify the public-scan repeat-flow fix on mobile: run at least 3 consecutive public scans, confirm no 404/not-found transition, confirm the dedicated loading animation appears each time, and confirm the public counter decreases after every successful scan.
 13. Verify the restored two-tab Protect Repository panel on mobile after Vercel deployment: Paste URL tab must accept a public GitHub URL and launch /scan-public; My repos tab must remain the protected flow.
+14. Deploy /settings and verify mobile/desktop navigation, authentication gating, theme persistence, and that existing dashboard/protection flows are unchanged.
+15. Implement a proper server-side account deletion workflow only after defining the Supabase data-retention and cascade policy; then replace the current settings deletion placeholder with the verified operation.
+16. Perform a production Supabase/code schema audit: enumerate every table, column, RPC/function, and enum referenced by artifacts/api-server and artifacts/vibeguard; compare them against the actual Supabase schema/migrations and fix any drift before adding more database-dependent features.
