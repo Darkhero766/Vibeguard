@@ -151,6 +151,18 @@ CHANGE LOG
 - Code commits from this action: 6b0bdd7c24a6ad2f22d5c2455f9f8bcd87029cc3 (Settings UI), cd885cf6e0fff18bfb4d71d279e0788d9c14b4f1 (desktop Settings nav), 289a4e4fca74547d2c025abb25521c2b06ea2faa (direct static route generation).
 - Deployment status: commits are on main; Render/Vercel must complete the next production build before live /settings verification. No Supabase data or account records were changed by this UI fix.
 
+2026-09-14 — Launch checkout price + mandatory Terms acceptance
+- Product decision: VibeSane Pro is displayed as US$12.00/month across the public Pricing and Checkout UI.
+- Updated artifacts/vibeguard/src/pages/PricingPage.tsx to display $12.00/month for the Pro purchase card.
+- Updated artifacts/vibeguard/src/pages/CheckoutPage.tsx so the plan price, line item, total, and Buy Now CTA all display $12.00.
+- Added a mandatory Terms & Conditions checkbox immediately before Buy Now. The customer must actively accept the Terms & Conditions before the checkout request can start; the Terms link opens /terms in a new tab.
+- Updated artifacts/vibeguard/src/pages/TermsPage.tsx with a production-oriented Terms & Conditions document covering authorization, automated-analysis limitations, third-party dependencies, accounts, billing, cancellation/refunds, privacy, intellectual property, prohibited use, disclaimers, limitation of liability, indemnification, termination, mandatory statutory rights, and changes to terms.
+- Updated artifacts/vibeguard/src/App.tsx to route /terms directly to TermsPage so the agreement is reachable as a standalone page and from checkout.
+- Code commits: df8e88d11ed777490b25d685cedd02d1afe76584 (Checkout), 286d08e659666d9bbcd387c289a215b01c9017e9 (Pricing), ae965a293071d2c21da881a0ba95262e69668bbc (Terms), db3a937fadf50aaa91d1007f1f4ed7e156db95d7 (Terms route).
+- Important payment note: the displayed $12.00 is a frontend price label. The actual amount charged is controlled by the Dodo product referenced by DODO_PRO_PRODUCT_ID. Before launch, verify that the LIVE Dodo Pro product itself is priced at US$12.00; code changes cannot change the provider-side product price.
+- Legal note: the Terms are risk-reduction language, not a guarantee against lawsuits or liability. A qualified lawyer should review the final Terms, refund policy, privacy policy, company/entity details, and governing-law/dispute provisions before relying on them in production.
+- Deployment status: code committed to main; production build and live checkout verification required.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
