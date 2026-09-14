@@ -1,9 +1,6 @@
 -- VibeGuard / VibeSane — canonical usage schema
---
--- This migration is intentionally additive/idempotent so it can be run against
--- the existing production project without resetting usage or billing data.
--- Production is the current schema baseline; future schema changes must be
--- represented by a new migration rather than silently changing this file.
+-- Production baseline + security/performance hardening.
+-- Future schema changes should be new migrations; do not silently rewrite history.
 
 CREATE TABLE IF NOT EXISTS public.usage (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -15,7 +12,6 @@ CREATE TABLE IF NOT EXISTS public.usage (
   CONSTRAINT usage_owner_unique UNIQUE (owner)
 );
 
--- Current production quota/billing columns.
 ALTER TABLE public.usage ADD COLUMN IF NOT EXISTS plan text NOT NULL DEFAULT 'free';
 ALTER TABLE public.usage ADD COLUMN IF NOT EXISTS pro_expires_at timestamptz;
 ALTER TABLE public.usage ADD COLUMN IF NOT EXISTS monthly_scans_used integer NOT NULL DEFAULT 0;
@@ -30,17 +26,12 @@ ALTER TABLE public.usage ADD COLUMN IF NOT EXISTS protected_scans_used integer N
 ALTER TABLE public.usage ADD COLUMN IF NOT EXISTS public_scans_used integer NOT NULL DEFAULT 0;
 
 ALTER TABLE public.usage ENABLE ROW LEVEL SECURITY;
-
 DROP POLICY IF EXISTS "Users can view their own usage" ON public.usage;
 DROP POLICY IF EXISTS "Users can update their own usage" ON public.usage;
 DROP POLICY IF EXISTS "Users can insert their own usage" ON public.usage;
-
-CREATE POLICY "Users can view their own usage"
-  ON public.usage FOR SELECT USING (auth.uid() = owner);
-CREATE POLICY "Users can update their own usage"
-  ON public.usage FOR UPDATE USING (auth.uid() = owner) WITH CHECK (auth.uid() = owner);
-CREATE POLICY "Users can insert their own usage"
-  ON public.usage FOR INSERT WITH CHECK (auth.uid() = owner);
+CREATE POLICY "Users can view their own usage" ON public.usage FOR SELECT USING ((select auth.uid()) = owner);
+CREATE POLICY "Users can update their own usage" ON public.usage FOR UPDATE USING ((select auth.uid()) = owner) WITH CHECK ((select auth.uid()) = owner);
+CREATE POLICY "Users can insert their own usage" ON public.usage FOR INSERT WITH CHECK ((select auth.uid()) = owner);
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
@@ -55,8 +46,25 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.handle_new_user() TO postgres, service_role;
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Server-only application tables: RLS is enabled intentionally without browser policies.
+-- The backend uses its privileged database connection for these operations.
+ALTER TABLE public.protected_repositories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.protection_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.github_app_installations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.dodo_webhook_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hackathon_redemptions ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.protected_repositories ADD COLUMN IF NOT EXISTS owner uuid;
+ALTER TABLE public.github_app_installations ADD COLUMN IF NOT EXISTS owner uuid;
+ALTER TABLE public.github_tokens ADD COLUMN IF NOT EXISTS owner uuid;
+ALTER TABLE public.hackathon_redemptions ADD COLUMN IF NOT EXISTS owner uuid;
+
+CREATE INDEX IF NOT EXISTS protected_repositories_owner_idx ON public.protected_repositories(owner);
+CREATE INDEX IF NOT EXISTS protection_events_repo_idx ON public.protection_events(repo);
+CREATE INDEX IF NOT EXISTS github_app_installations_owner_idx ON public.github_app_installations(owner);
+CREATE INDEX IF NOT EXISTS hackathon_redemptions_owner_idx ON public.hackathon_redemptions(owner);
