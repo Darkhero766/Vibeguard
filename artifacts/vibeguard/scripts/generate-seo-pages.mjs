@@ -27,6 +27,11 @@ const pages = [
     title: 'Next.js Security Scanner | VibeSane',
     description: 'Scan Next.js applications for security issues, exposed secrets, and risky code patterns before deployment.',
   },
+  {
+    path: '/settings',
+    title: 'Settings | VibeSane',
+    description: 'Manage your VibeSane account, security, billing, notifications, repository data, appearance, and account controls.',
+  },
 ];
 
 const outputDir = path.resolve('dist/public');
@@ -68,4 +73,4 @@ for (const page of pages) {
   await writeFile(path.join(routeDir, 'index.html'), html);
 }
 
-console.log(`Generated ${pages.length} static SEO pages.`);
+console.log(`Generated ${pages.length} static pages.`);
