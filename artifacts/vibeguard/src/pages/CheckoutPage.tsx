@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Check, Tag, Loader2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Tag, Loader2, ShieldCheck, FileText } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiUrl } from '@/lib/api';
 
-const PLAN_PRICE = 11.99;
+const PLAN_PRICE = 12;
 const HACKATHON_COUPON = 'HACKATHON60';
 
 export default function CheckoutPage() {
@@ -16,6 +16,7 @@ export default function CheckoutPage() {
   const [appliedCoupon, setAppliedCoupon] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const total = useMemo(() => PLAN_PRICE, []);
 
@@ -32,6 +33,11 @@ export default function CheckoutPage() {
   };
 
   const handleBuyNow = async () => {
+    if (!termsAccepted) {
+      setMessage('Please read and agree to the Terms & Conditions before continuing.');
+      return;
+    }
+
     if (!session?.access_token) {
       navigate('/auth?mode=signin');
       return;
@@ -101,7 +107,7 @@ export default function CheckoutPage() {
                 <p className="mt-1 text-[13px] text-muted-foreground">10 complete scans/month · 5 repositories · reports · priority features</p>
               </div>
               <div className="text-right">
-                <p className="text-[30px] font-extrabold tracking-[-0.05em]">$11.99</p>
+                <p className="text-[30px] font-extrabold tracking-[-0.05em]">$12.00</p>
                 <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">per month</p>
               </div>
             </div>
@@ -109,7 +115,7 @@ export default function CheckoutPage() {
             <div className="mt-6 space-y-4 text-[13px]">
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Pro subscription</span>
-                <span className="font-semibold">$11.99</span>
+                <span className="font-semibold">$12.00</span>
               </div>
               <div className="border-t border-border pt-5">
                 <div className="flex items-end justify-between gap-4">
@@ -151,6 +157,28 @@ export default function CheckoutPage() {
               )}
             </div>
 
+            <div className="mt-6 border border-primary/30 bg-primary/[0.06] p-4">
+              <label className="flex cursor-pointer items-start gap-3 text-[12px] leading-5 text-foreground">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => { setTermsAccepted(e.target.checked); setMessage(''); }}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--primary))]"
+                  disabled={loading}
+                />
+                <span>
+                  I have read and agree to the{' '}
+                  <Link href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline underline-offset-4 hover:text-foreground">
+                    Terms &amp; Conditions
+                  </Link>
+                  . I understand that VibeSane provides automated security analysis and does not guarantee that every vulnerability will be detected.
+                </span>
+              </label>
+              <p className="mt-3 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">
+                <FileText size={11} /> Agreement required before payment
+              </p>
+            </div>
+
             {message && (
               <p className="mt-4 text-[12px] leading-5 text-muted-foreground" aria-live="polite">
                 {message}
@@ -160,8 +188,8 @@ export default function CheckoutPage() {
             <button
               type="button"
               onClick={handleBuyNow}
-              disabled={loading}
-              className="vg-button vg-focus mt-7 flex h-14 w-full items-center justify-center gap-2 border border-primary bg-primary px-5 text-[14px] font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-wait disabled:opacity-70"
+              disabled={loading || !termsAccepted}
+              className="vg-button vg-focus mt-7 flex h-14 w-full items-center justify-center gap-2 border border-primary bg-primary px-5 text-[14px] font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? <><Loader2 size={17} className="animate-spin" /> Securing checkout…</> : <>Buy now — ${total.toFixed(2)} <ArrowRight size={16} /></>}
             </button>
