@@ -32,6 +32,11 @@ const pages = [
     title: 'Settings | VibeSane',
     description: 'Manage your VibeSane account, security, billing, notifications, repository data, appearance, and account controls.',
   },
+  {
+    path: '/terms',
+    title: 'Terms & Conditions | VibeSane',
+    description: 'VibeSane Terms & Conditions covering use of the security analysis service, paid plans, acceptable use, disclaimers, and liability.',
+  },
 ];
 
 const outputDir = path.resolve('dist/public');
