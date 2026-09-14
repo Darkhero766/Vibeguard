@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useLocation } from 'wouter';
 import OriginalApp from './AppOriginal';
 import AffiliatePage from './pages/AffiliatePage';
 import AffiliateWelcomePopup from './components/AffiliateWelcomePopup';
@@ -67,7 +68,8 @@ function PublicScanFlowBridge() {
 }
 
 export default function App() {
-  const rawPath = window.location.pathname.replace(/\/$/, '') || '/';
+  const [location] = useLocation();
+  const rawPath = location.replace(/\/$/, '') || '/';
   if (rawPath === '/dashboard') window.history.replaceState(null, '', `/?${window.location.search.replace(/^\?/, '') || 'upgraded=true'}`);
   const path = rawPath === '/dashboard' ? '/' : rawPath;
   const isAffiliatePage = path === '/refer';
