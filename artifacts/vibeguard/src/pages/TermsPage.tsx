@@ -28,95 +28,24 @@ export default function TermsPage() {
             </div>
 
             <div className="mt-9 space-y-9 text-[14px] leading-7 text-foreground">
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">1. Agreement</h2>
-                <p className="text-muted-foreground">These Terms &amp; Conditions ("Terms") govern your access to and use of VibeSane, including the website, security-scanning features, repository-protection features, reports, APIs and paid plans (collectively, the "Service"). By creating an account, using the Service, or purchasing a paid plan, you agree to these Terms. If you do not agree, do not use the Service.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">2. What VibeSane Does</h2>
-                <p className="text-muted-foreground">VibeSane provides automated, heuristic security analysis of supported publicly accessible GitHub repositories and related security signals. Scans are intended to identify potential security issues and provide practical guidance. A scan is an automated assessment, not a certification, guarantee, penetration test, code review, legal opinion, or professional security audit.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">3. Authorization &amp; Responsible Use</h2>
-                <p className="text-muted-foreground">You must have the right to access and submit a repository for scanning. You are responsible for ensuring that your use of VibeSane complies with applicable law, GitHub's terms, your organization's policies, and any permissions owed to repository owners. You must not use the Service to access private material without authorization, interfere with systems, evade usage limits, abuse GitHub or other third-party services, or use scan results to facilitate unlawful activity.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">4. Security Analysis Is Not Guaranteed</h2>
-                <p className="text-muted-foreground">Automated security analysis can produce false positives, false negatives, incomplete results, stale results, or findings that require human verification. VibeSane does not warrant that every vulnerability, misconfiguration, secret, dependency issue, exploit, attack path, or security risk will be detected. You remain solely responsible for validating findings and making security, deployment, remediation, and business decisions.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">5. Repository Protection &amp; Third-Party Services</h2>
-                <p className="text-muted-foreground">Where enabled, repository protection may use GitHub APIs, webhooks, checks, or other third-party infrastructure. Availability and behavior can depend on GitHub and other providers. VibeSane is not responsible for outages, API changes, rate limits, permission changes, repository changes, webhook delivery failures, or other events outside its reasonable control.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">6. Your Account</h2>
-                <p className="text-muted-foreground">You are responsible for maintaining the security of your account and for activity performed through it. You must provide accurate information and promptly protect or report compromised credentials. We may suspend or terminate access where reasonably necessary to prevent abuse, fraud, security threats, unlawful use, or material violation of these Terms.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">7. Plans, Limits &amp; Billing</h2>
-                <p className="text-muted-foreground">VibeSane Pro is currently offered at <strong className="text-foreground">US$12.00 per month</strong>, unless a different price is clearly displayed at checkout or applies through an authorized promotion. Usage limits and plan features are shown on the pricing or account pages and may change prospectively. Payments are processed by a third-party payment provider. A successful payment does not guarantee uninterrupted access where the Service is unavailable or your account is suspended under these Terms.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">8. Refunds &amp; Cancellation</h2>
-                <p className="text-muted-foreground">You may cancel a subscription using the available billing controls or by contacting support. Cancellation generally prevents future renewals and does not automatically reverse a completed billing period. Refunds, where applicable, are handled according to the offer shown at checkout, the payment provider's applicable rules, and mandatory consumer rights. Nothing in these Terms is intended to remove a right that cannot lawfully be excluded.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">9. Data &amp; Privacy</h2>
-                <p className="text-muted-foreground">Your use of the Service is also governed by the VibeSane Privacy Policy. We aim to minimize retained repository content and do not treat scan results as a substitute for your own backup, audit, incident-response, or compliance processes. You remain responsible for information you choose to submit and for determining whether a repository may lawfully be scanned.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">10. Intellectual Property</h2>
-                <p className="text-muted-foreground">The Service, software, interface, branding, documentation, reports, and underlying technology are owned by or licensed to VibeSane except for third-party materials and content supplied by users. These Terms do not transfer ownership of your repositories or your intellectual property to VibeSane. You grant VibeSane only the rights reasonably necessary to operate the Service you request.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">11. Prohibited Circumvention &amp; Abuse</h2>
-                <p className="text-muted-foreground">You may not create accounts or manipulate requests for the purpose of bypassing plan limits, reverse engineer or disrupt the Service, attempt unauthorized access, overload infrastructure, abuse automated scanning, or interfere with another user's account. We may apply reasonable technical controls to protect the Service and its users.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">12. Disclaimers</h2>
-                <p className="text-muted-foreground">TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE". VIBESANE DISCLAIMS WARRANTIES NOT EXPRESSLY PROVIDED IN THESE TERMS, INCLUDING IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. WE DO NOT PROMISE THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, COMPLETELY SECURE, OR SUITABLE FOR YOUR PARTICULAR SECURITY OR COMPLIANCE REQUIREMENTS.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">13. Limitation of Liability</h2>
-                <p className="text-muted-foreground">TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, VIBESANE AND ITS OPERATORS, AFFILIATES, SERVICE PROVIDERS, AND LICENSORS WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR LOSS OF PROFITS, REVENUE, DATA, BUSINESS OPPORTUNITY, GOODWILL, OR SECURITY ARISING FROM OR RELATED TO YOUR USE OF THE SERVICE. TO THE MAXIMUM EXTENT PERMITTED BY LAW, OUR AGGREGATE LIABILITY FOR CLAIMS ARISING FROM THE SERVICE WILL NOT EXCEED THE GREATER OF (A) THE AMOUNT YOU PAID TO VIBESANE FOR THE SERVICE IN THE THREE MONTHS BEFORE THE EVENT GIVING RISE TO THE CLAIM OR (B) US$100. THIS SECTION DOES NOT LIMIT LIABILITY THAT CANNOT LAWFULLY BE LIMITED OR EXCLUDED.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">14. Indemnification</h2>
-                <p className="text-muted-foreground">To the maximum extent permitted by applicable law, you agree to defend, indemnify, and hold harmless VibeSane and its operators, affiliates, and service providers from claims, losses, liabilities, costs, and reasonable expenses arising from your unlawful use of the Service, your unauthorized scanning or access to repositories, your violation of these Terms or third-party rights, or your misuse of scan results.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">15. Service Changes &amp; Termination</h2>
-                <p className="text-muted-foreground">We may modify, suspend, or discontinue parts of the Service, including features and usage limits, when reasonably necessary for security, operations, legal compliance, or product development. We may suspend or terminate accounts for material violations, abuse, fraud, security threats, or other legitimate operational reasons. Provisions that by their nature should survive termination will survive, including disclaimers, limitations of liability, indemnification, and intellectual-property provisions.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">16. Governing Law &amp; Mandatory Rights</h2>
-                <p className="text-muted-foreground">These Terms are intended to be interpreted under applicable law. Any mandatory consumer or other statutory rights that cannot legally be waived remain unaffected. If a specific governing-law or dispute-resolution provision is required for your business structure or jurisdiction, that provision should be completed and reviewed by qualified local counsel before relying on it.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">17. Changes to These Terms</h2>
-                <p className="text-muted-foreground">We may update these Terms from time to time. The updated version will be posted on this page with a revised date. Where applicable law requires additional notice or consent, we will follow that requirement. Your continued use after an effective update constitutes acceptance to the extent permitted by law.</p>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[19px] font-bold">18. Contact</h2>
-                <p className="text-muted-foreground">For questions about these Terms or the Service, contact VibeSane through the official support channel made available on the website or the project's official GitHub repository.</p>
-              </section>
+              <section><h2 className="mb-3 text-[19px] font-bold">1. Agreement</h2><p className="text-muted-foreground">These Terms &amp; Conditions ("Terms") govern your access to and use of VibeSane, including the website, security-scanning features, repository-protection features, reports, APIs and paid plans (collectively, the "Service"). By creating an account, using the Service, or purchasing a paid plan, you agree to these Terms. If you do not agree, do not use the Service.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">2. What VibeSane Does</h2><p className="text-muted-foreground">VibeSane provides automated, heuristic security analysis of supported publicly accessible GitHub repositories and related security signals. Scans are intended to identify potential security issues and provide practical guidance. A scan is an automated assessment, not a certification, guarantee, penetration test, code review, legal opinion, or professional security audit.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">3. Authorization &amp; Responsible Use</h2><p className="text-muted-foreground">You must have the right to access and submit a repository for scanning. You are responsible for ensuring that your use of VibeSane complies with applicable law, GitHub's terms, your organization's policies, and any permissions owed to repository owners. You must not use the Service to access private material without authorization, interfere with systems, evade usage limits, abuse GitHub or other third-party services, or use scan results to facilitate unlawful activity.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">4. Security Analysis Is Not Guaranteed</h2><p className="text-muted-foreground">Automated security analysis can produce false positives, false negatives, incomplete results, stale results, or findings that require human verification. VibeSane does not warrant that every vulnerability, misconfiguration, secret, dependency issue, exploit, attack path, or security risk will be detected. You remain solely responsible for validating findings and making security, deployment, remediation, and business decisions.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">5. Repository Protection &amp; Third-Party Services</h2><p className="text-muted-foreground">Where enabled, repository protection may use GitHub APIs, webhooks, checks, or other third-party infrastructure. Availability and behavior can depend on GitHub and other providers. VibeSane is not responsible for outages, API changes, rate limits, permission changes, repository changes, webhook delivery failures, or other events outside its reasonable control.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">6. Your Account</h2><p className="text-muted-foreground">You are responsible for maintaining the security of your account and for activity performed through it. You must provide accurate information and promptly protect or report compromised credentials. We may suspend or terminate access where reasonably necessary to prevent abuse, fraud, security threats, unlawful use, or material violation of these Terms.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">7. Plans, Limits &amp; Billing</h2><p className="text-muted-foreground">VibeSane Pro is currently offered at <strong className="text-foreground">US$12.00 per month</strong>, unless a different price is clearly displayed at checkout or applies through an authorized promotion. Usage limits and plan features are shown on the pricing or account pages and may change prospectively. Payments are processed by a third-party payment provider. A successful payment does not guarantee uninterrupted access where the Service is unavailable or your account is suspended under these Terms.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">8. Refunds &amp; Cancellation</h2><p className="text-muted-foreground"><strong className="text-foreground">Subscriptions are non-refundable by default.</strong> You may cancel a subscription using the available billing controls or by contacting support. Cancellation generally prevents future renewals and does not automatically reverse a completed billing period. VibeSane does not promise or provide discretionary refunds for unused time, change of mind, accidental purchase, failure to use the Service, or dissatisfaction, except where VibeSane expressly agrees otherwise or a refund is required by applicable law or the payment provider's mandatory rules. Nothing in these Terms is intended to remove a consumer or other statutory right that cannot lawfully be excluded.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">9. Data &amp; Privacy</h2><p className="text-muted-foreground">Your use of the Service is also governed by the VibeSane Privacy Policy. We aim to minimize retained repository content and do not treat scan results as a substitute for your own backup, audit, incident-response, or compliance processes. You remain responsible for information you choose to submit and for determining whether a repository may lawfully be scanned.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">10. Intellectual Property</h2><p className="text-muted-foreground">The Service, software, interface, branding, documentation, reports, and underlying technology are owned by or licensed to VibeSane except for third-party materials and content supplied by users. These Terms do not transfer ownership of your repositories or your intellectual property to VibeSane. You grant VibeSane only the rights reasonably necessary to operate the Service you request.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">11. Prohibited Circumvention &amp; Abuse</h2><p className="text-muted-foreground">You may not create accounts or manipulate requests for the purpose of bypassing plan limits, reverse engineer or disrupt the Service, attempt unauthorized access, overload infrastructure, abuse automated scanning, or interfere with another user's account. We may apply reasonable technical controls to protect the Service and its users.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">12. Disclaimers</h2><p className="text-muted-foreground">TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE". VIBESANE DISCLAIMS WARRANTIES NOT EXPRESSLY PROVIDED IN THESE TERMS, INCLUDING IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. WE DO NOT PROMISE THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, COMPLETELY SECURE, OR SUITABLE FOR YOUR PARTICULAR SECURITY OR COMPLIANCE REQUIREMENTS.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">13. Limitation of Liability</h2><p className="text-muted-foreground">TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, VIBESANE AND ITS OPERATORS, AFFILIATES, SERVICE PROVIDERS, AND LICENSORS WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR LOSS OF PROFITS, REVENUE, DATA, BUSINESS OPPORTUNITY, GOODWILL, OR SECURITY ARISING FROM OR RELATED TO YOUR USE OF THE SERVICE. TO THE MAXIMUM EXTENT PERMITTED BY LAW, OUR AGGREGATE LIABILITY FOR CLAIMS ARISING FROM THE SERVICE WILL NOT EXCEED THE GREATER OF (A) THE AMOUNT YOU PAID TO VIBESANE FOR THE SERVICE IN THE THREE MONTHS BEFORE THE EVENT GIVING RISE TO THE CLAIM OR (B) US$100. THIS SECTION DOES NOT LIMIT LIABILITY THAT CANNOT LAWFULLY BE LIMITED OR EXCLUDED.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">14. Indemnification</h2><p className="text-muted-foreground">To the maximum extent permitted by applicable law, you agree to defend, indemnify, and hold harmless VibeSane and its operators, affiliates, and service providers from claims, losses, liabilities, costs, and reasonable expenses arising from your unlawful use of the Service, your unauthorized scanning or access to repositories, your violation of these Terms or third-party rights, or your misuse of scan results.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">15. Service Changes &amp; Termination</h2><p className="text-muted-foreground">We may modify, suspend, or discontinue parts of the Service, including features and usage limits, when reasonably necessary for security, operations, legal compliance, or product development. We may suspend or terminate accounts for material violations, abuse, fraud, security threats, or other legitimate operational reasons. Provisions that by their nature should survive termination will survive, including disclaimers, limitations of liability, indemnification, and intellectual-property provisions.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">16. Governing Law &amp; Mandatory Rights</h2><p className="text-muted-foreground">These Terms are intended to be interpreted under applicable law. Any mandatory consumer or other statutory rights that cannot legally be waived remain unaffected. If a specific governing-law or dispute-resolution provision is required for your business structure or jurisdiction, that provision should be completed and reviewed by qualified local counsel before relying on it.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">17. Changes to These Terms</h2><p className="text-muted-foreground">We may update these Terms from time to time. The updated version will be posted on this page with a revised date. Where applicable law requires additional notice or consent, we will follow that requirement. Your continued use after an effective update constitutes acceptance to the extent permitted by law.</p></section>
+              <section><h2 className="mb-3 text-[19px] font-bold">18. Contact</h2><p className="text-muted-foreground">For questions about these Terms or the Service, contact VibeSane through the official support channel made available on the website or the project's official GitHub repository.</p></section>
             </div>
           </div>
 
