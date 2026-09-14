@@ -163,6 +163,12 @@ CHANGE LOG
 - Legal note: the Terms are risk-reduction language, not a guarantee against lawsuits or liability. A qualified lawyer should review the final Terms, refund policy, privacy policy, company/entity details, and governing-law/dispute provisions before relying on them in production.
 - Deployment status: code committed to main; production build and live checkout verification required.
 
+2026-09-14 — Direct /terms static route hardening
+- Because the production frontend uses generated static route entrypoints, /terms must be generated physically just like /settings for cold/direct browser loads.
+- Updated artifacts/vibeguard/scripts/generate-seo-pages.mjs to generate /terms/index.html with Terms-specific title, description, canonical URL, Open Graph/Twitter metadata, and WebPage structured data.
+- Code commit: 539f3e55302e084552ce0db60fdf616aae06e071.
+- Deployment status: code committed; production build required before verifying direct /terms from a new browser tab.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
