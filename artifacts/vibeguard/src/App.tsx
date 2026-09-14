@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { useLocation } from 'wouter';
 import OriginalApp from './AppOriginal';
 import AffiliatePage from './pages/AffiliatePage';
@@ -70,8 +70,20 @@ function PublicScanFlowBridge() {
 export default function App() {
   const [location] = useLocation();
   const rawPath = location.replace(/\/$/, '') || '/';
-  if (rawPath === '/dashboard') window.history.replaceState(null, '', `/?${window.location.search.replace(/^\?/, '') || 'upgraded=true'}`);
   const path = rawPath === '/dashboard' ? '/' : rawPath;
+
+  // Settings has its own appearance controls and may temporarily add the
+  // global `dark` class. The main VibeSane dashboard uses its fixed visual
+  // system, so restore the dashboard appearance before the browser paints it.
+  // This prevents the one-frame low-contrast/glitched dashboard seen after
+  // Settings → VibeSane navigation on mobile.
+  useLayoutEffect(() => {
+    if (path !== '/settings') {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [path]);
+
+  if (rawPath === '/dashboard') window.history.replaceState(null, '', `/?${window.location.search.replace(/^\?/, '') || 'upgraded=true'}`);
   const isAffiliatePage = path === '/refer';
   const isCheckoutPage = path === '/checkout';
   const isPublicScanPage = path === '/scan-public';
