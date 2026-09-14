@@ -6,6 +6,7 @@ import SEOPage from './pages/SEOPage';
 import CheckoutPage from './pages/CheckoutPage';
 import PublicScanPage from './pages/PublicScanPage';
 import AdminPage from './pages/AdminPage';
+import SettingsPage from './pages/SettingsPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 
@@ -45,13 +46,6 @@ function ReferralAttribution() {
   return null;
 }
 
-/**
- * Keeps the existing dashboard scan tabs intact while routing the Paste URL
- * action into the dedicated temporary public-scan experience. The actual
- * query-driven scan is started by PublicScanPage itself after its AuthProvider
- * has a usable session; this avoids simulated button clicks and race conditions
- * when returning to the page for a second or later scan.
- */
 function PublicScanFlowBridge() {
   useEffect(() => {
     const onSubmit = (event: Event) => {
@@ -59,39 +53,33 @@ function PublicScanFlowBridge() {
       if (!target || !(target instanceof HTMLFormElement)) return;
       const input = target.querySelector<HTMLInputElement>('#repo-url');
       if (!input) return;
-
       const repoUrl = input.value.trim().replace(/\/$/, '');
       if (!/^https:\/\/github\.com\/[-A-Za-z0-9_.]+\/[-A-Za-z0-9_.]+$/.test(repoUrl)) return;
-
       event.preventDefault();
       event.stopImmediatePropagation();
       window.location.assign(`/scan-public?repo=${encodeURIComponent(repoUrl)}`);
     };
-
     document.addEventListener('submit', onSubmit, true);
     return () => document.removeEventListener('submit', onSubmit, true);
   }, []);
-
   return null;
 }
 
 export default function App() {
   const rawPath = window.location.pathname.replace(/\/$/, '') || '/';
-
-  if (rawPath === '/dashboard') {
-    window.history.replaceState(null, '', `/?${window.location.search.replace(/^\?/, '') || 'upgraded=true'}`);
-  }
-
+  if (rawPath === '/dashboard') window.history.replaceState(null, '', `/?${window.location.search.replace(/^\?/, '') || 'upgraded=true'}`);
   const path = rawPath === '/dashboard' ? '/' : rawPath;
   const isAffiliatePage = path === '/refer';
   const isCheckoutPage = path === '/checkout';
   const isPublicScanPage = path === '/scan-public';
   const isAdminPage = path === '/admin';
+  const isSettingsPage = path === '/settings';
 
   if (isAdminPage) return <><BrandMigration /><AuthProvider><AdminPage /></AuthProvider></>;
   if (isCheckoutPage) return <><BrandMigration /><AuthProvider><CheckoutPage /></AuthProvider></>;
   if (isPublicScanPage) return <><BrandMigration /><AuthProvider><PublicScanPage /></AuthProvider></>;
   if (isAffiliatePage) return <><BrandMigration /><ReferralAttribution /><AuthProvider><AffiliatePage /></AuthProvider></>;
+  if (isSettingsPage) return <><BrandMigration /><AuthProvider><SettingsPage /></AuthProvider></>;
   if (SEO_PATHS.has(path)) return <AuthProvider><SEOPage path={path} /></AuthProvider>;
   return <><BrandMigration /><ReferralAttribution /><PublicScanFlowBridge /><OriginalApp /><AffiliateWelcomePopup /></>;
 }
