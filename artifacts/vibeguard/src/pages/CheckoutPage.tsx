@@ -8,6 +8,7 @@ import { apiUrl } from '@/lib/api';
 
 const PLAN_PRICE = 12;
 const HACKATHON_COUPON = 'HACKATHON60';
+const TERMS_VERSION = '2026-09-14';
 
 export default function CheckoutPage() {
   const [, navigate] = useLocation();
@@ -52,7 +53,11 @@ export default function CheckoutPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ coupon: appliedCoupon || coupon.trim().toUpperCase() || undefined }),
+        body: JSON.stringify({
+          coupon: appliedCoupon || coupon.trim().toUpperCase() || undefined,
+          terms_accepted: true,
+          terms_version: TERMS_VERSION,
+        }),
       });
 
       const data = await response.json().catch(() => ({}));
