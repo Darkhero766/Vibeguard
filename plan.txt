@@ -189,6 +189,13 @@ CHANGE LOG
 - Important limitation: this audit confirms the implementation path exists, but a live end-to-end GitHub push and pull-request test has NOT yet been performed after the latest deployment. Do not mark this feature production-verified until a real protected-repository push and PR synchronization are tested and the popup, Check Run, event record, and Review & Fix flow are observed.
 - Deployment status: implementation present; live PR/push verification pending.
 
+2026-09-14 — Settings navigation and UI hardening
+- User reproduced that clicking Settings could show the application's 404 screen until a manual refresh. Root cause: the top-level App component read window.location.pathname only once, so Wouter client-side navigation changed the URL without causing the custom route switch in App.tsx to re-evaluate.
+- Action: updated artifacts/vibeguard/src/App.tsx to subscribe to Wouter navigation with useLocation(). This makes /settings, /terms, /checkout and /scan-public route switches react immediately to in-app navigation instead of requiring a refresh.
+- Action: replaced the low-contrast SettingsPage styling with an explicit warm-cream/charcoal VibeSane palette, high-contrast text, stronger borders, restrained red/yellow security accents, 3D offset shadows, grid/radar decoration, and responsive mobile/desktop cards. Functional settings controls were preserved; no Supabase account/data mutation was added.
+- Code commits: fefd491a943669b461e446e06c1ca86267877a8b (App navigation fix), 4c653897d63107b5cc1a0cb258736ca9cd0d213c (Settings UI hardening).
+- Deployment status: code committed to main; production build and live /settings click + refresh verification required.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
