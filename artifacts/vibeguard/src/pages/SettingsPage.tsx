@@ -1,33 +1,76 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'wouter';
-import { AlertTriangle, Bell, Check, ChevronRight, CircleUserRound, CreditCard, Database, Download, ExternalLink, Github, LogOut, Monitor, Moon, Palette, ShieldCheck, Sun, Trash2 } from 'lucide-react';
+import {
+  AlertTriangle, Bell, Check, ChevronRight, CircleUserRound, CreditCard, Database,
+  Download, ExternalLink, Github, LogOut, Monitor, Moon, Palette, ShieldCheck, Sun,
+} from 'lucide-react';
 import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
 
 const ADMIN_EMAIL = 'nightowlclub72@gmail.com';
 
+type Theme = 'system' | 'light' | 'dark';
+
 type ToggleProps = { checked: boolean; onChange: (value: boolean) => void; label: string };
 function Toggle({ checked, onChange, label }: ToggleProps) {
-  return <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} className={`relative h-7 w-12 shrink-0 border-2 border-foreground transition-colors ${checked ? 'bg-primary' : 'bg-muted'}`}><span className={`absolute top-1 h-3.5 w-3.5 bg-background transition-[left] ${checked ? 'left-[23px]' : 'left-1'}`} /></button>;
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative h-7 w-12 shrink-0 rounded-full border-2 transition ${checked ? 'border-[#e83a2f] bg-[#e83a2f]' : 'border-[#686a65] bg-[#dedbd2]'}`}
+    >
+      <span className={`absolute top-1 h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-[left] ${checked ? 'left-[23px]' : 'left-1'}`} />
+    </button>
+  );
 }
 
 function Section({ icon: Icon, eyebrow, title, children }: { icon: typeof ShieldCheck; eyebrow: string; title: string; children: ReactNode }) {
-  return <section className="vg-rise relative overflow-hidden border-2 border-foreground bg-card shadow-[8px_8px_0_hsl(var(--foreground))]"><div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full border border-primary/25 bg-primary/[0.08]" /><div className="pointer-events-none absolute right-6 top-6 h-2.5 w-2.5 rounded-full bg-accent shadow-[0_0_18px_hsl(var(--accent))]" /><div className="relative border-b-2 border-foreground/10 bg-secondary/60 px-5 py-5 sm:px-7"><div className="flex items-start gap-3"><div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center border-2 border-primary/50 bg-primary/10 text-primary shadow-[3px_3px_0_hsl(var(--foreground))]"><Icon size={18} /></div><div><div className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-primary">{eyebrow}</div><h2 className="mt-1 text-[27px] leading-none text-foreground">{title}</h2></div></div></div><div className="relative">{children}</div></section>;
+  return (
+    <section className="relative overflow-hidden rounded-[2px] border-2 border-[#242522] bg-[#f8f5ed] shadow-[8px_8px_0_#242522]">
+      <div className="pointer-events-none absolute -right-14 -top-14 h-40 w-40 rounded-full border border-[#e83a2f]/20 bg-[#e83a2f]/[0.035]" />
+      <div className="pointer-events-none absolute right-8 top-8 h-2 w-2 rounded-full bg-[#e83a2f] shadow-[0_0_16px_rgba(232,58,47,.55)]" />
+      <div className="relative border-b-2 border-[#242522]/10 bg-[#efebe1] px-5 py-5 sm:px-7">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center border-2 border-[#e83a2f]/50 bg-[#e83a2f]/10 text-[#c92e25] shadow-[3px_3px_0_#242522]">
+            <Icon size={18} />
+          </div>
+          <div>
+            <div className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-[#c92e25]">{eyebrow}</div>
+            <h2 className="mt-1 font-sans text-[25px] font-extrabold leading-none tracking-tight text-[#171916]">{title}</h2>
+          </div>
+        </div>
+      </div>
+      <div>{children}</div>
+    </section>
+  );
 }
 
 function Row({ label, description, children }: { label: string; description?: string; children?: ReactNode }) {
-  return <div className="flex flex-col gap-4 border-b border-foreground/10 px-5 py-5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:px-7"><div className="min-w-0"><div className="text-[13px] font-bold text-foreground">{label}</div>{description && <p className="mt-1.5 max-w-2xl text-[11px] leading-5 text-foreground/65">{description}</p>}</div>{children}</div>;
+  return (
+    <div className="flex flex-col gap-4 border-b border-[#242522]/10 px-5 py-5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+      <div className="min-w-0">
+        <div className="text-[13px] font-extrabold text-[#171916]">{label}</div>
+        {description && <p className="mt-1.5 max-w-2xl text-[11px] leading-5 text-[#50534d]">{description}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function StatusChip({ children, good = false }: { children: ReactNode; good?: boolean }) {
+  return <span className={`inline-flex items-center gap-2 border-2 px-3 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.1em] ${good ? 'border-[#9bbd65] bg-[#edf4df] text-[#4d672d]' : 'border-[#242522]/15 bg-[#ebe8df] text-[#555850]'}`}>{good && <span className="h-2 w-2 rounded-full bg-[#8eae58]" />}{children}</span>;
 }
 
 export default function SettingsPage() {
   const { user, usage, signOut, hasGithubToken } = useAuth();
-  const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system');
+  const [theme, setTheme] = useState<Theme>('system');
   const [securityAlerts, setSecurityAlerts] = useState(true);
   const [scanAlerts, setScanAlerts] = useState(true);
   const [productEmails, setProductEmails] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteText, setDeleteText] = useState('');
   const [signedOut, setSignedOut] = useState(false);
 
   const isAdmin = user?.email?.trim().toLowerCase() === ADMIN_EMAIL;
@@ -36,35 +79,128 @@ export default function SettingsPage() {
   const scans = isAdmin ? '∞' : usage ? String(Math.max(0, usage.scans_limit - usage.scans_used)) : '—';
 
   useEffect(() => {
-    const stored = localStorage.getItem('vibesane-theme') as 'system' | 'light' | 'dark' | null;
-    const next = stored || 'system';
+    const stored = localStorage.getItem('vibesane-theme') as Theme | null;
+    const next = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
     setTheme(next);
     const dark = next === 'dark' || (next === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.toggle('dark', dark);
   }, []);
 
-  const changeTheme = (next: 'system' | 'light' | 'dark') => {
+  const changeTheme = (next: Theme) => {
     setTheme(next);
     localStorage.setItem('vibesane-theme', next);
     const dark = next === 'dark' || (next === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.toggle('dark', dark);
   };
 
-  const handleSignOut = async () => { setSignedOut(true); await signOut(); window.location.assign('/'); };
+  const handleSignOut = async () => {
+    setSignedOut(true);
+    await signOut();
+    window.location.assign('/');
+  };
 
-  if (!user) return <div className="min-h-[100dvh] bg-background text-foreground"><Nav /><main className="mx-auto max-w-[1040px] px-5 py-20 sm:px-8"><div className="border-2 border-foreground bg-card p-8 text-center shadow-[8px_8px_0_hsl(var(--foreground))]"><ShieldCheck className="mx-auto text-primary" size={34} /><h1 className="mt-5 text-5xl text-foreground">Sign in to settings</h1><p className="mx-auto mt-4 max-w-md text-sm leading-6 text-foreground/65">Your account, security, billing and data controls live here.</p><Link href="/auth?mode=signin" className="vg-button mt-7 inline-flex items-center gap-2 border-2 border-primary bg-primary px-6 py-3 text-sm font-bold text-primary-foreground">Sign in <ChevronRight size={16} /></Link></div></main><Footer /></div>;
+  if (!user) {
+    return (
+      <div className="min-h-[100dvh] bg-[#171512] text-[#f8f5ed]">
+        <Nav />
+        <main className="mx-auto max-w-[1040px] px-5 py-20 sm:px-8">
+          <div className="border-2 border-[#e83a2f] bg-[#242522] p-8 text-center shadow-[8px_8px_0_#e83a2f]">
+            <ShieldCheck className="mx-auto text-[#f4c842]" size={38} />
+            <h1 className="mt-5 text-5xl font-extrabold">Sign in to settings</h1>
+            <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#d2d0c8]">Your account, security, billing and data controls live here.</p>
+            <Link href="/auth?mode=signin" className="mt-7 inline-flex items-center gap-2 border-2 border-[#e83a2f] bg-[#e83a2f] px-6 py-3 text-sm font-bold text-white shadow-[4px_4px_0_#0e0f0e]">Sign in <ChevronRight size={16} /></Link>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
-  return <div className="vg-noise min-h-[100dvh] bg-background text-foreground"><Nav /><main className="relative mx-auto w-full max-w-[1080px] px-5 pb-20 pt-10 sm:px-8 sm:pt-14"><div className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-[520px] vg-grid opacity-50" />
-    <div className="relative z-10 grid gap-6 lg:grid-cols-[1fr_330px] lg:items-end"><div className="vg-rise"><div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-primary"><span className="h-px w-9 bg-primary" />Control center</div><h1 className="mt-4 text-[54px] leading-[.86] text-foreground sm:text-[72px]">Settings</h1><p className="mt-5 max-w-xl text-[14px] leading-6 text-foreground/70">Account, security, scan behavior and data controls — designed as the control room for your VibeSane account.</p></div><div className="relative overflow-hidden border-2 border-[#101111] bg-[#101111] px-5 py-5 text-[#f4f1ea] shadow-[7px_7px_0_hsl(var(--primary))]"><div className="absolute -right-8 -top-8 h-24 w-24 rounded-full border border-[#f4c842]/25" /><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#f4c842]">Account perimeter</div><div className="mt-3 flex items-center gap-2 text-sm font-bold"><span className="h-2.5 w-2.5 rounded-full bg-[#aeca7a] shadow-[0_0_12px_#aeca7a]" />{plan} ACCESS</div><div className="mt-1.5 truncate font-mono text-[9px] text-[#b9bcb5]">{user.email}</div><div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-3 font-mono text-[9px] uppercase tracking-[0.1em]"><span className="text-[#8f938d]">Scans</span><span className="text-right text-[#f4f1ea]">{scans}</span></div></div></div>
-    <div className="relative z-10 mt-10 grid gap-7 lg:grid-cols-2">
-      <Section icon={CircleUserRound} eyebrow="Identity" title="Account"><Row label="Profile" description="Your display name and account email."><div className="text-right"><div className="text-[13px] font-bold text-foreground">{displayName}</div><div className="mt-1 max-w-[230px] truncate font-mono text-[10px] text-foreground/60">{user.email}</div></div></Row><Row label="Password & sign-in" description="Manage authentication and active sign-in sessions."><span className="border-2 border-foreground/20 bg-background px-4 py-2 text-[10px] font-bold text-foreground">AUTHENTICATION</span></Row><Row label="Connected GitHub" description={hasGithubToken ? 'GitHub access is connected for repository workflows.' : 'No GitHub connection is currently active.'}><span className={`inline-flex items-center gap-2 border-2 px-3 py-2 font-mono text-[10px] font-bold uppercase ${hasGithubToken ? 'border-primary/50 bg-primary/10 text-primary' : 'border-foreground/20 text-foreground/55'}`}><Github size={13} />{hasGithubToken ? 'Connected' : 'Not connected'}</span></Row><Row label="Log out" description="End the current VibeSane session on this device."><button disabled={signedOut} onClick={handleSignOut} className="vg-button flex items-center gap-2 border-2 border-foreground/20 bg-background px-4 py-2 text-[11px] font-bold text-foreground"><LogOut size={13} />{signedOut ? 'Signing out…' : 'Log out'}</button></Row></Section>
-      <Section icon={CreditCard} eyebrow="Commercial" title="Plan & billing"><Row label="Current plan" description={isAdmin ? 'Administrative account with unlimited scan access.' : plan === 'PRO' ? 'Your Pro entitlement is active.' : 'Free plan with the current starter allowance.'}><span className="border-2 border-primary bg-primary/10 px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-primary">{plan}</span></Row><Row label="Scan allowance" description="Live allowance reported by the authoritative usage record."><span className="font-mono text-[22px] font-bold text-foreground">{scans}<span className="ml-1 text-[10px] font-normal text-foreground/55">remaining</span></span></Row><Row label="Subscription management" description="Manage your active subscription, payment method and invoices."><Link href="/pricing" className="vg-button flex items-center gap-2 border-2 border-primary bg-primary px-4 py-2 text-[11px] font-bold text-primary-foreground">Open billing <ExternalLink size={12} /></Link></Row></Section>
-      <Section icon={ShieldCheck} eyebrow="Defense layer" title="Security"><Row label="Security alerts" description="Get notified when VibeSane detects a critical or high-severity change."><Toggle checked={securityAlerts} onChange={setSecurityAlerts} label="Security alerts" /></Row><Row label="GitHub connection" description="Repository access is handled through your connected GitHub identity."><span className="font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-foreground/55">{hasGithubToken ? 'Connected' : 'Not connected'}</span></Row><Row label="Two-factor authentication" description="Add another authentication layer when 2FA support is enabled."><span className="border-2 border-foreground/15 bg-muted px-3 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-foreground/50">Coming soon</span></Row><Row label="Active sessions" description="Review and revoke sessions across your devices."><span className="border-2 border-foreground/15 bg-muted px-3 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-foreground/50">Coming soon</span></Row></Section>
-      <Section icon={Bell} eyebrow="Signal routing" title="Notifications"><Row label="Scan results" description="Notify me when a scan completes or fails."><Toggle checked={scanAlerts} onChange={setScanAlerts} label="Scan result notifications" /></Row><Row label="Security findings" description="Critical and high-severity security events are the priority."><Toggle checked={securityAlerts} onChange={setSecurityAlerts} label="Security finding notifications" /></Row><Row label="Product updates" description="New features, product changes and important VibeSane announcements."><Toggle checked={productEmails} onChange={setProductEmails} label="Product update emails" /></Row><Row label="Marketing emails" description="Optional educational and promotional messages."><span className="font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-foreground/55">Off by default</span></Row></Section>
-      <Section icon={Database} eyebrow="Repository perimeter" title="Scan & repository data"><Row label="Protected repositories" description="Manage protected repositories and their monitoring state."><Link href="/" className="vg-button flex items-center gap-2 border-2 border-foreground/20 bg-background px-4 py-2 text-[11px] font-bold text-foreground">Open dashboard <ChevronRight size={13} /></Link></Row><Row label="Public scan results" description="One-time public scans are temporary and are not added to protected repository history."><span className="inline-flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.1em] text-primary"><Check size={12} />Temporary</span></Row><Row label="Export my data" description="Request an export of personal and account data associated with VibeSane."><button onClick={() => window.alert('Data export request: contact support to initiate a verified export.')} className="vg-button flex items-center gap-2 border-2 border-foreground/20 bg-background px-4 py-2 text-[11px] font-bold text-foreground"><Download size={13} />Request export</button></Row></Section>
-      <Section icon={Palette} eyebrow="Interface" title="Appearance"><Row label="Theme" description="Choose how VibeSane looks on this device."><div className="grid grid-cols-3 border-2 border-foreground bg-background"><button onClick={() => changeTheme('system')} className={`flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] font-bold ${theme === 'system' ? 'bg-primary text-primary-foreground' : 'text-foreground/60 hover:text-foreground'}`}><Monitor size={12} />System</button><button onClick={() => changeTheme('light')} className={`flex items-center justify-center gap-1.5 border-l-2 border-foreground px-3 py-2 text-[10px] font-bold ${theme === 'light' ? 'bg-primary text-primary-foreground' : 'text-foreground/60 hover:text-foreground'}`}><Sun size={12} />Light</button><button onClick={() => changeTheme('dark')} className={`flex items-center justify-center gap-1.5 border-l-2 border-foreground px-3 py-2 text-[10px] font-bold ${theme === 'dark' ? 'bg-primary text-primary-foreground' : 'text-foreground/60 hover:text-foreground'}`}><Moon size={12} />Dark</button></div></Row><Row label="Interface language" description="Additional languages can be introduced without changing security workflows."><span className="font-mono text-[10px] font-bold uppercase text-foreground/55">English</span></Row></Section>
+  return (
+    <div className="min-h-[100dvh] bg-[#171512] text-[#f8f5ed]">
+      <Nav />
+      <main className="relative mx-auto w-full max-w-[1120px] px-5 pb-20 pt-9 sm:px-8 sm:pt-12">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[460px] opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(244,200,66,.09) 1px, transparent 1px), linear-gradient(90deg, rgba(244,200,66,.09) 1px, transparent 1px)', backgroundSize: '36px 36px' }} />
+
+        <header className="relative z-10 mb-9 grid gap-6 lg:grid-cols-[1fr_350px] lg:items-end">
+          <div>
+            <div className="flex items-center gap-3 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-[#f04a3f]"><span className="h-px w-10 bg-[#e83a2f]" />Control center</div>
+            <h1 className="mt-4 text-[48px] font-extrabold leading-[.88] tracking-[-0.04em] text-[#f8f5ed] sm:text-[70px]">Settings</h1>
+            <p className="mt-5 max-w-2xl text-[14px] leading-6 text-[#d1cec4]">Your VibeSane control room — account identity, protection, billing, notifications and data controls in one place.</p>
+          </div>
+          <div className="relative overflow-hidden border-2 border-[#090a09] bg-[#0f1110] px-5 py-5 shadow-[7px_7px_0_#e83a2f]">
+            <div className="absolute -right-9 -top-9 h-28 w-28 rounded-full border border-[#f4c842]/20" />
+            <div className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-[#f4c842]">Account perimeter</div>
+            <div className="mt-3 flex items-center gap-2 text-sm font-extrabold text-[#f8f5ed]"><span className="h-2.5 w-2.5 rounded-full bg-[#aeca7a] shadow-[0_0_12px_#aeca7a]" />{plan} ACCESS</div>
+            <div className="mt-1.5 truncate font-mono text-[9px] text-[#bfc2ba]">{user.email}</div>
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-3 font-mono text-[9px] uppercase tracking-[0.1em]"><span className="text-[#8f938d]">Scans remaining</span><span className="text-right text-[#f8f5ed]">{scans}</span></div>
+          </div>
+        </header>
+
+        <div className="relative z-10 grid gap-7 lg:grid-cols-2">
+          <Section icon={CircleUserRound} eyebrow="Identity" title="Account">
+            <Row label="Profile" description="Your display name and account email."><div className="text-right"><div className="text-[13px] font-extrabold text-[#171916]">{displayName}</div><div className="mt-1 max-w-[240px] truncate font-mono text-[10px] text-[#62655e]">{user.email}</div></div></Row>
+            <Row label="Password & sign-in" description="Manage authentication and active sign-in sessions."><StatusChip>Authentication</StatusChip></Row>
+            <Row label="Connected GitHub" description={hasGithubToken ? 'GitHub access is connected for repository workflows.' : 'No GitHub connection is currently active.'}><StatusChip good={hasGithubToken}><Github size={13} />{hasGithubToken ? 'Connected' : 'Not connected'}</StatusChip></Row>
+            <Row label="Log out" description="End the current VibeSane session on this device."><button disabled={signedOut} onClick={handleSignOut} className="flex items-center gap-2 border-2 border-[#242522] bg-[#242522] px-4 py-2 text-[11px] font-bold text-white shadow-[3px_3px_0_#e83a2f]"><LogOut size={13} />{signedOut ? 'Signing out…' : 'Log out'}</button></Row>
+          </Section>
+
+          <Section icon={CreditCard} eyebrow="Commercial" title="Plan & billing">
+            <Row label="Current plan" description={isAdmin ? 'Administrative account with unlimited scan access.' : plan === 'PRO' ? 'Your Pro entitlement is active.' : 'Free plan with the current starter allowance.'}><StatusChip good={plan !== 'FREE'}>{plan}</StatusChip></Row>
+            <Row label="Scan allowance" description="Live allowance reported by the authoritative usage record."><span className="font-mono text-[24px] font-extrabold text-[#171916]">{scans}<span className="ml-1 text-[10px] font-normal text-[#666961]">remaining</span></span></Row>
+            <Row label="Subscription management" description="Manage your plan and payment details."><Link href="/pricing" className="flex items-center gap-2 border-2 border-[#e83a2f] bg-[#e83a2f] px-4 py-2 text-[11px] font-bold text-white shadow-[3px_3px_0_#242522]">Open billing <ExternalLink size={12} /></Link></Row>
+          </Section>
+
+          <Section icon={ShieldCheck} eyebrow="Defense layer" title="Security">
+            <Row label="Security alerts" description="Get notified when VibeSane detects a critical or high-severity change."><Toggle checked={securityAlerts} onChange={setSecurityAlerts} label="Security alerts" /></Row>
+            <Row label="GitHub connection" description="Repository access is handled through your connected GitHub identity."><span className="font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#555850]">{hasGithubToken ? 'Connected' : 'Not connected'}</span></Row>
+            <Row label="Two-factor authentication" description="An additional authentication layer can be enabled when supported."><StatusChip>Coming soon</StatusChip></Row>
+            <Row label="Active sessions" description="Review and revoke sessions across your devices."><StatusChip>Coming soon</StatusChip></Row>
+          </Section>
+
+          <Section icon={Bell} eyebrow="Signal routing" title="Notifications">
+            <Row label="Scan results" description="Notify me when a scan completes or fails."><Toggle checked={scanAlerts} onChange={setScanAlerts} label="Scan result notifications" /></Row>
+            <Row label="Security findings" description="Critical and high-severity security events are the priority."><Toggle checked={securityAlerts} onChange={setSecurityAlerts} label="Security finding notifications" /></Row>
+            <Row label="Product updates" description="New features, product changes and important VibeSane announcements."><Toggle checked={productEmails} onChange={setProductEmails} label="Product update emails" /></Row>
+            <Row label="Marketing emails" description="Optional promotional messages. Off by default."><span className="font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#666961]">Off by default</span></Row>
+          </Section>
+
+          <Section icon={Database} eyebrow="Repository perimeter" title="Scan & repository data">
+            <Row label="Protected repositories" description="Manage protected repositories and their monitoring state."><Link href="/" className="flex items-center gap-2 border-2 border-[#242522] bg-[#f8f5ed] px-4 py-2 text-[11px] font-bold text-[#171916] shadow-[3px_3px_0_#242522]">Open dashboard <ChevronRight size={13} /></Link></Row>
+            <Row label="Public scan results" description="One-time public scans are temporary and are not added to protected repository history."><span className="inline-flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.1em] text-[#4d672d]"><Check size={12} />Temporary</span></Row>
+            <Row label="Export my data" description="Request an export of personal and account data associated with VibeSane."><button onClick={() => window.alert('Data export request received. A verified support workflow is required before data is exported.')} className="flex items-center gap-2 border-2 border-[#242522] bg-[#f8f5ed] px-4 py-2 text-[11px] font-bold text-[#171916] shadow-[3px_3px_0_#242522]"><Download size={13} />Request export</button></Row>
+          </Section>
+
+          <Section icon={Palette} eyebrow="Interface" title="Appearance">
+            <Row label="Theme" description="Choose how VibeSane looks on this device.">
+              <div className="grid grid-cols-3 overflow-hidden rounded-sm border-2 border-[#242522] bg-[#ebe8df]">
+                <button onClick={() => changeTheme('system')} className={`flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] font-bold ${theme === 'system' ? 'bg-[#242522] text-white' : 'text-[#555850]'}`}><Monitor size={12} />System</button>
+                <button onClick={() => changeTheme('light')} className={`flex items-center justify-center gap-1.5 border-l-2 border-[#242522] px-3 py-2 text-[10px] font-bold ${theme === 'light' ? 'bg-[#242522] text-white' : 'text-[#555850]'}`}><Sun size={12} />Light</button>
+                <button onClick={() => changeTheme('dark')} className={`flex items-center justify-center gap-1.5 border-l-2 border-[#242522] px-3 py-2 text-[10px] font-bold ${theme === 'dark' ? 'bg-[#242522] text-white' : 'text-[#555850]'}`}><Moon size={12} />Dark</button>
+              </div>
+            </Row>
+            <Row label="Interface language" description="More languages can be added without changing security workflows."><span className="font-mono text-[10px] font-bold uppercase text-[#666961]">English</span></Row>
+          </Section>
+        </div>
+
+        <section className="relative z-10 mt-8 overflow-hidden border-2 border-[#b52b23] bg-[#fbefec] shadow-[8px_8px_0_#7d211c]">
+          <div className="flex items-start gap-4 border-b-2 border-[#b52b23]/15 px-5 py-5 sm:px-7">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center border-2 border-[#b52b23]/40 bg-[#e83a2f]/10 text-[#b52b23]"><AlertTriangle size={18} /></div>
+            <div><div className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-[#b52b23]">Irreversible</div><h2 className="mt-1 text-[28px] font-extrabold leading-none text-[#7d211c]">Danger zone</h2></div>
+          </div>
+          <div className="px-5 py-6 sm:px-7">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div><div className="text-[13px] font-extrabold text-[#7d211c]">Delete account</div><p className="mt-1.5 max-w-2xl text-[11px] leading-5 text-[#5f4d49]">Account deletion requires a verified server-side workflow so authentication records, repository connections, scan history and billing state are handled safely.</p></div>
+              <button onClick={() => window.alert('Account deletion is not enabled yet. Contact support for a verified deletion request.')} className="shrink-0 border-2 border-[#b52b23] bg-[#fff8f6] px-4 py-2 text-[11px] font-bold text-[#8d211b] shadow-[3px_3px_0_#7d211c]">Request deletion</button>
+            </div>
+          </div>
+        </section>
+
+        <div className="relative z-10 mt-8 grid gap-3 border-t border-white/10 pt-5 font-mono text-[9px] uppercase tracking-[0.12em] text-[#92958e] sm:grid-cols-3">
+          <span>VibeSane security control</span><span className="sm:text-center">No code stored</span><span className="sm:text-right">Account state · {plan}</span>
+        </div>
+      </main>
+      <Footer />
     </div>
-    <section className="relative z-10 mt-8 overflow-hidden border-2 border-destructive/70 bg-destructive/[0.055] shadow-[8px_8px_0_hsl(var(--destructive)/.2)]"><div className="flex items-start gap-4 border-b-2 border-destructive/15 px-5 py-5 sm:px-7"><div className="flex h-10 w-10 shrink-0 items-center justify-center border-2 border-destructive/40 bg-destructive/10 text-destructive"><AlertTriangle size={18} /></div><div><div className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-destructive">Irreversible</div><h2 className="mt-1 text-[28px] leading-none text-destructive">Danger zone</h2></div></div><div className="px-5 py-6 sm:px-7"><div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between"><div><div className="text-[13px] font-bold text-destructive">Delete account</div><p className="mt-1.5 max-w-2xl text-[11px] leading-5 text-foreground/65">Permanently delete your VibeSane account and associated data. This action cannot be undone.</p></div>{!deleteOpen && <button onClick={() => setDeleteOpen(true)} className="vg-button flex items-center gap-2 border-2 border-destructive bg-transparent px-4 py-2 text-[11px] font-bold text-destructive"><Trash2 size={13} />Delete account</button>}</div>{deleteOpen && <div className="mt-5 border-2 border-destructive/40 bg-background p-5"><div className="flex gap-3"><AlertTriangle className="mt-0.5 shrink-0 text-destructive" size={17} /><div><div className="text-[13px] font-bold text-foreground">This action is permanent</div><p className="mt-1.5 text-[11px] leading-5 text-foreground/65">Type <strong className="font-mono text-foreground">DELETE</strong> to confirm. Account deletion is intentionally not executed by this UI until a verified server-side deletion workflow is connected.</p></div></div><input value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder="DELETE" aria-label="Type DELETE to confirm account deletion" className="mt-4 w-full border-2 border-foreground/25 bg-background px-3 py-3 font-mono text-sm text-foreground outline-none focus:border-destructive" /><div className="mt-4 flex flex-wrap gap-2"><button disabled={deleteText !== 'DELETE'} className="vg-button border-2 border-destructive bg-destructive px-4 py-2 text-[11px] font-bold text-destructive-foreground disabled:cursor-not-allowed disabled:opacity-40">Confirm deletion</button><button onClick={() => { setDeleteOpen(false); setDeleteText(''); }} className="vg-button border-2 border-foreground/20 bg-background px-4 py-2 text-[11px] font-bold text-foreground">Cancel</button></div></div>}</div></section>
-    <div className="relative z-10 mt-8 grid gap-2 border-t-2 border-foreground/10 pt-6 font-mono text-[9px] font-medium uppercase tracking-[0.14em] text-foreground/50 sm:grid-cols-3"><span>VibeSane account control</span><span className="text-center">Security-first by default</span><span className="text-right">Live configuration</span></div>
-  </main><Footer /></div>;
+  );
 }
