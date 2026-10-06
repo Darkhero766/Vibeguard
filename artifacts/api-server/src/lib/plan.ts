@@ -163,7 +163,7 @@ async function consumeBucket(userId: string, bucket: "protected" | "public" | "a
      WHERE owner = $1
        AND COALESCE(${column}, 0) < $2
        AND COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + COALESCE(audit_scans_used, 0) < $3
-     RETURNING protected_scans_used, public_scans_used`, [userId, limit]);
+     RETURNING protected_scans_used, public_scans_used, audit_scans_used`, [userId, limit, snapshot.scansLimit]);
   if (!result.rowCount) {
     const label = bucket === "protected" ? "Protected repository" : bucket === "public" ? "Public repository" : "Audit";
     const error = new Error(`${label} scan limit reached (${limit}).`);
