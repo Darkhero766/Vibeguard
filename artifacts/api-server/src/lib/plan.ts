@@ -162,6 +162,7 @@ async function consumeBucket(userId: string, bucket: "protected" | "public" | "a
            monthly_scans_used = COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + COALESCE(audit_scans_used, 0) + 1
      WHERE owner = $1
        AND COALESCE(${column}, 0) < $2
+       AND COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + COALESCE(audit_scans_used, 0) < $3
      RETURNING protected_scans_used, public_scans_used`, [userId, limit]);
   if (!result.rowCount) {
     const label = bucket === "protected" ? "Protected repository" : bucket === "public" ? "Public repository" : "Audit";
