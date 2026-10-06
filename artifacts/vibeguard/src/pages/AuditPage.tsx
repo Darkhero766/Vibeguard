@@ -8,8 +8,8 @@ import { apiUrl } from "@/lib/api";
 
 type Status = "pass" | "review" | "missing";
 type Severity = "high" | "medium" | "low";
-type Check = { id: string; category: string; title: string; status: Status; severity: Severity; explanation: string; recommendation: string };
-type Report = { url: string; scannedAt: string; score: number; passed: number; review: number; missing: number; checks: Check[]; quota?: { scansUsed: number; scansLimit: number } };
+type AuditCheck = { id: string; category: string; title: string; status: Status; severity: Severity; explanation: string; recommendation: string };
+type Report = { url: string; scannedAt: string; score: number; passed: number; review: number; missing: number; checks: AuditCheck[]; quota?: { scansUsed: number; scansLimit: number } };
 
 const statusLabel: Record<Status, string> = { pass: "PASS", review: "REVIEW", missing: "MISSING" };
 
