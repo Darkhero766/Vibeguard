@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowRight, Check, ExternalLink, Globe, Loader2, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Globe, Loader2, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
 import { Link } from "wouter";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
