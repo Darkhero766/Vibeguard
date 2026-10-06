@@ -282,7 +282,7 @@ function runChecks(input: {
 router.post("/audit", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
   try {
     const plan = await ensurePlanForUser(req.userId!);
-    if (plan.scansUsed >= plan.scansLimit) {
+    if (!plan.unlimited && plan.scansUsed >= plan.scansLimit) {
       res.status(429).json({ error: `Monthly scan limit reached (${plan.scansLimit}).`, plan });
       return;
     }
