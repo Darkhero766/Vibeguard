@@ -194,7 +194,7 @@ export default function AuditPage() {
 
             <div className="relative z-10 mt-8 border-t border-[#242522]/15 pt-5 font-mono text-[9px] uppercase tracking-[0.1em] text-[#6b6e66]">
               <span>Audited · {report.url}</span><span className="mx-3">·</span><span>{new Date(report.scannedAt).toLocaleString()}</span>
-              <p className="mt-3 max-w-3xl normal-case font-sans text-[10px] leading-5 text-[#858980]">SUE identifies publicly observable product signals and cannot verify every legal, regulatory, contractual, accessibility or security requirement. It is not legal advice and does not guarantee compliance.</p>
+              <p className="mt-3 max-w-3xl normal-case font-sans text-[10px] leading-5 text-[#666960]">SUE identifies publicly observable product signals and cannot verify every legal, regulatory, contractual, accessibility or security requirement. It is not legal advice and does not guarantee compliance.</p>
             </div>
           </>
         )}
