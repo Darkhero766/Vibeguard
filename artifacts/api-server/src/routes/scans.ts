@@ -35,7 +35,7 @@ router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<voi
   if (req.userId) {
     try {
       const plan = await ensurePlanForUser(req.userId);
-      if (plan.publicScansUsed >= plan.publicScansLimit) {
+      if (!plan.unlimited && plan.publicScansUsed >= plan.publicScansLimit) {
         res.status(429).json({ error: `Public repository scan limit reached (${plan.publicScansLimit}).`, plan });
         return;
       }
