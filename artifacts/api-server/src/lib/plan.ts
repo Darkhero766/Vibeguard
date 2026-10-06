@@ -7,6 +7,7 @@ export const PRO_PROTECTED_SCAN_LIMIT = 5;
 export const PRO_PUBLIC_SCAN_LIMIT = 5;
 export const FREE_REPO_LIMIT = 1;
 export const PRO_REPO_LIMIT = 5;
+export const ADMIN_SCAN_LIMIT = 2147483647; // effectively unlimited for the private admin/testing account
 
 type UsageRow = {
   email: string;
@@ -66,13 +67,13 @@ function snapshotFromRow(row: UsageRow, now: Date): PlanSnapshot {
     plan: shouldBePro ? "pro" : "free",
     unlimited: isAdmin,
     scansUsed: protectedUsed + publicUsed + auditUsed,
-    scansLimit: shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT,
+    scansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT),
     protectedScansUsed: protectedUsed,
-    protectedScansLimit: shouldBePro ? PRO_PROTECTED_SCAN_LIMIT : FREE_SCAN_LIMIT,
+    protectedScansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_PROTECTED_SCAN_LIMIT : FREE_SCAN_LIMIT),
     publicScansUsed: publicUsed,
     auditScansUsed: auditUsed,
-    auditScansLimit: shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT,
-    publicScansLimit: shouldBePro ? PRO_PUBLIC_SCAN_LIMIT : FREE_SCAN_LIMIT,
+    auditScansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT),
+    publicScansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_PUBLIC_SCAN_LIMIT : FREE_SCAN_LIMIT),
     repoLimit: shouldBePro ? PRO_REPO_LIMIT : FREE_REPO_LIMIT,
     proExpiresAt: isAdmin ? null : (expired ? null : row.pro_expires_at),
     monthlyResetAt: resetAt?.toISOString() ?? null,
@@ -108,7 +109,7 @@ export async function ensurePlanForUser(userId: string): Promise<PlanSnapshot> {
   const nextProtectedUsed = needsReset ? 0 : Number(row.protected_scans_used ?? 0);
   const nextPublicUsed = needsReset ? 0 : Number(row.public_scans_used ?? 0);
   const nextAuditUsed = needsReset ? 0 : Number(row.audit_scans_used ?? 0);
-  const nextLimit = shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT;
+  const nextLimit = isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT);
   const nextRepoLimit = shouldBePro ? PRO_REPO_LIMIT : FREE_REPO_LIMIT;
   const nextExpiry = isAdmin ? null : (expired ? null : row.pro_expires_at);
 
@@ -134,11 +135,11 @@ export async function ensurePlanForUser(userId: string): Promise<PlanSnapshot> {
     scansUsed: nextProtectedUsed + nextPublicUsed + nextAuditUsed,
     scansLimit: nextLimit,
     protectedScansUsed: nextProtectedUsed,
-    protectedScansLimit: shouldBePro ? PRO_PROTECTED_SCAN_LIMIT : FREE_SCAN_LIMIT,
+    protectedScansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_PROTECTED_SCAN_LIMIT : FREE_SCAN_LIMIT),
     publicScansUsed: nextPublicUsed,
     auditScansUsed: nextAuditUsed,
-    auditScansLimit: shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT,
-    publicScansLimit: shouldBePro ? PRO_PUBLIC_SCAN_LIMIT : FREE_SCAN_LIMIT,
+    auditScansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT),
+    publicScansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_PUBLIC_SCAN_LIMIT : FREE_SCAN_LIMIT),
     repoLimit: nextRepoLimit,
     proExpiresAt: nextExpiry,
     monthlyResetAt: nextReset.toISOString(),
