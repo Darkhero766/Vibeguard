@@ -6,16 +6,17 @@ import { Footer } from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiUrl } from "@/lib/api";
 
-type Status = "pass" | "review" | "missing";
+type Status = "pass" | "review" | "missing" | "not_applicable";
 type Severity = "high" | "medium" | "low";
-type AuditCheck = { id: string; category: string; title: string; status: Status; severity: Severity; explanation: string; recommendation: string };
-type Report = { url: string; scannedAt: string; score: number; passed: number; review: number; missing: number; checks: AuditCheck[]; quota?: { scansUsed: number; scansLimit: number } };
+type AuditCheck = { id: string; category: string; title: string; status: Status; applicability: "applicable" | "not_applicable" | "unknown"; confidence: number; evidence: Array<{ type: string; url?: string; location?: string; excerpt?: string; signal: string; confidence: number }>; severity: Severity; explanation: string; recommendation: string };
+type Report = { url: string; scannedAt: string; score: number; passed: number; review: number; missing: number; notApplicable: number; checks: AuditCheck[]; productContext?: { productTypes: string[]; commercialModel: string; signals: Record<string, boolean>; confidence: number; coverage: { pages: number; linkedPages: number; forms: number; scripts: number; dynamicRenderingLikely: boolean; score: number } }; quota?: { scansUsed: number; scansLimit: number } };
 
-const statusLabel: Record<Status, string> = { pass: "PASS", review: "REVIEW", missing: "MISSING" };
+const statusLabel: Record<Status, string> = { pass: "PASS", review: "REVIEW", missing: "MISSING", not_applicable: "N/A" };
 
 function statusClasses(status: Status) {
   if (status === "pass") return "border-[#8fae63]/40 bg-[#edf4df] text-[#526b32]";
   if (status === "review") return "border-[#d6a65b]/40 bg-[#fbf0dc] text-[#8a5e20]";
+  if (status === "not_applicable") return "border-[#a7a89f]/40 bg-[#eceae2] text-[#696c64]";
   return "border-[#e83a2f]/30 bg-[#fbedeb] text-[#a52f27]";
 }
 
@@ -162,18 +163,21 @@ export default function AuditPage() {
                 <div className="mt-4 inline-flex items-center gap-2 border border-[#8fae63]/30 bg-[#8fae63]/10 px-3 py-2 font-mono text-[9px] font-bold tracking-[0.12em] text-[#b8ce91]"><span className="h-2 w-2 rounded-full bg-[#8fae63]" />{scoreLabel(report.score)}</div>
                 <p className="mt-5 text-[11px] leading-5 text-[#a9aca4]">This is a signal score, not a legal-compliance guarantee.</p>
               </div>
-              <div className="grid grid-cols-3 border-2 border-[#242522] bg-[#f8f5ed] text-[#171916] shadow-[8px_8px_0_#242522]">
+              <div className="grid grid-cols-4 border-2 border-[#242522] bg-[#f8f5ed] text-[#171916] shadow-[8px_8px_0_#242522]">
                 <button onClick={() => setFilter("pass")} className="border-r border-[#242522]/15 p-5 text-left hover:bg-[#edf4df]"><div className="font-mono text-[9px] text-[#66763e]">PASSED</div><div className="mt-2 text-4xl font-extrabold">{report.passed}</div></button>
                 <button onClick={() => setFilter("review")} className="border-r border-[#242522]/15 p-5 text-left hover:bg-[#fbf0dc]"><div className="font-mono text-[9px] text-[#8a5e20]">REVIEW</div><div className="mt-2 text-4xl font-extrabold">{report.review}</div></button>
-                <button onClick={() => setFilter("missing")} className="p-5 text-left hover:bg-[#fbedeb]"><div className="font-mono text-[9px] text-[#a52f27]">MISSING</div><div className="mt-2 text-4xl font-extrabold">{report.missing}</div></button>
+                <button onClick={() => setFilter("missing")} className="border-r border-[#242522]/15 p-5 text-left hover:bg-[#fbedeb]"><div className="font-mono text-[9px] text-[#a52f27]">MISSING</div><div className="mt-2 text-4xl font-extrabold">{report.missing}</div></button>
+                <button onClick={() => setFilter("not_applicable")} className="p-5 text-left hover:bg-[#eceae2]"><div className="font-mono text-[9px] text-[#696c64]">N/A</div><div className="mt-2 text-4xl font-extrabold">{report.notApplicable}</div></button>
               </div>
             </section>
+
+            {report.productContext && <section className="relative z-10 mt-6 border-2 border-[#242522] bg-[#fffdf7] p-5 text-[#171916] shadow-[6px_6px_0_#d6d0c3]"><div className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-[#c92e25]">Observed product context</div><div className="mt-3 flex flex-wrap gap-2">{report.productContext.productTypes.map(type => <span key={type} className="border border-[#66763e]/30 bg-[#66763e]/10 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.08em] text-[#526b32]">{type.replace("_"," ")}</span>)}<span className="border border-[#242522]/20 bg-[#242522]/5 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.08em] text-[#555850]">{report.productContext.commercialModel.replace("_"," ")}</span></div><p className="mt-3 text-[10px] leading-5 text-[#62655d]">Context confidence {Math.round(report.productContext.confidence * 100)}% · {report.productContext.coverage.pages} public page{report.productContext.coverage.pages === 1 ? "" : "s"} crawled · runtime rendering {report.productContext.coverage.dynamicRenderingLikely ? "likely" : "not strongly indicated"}.</p></section>}
 
             <section className="relative z-10 mt-8">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#f04a3f]">Signal report</div><h2 className="mt-1 text-[28px] font-extrabold">50 launch-readiness checks</h2></div>
-                <div className="flex gap-1 border border-white/10 bg-[#101211] p-1">
-                  {(["all","pass","review","missing"] as const).map((item) => <button key={item} onClick={() => setFilter(item)} className={`px-3 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.1em] ${filter === item ? "bg-[#66763e] text-[#101111]" : "text-[#9fa39a]"}`}>{item}</button>)}
+                <div className="flex max-w-full flex-wrap gap-1 border border-white/10 bg-[#101211] p-1">
+                  {(["all","pass","review","missing","not_applicable"] as const).map((item) => <button key={item} onClick={() => setFilter(item)} className={`px-3 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.1em] ${filter === item ? "bg-[#66763e] text-[#101111]" : "text-[#9fa39a]"}`}>{item}</button>)}
                 </div>
               </div>
               <div className="grid gap-3">
@@ -184,9 +188,9 @@ export default function AuditPage() {
                         <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border ${statusClasses(item.status)}`}>{item.status === "pass" ? <Check size={15} /> : item.status === "review" ? <Sparkles size={14} /> : <ShieldAlert size={14} />}</div>
                         <div><div className="font-mono text-[8px] font-bold uppercase tracking-[0.16em] text-[#8b8e86]">{item.category} · {item.id}</div><h3 className="mt-1 text-[15px] font-extrabold">{item.title}</h3><p className="mt-2 max-w-3xl text-[11px] leading-5 text-[#5c5f58]">{item.explanation}</p></div>
                       </div>
-                      <span className={`shrink-0 self-start border px-3 py-2 font-mono text-[9px] font-bold tracking-[0.1em] ${statusClasses(item.status)}`}>{statusLabel[item.status]}</span>
+                      <div className="flex shrink-0 flex-col items-end gap-2"><span className={`border px-3 py-2 font-mono text-[9px] font-bold tracking-[0.1em] ${statusClasses(item.status)}`}>{statusLabel[item.status]}</span><span className="font-mono text-[8px] uppercase tracking-[0.1em] text-[#777a72]">APPLICABILITY · {item.applicability.replace("_", " ")} · {Math.round(item.confidence * 100)}%</span></div>
                     </div>
-                    {item.status !== "pass" && <div className="mt-4 border-t border-[#242522]/10 pt-3 text-[11px] font-semibold text-[#6d4b20]"><span className="font-mono text-[8px] uppercase tracking-[0.12em] text-[#c92e25]">Recommended fix</span><div className="mt-1 text-[#50534d]">{item.recommendation}</div></div>}
+                    {item.status !== "pass" && item.status !== "not_applicable" && <div className="mt-4 border-t border-[#242522]/10 pt-3 text-[11px] font-semibold text-[#6d4b20]"><span className="font-mono text-[8px] uppercase tracking-[0.12em] text-[#c92e25]">Recommended fix</span><div className="mt-1 text-[#50534d]">{item.recommendation}</div></div>}
                   </article>
                 ))}
               </div>
