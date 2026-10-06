@@ -90,7 +90,7 @@ export default function AuditPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#171512] text-[#f8f5ed]">
+    <div className="min-h-[100dvh] bg-[#f3efe4] text-[#171916]">
       <Nav />
       <main className="relative mx-auto w-full max-w-[1160px] px-5 pb-24 pt-10 sm:px-8 sm:pt-14 font-sans">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[620px] opacity-40" style={{ backgroundImage: "linear-gradient(rgba(244,200,66,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(244,200,66,.07) 1px, transparent 1px)", backgroundSize: "36px 36px" }} />
