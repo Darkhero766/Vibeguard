@@ -8,6 +8,7 @@ import badgeRouter from "./badge";
 import protectionRouter from "./protection";
 import adminRouter from "./admin";
 import dodoRouter from "./dodo";
+import auditRouter from "./audit";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(badgeRouter);
 router.use(protectionRouter);
 router.use(adminRouter);
 router.use(dodoRouter);
+router.use(auditRouter);
 
 export default router;
