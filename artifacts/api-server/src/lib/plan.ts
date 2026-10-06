@@ -159,23 +159,35 @@ async function consumeBucket(userId: string, bucket: "protected" | "public" | "a
   }
 
   const column = bucket === "protected" ? "protected_scans_used" : bucket === "public" ? "public_scans_used" : "audit_scans_used";
-  const result = await pool.query(`
+  // Keep the quota mutation compatible with all production PostgreSQL pool versions.
+  // We intentionally avoid UPDATE ... RETURNING here because the deployed API previously
+  // surfaced a parser error at RETURNING. The follow-up SELECT reads the exact counters
+  // written by the guarded UPDATE.
+  const update = await pool.query(`
     UPDATE public.usage
        SET ${column} = COALESCE(${column}, 0) + 1,
            scans_used = COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + COALESCE(audit_scans_used, 0) + 1,
            monthly_scans_used = COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + COALESCE(audit_scans_used, 0) + 1
      WHERE owner = $1
        AND COALESCE(${column}, 0) < $2
-       AND ($3::boolean OR (COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + COALESCE(audit_scans_used, 0) < $4)
-     RETURNING protected_scans_used, public_scans_used, audit_scans_used`, [userId, limit, snapshot.unlimited, snapshot.scansLimit]);
-  if (!result.rowCount) {
+       AND ($3::boolean OR (COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + COALESCE(audit_scans_used, 0) < $4))`,
+    [userId, limit, snapshot.unlimited, snapshot.scansLimit],
+  );
+  if (!update.rowCount) {
     const label = bucket === "protected" ? "Protected repository" : bucket === "public" ? "Public repository" : "Audit";
     const error = new Error(`${label} scan limit reached (${limit}).`);
     Object.assign(error, { status: 429 });
     throw error;
   }
 
-  const row = result.rows[0];
+  const counterResult = await pool.query(
+    `SELECT protected_scans_used, public_scans_used, audit_scans_used
+       FROM public.usage
+      WHERE owner = $1
+      LIMIT 1`,
+    [userId],
+  );
+  const row = counterResult.rows[0] ?? {};
   const protectedUsed = Number(row.protected_scans_used ?? 0);
   const publicUsed = Number(row.public_scans_used ?? 0);
   const auditUsed = Number(row.audit_scans_used ?? 0);
