@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
 import { rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
@@ -118,6 +122,13 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
   });
+
+  // SUE regression gate: a production API build is only considered successful
+  // when the applicability suite also passes. This keeps validation inside the
+  // existing Render build pipeline and avoids a separate CI system.
+  await execFileAsync(process.execPath, [
+    path.resolve(artifactDir, "scripts/test-sue-applicability.mjs"),
+  ], { cwd: artifactDir, stdio: "inherit" });
 }
 
 buildAll().catch((err) => {
