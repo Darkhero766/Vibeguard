@@ -20,7 +20,7 @@ export default function TermsPage() {
                   <FileText size={13} /> Legal · VibeSane
                 </div>
                 <h1 className="mt-4 text-[34px] font-extrabold tracking-[-0.05em] sm:text-[46px]">Terms &amp; Conditions</h1>
-                <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">Last updated: September 14, 2026</p>
+                <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">Last updated: October 6, 2026</p>
               </div>
               <div className="inline-flex items-center gap-2 border border-primary/40 bg-primary/10 px-3 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-primary">
                 <ShieldCheck size={12} /> Service terms
