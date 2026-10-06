@@ -148,7 +148,7 @@ export async function ensurePlanForUser(userId: string): Promise<PlanSnapshot> {
 async function consumeBucket(userId: string, bucket: "protected" | "public" | "audit"): Promise<PlanSnapshot> {
   const snapshot = await ensurePlanForUser(userId);
   const isPro = snapshot.plan === "pro";
-  const limit = bucket === "protected" ? snapshot.protectedScansLimit : bucket === "public" ? snapshot.publicScansLimit : snapshot.auditScansLimit;
+  const limit = snapshot.unlimited ? 2000000000 : (bucket === "protected" ? snapshot.protectedScansLimit : bucket === "public" ? snapshot.publicScansLimit : snapshot.auditScansLimit);
   const used = bucket === "protected" ? snapshot.protectedScansUsed : bucket === "public" ? snapshot.publicScansUsed : snapshot.auditScansUsed;
   if (!snapshot.unlimited && used >= limit) {
     const label = bucket === "protected" ? "protected repository scan" : bucket === "public" ? "public repository scan" : "audit scan";
