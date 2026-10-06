@@ -22,6 +22,7 @@ type UsageRow = {
 
 export type PlanSnapshot = {
   plan: "free" | "pro";
+  unlimited: boolean;
   scansUsed: number;
   scansLimit: number;
   protectedScansUsed: number;
@@ -63,6 +64,7 @@ function snapshotFromRow(row: UsageRow, now: Date): PlanSnapshot {
   const auditUsed = Number(row.audit_scans_used ?? 0);
   return {
     plan: shouldBePro ? "pro" : "free",
+    unlimited: isAdmin,
     scansUsed: protectedUsed + publicUsed + auditUsed,
     scansLimit: shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT,
     protectedScansUsed: protectedUsed,
@@ -128,6 +130,7 @@ export async function ensurePlanForUser(userId: string): Promise<PlanSnapshot> {
 
   return {
     plan: nextPlan,
+    unlimited: isAdmin,
     scansUsed: nextProtectedUsed + nextPublicUsed + nextAuditUsed,
     scansLimit: nextLimit,
     protectedScansUsed: nextProtectedUsed,
@@ -147,7 +150,7 @@ async function consumeBucket(userId: string, bucket: "protected" | "public" | "a
   const isPro = snapshot.plan === "pro";
   const limit = bucket === "protected" ? snapshot.protectedScansLimit : bucket === "public" ? snapshot.publicScansLimit : snapshot.auditScansLimit;
   const used = bucket === "protected" ? snapshot.protectedScansUsed : bucket === "public" ? snapshot.publicScansUsed : snapshot.auditScansUsed;
-  if (used >= limit) {
+  if (!snapshot.unlimited && used >= limit) {
     const label = bucket === "protected" ? "protected repository scan" : bucket === "public" ? "public repository scan" : "audit scan";
     const error = new Error(`${label} limit reached (${limit}).`);
     Object.assign(error, { status: 429 });
@@ -162,8 +165,8 @@ async function consumeBucket(userId: string, bucket: "protected" | "public" | "a
            monthly_scans_used = COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + COALESCE(audit_scans_used, 0) + 1
      WHERE owner = $1
        AND COALESCE(${column}, 0) < $2
-       AND COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + COALESCE(audit_scans_used, 0) < $3
-     RETURNING protected_scans_used, public_scans_used, audit_scans_used`, [userId, limit, snapshot.scansLimit]);
+       AND ($3::boolean OR (COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + COALESCE(audit_scans_used, 0) < $4)
+     RETURNING protected_scans_used, public_scans_used, audit_scans_used`, [userId, limit, snapshot.unlimited, snapshot.scansLimit]);
   if (!result.rowCount) {
     const label = bucket === "protected" ? "Protected repository" : bucket === "public" ? "Public repository" : "Audit";
     const error = new Error(`${label} scan limit reached (${limit}).`);
@@ -198,7 +201,7 @@ export async function consumeScan(userId: string): Promise<PlanSnapshot> {
 export async function assertRepositoryCapacity(userId: string): Promise<PlanSnapshot> {
   const snapshot = await ensurePlanForUser(userId);
   const result = await pool.query(`SELECT count(*)::int AS count FROM public.protected_repositories WHERE owner = $1`, [userId]);
-  if (Number(result.rows[0]?.count ?? 0) >= snapshot.repoLimit) {
+  if (!snapshot.unlimited && Number(result.rows[0]?.count ?? 0) >= snapshot.repoLimit) {
     const error = new Error(`Repository limit reached (${snapshot.repoLimit}).`);
     Object.assign(error, { status: 429 });
     throw error;
