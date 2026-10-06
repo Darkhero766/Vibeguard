@@ -34,6 +34,7 @@ export async function ensureTables(): Promise<void> {
     await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS monthly_scans_used integer NOT NULL DEFAULT 0`);
     await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS monthly_scans_limit integer NOT NULL DEFAULT 1`);
     await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS monthly_reset_at timestamptz`);
+    await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS audit_scans_used integer NOT NULL DEFAULT 0`);
     await pool.query(`CREATE INDEX IF NOT EXISTS usage_plan_idx ON usage(plan)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS usage_pro_expires_idx ON usage(pro_expires_at)`);
     await pool.query(`
