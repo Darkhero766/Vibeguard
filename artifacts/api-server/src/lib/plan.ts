@@ -26,6 +26,8 @@ export type PlanSnapshot = {
   protectedScansUsed: number;
   protectedScansLimit: number;
   publicScansUsed: number;
+  auditScansUsed: number;
+  auditScansLimit: number;
   publicScansLimit: number;
   repoLimit: number;
   proExpiresAt: string | null;
@@ -57,13 +59,16 @@ function snapshotFromRow(row: UsageRow, now: Date): PlanSnapshot {
   const shouldBePro = isAdmin || (row.plan === "pro" && !expired);
   const protectedUsed = Number(row.protected_scans_used ?? 0);
   const publicUsed = Number(row.public_scans_used ?? 0);
+  const auditUsed = Number(row.audit_scans_used ?? 0);
   return {
     plan: shouldBePro ? "pro" : "free",
-    scansUsed: protectedUsed + publicUsed,
+    scansUsed: protectedUsed + publicUsed + auditUsed,
     scansLimit: shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT,
     protectedScansUsed: protectedUsed,
     protectedScansLimit: shouldBePro ? PRO_PROTECTED_SCAN_LIMIT : FREE_SCAN_LIMIT,
     publicScansUsed: publicUsed,
+    auditScansUsed: auditUsed,
+    auditScansLimit: shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT,
     publicScansLimit: shouldBePro ? PRO_PUBLIC_SCAN_LIMIT : FREE_SCAN_LIMIT,
     repoLimit: shouldBePro ? PRO_REPO_LIMIT : FREE_REPO_LIMIT,
     proExpiresAt: isAdmin ? null : (expired ? null : row.pro_expires_at),
@@ -79,6 +84,7 @@ export async function ensurePlanForUser(userId: string): Promise<PlanSnapshot> {
            COALESCE(g.scans_limit, 1) AS scans_limit,
            COALESCE(g.protected_scans_used, 0) AS protected_scans_used,
            COALESCE(g.public_scans_used, g.monthly_scans_used, g.scans_used, 0) AS public_scans_used,
+           COALESCE(g.audit_scans_used, 0) AS audit_scans_used,
            g.pro_expires_at,
            g.monthly_reset_at
       FROM auth.users u
@@ -98,13 +104,14 @@ export async function ensurePlanForUser(userId: string): Promise<PlanSnapshot> {
   const nextReset = needsReset ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) : resetAt!;
   const nextProtectedUsed = needsReset ? 0 : Number(row.protected_scans_used ?? 0);
   const nextPublicUsed = needsReset ? 0 : Number(row.public_scans_used ?? 0);
-  const nextLimit = shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT;
+  const nextAuditUsed = needsReset ? 0 : Number(row.audit_scans_used ?? 0);
+  const nextLimit: = shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT;
   const nextRepoLimit = shouldBePro ? PRO_REPO_LIMIT : FREE_REPO_LIMIT;
   const nextExpiry = isAdmin ? null : (expired ? null : row.pro_expires_at);
 
   await pool.query(`
-    INSERT INTO public.usage (owner, scans_used, scans_limit, plan, pro_expires_at, monthly_scans_used, monthly_scans_limit, monthly_reset_at, protected_scans_used, public_scans_used)
-    VALUES ($1, $2, $3, $4, $5, $2, $3, $6, $7, $8)
+    INSERT INTO public.usage (owner, scans_used, scans_limit, plan, pro_expires_at, monthly_scans_used, monthly_scans_limit, monthly_reset_at, protected_scans_used, public_scans_used, audit_scans_used)
+    VALUES ($1, $2, $3, $4, $5, $2, $3, $6, $7, $8, $9)
     ON CONFLICT (owner) DO UPDATE SET
       scans_used = EXCLUDED.scans_used,
       scans_limit = EXCLUDED.scans_limit,
@@ -114,16 +121,19 @@ export async function ensurePlanForUser(userId: string): Promise<PlanSnapshot> {
       monthly_scans_limit = EXCLUDED.monthly_scans_limit,
       monthly_reset_at = EXCLUDED.monthly_reset_at,
       protected_scans_used = EXCLUDED.protected_scans_used,
-      public_scans_used = EXCLUDED.public_scans_used`,
-    [userId, nextProtectedUsed + nextPublicUsed, nextLimit, nextPlan, nextExpiry, nextReset.toISOString(), nextProtectedUsed, nextPublicUsed]);
+      public_scans_used = EXCLUDED.public_scans_used,
+      audit_scans_used = EXCLUDED.audit_scans_used`,
+    [userId, nextProtectedUsed + nextPublicUsed + nextAuditUsed, nextLimit, nextPlan, nextExpiry, nextReset.toISOString(), nextProtectedUsed, nextPublicUsed, nextAuditUsed]);
 
   return {
     plan: nextPlan,
-    scansUsed: nextProtectedUsed + nextPublicUsed,
+    scansUsed: nextProtectedUsed + nextPublicUsed + nextAuditUsed,
     scansLimit: nextLimit,
     protectedScansUsed: nextProtectedUsed,
     protectedScansLimit: shouldBePro ? PRO_PROTECTED_SCAN_LIMIT : FREE_SCAN_LIMIT,
     publicScansUsed: nextPublicUsed,
+    auditScansUsed: nextAuditUsed,
+    auditScansLimit: shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT,
     publicScansLimit: shouldBePro ? PRO_PUBLIC_SCAN_LIMIT : FREE_SCAN_LIMIT,
     repoLimit: nextRepoLimit,
     proExpiresAt: nextExpiry,
@@ -131,29 +141,30 @@ export async function ensurePlanForUser(userId: string): Promise<PlanSnapshot> {
   };
 }
 
-async function consumeBucket(userId: string, bucket: "protected" | "public"): Promise<PlanSnapshot> {
+async function consumeBucket(userId: string, bucket: "protected" | "public" | "audit"): Promise<PlanSnapshot> {
   const snapshot = await ensurePlanForUser(userId);
   const isPro = snapshot.plan === "pro";
-  const limit = bucket === "protected" ? snapshot.protectedScansLimit : snapshot.publicScansLimit;
-  const used = bucket === "protected" ? snapshot.protectedScansUsed : snapshot.publicScansUsed;
+  const limit = bucket === "protected" ? snapshot.protectedScansLimit : bucket === "public" ? snapshot.publicScansLimit : snapshot.auditScansLimit;
+  const used = bucket === "protected" ? snapshot.protectedScansUsed : bucket === "public" ? snapshot.publicScansUsed : snapshot.auditScansUsed;
   if (used >= limit) {
-    const label = bucket === "protected" ? "protected repository scan" : "public repository scan";
+    const label = bucket === "protected" ? "protected repository scan" : bucket === "public" ? "public repository scan" : "audit scan";
     const error = new Error(`${label} limit reached (${limit}).`);
     Object.assign(error, { status: 429 });
     throw error;
   }
 
-  const column = bucket === "protected" ? "protected_scans_used" : "public_scans_used";
+  const column = bucket === "protected" ? "protected_scans_used" : bucket === "public" ? "public_scans_used" : "audit_scans_used";
   const result = await pool.query(`
     UPDATE public.usage
        SET ${column} = COALESCE(${column}, 0) + 1,
-           scans_used = COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + 1,
-           monthly_scans_used = COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + 1
+           scans_used = COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + COALESCE(audit_scans_used, 0) + 1,
+           monthly_scans_used = COALESCE(protected_scans_used, 0) + COALESCE(public_scans_used, 0) + COALESCE(audit_scans_used, 0) + 1
      WHERE owner = $1
        AND COALESCE(${column}, 0) < $2
      RETURNING protected_scans_used, public_scans_used`, [userId, limit]);
   if (!result.rowCount) {
-    const error = new Error(`${bucket === "protected" ? "Protected repository" : "Public repository"} scan limit reached (${limit}).`);
+    const label = bucket === "protected" ? "Protected repository" : bucket === "public" ? "Public repository" : "Audit";
+    const error = new Error(`${label} scan limit reached (${limit}).`);
     Object.assign(error, { status: 429 });
     throw error;
   }
@@ -161,7 +172,8 @@ async function consumeBucket(userId: string, bucket: "protected" | "public"): Pr
   const row = result.rows[0];
   const protectedUsed = Number(row.protected_scans_used ?? 0);
   const publicUsed = Number(row.public_scans_used ?? 0);
-  return { ...snapshot, scansUsed: protectedUsed + publicUsed, protectedScansUsed: protectedUsed, publicScansUsed: publicUsed };
+  const auditUsed = Number(row.audit_scans_used ?? 0);
+  return { ...snapshot, scansUsed: protectedUsed + publicUsed + auditUsed, protectedScansUsed: protectedUsed, publicScansUsed: publicUsed, auditScansUsed: auditUsed };
 }
 
 export async function consumePublicScan(userId: string): Promise<PlanSnapshot> {
@@ -170,6 +182,10 @@ export async function consumePublicScan(userId: string): Promise<PlanSnapshot> {
 
 export async function consumeProtectedScan(userId: string): Promise<PlanSnapshot> {
   return consumeBucket(userId, "protected");
+}
+
+export async function consumeAuditScan(userId: string): Promise<PlanSnapshot> {
+  return consumeBucket(userId, "audit");
 }
 
 // Backward-compatible name: the standalone URL scanner is the public bucket.
