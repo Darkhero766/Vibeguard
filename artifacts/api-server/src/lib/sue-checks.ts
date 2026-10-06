@@ -114,9 +114,10 @@ D("T04","Trust","Legal links grouped in footer","medium",{anySignals:["commercia
 D("T05","Trust","Legal pages reachable from same product origin","high",{anySignals:["commercialActivity","personalDataCollection","authentication"],unknownIfLowCoverage:true},E.T05,"Ensure applicable legal pages are reachable from the deployed product origin.","Applicable legal documents should be discoverable from the product."),
 ];
 
+import { buildProductContext } from "./sue-context";
+
 export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductContext;checks:AuditCheck[]} {
-  const context=(globalThis as any).__vibesane_context as ProductContext | undefined;
-  if(!context) throw new Error("SUE context was not initialized");
+  const context=buildProductContext(c);
   const checks=defs.map(d=>{
     let applicability=evaluateApplicability(d.rule,context);
     if(d.id==="L01") applicability=legalApplicable(context)?"applicable":"unknown";
