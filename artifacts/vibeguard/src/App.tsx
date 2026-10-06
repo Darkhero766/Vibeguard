@@ -9,6 +9,7 @@ import PublicScanPage from './pages/PublicScanPage';
 import AdminPage from './pages/AdminPage';
 import SettingsPage from './pages/SettingsPage';
 import TermsPage from './pages/TermsPage';
+import AuditPage from './pages/AuditPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 
@@ -90,6 +91,7 @@ export default function App() {
   const isAdminPage = path === '/admin';
   const isSettingsPage = path === '/settings';
   const isTermsPage = path === '/terms';
+  const isAuditPage = path === '/audit';
 
   if (isAdminPage) return <><BrandMigration /><AuthProvider><AdminPage /></AuthProvider></>;
   if (isCheckoutPage) return <><BrandMigration /><AuthProvider><CheckoutPage /></AuthProvider></>;
@@ -97,6 +99,7 @@ export default function App() {
   if (isAffiliatePage) return <><BrandMigration /><ReferralAttribution /><AuthProvider><AffiliatePage /></AuthProvider></>;
   if (isSettingsPage) return <><BrandMigration /><AuthProvider><SettingsPage /></AuthProvider></>;
   if (isTermsPage) return <><BrandMigration /><AuthProvider><TermsPage /></AuthProvider></>;
+  if (isAuditPage) return <><BrandMigration /><AuthProvider><AuditPage /></AuthProvider></>;
   if (SEO_PATHS.has(path)) return <AuthProvider><SEOPage path={path} /></AuthProvider>;
   return <><BrandMigration /><ReferralAttribution /><PublicScanFlowBridge /><OriginalApp /><AffiliateWelcomePopup /></>;
 }
