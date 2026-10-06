@@ -1,0 +1,30 @@
+name: SUE Applicability Regression
+
+on:
+  pull_request:
+    paths:
+      - "artifacts/api-server/src/lib/sue-*.ts"
+      - "artifacts/api-server/scripts/test-sue-applicability.mjs"
+      - "artifacts/api-server/package.json"
+  push:
+    branches: [main]
+    paths:
+      - "artifacts/api-server/src/lib/sue-*.ts"
+      - "artifacts/api-server/scripts/test-sue-applicability.mjs"
+      - "artifacts/api-server/package.json"
+
+jobs:
+  sue-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @workspace/api-server run typecheck
+      - run: pnpm --filter @workspace/api-server run test:sue
