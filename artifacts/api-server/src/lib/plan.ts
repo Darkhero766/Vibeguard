@@ -15,6 +15,7 @@ type UsageRow = {
   scans_limit: number | null;
   protected_scans_used: number | null;
   public_scans_used: number | null;
+  audit_scans_used: number | null;
   pro_expires_at: string | null;
   monthly_reset_at: string | null;
 };
