@@ -24,6 +24,9 @@ function pageMatch(page:AuditPage, pattern:RegExp, signal:string, confidence=0.8
 export function text(c:AuditCorpus,p:RegExp,s:string,confidence=0.86) {
   const out:Evidence[]=[]; for (const page of c.pages) { out.push(...pageMatch(page,p,s,confidence)); if(out.length>=4) break; } return out.slice(0,4);
 }
+export function homeText(c:AuditCorpus,p:RegExp,s:string,confidence=0.9) {
+  const page=c.pages.find(x=>x.isHome); return page ? pageMatch(page,p,s,confidence) : [];
+}
 export function links(c:AuditCorpus,p:RegExp,s:string,confidence=0.9) {
   const out:Evidence[]=[]; for(const page of c.pages) for(const l of page.links) {
     if(!p.test(l.text+" "+l.href)) continue;
@@ -96,19 +99,19 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
 
   const pricing=combine(text(c,/\b(pricing|plans|price list|starting at|per month|per year)\b/i,"pricing_text"),text(c,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?/i,"price_amount"),links(c,/pricing|plans|shop|store/i,"pricing_link"));
   const checkout=combine(text(c,/\b(add to cart|buy now|checkout|place order|complete purchase|subscribe now)\b/i,"checkout_action"),links(c,/checkout|cart|buy|order/i,"checkout_link"),forms(c,/checkout|payment|billing|order/i,"checkout_form"));
-  const payment=combine(scripts(c,/stripe|paypal|razorpay|adyen|checkout\.com|dodo|paddle|lemonsqueezy|shopify|woocommerce/i,"payment_provider"),checkout,text(c,/\b(card|credit card|debit card|payment|pay securely)\b/i,"payment_text"));
+  const payment=combine(scripts(c,/stripe|paypal|razorpay|adyen|checkout\.com|dodo|paddle|lemonsqueezy|shopify|woocommerce/i,"payment_provider"),checkout);
   const auth=combine(links(c,/\b(login|log in|sign in|sign up|register|create account|account)\b/i,"authentication_link"),forms(c,/type=["'](?:email|password)["']|login|sign[- ]?up|register/i,"authentication_form"),scripts(c,/auth0|clerk|supabase|firebase.*auth|cognito|nextauth|auth\.js/i,"authentication_provider"));
   const account=combine(auth,text(c,/\b(create your account|your dashboard|workspace|profile settings)\b/i,"account_text"));
   const marketing=combine(forms(c,/newsletter|subscribe|marketing|promotional|updates|mailchimp|klaviyo|convertkit|hubspot|brevo/i,"marketing_form"),scripts(c,/mailchimp|klaviyo|convertkit|hubspot|brevo/i,"marketing_provider"),text(c,/newsletter|subscribe to (?:our )?(?:updates|emails)|marketing emails|promotional emails/i,"marketing_text"));
   const analytics=combine(scripts(c,/google-analytics|googletagmanager|gtag\(|plausible|posthog|mixpanel|amplitude|heap|hotjar|matomo|clarity|segment/i,"analytics_sdk"),text(c,/google analytics|plausible analytics|posthog|mixpanel|amplitude/i,"analytics_disclosure"));
   const cookie=combine(headers(c,"set-cookie","cookie_header"),scripts(c,/cookiebot|onetrust|cookieyes|cookieconsent|iubenda|osano/i,"cookie_platform"),text(c,/cookie preferences|manage cookies|accept cookies|cookie settings/i,"cookie_control"));
   const tracking=combine(analytics,scripts(c,/facebook\.net|connect\.facebook|doubleclick|googleadservices|hotjar|clarity|segment|pixel/i,"tracking_sdk"),text(c,/tracking technologies|pixels|web beacons|tracking scripts/i,"tracking_disclosure"));
-  const aiFunctional=combine(text(c,/\b(?:ai[- ]powered|ai assistant|ai agent|generative ai|generate (?:an|your|a)|chat with (?:our|the) ai|ask (?:our|the) ai|prompt (?:the|our)|choose a model)\b/i,"ai_functionality",.9),forms(c,/prompt|message|generate|chat with|ask ai|ai assistant/i,"ai_input",.92),scripts(c,/api\.openai\.com|anthropic|generativelanguage|gemini|openrouter|replicate|huggingface/i,"ai_provider",.97));
-  const ai=aiFunctional.length>=2||aiFunctional.some(e=>e.signal==="ai_provider")?aiFunctional:[];
+  const aiFunctional=combine(homeText(c,/\b(?:ai[- ]powered|ai assistant|ai agent|generative ai|generate (?:an|your|a)|chat with (?:our|the) ai|ask (?:our|the) ai|prompt (?:the|our)|choose a model)\b/i,"ai_functionality",.94),forms(c,/prompt|message|generate|chat with|ask ai|ai assistant/i,"ai_input",.92),scripts(c,/api\.openai\.com|anthropic|generativelanguage|gemini|openrouter|replicate|huggingface/i,"ai_provider",.97));
+  const ai=aiFunctional.length>=1?aiFunctional:[];
   const aiData=combine(text(c,/(?:send|share|process|use|submit).{0,120}(?:AI|OpenAI|Anthropic|Gemini|model).{0,120}(?:data|information|content|prompt)/i,"ai_data_processing",.9),text(c,/(?:AI|model|OpenAI|Anthropic|Gemini).{0,120}(?:process|use).{0,120}(?:data|information|content)/i,"ai_data_processing",.9));
   const subscription=combine(text(c,/\b(?:\$|€|£|₹)\s?\d+\s*\/\s*(?:month|year)|\b(?:monthly|annual|yearly|billed monthly|billed annually|subscription|recurring billing|renews automatically)\b/i,"subscription_text",.95),links(c,/subscription|plans|monthly|annual/i,"subscription_link",.82));
   const autoRenew=text(c,/auto[- ]?renew|automatically renew|renews automatically|recurring (?:charge|billing|payment)/i,"auto_renewal",.97);
-  const ecommerce=combine(text(c,/add to cart|shopping cart|product catalog|product variants|shipping|quantity|order now|buy now/i,"ecommerce_flow",.93),links(c,/shop|store|cart|checkout|products/i,"ecommerce_navigation",.86),scripts(c,/shopify|woocommerce/i,"ecommerce_platform",.96),text(c,/\b(product|sku|in stock|out of stock)\b.{0,80}(?:\$|€|£|₹)\s?\d+/i,"ecommerce_product_price",.94));
+  const ecommerce=combine(text(c,/add to cart|shopping cart|product catalog|product variants|shipping|quantity|order now|buy now/i,"ecommerce_flow",.93),links(c,/shop|store|cart|checkout/i,"ecommerce_navigation",.9),scripts(c,/shopify|woocommerce/i,"ecommerce_platform",.96),text(c,/\b(product|sku|in stock|out of stock)\b.{0,80}(?:\$|€|£|₹)\s?\d+/i,"ecommerce_product_price",.94));
   const marketplace=combine(text(c,/marketplace|seller|vendor|list your (?:product|service)|seller profile|buyer and seller/i,"marketplace_language",.94),text(c,/(?:listings|products|services).{0,120}(?:seller|vendor)/i,"marketplace_flow",.9));
   const ugc=combine(forms(c,/type=["']file["']|upload|comment|review|post|message|profile/i,"ugc_form",.9),text(c,/user[- ]generated|community posts|comments|reviews|upload your|public profile|create a post/i,"ugc_text",.9));
   const developerApi=combine(links(c,/\b(api|developers|docs|sdk|integrat(?:e|ion))\b/i,"developer_navigation",.82),text(c,/api key|webhook|endpoint|sdk|developer platform|api access/i,"developer_functionality",.9));
