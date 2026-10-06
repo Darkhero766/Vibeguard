@@ -108,7 +108,7 @@ export async function ensurePlanForUser(userId: string): Promise<PlanSnapshot> {
   const nextProtectedUsed = needsReset ? 0 : Number(row.protected_scans_used ?? 0);
   const nextPublicUsed = needsReset ? 0 : Number(row.public_scans_used ?? 0);
   const nextAuditUsed = needsReset ? 0 : Number(row.audit_scans_used ?? 0);
-  const nextLimit: = shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT;
+  const nextLimit = shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT;
   const nextRepoLimit = shouldBePro ? PRO_REPO_LIMIT : FREE_REPO_LIMIT;
   const nextExpiry = isAdmin ? null : (expired ? null : row.pro_expires_at);
 
