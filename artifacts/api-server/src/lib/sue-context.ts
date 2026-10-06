@@ -4,7 +4,6 @@ import {
   Evidence,
   ProductContext,
   ProductSignals,
-  SignalKey as _Unused,
 } from "./sue-applicability";
 
 function excerpt(v:string) { return v.replace(/\s+/g," ").trim().slice(0,240); }
