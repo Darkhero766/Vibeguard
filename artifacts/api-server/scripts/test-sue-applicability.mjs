@@ -20,8 +20,8 @@ try {
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
 
   const headers=()=>new Headers();
-  const page=(url,html,{home=true,text:txt=null,scripts:sc=[],links:ls=[],forms:fs=[]}={})=>({
-    url:new URL(url),html,text:txt??html.replace(/<[^>]+>/g," "),links:ls,scripts:sc,forms:fs,
+  const page=(url,html,{home=true,text:txt=null,scripts:sc=null,links:ls=[],forms:fs=[]}={})=>({
+    url:new URL(url),html,text:txt??html.replace(/<[^>]+>/g," "),links:ls,scripts:sc??[...html.matchAll(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi)].map(m=>m[1]),forms:fs,
     inputs:[],metadata:"",structuredData:"",headers:headers(),isHome:home
   });
   const corpus=(html,url="https://example.test/")=>({pages:[page(url,html)],origin:new URL(url).origin});
