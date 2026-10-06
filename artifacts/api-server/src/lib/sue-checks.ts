@@ -125,6 +125,7 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
     if((d.id==="C01"||d.id==="C08")&&!context.signals.analytics&&!context.signals.tracking) applicability="not_applicable";
     if(d.id==="A01"&&!context.signals.ai) applicability=context.coverage.dynamicRenderingLikely?"unknown":"not_applicable";
     if(d.id==="C05"&&!context.signals.analytics) applicability=context.coverage.dynamicRenderingLikely?"unknown":"not_applicable";
+    if(d.id==="C05"&&context.signals.analytics) applicability="applicable";
     if((d.id==="C03"||d.id==="C04")&&!context.signals.marketingCollection) applicability="not_applicable";
     if((d.id==="B02"||d.id==="B03")&&!context.signals.subscription) applicability="not_applicable";
     if(d.id==="L05"&&!context.signals.subscription&&!context.signals.autoRenewal) applicability="not_applicable";
