@@ -92,7 +92,7 @@ D("C03","Consent","Marketing consent","medium",{anySignals:["marketingCollection
 D("C04","Consent","Unsubscribe / opt-out","medium",{anySignals:["marketingCollection"]},E.C04,"Provide a simple unsubscribe/opt-out route for marketing.","Marketing communication collection was detected."),
 D("C05","Consent","Analytics disclosure","low",{anySignals:["analytics"],unknownIfLowCoverage:true},E.C05,"Disclose analytics providers and purposes in privacy/cookie documentation.","Analytics was detected or runtime visibility is insufficient."),
 D("C06","Consent","Tracking technology disclosure","medium",{anySignals:["tracking"],unknownIfLowCoverage:true},E.C06,"Document pixels, scripts and other tracking technologies.","Tracking technology was detected."),
-D("C07","Consent","Do-not-sell/share language","low",{anySignals:["tracking","commercialActivity"],unknownIfLowCoverage:true},E.C07,"Add a sale/share opt-out only where the business actually falls within such rules.","A universal requirement cannot be inferred from a generic website alone."),
+D("C07","Consent","Do-not-sell/share language","low",{anySignals:["tracking"],unknownIfLowCoverage:true},E.C07,"Add a sale/share opt-out only where the business actually falls within such rules.","A universal requirement cannot be inferred from a generic website alone."),
 D("C08","Consent","Cookie categories","low",{anySignals:["cookies","analytics","tracking"]},E.C08,"Classify cookies by purpose where non-essential cookies are used.","Cookie/tracking technology was detected."),
 D("A01","AI","AI use disclosure","medium",{anySignals:["ai"]},E.A01,"Disclose material AI functionality clearly.","The product itself shows functional AI signals."),
 D("A02","AI","AI data processing","high",{allSignals:["ai","personalDataCollection"],anySignals:["aiDataProcessing"]},E.A02,"Explain what data is sent to AI services, why, and which providers receive it.","AI functionality overlaps with user/personal data processing."),
@@ -121,7 +121,8 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
   const checks=defs.map(d=>{
     let applicability=evaluateApplicability(d.rule,context);
     if(d.id==="L01") applicability=legalApplicable(context)?"applicable":"unknown";
-    if(d.id==="L03"&&!context.signals.cookies&&!context.signals.tracking&&!context.signals.analytics) applicability="not_applicable";
+    if(d.id==="L03"&&(!context.signals.analytics&&!context.signals.tracking)) applicability="not_applicable";
+    if((d.id==="C01"||d.id==="C08")&&!context.signals.analytics&&!context.signals.tracking) applicability="not_applicable";
     if(d.id==="A01"&&!context.signals.ai) applicability=context.coverage.dynamicRenderingLikely?"unknown":"not_applicable";
     if(d.id==="C05"&&!context.signals.analytics) applicability=context.coverage.dynamicRenderingLikely?"unknown":"not_applicable";
     if((d.id==="C03"||d.id==="C04")&&!context.signals.marketingCollection) applicability="not_applicable";
