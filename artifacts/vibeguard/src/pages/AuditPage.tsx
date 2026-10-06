@@ -93,20 +93,20 @@ export default function AuditPage() {
     <div className="min-h-[100dvh] bg-[#f3efe4] text-[#171916]">
       <Nav />
       <main className="relative mx-auto w-full max-w-[1160px] px-5 pb-24 pt-10 sm:px-8 sm:pt-14 font-sans">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[620px] opacity-40" style={{ backgroundImage: "linear-gradient(rgba(244,200,66,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(244,200,66,.07) 1px, transparent 1px)", backgroundSize: "36px 36px" }} />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[620px] opacity-40" style={{ backgroundImage: "linear-gradient(rgba(102,118,62,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(102,118,62,.08) 1px, transparent 1px)", backgroundSize: "36px 36px" }} />
 
         <header className="relative z-10">
           <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-[#f04a3f]">
-            <span className="h-px w-10 bg-[#e83a2f]" />SUE / product audit <span className="border border-[#f4c842]/40 bg-[#f4c842]/10 px-2 py-1 text-[#f4c842]">50 CHECKS</span>
+            <span className="h-px w-10 bg-[#e83a2f]" />SUE / product audit <span className="border border-[#66763e]/40 bg-[#66763e]/10 px-2 py-1 text-[#66763e]">50 CHECKS</span>
           </div>
           <div className="mt-5 grid gap-8 lg:grid-cols-[1fr_300px] lg:items-end">
             <div>
-              <h1 className="text-[48px] font-extrabold leading-[.88] tracking-[-0.05em] sm:text-[72px]">Is your product<br /><span className="text-[#f4c842]">ready to ship?</span></h1>
+              <h1 className="text-[48px] font-extrabold leading-[.88] tracking-[-0.05em] sm:text-[72px]">Is your product<br /><span className="text-[#66763e]">ready to ship?</span></h1>
               <p className="mt-6 max-w-2xl text-[14px] leading-6 text-[#555850]">Scan a deployed website or app landing page for legal, privacy, consent, AI, payment and trust signals that are easy to miss before launch.</p>
             </div>
             <div className="border-2 border-[#0a0b0a] bg-[#101211] p-5 shadow-[6px_6px_0_#e83a2f]">
-              <div className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-[#f4c842]">Audit perimeter</div>
-              <div className="mt-3 flex items-center gap-2 text-[13px] font-extrabold"><span className="h-2.5 w-2.5 rounded-full bg-[#aeca7a] shadow-[0_0_12px_#aeca7a]" />LIVE WEB AUDIT</div>
+              <div className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-[#66763e]">Audit perimeter</div>
+              <div className="mt-3 flex items-center gap-2 text-[13px] font-extrabold"><span className="h-2.5 w-2.5 rounded-full bg-[#8fae63] shadow-[0_0_12px_#8fae63]" />LIVE WEB AUDIT</div>
               <div className="mt-2 font-mono text-[9px] text-[#8e928b]">SCANS REMAINING · {remaining}</div>
             </div>
           </div>
@@ -156,10 +156,10 @@ export default function AuditPage() {
         {report && (
           <>
             <section className="relative z-10 mt-8 grid gap-5 lg:grid-cols-[320px_1fr]">
-              <div className="border-2 border-[#0b0c0b] bg-[#101211] p-6 shadow-[8px_8px_0_#f4c842]">
-                <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#f4c842]">Vibe Audit score</div>
-                <div className="mt-4 flex items-end gap-3"><span className="text-[76px] font-extrabold leading-none text-[#f8f5ed]">{report.score}</span><span className="mb-2 text-sm text-[#9fa39a]">/ 100</span></div>
-                <div className="mt-4 inline-flex items-center gap-2 border border-[#aeca7a]/30 bg-[#aeca7a]/10 px-3 py-2 font-mono text-[9px] font-bold tracking-[0.12em] text-[#b8ce91]"><span className="h-2 w-2 rounded-full bg-[#aeca7a]" />{scoreLabel(report.score)}</div>
+              <div className="border-2 border-[#0b0c0b] bg-[#101211] p-6 shadow-[8px_8px_0_#66763e]">
+                <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#66763e]">Vibe Audit score</div>
+                <div className="mt-4 flex items-end gap-3"><span className="text-[76px] font-extrabold leading-none text-[#fffdf7]">{report.score}</span><span className="mb-2 text-sm text-[#9fa39a]">/ 100</span></div>
+                <div className="mt-4 inline-flex items-center gap-2 border border-[#8fae63]/30 bg-[#8fae63]/10 px-3 py-2 font-mono text-[9px] font-bold tracking-[0.12em] text-[#b8ce91]"><span className="h-2 w-2 rounded-full bg-[#8fae63]" />{scoreLabel(report.score)}</div>
                 <p className="mt-5 text-[11px] leading-5 text-[#a9aca4]">This is a signal score, not a legal-compliance guarantee.</p>
               </div>
               <div className="grid grid-cols-3 border-2 border-[#242522] bg-[#f8f5ed] text-[#171916] shadow-[8px_8px_0_#242522]">
@@ -173,7 +173,7 @@ export default function AuditPage() {
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#f04a3f]">Signal report</div><h2 className="mt-1 text-[28px] font-extrabold">50 launch-readiness checks</h2></div>
                 <div className="flex gap-1 border border-white/10 bg-[#101211] p-1">
-                  {(["all","pass","review","missing"] as const).map((item) => <button key={item} onClick={() => setFilter(item)} className={`px-3 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.1em] ${filter === item ? "bg-[#f4c842] text-[#101111]" : "text-[#9fa39a]"}`}>{item}</button>)}
+                  {(["all","pass","review","missing"] as const).map((item) => <button key={item} onClick={() => setFilter(item)} className={`px-3 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.1em] ${filter === item ? "bg-[#66763e] text-[#101111]" : "text-[#9fa39a]"}`}>{item}</button>)}
                 </div>
               </div>
               <div className="grid gap-3">
