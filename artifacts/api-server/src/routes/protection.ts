@@ -66,7 +66,7 @@ router.post("/protection", requireAuth, async (req: AuthedRequest, res) => {
     if (!existing) {
       await assertRepositoryCapacity(req.userId!);
       const plan = await ensurePlanForUser(req.userId!);
-      if (plan.protectedScansUsed >= plan.protectedScansLimit) {
+      if (!plan.unlimited && plan.protectedScansUsed >= plan.protectedScansLimit) {
         const error = new Error(`Protected repository scan limit reached (${plan.protectedScansLimit}).`);
         Object.assign(error, { status: 429 });
         throw error;
