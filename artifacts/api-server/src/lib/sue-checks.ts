@@ -1,0 +1,144 @@
+import { AuditCorpus, AuditCheck, Applicability, Evidence, ProductContext, Rule, Severity, evaluateApplicability, finalizeRequirement, confidence, legalApplicable, hasProduct } from "./sue-applicability";
+import { text, links, scripts, combine } from "./sue-context";
+
+type Def = {
+  id:string; category:string; title:string; severity:Severity; rule:Rule;
+  evidence:(c:AuditCorpus)=>Evidence[]; recommendation:string; rationale:string;
+};
+
+const D=(id:string,category:string,title:string,severity:Severity,rule:Rule,evidence:(c:AuditCorpus)=>Evidence[],recommendation:string,rationale:string):Def=>({id,category,title,severity,rule,evidence,recommendation,rationale});
+
+const E={
+ L01:(c:AuditCorpus)=>combine(links(c,/terms|terms of service|terms & conditions|legal/i,"terms_link"),text(c,/terms of service|terms and conditions|terms of use/i,"terms_document",.96)),
+ L02:(c:AuditCorpus)=>combine(links(c,/privacy|data protection|privacy notice/i,"privacy_link"),text(c,/privacy policy|privacy notice|data protection notice/i,"privacy_document",.96)),
+ L03:(c:AuditCorpus)=>combine(links(c,/cookie policy|cookie notice|cookies/i,"cookie_policy_link"),text(c,/cookie policy|cookie notice/i,"cookie_policy_document",.96)),
+ L04:(c:AuditCorpus)=>combine(links(c,/refund|returns?|money back/i,"refund_policy_link"),text(c,/refund policy|refunds?|money[- ]back guarantee|return policy/i,"refund_terms",.96)),
+ L05:(c:AuditCorpus)=>combine(links(c,/cancel|cancellation/i,"cancellation_link"),text(c,/cancellation policy|cancel (?:your )?(?:subscription|plan|account)/i,"cancellation_terms",.96)),
+ L06:(c:AuditCorpus)=>combine(links(c,/acceptable use|aup/i,"acceptable_use_link"),text(c,/acceptable use policy|prohibited uses/i,"acceptable_use_document",.96)),
+ L07:(c:AuditCorpus)=>text(c,/disclaimer|not professional advice|no warranty|for informational purposes only/i,"disclaimer_document",.92),
+ L08:(c:AuditCorpus)=>text(c,/©|copyright|all rights reserved|intellectual property/i,"copyright_notice",.92),
+ L09:(c:AuditCorpus)=>combine(links(c,/contact|support|help/i,"contact_link"),text(c,/contact us|contact me|support@|hello@|info@|\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,"contact_signal",.92)),
+ L10:(c:AuditCorpus)=>text(c,/\b(?:inc\.?|llc|ltd\.?|limited|private limited|pvt\.?\s*ltd\.?|corporation|corp\.?)\b/i,"business_identity",.92),
+ L11:(c:AuditCorpus)=>combine(links(c,/support|help center|customer service/i,"support_link"),text(c,/support@|help center|customer support|customer service/i,"support_channel",.92)),
+ L12:(c:AuditCorpus)=>text(c,/governing law|jurisdiction|laws of [A-Z]|courts of [A-Z]/i,"governing_law",.94),
+ L13:(c:AuditCorpus)=>text(c,/18\+|13\+|16\+|minimum age|age requirement|under 13|under 16|under 18|children/i,"age_terms",.9),
+ P01:(c:AuditCorpus)=>text(c,/we collect|personal information|personal data|information we collect|data we collect/i,"data_collection_disclosure",.94),
+ P02:(c:AuditCorpus)=>text(c,/how we use|purposes? of (?:processing|collecting)|use your (?:data|information)|processing purposes/i,"processing_purpose",.94),
+ P03:(c:AuditCorpus)=>text(c,/retention|retain|stored for|keep your data|how long we keep/i,"retention_disclosure",.94),
+ P04:(c:AuditCorpus)=>text(c,/delete (?:your|my|the) (?:account|data)|account deletion|erase (?:your|my) data|right to deletion/i,"deletion_path",.94),
+ P05:(c:AuditCorpus)=>text(c,/access (?:your|my) data|data access|export (?:your|my) data|data portability|subject access request/i,"access_export_right",.94),
+ P06:(c:AuditCorpus)=>text(c,/third[- ]party|third parties|service providers|share (?:your|personal) data|sell or share/i,"third_party_sharing",.92),
+ P07:(c:AuditCorpus)=>text(c,/subprocessor|sub-processors|service providers that process/i,"subprocessor_disclosure",.94),
+ P08:(c:AuditCorpus)=>text(c,/data processing agreement|data processing addendum|\bDPA\b/i,"dpa_information",.94),
+ P09:(c:AuditCorpus)=>text(c,/security measures|security safeguards|technical and organizational measures|encryption|access controls/i,"security_safeguards",.9),
+ P10:(c:AuditCorpus)=>text(c,/data breach|security incident|incident response|notify (?:you|users) of (?:a )?(?:breach|incident)/i,"breach_language",.92),
+ P11:(c:AuditCorpus)=>text(c,/privacy rights|data subject rights|right to access|right to delete|right to correct|right to object|right to restrict/i,"privacy_rights",.94),
+ C01:(c:AuditCorpus)=>combine(text(c,/cookie consent|accept cookies|manage cookies|cookie preferences|cookie settings/i,"cookie_consent",.94),scripts(c,/cookiebot|onetrust|cookieyes|cookieconsent|iubenda|osano/i,"cookie_consent_platform",.96)),
+ C02:(c:AuditCorpus)=>text(c,/withdraw consent|change (?:your )?consent|manage preferences|withdrawal of consent/i,"consent_withdrawal",.94),
+ C03:(c:AuditCorpus)=>text(c,/marketing (?:communications|emails)|promotional emails|marketing consent|opt[- ]in to marketing/i,"marketing_consent",.94),
+ C04:(c:AuditCorpus)=>text(c,/unsubscribe|opt[- ]out of marketing|email preferences/i,"unsubscribe",.96),
+ C05:(c:AuditCorpus)=>combine(text(c,/analytics (?:tools|providers|cookies)|google analytics|plausible|posthog|mixpanel|amplitude/i,"analytics_disclosure",.94),scripts(c,/google-analytics|googletagmanager|gtag\(|plausible|posthog|mixpanel|amplitude|heap|hotjar|matomo|clarity|segment/i,"analytics_sdk",.96)),
+ C06:(c:AuditCorpus)=>text(c,/tracking technologies|tracking pixels|web beacons|tracking scripts|similar tracking technologies/i,"tracking_disclosure",.94),
+ C07:(c:AuditCorpus)=>text(c,/do not sell|do not share|opt out of (?:sale|sharing)|sale or sharing of personal information/i,"do_not_sell_share",.94),
+ C08:(c:AuditCorpus)=>text(c,/necessary cookies|functional cookies|analytics cookies|advertising cookies|marketing cookies|cookie categories/i,"cookie_categories",.94),
+ A01:(c:AuditCorpus)=>combine(text(c,/AI[- ]powered|AI assistant|AI agent|generative AI|artificial intelligence feature/i,"ai_use_disclosure",.94),scripts(c,/api\.openai\.com|anthropic|generativelanguage|gemini|openrouter|replicate|huggingface/i,"ai_provider",.96)),
+ A02:(c:AuditCorpus)=>text(c,/(?:send|share|process|use|submit).{0,120}(?:AI|OpenAI|Anthropic|Gemini|model).{0,120}(?:data|information|content|prompt)/i,"ai_data_processing",.94),
+ A03:(c:AuditCorpus)=>text(c,/train(?:ing)? (?:our|the) (?:models|AI)|use .*? to train|training data|improve our models using/i,"ai_training_use",.94),
+ A04:(c:AuditCorpus)=>text(c,/AI (?:may|can) (?:be inaccurate|make mistakes|hallucinate)|AI limitations|not guaranteed to be accurate|verify AI output/i,"ai_limitations",.94),
+ A05:(c:AuditCorpus)=>text(c,/human review|human oversight|reviewed by (?:a )?human|human-in-the-loop/i,"human_oversight",.94),
+ A06:(c:AuditCorpus)=>text(c,/you retain ownership|your content remains yours|user content.*ownership|own your content|ownership of (?:your|user) content/i,"user_content_ownership",.94),
+ A07:(c:AuditCorpus)=>text(c,/generated (?:content|output).*?(?:ownership|rights)|AI output.*?(?:ownership|rights)|output rights/i,"generated_output_rights",.94),
+ B01:(c:AuditCorpus)=>combine(text(c,/pricing|plans|starting at|\b(?:\$|€|£|₹)\s?\d+/i,"pricing_transparency",.92),links(c,/pricing|plans/i,"pricing_link",.9)),
+ B02:(c:AuditCorpus)=>text(c,/per month|monthly|per year|annual|yearly|billed (?:monthly|annually|yearly)|billing frequency/i,"billing_frequency",.95),
+ B03:(c:AuditCorpus)=>text(c,/auto[- ]?renew|automatically renew|renews automatically|recurring (?:charge|billing|payment)/i,"auto_renewal_disclosure",.96),
+ B04:(c:AuditCorpus)=>combine(links(c,/cancel|cancellation/i,"cancellation_route",.9),text(c,/cancel (?:your )?(?:subscription|plan|account)|cancellation instructions/i,"cancellation_flow",.94)),
+ B05:(c:AuditCorpus)=>E.L04(c),
+ B06:(c:AuditCorpus)=>scripts(c,/stripe|paypal|razorpay|adyen|checkout\.com|dodo|paddle|lemonsqueezy|shopify|woocommerce/i,"payment_provider",.96),
+ T01:(c:AuditCorpus)=>c.pages.some(p=>p.url.protocol==="https:")?[{type:"page",url:c.pages[0]?.url.toString(),location:"final URL",excerpt:"The audited URL was served over HTTPS.",signal:"https",confidence:.99}]:[],
+ T02:(c:AuditCorpus)=>combine(text(c,/security@|security contact|report (?:a )?vulnerability|responsible disclosure|security policy/i,"security_contact",.94),links(c,/security|vulnerability|responsible disclosure/i,"security_link",.92)),
+ T03:(c:AuditCorpus)=>text(c,/accessibility|WCAG|screen reader|keyboard navigation|aria-/i,"accessibility_signal",.88),
+ T04:(c:AuditCorpus)=>{const h=c.pages.find(p=>p.isHome)??c.pages[0];return h&&/footer/i.test(h.html)&&/terms/i.test(h.html)&&/privacy/i.test(h.html)?[{type:"page",url:h.url.toString(),location:"footer",excerpt:"Terms and Privacy links appear in the same footer surface.",signal:"legal_footer_group",confidence:.92}]:[];},
+ T05:(c:AuditCorpus)=>links(c,/terms|privacy/i,"legal_page_link",.94),
+};
+
+const defs:Def[]=[
+D("L01","Legal","Terms of Service","high",{productTypes:["saas","ecommerce","marketplace","ai_product","developer_tool","community","service_business"],anySignals:["authentication","paidService","userGeneratedContent"]},E.L01,"Publish a visible Terms of Service link.","Terms are relevant to this product surface."),
+D("L02","Legal","Privacy Policy","high",{anySignals:["personalDataCollection","authentication","analytics","tracking","marketingCollection","ecommerce"]},E.L02,"Add a clear Privacy Policy describing the data practices detected.","Personal-data processing signals were detected."),
+D("L03","Legal","Cookie Policy","medium",{anySignals:["analytics","tracking","cookies"]},E.L03,"Add a Cookie Policy or clear cookie section matching actual technologies.","Non-essential cookie/tracking signals were detected."),
+D("L04","Legal","Refund Policy","medium",{anySignals:["payments","checkout","ecommerce","subscription","paidService"]},E.L04,"Publish clear refund/return terms before purchase.","Paid or purchase-flow signals were detected."),
+D("L05","Legal","Cancellation Policy","medium",{anySignals:["subscription","autoRenewal","paidService"]},E.L05,"Publish cancellation terms and the route for stopping future charges.","A cancellable paid relationship or recurring billing signal was detected."),
+D("L06","Legal","Acceptable Use Policy","low",{productTypes:["saas","community","marketplace","ai_product","developer_tool"],anySignals:["userGeneratedContent","authentication"]},E.L06,"Add an Acceptable Use Policy where users can access or submit content/services.","An account/platform/user-content surface was detected."),
+D("L07","Legal","Disclaimer","low",{productTypes:["ai_product","service_business"],anySignals:["ai","commercialActivity"]},E.L07,"Add a disclaimer when advice, consequential content or material limitations make one useful.","The product context suggests an AI/service surface."),
+D("L08","Legal","Copyright / IP notice","low",{always:true},E.L08,"Add a copyright/IP notice in the footer or legal pages.","An IP ownership signal is generally useful on a public product."),
+D("L09","Legal","Contact information","high",{always:true},E.L09,"Publish a visible contact or support route.","A public product should expose a reliable contact path."),
+D("L10","Legal","Business identity","medium",{anySignals:["commercialActivity","paidService","payments","ecommerce"]},E.L10,"Publish the operating business/entity identity where applicable.","Commercial activity was detected."),
+D("L11","Legal","Support channel","medium",{anySignals:["authentication","paidService","ecommerce","subscription"]},E.L11,"Add a support/help channel for users or customers.","A customer/account relationship was detected."),
+D("L12","Legal","Governing law / jurisdiction","low",{anySignals:["paidService","subscription","ecommerce","payments"],productTypes:["saas","marketplace","service_business"]},E.L12,"Add governing-law language appropriate to the business terms.","Commercial terms are relevant."),
+D("L13","Legal","Age / eligibility terms","low",{productTypes:["community","marketplace","ai_product"],anySignals:["authentication","userGeneratedContent"]},E.L13,"Add age/eligibility language when the audience or service requires it.","An account/community/marketplace/AI surface makes eligibility potentially relevant."),
+D("P01","Privacy","Data collection disclosure","high",{anySignals:["personalDataCollection","authentication","marketingCollection","analytics","tracking","ecommerce"]},E.P01,"Describe the categories of personal data collected.","Personal-data collection signals were detected."),
+D("P02","Privacy","Purpose of processing","high",{anySignals:["personalDataCollection","authentication","marketingCollection","analytics","tracking","ecommerce"]},E.P02,"Describe why each material data category is processed.","Personal-data processing is relevant."),
+D("P03","Privacy","Retention disclosure","medium",{anySignals:["persistentUserData","authentication","ecommerce","marketingCollection"]},E.P03,"Add retention periods or clear retention criteria.","The product appears to retain user/customer data."),
+D("P04","Privacy","Account/data deletion","high",{anySignals:["authentication","accountCreation","persistentUserData","userGeneratedContent"]},E.P04,"Document account/data deletion or a request process.","Persistent account/user data was detected."),
+D("P05","Privacy","Access / export rights","medium",{anySignals:["persistentUserData","authentication","ecommerce"]},E.P05,"Document access/export rights or a request process.","Persistent user/customer data is likely present."),
+D("P06","Privacy","Third-party sharing","high",{anySignals:["analytics","payments","authentication","marketingCollection","aiDataProcessing","tracking"]},E.P06,"List relevant third parties/service providers and sharing purposes.","Third-party processing signals were detected."),
+D("P07","Privacy","Subprocessor disclosure","medium",{productTypes:["saas","ai_product","developer_tool"],anySignals:["authentication","aiDataProcessing"]},E.P07,"List subprocessors/service providers where customer data is processed.","The product looks like hosted software/API/AI."),
+D("P08","Privacy","DPA information","low",{productTypes:["saas","developer_tool"],anySignals:["authentication","paidService"]},E.P08,"Publish DPA information where B2B/processor relationships make it relevant.","The product appears to operate as B2B software/API."),
+D("P09","Privacy","Security safeguards","medium",{anySignals:["personalDataCollection","authentication","payments","ecommerce","tracking"]},E.P09,"Describe appropriate technical and organizational safeguards.","Meaningful personal/account/payment data processing is likely."),
+D("P10","Privacy","Breach / incident language","medium",{anySignals:["personalDataCollection","authentication","persistentUserData","payments"]},E.P10,"Add incident/breach handling or notification language.","The product appears to process meaningful user/customer data."),
+D("P11","Privacy","Privacy rights","high",{anySignals:["personalDataCollection","authentication","analytics","tracking","marketingCollection","ecommerce"]},E.P11,"List applicable privacy rights and how users can exercise them.","Personal-data processing was detected."),
+D("C01","Consent","Cookie consent / preferences","medium",{anySignals:["analytics","tracking","cookies"],unknownIfLowCoverage:true},E.C01,"Add consent/preferences controls where the detected cookies or tracking require consent.","Consent-relevant tracking/cookie technology was detected or cannot be ruled out."),
+D("C02","Consent","Consent withdrawal","medium",{anySignals:["analytics","tracking","marketingCollection"],unknownIfLowCoverage:true},E.C02,"Provide a persistent way to withdraw or change consent where consent is the basis.","Consent-based processing appears relevant."),
+D("C03","Consent","Marketing consent","medium",{anySignals:["marketingCollection"]},E.C03,"Document opt-in rules for optional marketing communications.","Marketing collection was detected."),
+D("C04","Consent","Unsubscribe / opt-out","medium",{anySignals:["marketingCollection"]},E.C04,"Provide a simple unsubscribe/opt-out route for marketing.","Marketing communication collection was detected."),
+D("C05","Consent","Analytics disclosure","low",{anySignals:["analytics"],unknownIfLowCoverage:true},E.C05,"Disclose analytics providers and purposes in privacy/cookie documentation.","Analytics was detected or runtime visibility is insufficient."),
+D("C06","Consent","Tracking technology disclosure","medium",{anySignals:["tracking"],unknownIfLowCoverage:true},E.C06,"Document pixels, scripts and other tracking technologies.","Tracking technology was detected."),
+D("C07","Consent","Do-not-sell/share language","low",{anySignals:["tracking","commercialActivity"],unknownIfLowCoverage:true},E.C07,"Add a sale/share opt-out only where the business actually falls within such rules.","A universal requirement cannot be inferred from a generic website alone."),
+D("C08","Consent","Cookie categories","low",{anySignals:["cookies","analytics","tracking"]},E.C08,"Classify cookies by purpose where non-essential cookies are used.","Cookie/tracking technology was detected."),
+D("A01","AI","AI use disclosure","medium",{anySignals:["ai"]},E.A01,"Disclose material AI functionality clearly.","The product itself shows functional AI signals."),
+D("A02","AI","AI data processing","high",{allSignals:["ai","personalDataCollection"],anySignals:["aiDataProcessing"]},E.A02,"Explain what data is sent to AI services, why, and which providers receive it.","AI functionality overlaps with user/personal data processing."),
+D("A03","AI","AI training / data use","medium",{allSignals:["ai","userGeneratedContent"]},E.A03,"State whether submitted prompts/content may be used for model training/improvement.","Users can submit content to an AI product."),
+D("A04","AI","AI limitations","medium",{anySignals:["ai"]},E.A04,"Add an appropriate AI accuracy/limitations statement.","Material AI functionality was detected."),
+D("A05","AI","Human review / oversight","low",{productTypes:["ai_product"],anySignals:["aiDataProcessing"],allSignals:["ai"]},E.A05,"Describe human review where AI influences consequential decisions.","Human oversight is context-dependent and low priority."),
+D("A06","AI","User content ownership","medium",{allSignals:["ai","userGeneratedContent"]},E.A06,"Clarify ownership and permitted use of prompts/uploads/submitted content.","Users can submit content to the AI product."),
+D("A07","AI","Generated-output rights","medium",{allSignals:["ai","aiGeneration"]},E.A07,"Clarify ownership, license and restrictions for generated output.","The product generates AI output."),
+D("B01","Business","Pricing transparency","medium",{anySignals:["pricing","paidService","payments","ecommerce","subscription"]},E.B01,"Show clear pricing before purchase.","Commercial pricing/purchase signals were detected."),
+D("B02","Business","Billing frequency","medium",{anySignals:["subscription"]},E.B02,"State monthly/annual or other billing frequency.","Recurring billing signals were detected."),
+D("B03","Business","Auto-renewal disclosure","high",{anySignals:["subscription","autoRenewal"]},E.B03,"State whether subscriptions auto-renew, when renewal occurs, and how to stop future renewals.","Recurring commercial billing was detected."),
+D("B04","Business","Cancellation flow","high",{anySignals:["subscription","autoRenewal","paidService"]},E.B04,"Provide a direct cancellation route for the paid relationship.","A cancellable paid relationship is likely."),
+D("B05","Business","Refund terms","medium",{anySignals:["payments","checkout","ecommerce","subscription","paidService"]},E.B05,"Publish refund/return rules before purchase.","Paid transaction signals were detected."),
+D("B06","Business","Payment provider disclosure","low",{anySignals:["payments","checkout"]},E.B06,"Identify the payment provider or explain payment processing appropriately.","Payment/checkout technology was detected."),
+D("T01","Trust","HTTPS","high",{always:true},E.T01,"Serve the production product over HTTPS.","The public endpoint should use encrypted transport."),
+D("T02","Trust","Security contact","low",{productTypes:["saas","developer_tool","ai_product"],anySignals:["authentication","developerApi","persistentUserData"]},E.T02,"Publish a security contact or responsible-disclosure process.","The product has a meaningful security surface."),
+D("T03","Trust","Accessibility signal","low",{always:true},E.T03,"Publish accessibility information and test the UI with assistive technology.","Absence of a visible accessibility signal is not proof of legal non-compliance."),
+D("T04","Trust","Legal links grouped in footer","medium",{anySignals:["commercialActivity","personalDataCollection","authentication"],unknownIfLowCoverage:true},E.T04,"Group applicable Terms and Privacy links in the footer.","Applicable legal documents should be easy to discover."),
+D("T05","Trust","Legal pages reachable from same product origin","high",{anySignals:["commercialActivity","personalDataCollection","authentication"],unknownIfLowCoverage:true},E.T05,"Ensure applicable legal pages are reachable from the deployed product origin.","Applicable legal documents should be discoverable from the product."),
+];
+
+export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductContext;checks:AuditCheck[]} {
+  const context=(globalThis as any).__vibesane_context as ProductContext | undefined;
+  if(!context) throw new Error("SUE context was not initialized");
+  const checks=defs.map(d=>{
+    let applicability=evaluateApplicability(d.rule,context);
+    if(d.id==="L01") applicability=legalApplicable(context)?"applicable":"unknown";
+    if(d.id==="L03"&&!context.signals.cookies&&!context.signals.tracking&&!context.signals.analytics) applicability="not_applicable";
+    if(d.id==="A01"&&!context.signals.ai) applicability=context.coverage.dynamicRenderingLikely?"unknown":"not_applicable";
+    if(d.id==="C05"&&!context.signals.analytics) applicability=context.coverage.dynamicRenderingLikely?"unknown":"not_applicable";
+    if((d.id==="C03"||d.id==="C04")&&!context.signals.marketingCollection) applicability="not_applicable";
+    if((d.id==="B02"||d.id==="B03")&&!context.signals.subscription) applicability="not_applicable";
+    if(d.id==="B06"&&!context.signals.payments&&!context.signals.checkout) applicability="not_applicable";
+    if(d.id==="A05"&&!context.signals.aiDataProcessing) applicability="not_applicable";
+    if(d.id==="P08"&&!hasProduct(context,["saas","developer_tool"])) applicability="not_applicable";
+    const evidence=d.evidence(c);
+    const status=finalizeRequirement(applicability,evidence,context);
+    let explanation=d.rationale;
+    if(applicability==="not_applicable") explanation="Not applicable based on the observed product context: "+context.productTypes.join(", ")+".";
+    else if(applicability==="unknown") explanation="Applicability could not be established confidently because crawl/runtime coverage is limited. Observed context: "+context.productTypes.join(", ")+".";
+    else if(status==="pass") explanation="The requirement is applicable and supporting evidence was found. "+d.rationale;
+    else if(status==="missing") explanation="The requirement is applicable, crawl coverage was sufficient, and no supporting evidence was found. "+d.rationale;
+    else if(status==="review") explanation="The requirement needs human review because the public crawl cannot establish it confidently. "+d.rationale;
+    return {id:d.id,category:d.category,title:d.title,applicability,status,severity:status==="not_applicable"?"low":d.severity,confidence:confidence(context,evidence),evidence,explanation,recommendation:d.recommendation};
+  });
+  return {context,checks};
+}
+
+export function definitionsCount(){return defs.length;}
