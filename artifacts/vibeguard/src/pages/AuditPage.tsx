@@ -73,7 +73,7 @@ export default function AuditPage() {
 
   if (!user) {
     return (
-      <div className="min-h-[100dvh] bg-[#171512] text-[#f8f5ed]">
+      <div className="min-h-[100dvh] bg-[#f3efe4] text-[#171916]">
         <Nav />
         <main className="mx-auto max-w-[1040px] px-5 py-20 sm:px-8">
           <div className="border-2 border-[#242522] bg-[#f8f5ed] p-8 text-center text-[#171916] shadow-[8px_8px_0_#e83a2f]">
@@ -92,7 +92,7 @@ export default function AuditPage() {
   return (
     <div className="min-h-[100dvh] bg-[#171512] text-[#f8f5ed]">
       <Nav />
-      <main className="relative mx-auto w-full max-w-[1120px] px-5 pb-20 pt-12 sm:px-8">
+      <main className="relative mx-auto w-full max-w-[1160px] px-5 pb-24 pt-10 sm:px-8 sm:pt-14 font-sans">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[620px] opacity-40" style={{ backgroundImage: "linear-gradient(rgba(244,200,66,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(244,200,66,.07) 1px, transparent 1px)", backgroundSize: "36px 36px" }} />
 
         <header className="relative z-10">
@@ -102,7 +102,7 @@ export default function AuditPage() {
           <div className="mt-5 grid gap-8 lg:grid-cols-[1fr_300px] lg:items-end">
             <div>
               <h1 className="text-[48px] font-extrabold leading-[.88] tracking-[-0.05em] sm:text-[72px]">Is your product<br /><span className="text-[#f4c842]">ready to ship?</span></h1>
-              <p className="mt-6 max-w-2xl text-[14px] leading-6 text-[#c8c5bc]">Scan a deployed website or app landing page for legal, privacy, consent, AI, payment and trust signals that are easy to miss before launch.</p>
+              <p className="mt-6 max-w-2xl text-[14px] leading-6 text-[#555850]">Scan a deployed website or app landing page for legal, privacy, consent, AI, payment and trust signals that are easy to miss before launch.</p>
             </div>
             <div className="border-2 border-[#0a0b0a] bg-[#101211] p-5 shadow-[6px_6px_0_#e83a2f]">
               <div className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-[#f4c842]">Audit perimeter</div>
@@ -112,7 +112,7 @@ export default function AuditPage() {
           </div>
         </header>
 
-        <section className="relative z-10 mt-10 border-2 border-[#242522] bg-[#f8f5ed] p-5 text-[#171916] shadow-[8px_8px_0_#242522] sm:p-7">
+        <section className="relative z-10 mt-10 border-2 border-[#242522] bg-[#fffdf7] p-5 text-[#171916] shadow-[8px_8px_0_#242522] sm:p-7">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center border-2 border-[#e83a2f]/40 bg-[#e83a2f]/10 text-[#c92e25] shadow-[3px_3px_0_#242522]"><Globe size={18} /></div>
             <div><div className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-[#c92e25]">Public endpoint</div><h2 className="mt-1 text-[22px] font-extrabold">Enter your deployed URL</h2></div>
@@ -123,8 +123,34 @@ export default function AuditPage() {
               {scanning ? <><Loader2 size={16} className="animate-spin" /> Scanning…</> : <>Run SUE <ArrowRight size={16} /></>}
             </button>
           </div>
-          <p className="mt-3 font-mono text-[9px] uppercase tracking-[0.12em] text-[#6a6d65]">Public page only · no source code is stored · one scan from your monthly quota</p>
+          <p className="mt-4 border-t border-[#242522]/10 pt-4 font-mono text-[9px] uppercase tracking-[0.1em] text-[#6a6d65]">Public page only · no source code is stored · one scan from your monthly quota</p>
           {error && <div className="mt-4 border-2 border-[#b52b23]/30 bg-[#fbedeb] px-4 py-3 text-[12px] font-semibold text-[#8d211b]">{error}</div>}
+        </section>
+
+        <section className="relative z-10 mt-12">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-[#c92e25]">What SUE checks</div>
+              <h2 className="mt-1 text-[32px] font-extrabold tracking-[-0.02em]">Six launch surfaces. One scan.</h2>
+            </div>
+            <p className="max-w-md text-[11px] leading-5 text-[#6b6e66]">Built for founders shipping fast, especially AI and vibe-coded products.</p>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              ["01","LEGAL","Terms, privacy, refunds, cancellation and business identity."],
+              ["02","PRIVACY","Collection, retention, deletion, sharing and user rights."],
+              ["03","CONSENT","Cookies, analytics, marketing opt-out and consent signals."],
+              ["04","AI","AI disclosure, data use, training and output limitations."],
+              ["05","BUSINESS","Pricing, billing, renewal, payments and customer terms."],
+              ["06","TRUST","Security contact, accessibility and legal-page discoverability."],
+            ].map(([code, title, text]) => (
+              <article key={code} className="min-h-[142px] border-2 border-[#242522] bg-[#fffdf7] p-5 text-[#171916] shadow-[5px_5px_0_#d6d0c3] transition-transform hover:-translate-y-0.5">
+                <div className="font-mono text-[9px] font-bold tracking-[0.15em] text-[#e83a2f]">{code}</div>
+                <h3 className="mt-4 text-[21px] font-extrabold">{title}</h3>
+                <p className="mt-2 text-[11px] leading-5 text-[#62655d]">{text}</p>
+              </article>
+            ))}
+          </div>
         </section>
 
         {report && (
@@ -166,12 +192,26 @@ export default function AuditPage() {
               </div>
             </section>
 
-            <div className="relative z-10 mt-8 border-t border-white/10 pt-5 font-mono text-[9px] uppercase tracking-[0.1em] text-[#858980]">
+            <div className="relative z-10 mt-8 border-t border-[#242522]/15 pt-5 font-mono text-[9px] uppercase tracking-[0.1em] text-[#6b6e66]">
               <span>Audited · {report.url}</span><span className="mx-3">·</span><span>{new Date(report.scannedAt).toLocaleString()}</span>
               <p className="mt-3 max-w-3xl normal-case font-sans text-[10px] leading-5 text-[#858980]">SUE identifies publicly observable product signals and cannot verify every legal, regulatory, contractual, accessibility or security requirement. It is not legal advice and does not guarantee compliance.</p>
             </div>
           </>
         )}
+        <section className="relative z-10 mt-12 grid gap-4 border-t-2 border-[#242522] pt-8 sm:grid-cols-3">
+          <div>
+            <div className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#c92e25]">01 / Paste</div>
+            <p className="mt-2 text-[11px] leading-5 text-[#62655d]">Give SUE the public URL of your deployed product.</p>
+          </div>
+          <div>
+            <div className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#c92e25]">02 / Scan</div>
+            <p className="mt-2 text-[11px] leading-5 text-[#62655d]">SUE follows relevant public legal and trust links and evaluates 50 signals.</p>
+          </div>
+          <div>
+            <div className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#c92e25]">03 / Fix</div>
+            <p className="mt-2 text-[11px] leading-5 text-[#62655d]">Use the report to close obvious launch gaps before customers find them.</p>
+          </div>
+        </section>
       </main>
       <Footer />
     </div>
