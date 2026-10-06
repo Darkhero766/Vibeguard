@@ -1,20 +1,10 @@
 import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { consumeAuditScan, ensurePlanForUser } from "../lib/plan";
+import { runApplicabilityAwareChecks } from "../lib/sue-checks";
+import type { AuditCorpus, AuditPage } from "../lib/sue-applicability";
 
 const router = Router();
-
-type AuditStatus = "pass" | "review" | "missing";
-type Severity = "high" | "medium" | "low";
-type AuditCheck = {
-  id: string;
-  category: string;
-  title: string;
-  status: AuditStatus;
-  severity: Severity;
-  explanation: string;
-  recommendation: string;
-};
 
 const MAX_REDIRECTS = 5;
 const MAX_HTML_BYTES = 2_500_000;
@@ -25,298 +15,214 @@ function normalizeUrl(raw: unknown): URL {
   if (typeof raw !== "string" || !raw.trim()) throw new Error("Enter a public website or deployed app URL.");
   let url: URL;
   try { url = new URL(raw.trim()); } catch { throw new Error("That URL is not valid."); }
-  if (!["http:", "https:"].includes(url.protocol)) throw new Error("Only HTTP(S) URLs are supported.");
+  if (!["http:","https:"].includes(url.protocol)) throw new Error("Only HTTP(S) URLs are supported.");
   if (url.username || url.password) throw new Error("URLs containing credentials are not supported.");
-  if (url.port && !["80", "443"].includes(url.port)) throw new Error("Only standard HTTP(S) ports are supported.");
+  if (url.port && !["80","443"].includes(url.port)) throw new Error("Only standard HTTP(S) ports are supported.");
   validateHost(url.hostname);
   url.hash = "";
   return url;
 }
 
-function validateHost(hostname: string) {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+function validateHost(hostname:string) {
+  const host=hostname.toLowerCase().replace(/^\[|\]$/g,"");
   if (
-    host === "localhost" ||
-    host.endsWith(".localhost") ||
-    host === "metadata.google.internal" ||
-    host === "169.254.169.254" ||
-    host === "::1" ||
-    host === "0.0.0.0" ||
-    host === "127.0.0.1" ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
-    /^169\.254\./.test(host)
+    host==="localhost" || host.endsWith(".localhost") || host==="metadata.google.internal" ||
+    host==="169.254.169.254" || host==="::1" || host==="0.0.0.0" || host==="127.0.0.1" ||
+    /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) || /^169\.254\./.test(host)
   ) throw new Error("Private or local network addresses cannot be audited.");
 }
 
-async function fetchPublicPage(start: URL): Promise<{ url: URL; html: string; headers: Headers; redirectCount: number }> {
-  let url = start;
-  for (let i = 0; i <= MAX_REDIRECTS; i++) {
+async function fetchPublicPage(start:URL):Promise<{url:URL;html:string;headers:Headers;redirectCount:number}> {
+  let url=start;
+  for(let i=0;i<=MAX_REDIRECTS;i++){
     validateHost(url.hostname);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    let response: Response;
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),FETCH_TIMEOUT_MS);
+    let response:Response;
     try {
-      response = await fetch(url, {
-        redirect: "manual",
-        signal: controller.signal,
-        headers: { "User-Agent": "VibeSane-Audit/1.0 (+https://vibesane.app)" },
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get("location");
-      if (!location) throw new Error("The site returned a redirect without a destination.");
-      url = new URL(location, url);
-      if (!["http:", "https:"].includes(url.protocol)) throw new Error("The site redirected to an unsupported protocol.");
+      response=await fetch(url,{redirect:"manual",signal:controller.signal,headers:{"User-Agent":"VibeSane-Audit/2.0 (+https://vibesane.app)"}});
+    } finally { clearTimeout(timer); }
+    if(response.status>=300&&response.status<400){
+      const location=response.headers.get("location");
+      if(!location) throw new Error("The site returned a redirect without a destination.");
+      url=new URL(location,url);
+      if(!["http:","https:"].includes(url.protocol)) throw new Error("The site redirected to an unsupported protocol.");
       continue;
     }
-
-    if (!response.ok) throw new Error(`The site returned HTTP ${response.status}.`);
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) {
-      throw new Error("The URL did not return an HTML page. Audit a deployed web page or app landing page.");
-    }
-
-    const length = Number(response.headers.get("content-length") ?? 0);
-    if (length > MAX_HTML_BYTES) throw new Error("The page is too large for the public audit.");
-
-    const html = await response.text();
-    if (Buffer.byteLength(html, "utf8") > MAX_HTML_BYTES) throw new Error("The page is too large for the public audit.");
-    return { url, html, headers: response.headers, redirectCount: i };
+    if(!response.ok) throw new Error("The site returned HTTP "+response.status+".");
+    const contentType=response.headers.get("content-type")??"";
+    if(!/text\/html|application\/xhtml\+xml/i.test(contentType)) throw new Error("The URL did not return an HTML page. Audit a deployed web page or app landing page.");
+    const length=Number(response.headers.get("content-length")??0);
+    if(length>MAX_HTML_BYTES) throw new Error("The page is too large for the public audit.");
+    const html=await response.text();
+    if(Buffer.byteLength(html,"utf8")>MAX_HTML_BYTES) throw new Error("The page is too large for the public audit.");
+    return {url,html,headers:response.headers,redirectCount:i};
   }
   throw new Error("Too many redirects.");
 }
 
-function stripHtml(html: string): string {
+function stripHtml(html:string):string {
   return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/\s+/g, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi," ")
+    .replace(/<style[\s\S]*?<\/style>/gi," ")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi," ")
+    .replace(/<svg[\s\S]*?<\/svg>/gi," ")
+    .replace(/<[^>]+>/g," ")
+    .replace(/&nbsp;/gi," ")
+    .replace(/&amp;/gi,"&")
+    .replace(/&quot;/gi,'"')
+    .replace(/&#39;/gi,"'")
+    .replace(/\s+/g," ")
     .trim();
 }
 
-function links(html: string, base: URL): Array<{ text: string; href: string }> {
-  const found: Array<{ text: string; href: string }> = [];
-  const pattern = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-  for (const match of html.matchAll(pattern)) {
-    const href = match[1].trim();
-    const text = stripHtml(match[2]).toLowerCase();
-    if (!href || href.startsWith("#") || /^javascript:/i.test(href) || /^mailto:/i.test(href)) continue;
+function links(html:string,base:URL):Array<{text:string;href:string}> {
+  const found:Array<{text:string;href:string}>=[];
+  const pattern=/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  for(const match of html.matchAll(pattern)){
+    const href=match[1].trim();
+    const text=stripHtml(match[2]).toLowerCase();
+    if(!href||href.startsWith("#")||/^javascript:/i.test(href)||/^mailto:/i.test(href)) continue;
     try {
-      const absolute = new URL(href, base);
-      if (["http:", "https:"].includes(absolute.protocol)) found.push({ text, href: absolute.toString() });
-    } catch { /* ignore malformed links */ }
+      const absolute=new URL(href,base);
+      if(["http:","https:"].includes(absolute.protocol)) found.push({text,href:absolute.toString()});
+    } catch {}
   }
   return found;
 }
 
-function hasText(text: string, patterns: RegExp[]): boolean {
-  return patterns.some((pattern) => pattern.test(text));
+function extractScripts(html:string,base:URL):string[] {
+  const out:string[]=[];
+  const srcPattern=/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  for(const m of html.matchAll(srcPattern)){
+    try { out.push(new URL(m[1],base).toString()); } catch { out.push(m[1]); }
+  }
+  const inline=/<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+  for(const m of html.matchAll(inline)){
+    const body=m[1].trim();
+    if(body) out.push(body.slice(0,20000));
+  }
+  return out.slice(0,120);
 }
 
-function hasLink(linkList: Array<{ text: string; href: string }>, patterns: RegExp[]): boolean {
-  return linkList.some((link) => hasText(`${link.text} ${link.href}`, patterns));
+function extractForms(html:string):Array<{html:string;action?:string;method?:string}> {
+  const out:Array<{html:string;action?:string;method?:string}>=[];
+  const pattern=/<form\b([^>]*)>([\s\S]*?)<\/form>/gi;
+  for(const m of html.matchAll(pattern)){
+    const attrs=m[1];
+    const action=attrs.match(/\baction\s*=\s*["']([^"']+)["']/i)?.[1];
+    const method=attrs.match(/\bmethod\s*=\s*["']([^"']+)["']/i)?.[1];
+    out.push({html:m[0].slice(0,30000),action,method});
+  }
+  return out.slice(0,50);
 }
 
-function check(
-  id: string,
-  category: string,
-  title: string,
-  ok: boolean | "review",
-  severity: Severity,
-  explanation: string,
-  recommendation: string,
-): AuditCheck {
+function extractInputs(html:string):Array<{type:string;name?:string;placeholder?:string;html:string}> {
+  const out:Array<{type:string;name?:string;placeholder?:string;html:string}>=[];
+  const pattern=/<(?:input|textarea|select)\b[^>]*>/gi;
+  for(const m of html.matchAll(pattern)){
+    const tag=m[0];
+    const type=tag.match(/\btype\s*=\s*["']([^"']+)["']/i)?.[1]??(tag.toLowerCase().startsWith("<textarea")?"textarea":"select");
+    const name=tag.match(/\bname\s*=\s*["']([^"']+)["']/i)?.[1];
+    const placeholder=tag.match(/\bplaceholder\s*=\s*["']([^"']+)["']/i)?.[1];
+    out.push({type,name,placeholder,html:tag});
+  }
+  return out.slice(0,100);
+}
+
+function extractMetadata(html:string):string {
+  const parts:string[]=[];
+  for(const m of html.matchAll(/<title[^>]*>([\s\S]*?)<\/title>/gi)) parts.push(stripHtml(m[1]));
+  for(const m of html.matchAll(/<meta\b[^>]*(?:name|property)\s*=\s*["'][^"']+["'][^>]*>/gi)) parts.push(stripHtml(m[0]));
+  for(const m of html.matchAll(/<link\b[^>]*rel\s*=\s*["']canonical["'][^>]*>/gi)) parts.push(m[0]);
+  return parts.join(" ").slice(0,20000);
+}
+
+function extractStructuredData(html:string):string {
+  const parts:string[]=[];
+  for(const m of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) parts.push(m[1]);
+  return parts.join(" ").slice(0,50000);
+}
+
+function makePage(fetched:{url:URL;html:string;headers:Headers;redirectCount:number},isHome:boolean):AuditPage {
   return {
-    id,
-    category,
-    title,
-    status: ok === true ? "pass" : ok === "review" ? "review" : "missing",
-    severity,
-    explanation,
-    recommendation,
+    url:fetched.url,
+    html:fetched.html,
+    text:stripHtml(fetched.html),
+    links:links(fetched.html,fetched.url),
+    scripts:extractScripts(fetched.html,fetched.url),
+    forms:extractForms(fetched.html),
+    inputs:extractInputs(fetched.html),
+    metadata:extractMetadata(fetched.html),
+    structuredData:extractStructuredData(fetched.html),
+    headers:fetched.headers,
+    isHome,
   };
 }
 
-async function fetchLinkedLegalPages(pageLinks: Array<{ text: string; href: string }>, origin: string) {
-  const keywords = /(terms|privacy|cookie|refund|return|cancel|legal|acceptable|disclaimer|policy|security|ai|data|dpa|subprocessor)/i;
-  const candidates = pageLinks
-    .filter((link) => {
-      try { return new URL(link.href).origin === origin && keywords.test(`${link.text} ${link.href}`); }
-      catch { return false; }
-    })
-    .slice(0, MAX_LINK_PAGES);
-
-  const pages: string[] = [];
-  for (const candidate of candidates) {
+async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number}> {
+  const home=await fetchPublicPage(start);
+  const homePage=makePage(home,true);
+  const sameOrigin=home.url.origin;
+  const candidates=homePage.links.filter(l=>{
     try {
-      const page = await fetchPublicPage(new URL(candidate.href));
-      pages.push(stripHtml(page.html));
-    } catch { /* the homepage result is still useful */ }
+      const u=new URL(l.href);
+      return u.origin===sameOrigin && /terms|privacy|cookie|refund|return|cancel|legal|acceptable|disclaimer|policy|security|dpa|subprocessor|data/i.test(l.text+" "+l.href);
+    } catch { return false; }
+  }).slice(0,MAX_LINK_PAGES);
+
+  const pages:AuditPage[]=[homePage];
+  for(const candidate of candidates){
+    if(pages.some(p=>p.url.toString()===candidate.href)) continue;
+    try {
+      const fetched=await fetchPublicPage(new URL(candidate.href));
+      pages.push(makePage(fetched,false));
+    } catch {}
   }
-  return pages.join(" ");
+  return {corpus:{pages,origin:sameOrigin},redirectCount:home.redirectCount};
 }
 
-function runChecks(input: {
-  url: URL;
-  html: string;
-  text: string;
-  links: Array<{ text: string; href: string }>;
-  linkedText: string;
-  headers: Headers;
-}): AuditCheck[] {
-  const allText = `${input.text} ${input.linkedText}`;
-  const linkText = input.links.map((l) => `${l.text} ${l.href}`).join(" ");
-  const combined = `${allText} ${linkText}`;
-  const hasPrivacy = hasLink(input.links, [/(privacy|data protection|privacy notice)/i]) || /privacy policy|privacy notice/i.test(allText);
-  const hasTerms = hasLink(input.links, [/(terms|terms of service|terms & conditions|legal)/i]) || /terms of service|terms and conditions/i.test(allText);
-  const hasCookie = hasLink(input.links, [/(cookie policy|cookies)/i]) || /cookie policy|cookie notice/i.test(allText);
-  const hasRefund = hasLink(input.links, [/(refund|return policy|money back)/i]) || /refund policy|refunds|money[- ]back/i.test(allText);
-  const hasCancel = hasLink(input.links, [/(cancel|cancellation)/i]) || /cancellation policy|cancel (your )?subscription/i.test(allText);
-  const hasAcceptable = hasLink(input.links, [/(acceptable use|aup)/i]) || /acceptable use policy/i.test(allText);
-  const hasDisclaimer = hasLink(input.links, [/(disclaimer)/i]) || /disclaimer/i.test(allText);
-  const hasCopyright = /©|copyright|all rights reserved/i.test(combined);
-  const hasContact = /(?:contact|support|help)\s*(?:us|center|team)?/i.test(combined) || /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(combined);
-  const hasBusinessIdentity = /(?:\b(?:inc|llc|ltd|limited|private limited|pvt\.?\s*ltd|company|corporation)\b)/i.test(allText);
-  const hasSupport = /support|help center|customer service/i.test(combined);
-  const hasGoverningLaw = /governing law|jurisdiction|laws of|courts of/i.test(allText);
-  const hasAge = /(?:18\+|13\+|16\+|minimum age|age requirement|children|under 13|under 16|under 18)/i.test(allText);
-  const hasCollection = /we collect|collect(?:s|ing)? (?:personal|personal information|data)|information (?:we|that) collect/i.test(allText);
-  const hasPurpose = /use (?:your|the) (?:information|data)|purpose of (?:collecting|processing)|how we use/i.test(allText);
-  const hasRetention = /retain|retention|stored for|keep your data/i.test(allText);
-  const hasDeletion = /delete (?:your|my|account|data)|account deletion|erase your data/i.test(allText);
-  const hasAccess = /access (?:your|my) data|data access|export (?:your|my) data|data portability/i.test(allText);
-  const hasSharing = /share (?:your|personal) data|third parties|third-party (?:providers|service providers)|sell or share/i.test(allText);
-  const hasSubprocessors = /subprocessor|sub-processors|service providers/i.test(allText);
-  const hasDpa = /data processing addendum|data processing agreement|dpa/i.test(allText);
-  const hasSecurity = /security (?:measures|practices|safeguards)|encrypt(?:ion|ed)|access controls/i.test(allText);
-  const hasBreach = /data breach|security incident|incident response|notify (?:you|users) of/i.test(allText);
-  const hasRights = /(?:right to|rights? to) (?:access|delete|correct|object|restrict|port|withdraw)|privacy rights|data subject rights/i.test(allText);
-  const hasCookieConsent = /cookie consent|accept cookies|manage cookies|cookie preferences/i.test(combined);
-  const hasConsentWithdrawal = /withdraw consent|change (?:your )?consent|manage preferences|privacy preferences/i.test(combined);
-  const hasMarketingConsent = /marketing (?:communications|emails)|promotional emails|opt[- ]in/i.test(allText);
-  const hasUnsubscribe = /unsubscribe|opt[- ]out/i.test(combined);
-  const hasAnalytics = /analytics|google analytics|plausible|mixpanel|posthog|amplitude/i.test(combined);
-  const hasTrackingDisclosure = /tracking technologies|track(?:ing)? (?:technologies|pixels|scripts)|web beacons/i.test(allText);
-  const hasDns = /do not sell|do not share|opt out of (?:sale|sharing)/i.test(allText);
-  const hasCookieClassification = /necessary|functional|analytics|advertising|marketing cookies/i.test(allText);
-  const hasAiDisclosure = /artificial intelligence|\bai\b|ai[- ]powered|machine learning/i.test(combined);
-  const hasAiDataUse = /ai (?:provider|service).*?(?:data|information)|send .*?(?:data|information).*?ai|ai.*?(?:process|use).*?(?:data|information)/i.test(allText);
-  const hasAiTraining = /train(?:ing)? (?:our|the) (?:models|ai)|use .*? to train|training data/i.test(allText);
-  const hasAiLimits = /ai (?:may|can) (?:be inaccurate|make mistakes|hallucinate)|not guaranteed|limitations of ai/i.test(allText);
-  const hasHumanReview = /human review|human oversight|reviewed by (?:a )?human/i.test(allText);
-  const hasUserOwnership = /you retain ownership|your content remains yours|user content.*ownership|own your content/i.test(allText);
-  const hasGeneratedRights = /generated (?:content|output).*?(?:ownership|rights)|output.*?(?:ownership|rights)/i.test(allText);
-  const hasPricing = /\$\s?\d+(?:\.\d{2})?|pricing|plans|per month|per year/i.test(combined);
-  const hasBilling = /per month|monthly|per year|annual|billing cycle|billed/i.test(combined);
-  const hasAutoRenew = /auto[- ]renew|automatically renew|renews automatically|recurring/i.test(allText);
-  const hasCancelFlow = hasCancel && /cancel|cancellation/i.test(combined);
-  const hasRefundTerms = hasRefund;
-  const hasPayment = /stripe|paypal|razorpay|dodo|payment provider|secure checkout/i.test(combined);
-  const hasSecurityContact = /security@|security contact|report (?:a )?vulnerability|responsible disclosure/i.test(combined);
-  const hasAccessibility = /accessibility|wcag|aria-|screen reader/i.test(combined);
-  const legalFooter = /terms.*privacy|privacy.*terms/i.test(input.html);
-
-  return [
-    check("L01","Legal","Terms of Service",hasTerms,"high","A clear terms document should be reachable from the product.","Add a visible Terms of Service link."),
-    check("L02","Legal","Privacy Policy",hasPrivacy,"high","Privacy terms explain how personal information is handled.","Add a visible Privacy Policy link."),
-    check("L03","Legal","Cookie Policy",hasCookie,"medium","Cookie use should be explained when cookies or similar technologies are used.","Add a Cookie Policy or clear cookie section."),
-    check("L04","Legal","Refund Policy",hasRefund,"medium","Customers should be able to find the commercial refund rules.","Publish a clear refund policy."),
-    check("L05","Legal","Cancellation Policy",hasCancel,"medium","Subscription products should explain cancellation.","Publish cancellation terms and the cancellation route."),
-    check("L06","Legal","Acceptable Use Policy",hasAcceptable,"low","An AUP can define prohibited or abusive use.","Add an Acceptable Use Policy where relevant."),
-    check("L07","Legal","Disclaimer",hasDisclaimer,"low","A disclaimer can clarify product limitations and responsibilities.","Add a product/service disclaimer."),
-    check("L08","Legal","Copyright / IP notice",hasCopyright,"low","A visible IP notice helps establish ownership and product identity.","Add a copyright/IP notice in the footer or legal pages."),
-    check("L09","Legal","Contact information",hasContact,"high","Users need a clear way to contact the business.","Publish a support or contact address."),
-    check("L10","Legal","Business identity",hasBusinessIdentity,"medium","The legal business identity should be discoverable where applicable.","Publish the operating entity/business identity."),
-    check("L11","Legal","Support channel",hasSupport,"medium","A support route reduces ambiguity around customer issues.","Add a support/help channel."),
-    check("L12","Legal","Governing law / jurisdiction",hasGoverningLaw,"low","Legal terms often state the governing law and venue.","Add governing-law language appropriate to your business."),
-    check("L13","Legal","Age / eligibility terms",hasAge,"low","Products should state age or eligibility restrictions when relevant.","Add age/eligibility language where applicable."),
-    check("P01","Privacy","Data collection disclosure",hasCollection,"high","The audit looks for a plain-language explanation of what data is collected.","Describe categories of personal data collected."),
-    check("P02","Privacy","Purpose of processing",hasPurpose,"high","Users should be told why their information is processed.","Describe the purposes for processing."),
-    check("P03","Privacy","Retention disclosure",hasRetention,"medium","Retention periods or criteria help users understand how long data remains stored.","Add retention periods or criteria."),
-    check("P04","Privacy","Account/data deletion",hasDeletion,"high","Users should have a documented deletion path where applicable.","Document account/data deletion."),
-    check("P05","Privacy","Access / export rights",hasAccess,"medium","A data access or export path supports privacy requests.","Document access/export rights or a request process."),
-    check("P06","Privacy","Third-party sharing",hasSharing,"high","Third-party disclosure should be explained if data leaves your service.","List relevant third parties and sharing purposes."),
-    check("P07","Privacy","Subprocessor disclosure",hasSubprocessors,"medium","Infrastructure and service providers may process user data.","List subprocessors/service providers where applicable."),
-    check("P08","Privacy","DPA information",hasDpa,"low","B2B customers may need data-processing terms.","Publish DPA information where relevant."),
-    check("P09","Privacy","Security safeguards",hasSecurity,"medium","Privacy notices commonly describe security safeguards at a high level.","Describe appropriate technical and organizational safeguards."),
-    check("P10","Privacy","Breach / incident language",hasBreach,"medium","Users should know how security incidents are handled or communicated.","Add an incident/breach notification section."),
-    check("P11","Privacy","Privacy rights",hasRights,"high","The policy should explain applicable privacy rights and request mechanisms.","List applicable privacy rights and how to exercise them."),
-    check("C01","Consent","Cookie consent / preferences",hasCookieConsent,"medium","The homepage should expose cookie consent or preference controls when required.","Add a consent banner/preferences center where applicable."),
-    check("C02","Consent","Consent withdrawal",hasConsentWithdrawal,"medium","Consent should be changeable or withdrawable where consent is the legal basis.","Provide a persistent preferences or withdrawal path."),
-    check("C03","Consent","Marketing consent",hasMarketingConsent,"medium","Marketing communications should distinguish promotional consent from service messages.","Document opt-in rules for marketing."),
-    check("C04","Consent","Unsubscribe / opt-out",hasUnsubscribe,"medium","Users should have a simple way to stop optional marketing.","Provide unsubscribe/opt-out controls."),
-    check("C05","Consent","Analytics disclosure",hasAnalytics ? "review" : true,"low","Analytics technology may be present without being obvious from the page.","If analytics are used, disclose them in privacy/cookie documentation."),
-    check("C06","Consent","Tracking technology disclosure",hasTrackingDisclosure,"medium","Pixels, scripts and similar tracking should be documented where applicable.","Document tracking technologies."),
-    check("C07","Consent","Do-not-sell/share language",hasDns,"low","Certain jurisdictions provide sale/sharing opt-out rights.","Add a relevant opt-out mechanism if applicable."),
-    check("C08","Consent","Cookie categories",hasCookieClassification,"low","Categorizing cookies makes consent choices clearer.","Classify cookies by purpose."),
-    check("A01","AI","AI use disclosure",hasAiDisclosure ? true : "review","medium","The audit checks whether the product communicates AI use when detectable from the page.","Disclose material AI functionality where appropriate."),
-    check("A02","AI","AI data processing",hasAiDataUse,"high","Users should understand if their data is sent to AI providers.","Explain what data is sent to AI services and why."),
-    check("A03","AI","AI training / data use",hasAiTraining,"medium","Training use can materially affect customer expectations.","State whether submitted data may be used for model training."),
-    check("A04","AI","AI limitations",hasAiLimits,"medium","AI systems can produce inaccurate or incomplete output.","Add an appropriate AI limitations statement."),
-    check("A05","AI","Human review / oversight",hasHumanReview,"low","High-impact AI workflows may need a human oversight explanation.","Describe human review where relevant."),
-    check("A06","AI","User content ownership",hasUserOwnership,"medium","Users should understand who owns submitted content.","Clarify user-content ownership."),
-    check("A07","AI","Generated-output rights",hasGeneratedRights,"medium","AI output ownership can depend on the service and jurisdiction.","Clarify output rights and restrictions."),
-    check("B01","Business","Pricing transparency",hasPricing,"medium","Users should be able to understand the commercial price.","Show clear pricing before purchase."),
-    check("B02","Business","Billing frequency",hasBilling,"medium","Recurring charges should state their billing period.","State monthly/annual or other billing frequency."),
-    check("B03","Business","Auto-renewal disclosure",hasAutoRenew,"high","Recurring subscriptions should clearly disclose renewal behavior.","State whether subscriptions auto-renew and when."),
-    check("B04","Business","Cancellation flow",hasCancelFlow,"high","Customers should have a clear cancellation route.","Provide a direct cancellation flow."),
-    check("B05","Business","Refund terms",hasRefundTerms,"medium","Refund conditions should be easy to locate before purchase.","Publish the refund rules."),
-    check("B06","Business","Payment provider disclosure",hasPayment,"low","Payment processing should be handled through a recognizable provider or explained securely.","Identify the payment provider where appropriate."),
-    check("T01","Trust","HTTPS",input.url.protocol === "https:","high","Secure transport protects traffic between the visitor and the product.","Serve the production product over HTTPS."),
-    check("T02","Trust","Security contact",hasSecurityContact,"low","A security reporting channel helps researchers report vulnerabilities.","Publish a security contact or disclosure process."),
-    check("T03","Trust","Accessibility signal",hasAccessibility,"low","Accessibility documentation or implementation signals can improve inclusion.","Publish accessibility information and test the UI with assistive technology."),
-    check("T04","Trust","Legal links grouped in footer",legalFooter,"medium","Core legal documents should be easy to find from the main product surface.","Group Terms and Privacy links in the footer."),
-    check("T05","Trust","Legal pages reachable from same product origin",hasTerms && hasPrivacy,"high","A legal page that is not reachable from the product is easy for users to miss.","Ensure Terms and Privacy are linked from the product."),
-  ];
-}
-
-router.post("/audit", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
+router.post("/audit",requireAuth,async(req:AuthedRequest,res):Promise<void>=>{
   try {
-    const plan = await ensurePlanForUser(req.userId!);
-    if (!plan.unlimited && plan.scansUsed >= plan.scansLimit) {
-      res.status(429).json({ error: `Monthly scan limit reached (${plan.scansLimit}).`, plan });
-      return;
-    }
+    const plan=await ensurePlanForUser(req.userId!);
+    if(!plan.unlimited&&plan.scansUsed>=plan.scansLimit){res.status(429).json({error:"Monthly scan limit reached ("+plan.scansLimit+").",plan});return;}
 
-    const start = normalizeUrl(req.body?.url);
-    const page = await fetchPublicPage(start);
-    const pageLinks = links(page.html, page.url);
-    const text = stripHtml(page.html);
-    const linkedText = await fetchLinkedLegalPages(pageLinks, page.url.origin);
-    const checks = runChecks({ url: page.url, html: page.html, text, links: pageLinks, linkedText, headers: page.headers });
+    const start=normalizeUrl(req.body?.url);
+    const {corpus,redirectCount}=await crawl(start);
+    const {context,checks}=runApplicabilityAwareChecks(corpus);
 
-    const passed = checks.filter((item) => item.status === "pass").length;
-    const review = checks.filter((item) => item.status === "review").length;
-    const missing = checks.filter((item) => item.status === "missing").length;
-    const score = Math.round(((passed + review * 0.5) / checks.length) * 100);
-
-    const updatedPlan = await consumeAuditScan(req.userId!);
+    const passed=checks.filter(x=>x.status==="pass").length;
+    const review=checks.filter(x=>x.status==="review").length;
+    const missing=checks.filter(x=>x.status==="missing").length;
+    const notApplicable=checks.filter(x=>x.status==="not_applicable").length;
+    const evaluatedCount=checks.length-notApplicable;
+    const score=evaluatedCount===0?100:Math.round(((passed+review*.5)/evaluatedCount)*100);
+    const updatedPlan=await consumeAuditScan(req.userId!);
 
     res.json({
-      url: page.url.toString(),
-      scannedAt: new Date().toISOString(),
+      url:corpus.pages[0].url.toString(),
+      scannedAt:new Date().toISOString(),
       score,
       passed,
       review,
       missing,
+      notApplicable,
       checks,
-      quota: updatedPlan,
-      redirectCount: page.redirectCount,
+      productContext:{
+        productTypes:context.productTypes,
+        commercialModel:context.commercialModel,
+        signals:context.signals,
+        confidence:context.confidence,
+        coverage:context.coverage,
+      },
+      quota:updatedPlan,
+      redirectCount,
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Audit failed.";
-    const status = /limit reached/i.test(message) ? 429 : /private|local|URL|HTML|redirect|HTTP/i.test(message) ? 400 : 502;
-    req.log.error({ err: error }, "Audit failed");
-    res.status(status).json({ error: message });
+  } catch(error) {
+    const message=error instanceof Error?error.message:"Audit failed.";
+    const status=/limit reached/i.test(message)?429:/private|local|URL|HTML|redirect|HTTP/i.test(message)?400:502;
+    req.log.error({err:error},"Audit failed");
+    res.status(status).json({error:message});
   }
 });
 
