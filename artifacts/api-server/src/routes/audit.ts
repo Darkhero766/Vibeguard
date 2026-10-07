@@ -141,7 +141,7 @@ function parseRobots(body:string,userAgent="VibeSane-Audit"):RobotsRule[] {
     else if((key==="allow"||key==="disallow")&&current)current.rules.push({allow:key==="allow",pattern:value});
   }
   const token=userAgent.toLowerCase();
-  const matching=groups.filter(g=>g.agents.some(a=>a==="*"||token.includes(a)));
+  const matching=groups.filter(g=>g.agents.some(a=>a!=="*"&&token.includes(a)));
   return (matching.length?matching:groups.filter(g=>g.agents.includes("*"))).flatMap(g=>g.rules);
 }
 
@@ -157,7 +157,8 @@ function robotsPatternMatches(pattern:string,path:string):boolean {
   try{return new RegExp(regex).test(path);}catch{return false;}
 }
 
-function allowedByRobots(url:URL,rules:RobotsRule[]):boolean {
+function allowedByRobots(url:URL,rules:RobotsRule[]|null):boolean {
+  if(rules===null)return false;
   let best:{allow:boolean;length:number}|null=null;
   const path=url.pathname+(url.search||"");
   for(const rule of rules){
@@ -168,12 +169,13 @@ function allowedByRobots(url:URL,rules:RobotsRule[]):boolean {
   return best?best.allow:true;
 }
 
-async function loadRobots(start:URL):Promise<RobotsRule[]> {
+async function loadRobots(start:URL):Promise<RobotsRule[]|null> {
   try{
     const resource=await fetchPublicResource(new URL("/robots.txt",start),512_000);
-    if(resource.status<200||resource.status>=300)return [];
+    if(resource.status>=400&&resource.status<500)return [];
+    if(resource.status<200||resource.status>=300)return null;
     return parseRobots(resource.body.toString("utf8"));
-  }catch{return [];}
+  }catch{return null;}
 }
 
 function stripHtml(html:string):string {
@@ -276,10 +278,10 @@ function makePage(fetched:{url:URL;html:string;headers:Headers;redirectCount:num
 }
 
 async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number}> {
+  const robots=await loadRobots(start);
   const home=await fetchPublicPage(start);
   const homePage=makePage(home,true);
   const sameOrigin=home.url.origin;
-  const robots=await loadRobots(home.url);
   // Build a scored first-party crawl instead of following only legal links.
   // Product applicability depends on seeing the actual product surface (pricing,
   // login, checkout, AI features, forms, etc.), not just Terms/Privacy pages.
