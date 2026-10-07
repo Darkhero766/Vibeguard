@@ -103,13 +103,20 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   const auth=combine(links(c,/\b(login|log in|sign in|sign up|register|create account|account)\b/i,"authentication_link"),forms(c,/type=["'](?:email|password)["']|login|sign[- ]?up|register/i,"authentication_form"),scripts(c,/auth0|clerk|supabase|firebase.*auth|cognito|nextauth|auth\.js/i,"authentication_provider"));
   const account=combine(auth,text(c,/\b(create your account|your dashboard|workspace|profile settings)\b/i,"account_text"));
   const marketing=combine(forms(c,/newsletter|subscribe|marketing|promotional|updates|mailchimp|klaviyo|convertkit|hubspot|brevo/i,"marketing_form"),scripts(c,/mailchimp|klaviyo|convertkit|hubspot|brevo/i,"marketing_provider"),text(c,/newsletter|subscribe to (?:our )?(?:updates|emails)|marketing emails|promotional emails/i,"marketing_text"));
-  const analytics=combine(scripts(c,/google-analytics|googletagmanager|gtag\(|plausible|posthog|mixpanel|amplitude|heap|hotjar|matomo|clarity|segment/i,"analytics_sdk"),text(c,/(?<!no\\s)(?:uses?|using|powered by|analytics provider|analytics tools?)\\s+(?:google analytics|plausible|posthog|mixpanel|amplitude)/i,"analytics_disclosure"));
+  const analytics=combine(
+    scripts(c,/google-analytics|googletagmanager|gtag\(|plausible|posthog|mixpanel|amplitude|heap|hotjar|matomo|clarity|segment/i,"analytics_sdk",.96),
+    text(c,/(?<!no\\s)(?<!without\\s)(?:uses?|using|powered by|analytics provider|analytics tools?)\\s+(?:google analytics|plausible|posthog|mixpanel|amplitude)/i,"analytics_disclosure",.94)
+  );
   const cookie=combine(headers(c,"set-cookie","cookie_header"),scripts(c,/cookiebot|onetrust|cookieyes|cookieconsent|iubenda|osano/i,"cookie_platform"),text(c,/cookie preferences|manage cookies|accept cookies|cookie settings/i,"cookie_control"));
-  const tracking=combine(analytics,scripts(c,/facebook\\.net|connect\\.facebook|doubleclick|googleadservices|hotjar|clarity|segment|pixel/i,"tracking_sdk"),text(c,/(?<!no\\s)(?:uses?|using|we use|our use of)\\s+(?:tracking technologies|tracking pixels|web beacons|tracking scripts)/i,"tracking_disclosure"));
+  const tracking=combine(
+    analytics,
+    scripts(c,/facebook\\.net|connect\\.facebook|doubleclick|googleadservices|hotjar|clarity|segment|pixel/i,"tracking_sdk",.96),
+    text(c,/(?<!no\\s)(?<!without\\s)(?:uses?|using|we use|our use of)\\s+(?:tracking technologies|tracking pixels|web beacons|tracking scripts)/i,"tracking_disclosure",.94)
+  );
   const aiProductText=combine(
     homeText(c,/\b(?:ai[- ]powered|ai assistant|ai agent|generative ai|chat with (?:our|the) ai|ask (?:our|the) ai|choose an? ai model|generate (?:text|images?|code|content|videos?|responses?))\b/i,"ai_functionality",.95),
-    text(c,/\b(?:AI assistant|AI agent|AI-powered|generative AI)\b.{0,140}\b(?:generate|create|chat|prompt|model|assistant|agent)\b/i,"ai_functionality",.93),
-    forms(c,/\b(?:prompt|generate|chat with|ask ai|ai assistant|message the ai)\b/i,"ai_input",.91)
+    text(c,/\b(?:AI assistant|AI agent|AI-powered (?:tool|product|platform|assistant|agent)|generative AI)\b.{0,140}\b(?:generate|create|chat|prompt|model|assistant|agent)\b/i,"ai_functionality",.93),
+    forms(c,/(?:\bprompt\b.{0,120}\b(?:generate|send|submit)\b|\b(?:AI assistant|AI agent|chat with AI|ask AI)\b)/i,"ai_input",.91)
   );
   const aiProvider=scripts(c,/api\.openai\.com|anthropic|generativelanguage|gemini|openrouter|replicate|huggingface/i,"ai_provider",.97);
   // A provider reference by itself is not enough; it must agree with a product-level AI signal.
