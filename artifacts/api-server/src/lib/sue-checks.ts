@@ -92,13 +92,13 @@ D("C03","Consent","Marketing consent","medium",{anySignals:["marketingCollection
 D("C04","Consent","Unsubscribe / opt-out","medium",{anySignals:["marketingCollection"]},E.C04,"Provide a simple unsubscribe/opt-out route for marketing.","Marketing communication collection was detected."),
 D("C05","Consent","Analytics disclosure","low",{anySignals:["analytics"],unknownIfLowCoverage:true},E.C05,"Disclose analytics providers and purposes in privacy/cookie documentation.","Analytics was detected or runtime visibility is insufficient."),
 D("C06","Consent","Tracking technology disclosure","medium",{anySignals:["tracking"],unknownIfLowCoverage:true},E.C06,"Document pixels, scripts and other tracking technologies.","Tracking technology was detected."),
-D("C07","Consent","Do-not-sell/share language","low",{anySignals:["tracking"],unknownIfLowCoverage:true},E.C07,"Add a sale/share opt-out only where the business actually falls within such rules.","A universal requirement cannot be inferred from a generic website alone."),
+D("C07","Consent","Do-not-sell/share language","low",{allSignals:["personalDataCollection","dataCommercialization"],unknownIfLowCoverage:true},E.C07,"Add a sale/share opt-out only where the business actually falls within such rules.","A universal requirement cannot be inferred from a generic website alone."),
 D("C08","Consent","Cookie categories","low",{anySignals:["cookies","analytics","tracking"]},E.C08,"Classify cookies by purpose where non-essential cookies are used.","Cookie/tracking technology was detected."),
 D("A01","AI","AI use disclosure","medium",{anySignals:["ai"]},E.A01,"Disclose material AI functionality clearly.","The product itself shows functional AI signals."),
 D("A02","AI","AI data processing","high",{allSignals:["ai","personalDataCollection"],anySignals:["aiDataProcessing"]},E.A02,"Explain what data is sent to AI services, why, and which providers receive it.","AI functionality overlaps with user/personal data processing."),
 D("A03","AI","AI training / data use","medium",{allSignals:["ai","userGeneratedContent"]},E.A03,"State whether submitted prompts/content may be used for model training/improvement.","Users can submit content to an AI product."),
 D("A04","AI","AI limitations","medium",{anySignals:["ai"]},E.A04,"Add an appropriate AI accuracy/limitations statement.","Material AI functionality was detected."),
-D("A05","AI","Human review / oversight","low",{productTypes:["ai_product"],anySignals:["aiDataProcessing"],allSignals:["ai"]},E.A05,"Describe human review where AI influences consequential decisions.","Human oversight is context-dependent and low priority."),
+D("A05","AI","Human review / oversight","low",{allSignals:["ai","highImpactAI"],unknownIfLowCoverage:true},E.A05,"Describe human review where AI influences consequential decisions.","Human oversight is context-dependent and low priority."),
 D("A06","AI","User content ownership","medium",{allSignals:["ai","userGeneratedContent"]},E.A06,"Clarify ownership and permitted use of prompts/uploads/submitted content.","Users can submit content to the AI product."),
 D("A07","AI","Generated-output rights","medium",{allSignals:["ai","aiGeneration"]},E.A07,"Clarify ownership, license and restrictions for generated output.","The product generates AI output."),
 D("B01","Business","Pricing transparency","medium",{anySignals:["pricing","paidService","payments","ecommerce","subscription"]},E.B01,"Show clear pricing before purchase.","Commercial pricing/purchase signals were detected."),
@@ -140,7 +140,7 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
     else if(status==="pass") explanation="The requirement is applicable and supporting evidence was found. "+d.rationale;
     else if(status==="missing") explanation="The requirement is applicable, crawl coverage was sufficient, and no supporting evidence was found. "+d.rationale;
     else if(status==="review") explanation="The requirement needs human review because the public crawl cannot establish it confidently. "+d.rationale;
-    return {id:d.id,category:d.category,title:d.title,applicability,status,severity:status==="not_applicable"?"low":d.severity,confidence:confidence(context,evidence),evidence,explanation,recommendation:d.recommendation};
+    return {id:d.id,category:d.category,title:d.title,applicability,status,severity:status==="not_applicable"?"low":d.severity,confidence:confidence(context,evidence),evidence,explanation,reason:explanation,recommendation:d.recommendation};
   });
   return {context,checks};
 }
