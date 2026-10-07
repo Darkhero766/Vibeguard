@@ -100,7 +100,12 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   const pricing=combine(text(c,/\b(pricing|plans|price list|starting at|per month|per year)\b/i,"pricing_text"),text(c,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?/i,"price_amount"),links(c,/pricing|plans|shop|store/i,"pricing_link"));
   const checkout=combine(text(c,/\b(add to cart|buy now|checkout|place order|complete purchase|subscribe now)\b/i,"checkout_action"),links(c,/checkout|cart|buy|order/i,"checkout_link"),forms(c,/checkout|payment|billing|order/i,"checkout_form"));
   const payment=combine(scripts(c,/stripe|paypal|razorpay|adyen|checkout\.com|dodo|paddle|lemonsqueezy|shopify|woocommerce/i,"payment_provider"),checkout);
-  const auth=combine(links(c,/\b(login|log in|sign in|sign up|register|create account|account)\b/i,"authentication_link"),forms(c,/type=["'](?:email|password)["']|login|sign[- ]?up|register/i,"authentication_form"),scripts(c,/auth0|clerk|supabase|firebase.*auth|cognito|nextauth|auth\.js/i,"authentication_provider"));
+  const auth=combine(
+    links(c,/\b(login|log in|sign in|sign up|register|create account|account)\b/i,"authentication_link"),
+    forms(c,/type=["'](?:email|password)["']|login|sign[- ]?up|register|create account/i,"authentication_form"),
+    text(c,/\b(?:log in|login|sign in|sign up|register|create account|create an account|authentication|member account)\b/i,"authentication_text",.9),
+    scripts(c,/auth0|clerk|supabase|firebase.*auth|cognito|nextauth|auth\.js/i,"authentication_provider")
+  );
   const account=combine(auth,text(c,/\b(create your account|your dashboard|workspace|profile settings)\b/i,"account_text"));
   const marketing=combine(
     forms(c,/newsletter|marketing|promotional|subscribe to (?:our )?(?:updates|emails)|mailchimp|klaviyo|convertkit|hubspot|brevo/i,"marketing_form"),
@@ -165,7 +170,12 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   const signals={} as ProductSignals, signalConfidence:Partial<Record<keyof ProductSignals,number>>={};
   for(const key of Object.keys(signalEvidence) as Array<keyof ProductSignals>) { const r=sv(signalEvidence[key]??[]);signals[key]=r.detected;signalConfidence[key]=r.confidence; }
   const home=c.pages.find(p=>p.isHome)??c.pages[0];
-  const dynamicRenderingLikely=c.pages.some(p=>p.text.length<220&&p.scripts.length>=5)||Boolean(home?.html.match(/<div[^>]*id=["'](?:root|app|__next|__nuxt)["'][^>]*>\s*<\/div>/i));
+  // A React/Vite/Next shell is not, by itself, evidence that runtime-only
+  // coverage is insufficient. We already inspect the rendered HTML, links,
+  // forms, scripts, metadata and structured data. Only mark the crawl as
+  // runtime-limited when the public HTML is genuinely sparse AND there are
+  // several application scripts with little observable product content.
+  const dynamicRenderingLikely=c.pages.some(p=>p.text.length<120&&p.scripts.length>=8);
   const usefulPageSignals=c.pages.reduce((n,p)=>n+( /pricing|plans|product|features|shop|store|checkout|login|sign[- ]?up|account|dashboard|api|docs|community|services|about|contact|terms|privacy/i.test(p.text+" "+p.url.pathname) ? 1 : 0),0);
   const score=Math.max(.35,Math.min(1,
     .38+
