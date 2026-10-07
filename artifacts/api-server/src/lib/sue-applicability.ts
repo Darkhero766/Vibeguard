@@ -50,7 +50,7 @@ export type AuditCorpus = { pages: AuditPage[]; origin:string };
 
 export type AuditCheck = {
   id:string; category:string; title:string; applicability:Applicability; status:RequirementStatus;
-  severity:Severity; confidence:number; evidence:Evidence[]; explanation:string; recommendation:string;
+  severity:Severity; confidence:number; evidence:Evidence[]; explanation:string; reason?:string; recommendation:string;
 };
 
 export type Rule = {
