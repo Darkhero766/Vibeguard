@@ -63,8 +63,9 @@ export default function AuditPage() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || "Audit failed. Please try again.");
-      setReport(data as Report);
+      sessionStorage.setItem("vibesane:sue-report", JSON.stringify(data));
       await refreshUsage();
+      window.location.assign("/audit/report");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Audit failed. Please try again.");
     } finally {
