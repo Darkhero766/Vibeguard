@@ -117,6 +117,16 @@ try {
   assert.equal(by(analytics,"C05").applicability,"applicable");
   assert.equal(by(analytics,"C06").applicability,"applicable");
 
+  const analyticsDisclosure=run(`
+    <html><body><h1>Company</h1><p>We use Google Analytics to understand site usage.</p></body></html>`);
+  assert.equal(by(analyticsDisclosure,"C05").applicability,"applicable","Analytics disclosure text must trigger analytics detection");
+
+  const facebookPixel=run(`
+    <html><body><h1>Company</h1>
+    <script src="https://connect.facebook.net/en_US/fbevents.js"></script>
+    </body></html>`);
+  assert.equal(by(facebookPixel,"C06").applicability,"applicable","Facebook Pixel script host must trigger tracking detection");
+
   const noTracking=run(`
     <html><body><h1>Simple Site</h1><p>Just information. No analytics or tracking scripts.</p></body></html>`);
   assert.equal(by(noTracking,"C05").status,"not_applicable");
