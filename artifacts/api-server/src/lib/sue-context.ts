@@ -59,7 +59,7 @@ export function combine(...groups:Evidence[][]) {
 
 function isPolicySurface(page:AuditPage) {
   const p=page.url.pathname.toLowerCase();
-  if (/(?:^|\\/)(terms(?:-and-conditions)?|privacy(?:-policy)?|cookies?|cookie-policy|refunds?|returns?|cancellations?|acceptable-use|aup|legal|disclaimer|dpa|subprocessors?|security-policy)(?:\\/|$)/i.test(p)) return true;
+  if (/(?:^|\/)(terms(?:-and-conditions)?|privacy(?:-policy)?|cookies?|cookie-policy|refunds?|returns?|cancellations?|acceptable-use|aup|legal|disclaimer|dpa|subprocessors?|security-policy)(?:\/|$)/i.test(p)) return true;
 
   // Crawlers/tests can expose a legal document at the site root ("/"), so
   // pathname-only classification is insufficient. Treat a page as a policy
@@ -144,7 +144,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   );
   const analytics=combine(
     scripts(surface,/google-analytics|googletagmanager|gtag\(|plausible|posthog|mixpanel|amplitude|heap|hotjar|matomo|clarity|segment/i,"analytics_sdk",.96),
-    text(surface,/(?<!no\\s)(?<!without\\s)(?:uses?|using|powered by|analytics provider|analytics tools?)\\s+(?:google analytics|plausible|posthog|mixpanel|amplitude)/i,"analytics_disclosure",.94)
+    text(surface,/(?<!no\s)(?<!without\s)(?:uses?|using|powered by|analytics provider|analytics tools?)\s+(?:google analytics|plausible|posthog|mixpanel|amplitude)/i,"analytics_disclosure",.94)
   );
   const cookie=combine(
     headers(surface,"set-cookie","cookie_header"),
@@ -153,8 +153,8 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   );
   const tracking=combine(
     analytics,
-    scripts(surface,/facebook\\.net|connect\\.facebook|doubleclick|googleadservices|hotjar|clarity|segment|pixel/i,"tracking_sdk",.96),
-    text(surface,/(?<!no\\s)(?<!without\\s)(?:uses?|using|we use|our use of)\\s+(?:tracking technologies|tracking pixels|web beacons|tracking scripts)/i,"tracking_disclosure",.94)
+    scripts(surface,/facebook\.net|connect\.facebook|doubleclick|googleadservices|hotjar|clarity|segment|pixel/i,"tracking_sdk",.96),
+    text(surface,/(?<!no\s)(?<!without\s)(?:uses?|using|we use|our use of)\s+(?:tracking technologies|tracking pixels|web beacons|tracking scripts)/i,"tracking_disclosure",.94)
   );
   const aiProductText=combine(
     homeText(surface,/\b(?:ai[- ]powered|ai assistant|ai agent|generative ai|chat with (?:our|the) ai|ask (?:our|the) ai|choose an? ai model|generate (?:text|images?|code|content|videos?|responses?))\b/i,"ai_functionality",.95),
