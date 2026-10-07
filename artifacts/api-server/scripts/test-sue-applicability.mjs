@@ -106,6 +106,20 @@ try {
   assert.equal(by(vibeSaneLike,"B03").status,"not_applicable","Free preview without recurring billing should not trigger auto-renewal");
   assert.equal(by(vibeSaneLike,"B06").status,"not_applicable","No checkout/payment signal should not trigger payment-provider finding");
 
+  const analyticsDisclosure=run(`
+    <html><body><h1>Company</h1><p>We use Google Analytics to understand product usage.</p></body></html>`);
+  assert.ok(by(analyticsDisclosure,"C05").evidence.some(e=>e.signal==="analytics_disclosure"),"Google Analytics disclosure text must be detected");
+  assert.equal(by(analyticsDisclosure,"C05").status,"pass");
+
+  const facebookTracking=run(`
+    <html><body><h1>Company</h1>
+    <script src="https://connect.facebook.net/en_US/fbevents.js"></script>
+    </body></html>`);
+  assert.ok(
+    by(facebookTracking,"C06").evidence.some(e=>e.signal==="tracking_sdk"),
+    "connect.facebook.net must be detected as tracking SDK evidence"
+  );
+  assert.equal(by(facebookTracking,"C06").applicability,"applicable");
   const analytics=run(`
     <html><body><h1>Company</h1><p>Welcome.</p>
     <script src="https://www.googletagmanager.com/gtag/js?id=G-TEST"></script>
