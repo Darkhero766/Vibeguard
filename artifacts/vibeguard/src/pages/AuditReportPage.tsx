@@ -31,63 +31,6 @@ function statusClasses(status: Status) {
   return "border-[#e83a2f]/30 bg-[#fbedeb] text-[#a52f27]";
 }
 
-function promptFor(check: AuditCheck, report: Report) {
-  const evidence = check.evidence.length
-    ? check.evidence.map((e) => "- " + [e.signal, e.excerpt, e.url].filter(Boolean).join(" | ")).join("\n")
-    : "- No direct supporting evidence was found in the public crawl.";
-  const context = report.productContext
-    ? [
-        "Product types: " + report.productContext.productTypes.join(", "),
-        "Commercial model: " + report.productContext.commercialModel,
-        "Context confidence: " + Math.round(report.productContext.confidence * 100) + "%",
-        "Pages crawled: " + report.productContext.coverage.pages,
-        "Dynamic rendering likely: " + (report.productContext.coverage.dynamicRenderingLikely ? "yes" : "no"),
-      ].join("\n")
-    : "Product context was not returned.";
-
-  return [
-    "You are fixing a VibeSane SUE product-audit finding.",
-    "",
-    "IMPORTANT:",
-    "- Inspect the existing application before changing anything.",
-    "- Do not blindly add a policy or feature just to satisfy the scanner.",
-    "- First verify that the requirement actually applies to the product.",
-    "- Preserve the existing architecture, authentication, billing, UI system and existing behavior.",
-    "- Make the smallest production-ready change that genuinely resolves the finding.",
-    "- If this is REVIEW caused by insufficient public/runtime evidence, investigate the actual implementation before changing anything.",
-    "- Do not claim a requirement is satisfied unless the implementation/evidence supports it.",
-    "",
-    "TARGET:",
-    "Check " + check.id + " — " + check.title,
-    "Status: " + statusLabel[check.status],
-    "Applicability: " + check.applicability,
-    "Severity: " + check.severity,
-    "",
-    "PRODUCT CONTEXT:",
-    context,
-    "",
-    "WHY SUE FLAGGED IT:",
-    check.explanation,
-    "",
-    "RECOMMENDED DIRECTION:",
-    check.recommendation,
-    "",
-    "OBSERVED EVIDENCE:",
-    evidence,
-    "",
-    "TASK:",
-    "1. Inspect the relevant implementation and existing legal/product flows.",
-    "2. Determine whether " + check.title + " truly applies.",
-    "3. If it applies and is missing, implement the appropriate fix end-to-end.",
-    "4. If it is already satisfied but SUE misunderstood the evidence, improve the evidence/detection rather than adding unnecessary product changes.",
-    "5. Add or update tests for the exact scenario.",
-    "6. Verify the build and relevant tests.",
-    "7. Report the files changed, what was fixed, and how you verified it.",
-    "",
-    "Do not redesign unrelated parts of the application."
-  ].join("\n");
-}
-
 function masterPromptFor(report: Report) {
   const actionable = report.checks.filter((check) => check.status === "missing" || check.status === "review");
   const context = report.productContext
@@ -226,9 +169,7 @@ function masterPromptFor(report: Report) {
 }
 
 export default function AuditReportPage() {
-  const [copied, setCopied] = useState("");
   const [masterCopied, setMasterCopied] = useState(false);
-  const [openPrompt, setOpenPrompt] = useState("");
   const [filter, setFilter] = useState<"all" | Status>("all");
   const [report] = useState<Report | null>(() => {
     try {
@@ -241,13 +182,6 @@ export default function AuditReportPage() {
     () => report?.checks.filter((c) => filter === "all" || c.status === filter) ?? [],
     [report, filter],
   );
-
-  const copy = async (check: AuditCheck) => {
-    if (!report) return;
-    await navigator.clipboard.writeText(promptFor(check, report));
-    setCopied(check.id);
-    window.setTimeout(() => setCopied(""), 1800);
-  };
 
   const copyMasterPrompt = async () => {
     if (!report) return;
@@ -305,7 +239,7 @@ export default function AuditReportPage() {
 
               {item.evidence.length > 0 && <div className="mt-5 border-t border-[#242522]/10 pt-4"><div className="font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-[#777a72]">Evidence</div><div className="mt-2 grid gap-2">{item.evidence.slice(0,3).map((e,i) => <div key={i} className="border border-[#242522]/10 bg-[#f3efe4] p-3 text-[10px] leading-5 text-[#555850]"><span className="font-mono text-[8px] uppercase text-[#66763e]">{e.type} · {e.signal}</span><div className="mt-1">{e.excerpt || "Observed signal."}</div>{e.url && <a href={e.url} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 font-mono text-[8px] text-[#a52f27]">{new URL(e.url).hostname} <ExternalLink size={9} /></a>}</div>)}</div></div>}
 
-              {item.status !== "pass" && item.status !== "not_applicable" && <div className="mt-5 border-2 border-[#e83a2f]/25 bg-[#fbedeb] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex items-center gap-2 font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-[#c92e25]"><Wand2 size={11} /> AI FIX PROMPT</div><p className="mt-2 text-[11px] leading-5 text-[#50534d]">{item.recommendation}</p></div><div className="flex shrink-0 gap-2"><button onClick={() => setOpenPrompt(openPrompt === item.id ? "" : item.id)} className="border-2 border-[#242522] bg-[#fffdf7] px-4 py-2 font-mono text-[9px] font-bold uppercase shadow-[3px_3px_0_#242522]">{openPrompt === item.id ? "Hide prompt" : "View prompt"}</button><button onClick={() => void copy(item)} className="inline-flex items-center justify-center gap-2 border-2 border-[#242522] bg-[#fffdf7] px-4 py-2 font-mono text-[9px] font-bold uppercase shadow-[3px_3px_0_#242522] hover:bg-white">{copied === item.id ? <Check size={13} /> : <Copy size={13} />}{copied === item.id ? "Copied" : "Copy prompt"}</button></div></div>{openPrompt === item.id && <pre className="mt-4 max-h-[420px] overflow-auto border border-[#242522]/15 bg-[#101211] p-4 whitespace-pre-wrap font-mono text-[9px] leading-5 text-[#d8dbd3]">{promptFor(item, report)}</pre>}</div>}
+              {item.status !== "pass" && item.status !== "not_applicable" && <div className="mt-5 border-2 border-[#e83a2f]/25 bg-[#fbedeb] p-4"><div className="flex items-center gap-2 font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-[#c92e25]"><Wand2 size={11} /> RECOMMENDED FIX</div><p className="mt-2 text-[11px] leading-5 text-[#50534d]">{item.recommendation}</p><p className="mt-3 font-mono text-[8px] uppercase tracking-[0.1em] text-[#777a72]">Included in the master fix prompt above.</p></div>}
             </article>)}
           </div>
         </section>
