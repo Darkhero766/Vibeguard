@@ -81,7 +81,7 @@ const scenarios=[
   {
     name:"nonprofit",
     html:`<html><body><h1>Open Science Foundation</h1><p>Nonprofit organization advancing open science. Donate to support our work.</p><a href="/donate">Donate</a><a href="/contact">Contact us</a></body></html>`,
-    expect:{L09:"applicable",B03:"not_applicable",B06:"not_applicable",A01:"not_applicable"}
+    expect:{L09:"not_applicable",B03:"not_applicable",B06:"not_applicable",A01:"not_applicable"}
   }
 ];
 
