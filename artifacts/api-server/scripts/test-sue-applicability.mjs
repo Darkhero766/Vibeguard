@@ -19,7 +19,8 @@ try {
   const {runApplicabilityAwareChecks,definitionsCount}=await import(outfile);
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
 
-  const headers=()=>new Headers();\n  // SSRF host-validation unit coverage is kept in the audit route itself;
+  const headers=()=>new Headers();
+  // SSRF host-validation unit coverage is kept in the audit route itself;
   // these cases document the security boundary for future route-level tests.
   assert.ok((await import("node:net")).isIP("2001:db8::1")===6,"Node must recognize IPv6 test addresses");
 
