@@ -69,8 +69,8 @@ D("L04","Legal","Refund Policy","medium",{anySignals:["payments","checkout","eco
 D("L05","Legal","Cancellation Policy","medium",{anySignals:["subscription","autoRenewal","paidService"]},E.L05,"Publish cancellation terms and the route for stopping future charges.","A cancellable paid relationship or recurring billing signal was detected."),
 D("L06","Legal","Acceptable Use Policy","low",{productTypes:["saas","community","marketplace","ai_product","developer_tool"],anySignals:["userGeneratedContent","authentication"]},E.L06,"Add an Acceptable Use Policy where users can access or submit content/services.","An account/platform/user-content surface was detected."),
 D("L07","Legal","Disclaimer","low",{productTypes:["ai_product","service_business"],anySignals:["ai","commercialActivity"]},E.L07,"Add a disclaimer when advice, consequential content or material limitations make one useful.","The product context suggests an AI/service surface."),
-D("L08","Legal","Copyright / IP notice","low",{always:true},E.L08,"Add a copyright/IP notice in the footer or legal pages.","An IP ownership signal is generally useful on a public product."),
-D("L09","Legal","Contact information","high",{always:true},E.L09,"Publish a visible contact or support route.","A public product should expose a reliable contact path."),
+D("L08","Legal","Copyright / IP notice","low",{anySignals:["commercialActivity","userGeneratedContent","ecommerce","authentication"]},E.L08,"Add a copyright/IP notice in the footer or legal pages.","Copyright/IP notices are most relevant where the site publishes or operates a commercial, account-based, or user-content service."),
+D("L09","Legal","Contact information","high",{anySignals:["commercialActivity","authentication","ecommerce","marketplace","paidService"]},E.L09,"Publish a visible contact or support route.","A customer-facing commercial or account-based service should expose a reliable contact path."),
 D("L10","Legal","Business identity","medium",{anySignals:["commercialActivity","paidService","payments","ecommerce"]},E.L10,"Publish the operating business/entity identity where applicable.","Commercial activity was detected."),
 D("L11","Legal","Support channel","medium",{anySignals:["authentication","paidService","ecommerce","subscription"]},E.L11,"Add a support/help channel for users or customers.","A customer/account relationship was detected."),
 D("L12","Legal","Governing law / jurisdiction","low",{anySignals:["paidService","subscription","ecommerce","payments"],productTypes:["saas","marketplace","service_business"]},E.L12,"Add governing-law language appropriate to the business terms.","Commercial terms are relevant."),
@@ -109,7 +109,7 @@ D("B05","Business","Refund terms","medium",{anySignals:["payments","checkout","e
 D("B06","Business","Payment provider disclosure","low",{anySignals:["payments","checkout"]},E.B06,"Identify the payment provider or explain payment processing appropriately.","Payment/checkout technology was detected."),
 D("T01","Trust","HTTPS","high",{always:true},E.T01,"Serve the production product over HTTPS.","The public endpoint should use encrypted transport."),
 D("T02","Trust","Security contact","low",{productTypes:["saas","developer_tool","ai_product"],anySignals:["authentication","developerApi","persistentUserData"]},E.T02,"Publish a security contact or responsible-disclosure process.","The product has a meaningful security surface."),
-D("T03","Trust","Accessibility signal","low",{always:true},E.T03,"Publish accessibility information and test the UI with assistive technology.","Absence of a visible accessibility signal is not proof of legal non-compliance."),
+D("T03","Trust","Accessibility signal","low",{anySignals:["commercialActivity","authentication","ecommerce","community","marketplace"]},E.T03,"Publish accessibility information and test the UI with assistive technology.","Accessibility review is most useful for customer-facing products and interactive services; absence of a visible statement is not proof of legal non-compliance."),
 D("T04","Trust","Legal links grouped in footer","medium",{anySignals:["commercialActivity","personalDataCollection","authentication"],unknownIfLowCoverage:true},E.T04,"Group applicable Terms and Privacy links in the footer.","Applicable legal documents should be easy to discover."),
 D("T05","Trust","Legal pages reachable from same product origin","high",{anySignals:["commercialActivity","personalDataCollection","authentication"],unknownIfLowCoverage:true},E.T05,"Ensure applicable legal pages are reachable from the deployed product origin.","Applicable legal documents should be discoverable from the product."),
 ];
@@ -122,7 +122,7 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
     let applicability=evaluateApplicability(d.rule,context);
     if(d.id==="L01") applicability=legalApplicable(context)?"applicable":"unknown";
     if(d.id==="L03"&&(!context.signals.analytics&&!context.signals.tracking)) applicability="not_applicable";
-    if((d.id==="C01"||d.id==="C08")&&!context.signals.analytics&&!context.signals.tracking) applicability="not_applicable";
+    if((d.id==="C01"||d.id==="C08")&&!context.signals.analytics&&!context.signals.tracking&&!context.signals.cookies) applicability="not_applicable";
     if(d.id==="A01"&&!context.signals.ai) applicability=context.coverage.dynamicRenderingLikely?"unknown":"not_applicable";
     if(d.id==="C05"&&!context.signals.analytics) applicability=context.coverage.dynamicRenderingLikely?"unknown":"not_applicable";
     if(d.id==="C05"&&context.signals.analytics) applicability="applicable";
