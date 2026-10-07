@@ -37,11 +37,11 @@ function ipv4Private(ip:string):boolean {
 function ipv6Private(ip:string):boolean {
   const h=ip.toLowerCase().replace(/^\[|\]$/g,"");
   if(!h.includes(":")) return false;
-  const mapped=h.match(/^(?:0*:){0,4}ffff:([0-9a-f]{1,4}:){1,2}[0-9a-f]{1,4}$/i);
+  const mapped=h.match(/(?:^|:)ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
   if(mapped) {
-    const hex=h.split(":").slice(-2);
-    const candidate=hex.length===2 ? (parseInt(hex[0],16)*65536+parseInt(hex[1],16)).toString() : "";
-    if(candidate && ipv4Private(candidate)) return true;
+    const n1=parseInt(mapped[1],16),n2=parseInt(mapped[2],16);
+    const candidate=[n1>>8,n1&255,n2>>8,n2&255].join(".");
+    if(ipv4Private(candidate)) return true;
   }
   const normalized=h.split("%")[0];
   return normalized==="::" || normalized==="::1" ||
