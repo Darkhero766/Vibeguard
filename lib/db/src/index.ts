@@ -16,7 +16,15 @@ const ssl = isLocal
       ...(ca ? { ca } : {}),
     };
 
-export const pool = new Pool({ connectionString, ssl });
+export const pool = new Pool({
+  connectionString,
+  ssl,
+  // Never allow a database/network problem to block application startup.
+  // Render must be able to reach the HTTP health endpoint independently.
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 30000,
+  max: 5,
+});
 export const db = drizzle(pool, { schema });
 
 export async function ensureTables(): Promise<void> {
