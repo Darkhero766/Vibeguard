@@ -16,19 +16,21 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// Run idempotent table migrations before accepting traffic.
-// Non-fatal: Supabase may not be reachable from the Replit dev sandbox,
-// but IS reachable in the production deployment where the table is created
-// automatically on first boot.
-await ensureTables();
-
-const server = app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
-
+// IMPORTANT: start listening before any external dependency work.
+// Render expects the HTTP port to become reachable quickly during deploys.
+// Database initialization is deliberately performed in the background so a
+// slow/unreachable Supabase connection cannot make the Render deployment
+// time out before the health check can reach "/".
+const server = app.listen(port, () => {
   logger.info({ port }, "Server listening");
+
+  void ensureTables().then(() => {
+    logger.info("Database initialization completed");
+  }).catch((error) => {
+    // ensureTables is intentionally non-fatal. Individual API operations
+    // will surface database errors if the database is unavailable.
+    logger.warn({ err: error }, "Database initialization failed");
+  });
 });
 
 // Render sends SIGTERM when replacing/restarting an instance. Close the
