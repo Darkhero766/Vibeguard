@@ -102,7 +102,11 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   const payment=combine(scripts(c,/stripe|paypal|razorpay|adyen|checkout\.com|dodo|paddle|lemonsqueezy|shopify|woocommerce/i,"payment_provider"),checkout);
   const auth=combine(links(c,/\b(login|log in|sign in|sign up|register|create account|account)\b/i,"authentication_link"),forms(c,/type=["'](?:email|password)["']|login|sign[- ]?up|register/i,"authentication_form"),scripts(c,/auth0|clerk|supabase|firebase.*auth|cognito|nextauth|auth\.js/i,"authentication_provider"));
   const account=combine(auth,text(c,/\b(create your account|your dashboard|workspace|profile settings)\b/i,"account_text"));
-  const marketing=combine(forms(c,/newsletter|subscribe|marketing|promotional|updates|mailchimp|klaviyo|convertkit|hubspot|brevo/i,"marketing_form"),scripts(c,/mailchimp|klaviyo|convertkit|hubspot|brevo/i,"marketing_provider"),text(c,/newsletter|subscribe to (?:our )?(?:updates|emails)|marketing emails|promotional emails/i,"marketing_text"));
+  const marketing=combine(
+    forms(c,/newsletter|marketing|promotional|subscribe to (?:our )?(?:updates|emails)|mailchimp|klaviyo|convertkit|hubspot|brevo/i,"marketing_form"),
+    scripts(c,/mailchimp|klaviyo|convertkit|hubspot|brevo/i,"marketing_provider"),
+    text(c,/newsletter|subscribe to (?:our )?(?:updates|emails)|marketing emails|promotional emails|mailing list/i,"marketing_text")
+  );
   const analytics=combine(
     scripts(c,/google-analytics|googletagmanager|gtag\(|plausible|posthog|mixpanel|amplitude|heap|hotjar|matomo|clarity|segment/i,"analytics_sdk",.96),
     text(c,/(?<!no\\s)(?<!without\\s)(?:uses?|using|powered by|analytics provider|analytics tools?)\\s+(?:google analytics|plausible|posthog|mixpanel|amplitude)/i,"analytics_disclosure",.94)
@@ -133,7 +137,10 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   const ecommerce=combine(text(c,/add to cart|shopping cart|product catalog|product variants|shipping|quantity|order now|buy now/i,"ecommerce_flow",.93),links(c,/shop|store|cart|checkout/i,"ecommerce_navigation",.9),scripts(c,/shopify|woocommerce/i,"ecommerce_platform",.96),text(c,/\b(product|sku|in stock|out of stock)\b.{0,80}(?:\$|€|£|₹)\s?\d+/i,"ecommerce_product_price",.94));
   const marketplace=combine(text(c,/marketplace|seller|vendor|list your (?:product|service)|seller profile|buyer and seller/i,"marketplace_language",.94),text(c,/(?:listings|products|services).{0,120}(?:seller|vendor)/i,"marketplace_flow",.9));
   const ugc=combine(forms(c,/type=["']file["']|upload|comment|review|post|message|profile/i,"ugc_form",.9),text(c,/user[- ]generated|community posts|comments|reviews|upload your|public profile|create a post/i,"ugc_text",.9));
-  const developerApi=combine(links(c,/\b(api|developers|docs|sdk|integrat(?:e|ion))\b/i,"developer_navigation",.82),text(c,/api key|webhook|endpoint|sdk|developer platform|api access/i,"developer_functionality",.9));
+  const developerApi=combine(
+    links(c,/\b(api|developers?)\b/i,"developer_navigation",.88),
+    text(c,/api key|webhook|endpoint|sdk|developer platform|api access/i,"developer_functionality",.93)
+  );
   const advertising=combine(scripts(c,/adsbygoogle|doubleclick|googlesyndication|facebook.*pixel|adservice/i,"advertising_sdk",.96),text(c,/advertise with us|sponsored content|advertisement|ad space/i,"advertising_text",.9));
   const personal=combine(forms(c,/type=["'](?:email|tel|text|password|date)["']|name=["'](?:email|phone|name|address)/i,"personal_data_form",.88),auth,marketing,text(c,/we collect|personal information|personal data|contact information/i,"personal_data_disclosure",.78));
 
@@ -143,8 +150,12 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   set("aiDataProcessing",aiData);set("userGeneratedContent",ugc);set("subscription",subscription);set("autoRenewal",autoRenew);set("advertising",advertising);
   set("ecommerce",ecommerce);set("marketplace",marketplace);set("developerApi",developerApi);
   set("persistentUserData",combine(auth,ugc,text(c,/save your|saved projects|history|profile|dashboard data/i,"persistent_data_text",.82)));
-  set("paidService",combine(payment,pricing,checkout,text(c,/paid service|paid plan|hire us|book a paid|starting at/i,"paid_service_text",.78)));
-  set("commercialActivity",combine(pricing,payment,checkout,ecommerce,marketplace,text(c,/\b(hire|services|consulting|agency|plans|pricing|shop|store|buy|subscribe)\b/i,"commercial_language",.72)));
+  const paidPricing=combine(
+    text(c,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?|\b(?:paid|pro|premium|business|enterprise)\s+(?:plan|tier|subscription)\b|\bstarting at\b/i,"paid_pricing",.91),
+    text(c,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
+  );
+  set("paidService",combine(payment,checkout,paidPricing,text(c,/paid service|paid plan|hire us|book a paid|starting at/i,"paid_service_text",.78)));
+  set("commercialActivity",combine(pricing,payment,checkout,ecommerce,marketplace,text(c,/\b(hire|services|consulting|agency|plans|pricing|shop|store|buy|subscribe|book a call|request a quote)\b/i,"commercial_language",.72)));
 
   const signals={} as ProductSignals, signalConfidence:Partial<Record<keyof ProductSignals,number>>={};
   for(const key of Object.keys(signalEvidence) as Array<keyof ProductSignals>) { const r=sv(signalEvidence[key]??[]);signals[key]=r.detected;signalConfidence[key]=r.confidence; }
