@@ -227,6 +227,7 @@ function masterPromptFor(report: Report) {
 
 export default function AuditReportPage() {
   const [copied, setCopied] = useState("");
+  const [masterCopied, setMasterCopied] = useState(false);
   const [openPrompt, setOpenPrompt] = useState("");
   const [filter, setFilter] = useState<"all" | Status>("all");
   const [report] = useState<Report | null>(() => {
@@ -246,6 +247,13 @@ export default function AuditReportPage() {
     await navigator.clipboard.writeText(promptFor(check, report));
     setCopied(check.id);
     window.setTimeout(() => setCopied(""), 1800);
+  };
+
+  const copyMasterPrompt = async () => {
+    if (!report) return;
+    await navigator.clipboard.writeText(masterPromptFor(report));
+    setMasterCopied(true);
+    window.setTimeout(() => setMasterCopied(false), 1800);
   };
 
   if (!report) {
@@ -270,7 +278,23 @@ export default function AuditReportPage() {
 
         {report.productContext && <section className="relative z-10 mt-8 border-2 border-[#242522] bg-[#fffdf7] p-5 shadow-[6px_6px_0_#d6d0c3]"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-[#c92e25]">01 / Product context</div><div className="mt-3 flex flex-wrap gap-2">{report.productContext.productTypes.map((type) => <span key={type} className="border border-[#66763e]/30 bg-[#66763e]/10 px-2 py-1 font-mono text-[9px] uppercase text-[#526b32]">{type.replaceAll("_"," ")}</span>)}<span className="border border-[#242522]/20 bg-[#242522]/5 px-2 py-1 font-mono text-[9px] uppercase">{report.productContext.commercialModel.replaceAll("_"," ")}</span></div></div><div className="text-right font-mono text-[9px] uppercase tracking-[0.08em] text-[#666960]"><div>Context confidence · {Math.round(report.productContext.confidence * 100)}%</div><div className="mt-1">Coverage · {report.productContext.coverage.pages} pages / {report.productContext.coverage.scripts} scripts</div></div></div><div className="mt-5 grid gap-2 sm:grid-cols-4">{Object.entries(report.productContext.signals).filter(([,v]) => v).slice(0,16).map(([key]) => <div key={key} className="flex items-center gap-2 border border-[#242522]/10 bg-[#f3efe4] px-3 py-2 font-mono text-[9px] uppercase"><span className="h-1.5 w-1.5 rounded-full bg-[#66763e]" />{key.replace(/([A-Z])/g," $1")}</div>)}</div></section>}
 
-        <section className="relative z-10 mt-8 border-2 border-[#242522] bg-[#101211] p-5 text-[#fffdf7] shadow-[7px_7px_0_#66763e] sm:p-6"><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#66763e]">02 / Fix queue</div><div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-2xl font-extrabold">You have {attention} item{attention === 1 ? "" : "s"} needing attention.</h2><p className="mt-2 max-w-2xl text-[11px] leading-5 text-[#a9aca4]">Every REVIEW or MISSING finding has a ready-to-paste engineering prompt. The prompt tells an AI coding agent to verify applicability before making changes.</p></div><span className="border border-[#8fae63]/30 bg-[#8fae63]/10 px-3 py-2 font-mono text-[9px] uppercase text-[#b8ce91]">N/A findings are not failures</span></div></section>
+        <section className="relative z-10 mt-8 border-2 border-[#242522] bg-[#101211] p-5 text-[#fffdf7] shadow-[7px_7px_0_#66763e] sm:p-6"><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#66763e]">02 / Fix queue</div><div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-2xl font-extrabold">You have {attention} item{attention === 1 ? "" : "s"} needing attention.</h2><p className="mt-2 max-w-2xl text-[11px] leading-5 text-[#a9aca4]">SUE has combined every REVIEW and MISSING finding into one implementation prompt. Your coding agent can work through the complete queue in one pass.</p></div><span className="border border-[#8fae63]/30 bg-[#8fae63]/10 px-3 py-2 font-mono text-[9px] uppercase text-[#b8ce91]">N/A findings are not failures</span></div></section>
+
+        <section className="relative z-10 mt-6 border-2 border-[#e83a2f] bg-[#fffdf7] p-5 text-[#171916] shadow-[7px_7px_0_#242522] sm:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2 font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-[#c92e25]"><Wand2 size={12} /> Master fix prompt</div>
+              <h2 className="mt-2 text-2xl font-extrabold">Fix everything in one pass.</h2>
+              <p className="mt-2 max-w-2xl text-[11px] leading-5 text-[#5b5e57]">One copyable prompt containing every actionable SUE finding. PASS and N/A checks are deliberately excluded.</p>
+            </div>
+            <button type="button" onClick={() => void copyMasterPrompt()} className="inline-flex shrink-0 items-center justify-center gap-2 border-2 border-[#242522] bg-[#e83a2f] px-5 py-3 font-mono text-[9px] font-bold uppercase text-white shadow-[4px_4px_0_#242522] hover:bg-[#c92e25]">
+              {masterCopied ? <Check size={14} /> : <Copy size={14} />}{masterCopied ? "Copied!" : "Copy fix-all prompt"}
+            </button>
+          </div>
+          <div className="mt-5 max-h-[520px] overflow-auto border-2 border-[#242522] bg-[#101211] p-4">
+            <pre className="whitespace-pre-wrap font-mono text-[9px] leading-5 text-[#d8dbd3]">{masterPromptFor(report)}</pre>
+          </div>
+        </section>
 
         <section className="relative z-10 mt-8">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#c92e25]">03 / Findings</div><h2 className="mt-1 text-3xl font-extrabold">What to fix, with context.</h2></div><div className="flex flex-wrap gap-1 border border-[#242522] bg-[#101211] p-1">{(["all","missing","review","pass","not_applicable"] as const).map((item) => <button key={item} onClick={() => setFilter(item)} className={"px-3 py-2 font-mono text-[9px] font-bold uppercase " + (filter === item ? "bg-[#66763e] text-[#101111]" : "text-[#9fa39a]")}>{item === "not_applicable" ? "N/A" : item}</button>)}</div></div>
