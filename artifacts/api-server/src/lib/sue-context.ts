@@ -175,7 +175,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   // forms, scripts, metadata and structured data. Only mark the crawl as
   // runtime-limited when the public HTML is genuinely sparse AND there are
   // several application scripts with little observable product content.
-  const dynamicRenderingLikely=c.pages.some(p=>p.text.length<120&&p.scripts.length>=8);
+  const dynamicRenderingLikely=c.pages.some(p=>p.text.length<120&&p.scripts.length>=6);
   const usefulPageSignals=c.pages.reduce((n,p)=>n+( /pricing|plans|product|features|shop|store|checkout|login|sign[- ]?up|account|dashboard|api|docs|community|services|about|contact|terms|privacy/i.test(p.text+" "+p.url.pathname) ? 1 : 0),0);
   const score=Math.max(.35,Math.min(1,
     .38+
