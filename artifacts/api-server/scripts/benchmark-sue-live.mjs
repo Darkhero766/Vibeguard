@@ -15,18 +15,18 @@ const dir=await mkdtemp(join(tmpdir(),"sue-live-"));
 const outfile=join(dir,"sue-checks.mjs");
 
 function stripHtml(html) {
-  return html.replace(/<script[\\s\\S]*?<\\/script>/gi," ")
-    .replace(/<style[\\s\\S]*?<\\/style>/gi," ")
+  return html.replace(/<script[\s\S]*?<\/script>/gi," ")
+    .replace(/<style[\s\S]*?<\/style>/gi," ")
     .replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ")
-    .replace(/&amp;/gi,"&").replace(/\\s+/g," ").trim();
+    .replace(/&amp;/gi,"&").replace(/\s+/g," ").trim();
 }
 function makePage(url,html,headers) {
-  const links=[...html.matchAll(/<a\\b[^>]*href\\s*=\\s*["']([^"']+)["'][^>]*>([\\s\\S]*?)<\\/a>/gi)]
+  const links=[...html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)]
     .map(m=>({href:new URL(m[1],url).toString(),text:stripHtml(m[2])})).slice(0,300);
-  const scripts=[...html.matchAll(/<script\\b[^>]*\\bsrc\\s*=\\s*["']([^"']+)["'][^>]*>/gi)]
+  const scripts=[...html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi)]
     .map(m=>new URL(m[1],url).toString()).slice(0,120);
-  const forms=[...html.matchAll(/<form\\b[^>]*>[\\s\\S]*?<\\/form>/gi)].map(m=>({html:m[0]})).slice(0,50);
-  const inputs=[...html.matchAll(/<(?:input|textarea|select)\\b[^>]*>/gi)].map(m=>({type:m[0].match(/\\btype\\s*=\\s*["']([^"']+)/i)?.[1]??"text",html:m[0]})).slice(0,100);
+  const forms=[...html.matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/gi)].map(m=>({html:m[0]})).slice(0,50);
+  const inputs=[...html.matchAll(/<(?:input|textarea|select)\b[^>]*>/gi)].map(m=>({type:m[0].match(/\btype\s*=\s*["']([^"']+)/i)?.[1]??"text",html:m[0]})).slice(0,100);
   return {url:new URL(url),html,text:stripHtml(html),links,scripts,forms,inputs,metadata:html.slice(0,20000),structuredData:"",headers,isHome:true};
 }
 
