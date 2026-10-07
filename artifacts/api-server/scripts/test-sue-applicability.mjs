@@ -128,6 +128,18 @@ try {
   assert.equal(by(freeSaas,"B03").status,"not_applicable");
   assert.equal(by(freeSaas,"B05").status,"not_applicable");
 
+  const legalPageOnly=run(`
+    <html><body><h1>Terms of Service</h1>
+    <p>Subscriptions, recurring billing, AI providers, analytics, cookies and payment processors may be used.</p>
+    <a href="/privacy">Privacy</a><a href="/terms">Terms</a></body></html>`);
+  assert.equal(by(legalPageOnly,"B03").status,"not_applicable","Legal-page language must not manufacture subscription applicability");
+  assert.equal(by(legalPageOnly,"A01").status,"not_applicable","Legal-page language must not manufacture AI applicability");
+  assert.equal(by(legalPageOnly,"C05").status,"not_applicable","Legal-page language must not manufacture analytics applicability");
+
+  const searchOnly=run(`
+    <html><body><h1>Documentation</h1><input type="text" name="q" placeholder="Search documentation"></body></html>`);
+  assert.equal(by(searchOnly,"P01").status,"not_applicable","Generic search input is not sufficient evidence of personal-data collection");
+
   const jsHeavy=run(`
     <html><body><div id="root"></div>
     <script src="/assets/a.js"></script><script src="/assets/b.js"></script><script src="/assets/c.js"></script>
@@ -136,7 +148,7 @@ try {
   assert.equal(by(jsHeavy,"C05").status,"review","Low-visibility analytics checks should be review, not missing");
   assert.equal(by(jsHeavy,"A01").status,"review","Low-visibility AI checks should be review, not missing");
 
-  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,jsHeavy})) {
+  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,legalPageOnly,searchOnly,jsHeavy})) {
     assert.equal(checks.length,50,`${name}: every scenario must evaluate all 50 checks`);
     for (const check of checks) {
       assert.ok(["applicable","not_applicable","unknown"].includes(check.applicability),`${name}/${check.id}: invalid applicability`);
@@ -147,8 +159,8 @@ try {
   }
 
   console.log("SUE applicability regression suite: PASS");
-  console.log("Scenarios: 11 | Checks per scenario: 50 | Total evaluations: 550");
-  console.log("Validated: portfolio, blog, ecommerce, SaaS, AI product, AI mention-only, analytics, no-tracking, free SaaS, VibeSane-like SaaS, JS-heavy coverage.");
+  console.log("Scenarios: 13 | Checks per scenario: 50 | Total evaluations: 650");
+  console.log("Validated: portfolio, blog, ecommerce, SaaS, AI product, AI mention-only, analytics, no-tracking, free SaaS, VibeSane-like SaaS, legal-page contamination, generic search input, JS-heavy coverage.");
 } finally {
   await rm(dir,{recursive:true,force:true});
 }
