@@ -106,16 +106,28 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   const analytics=combine(scripts(c,/google-analytics|googletagmanager|gtag\(|plausible|posthog|mixpanel|amplitude|heap|hotjar|matomo|clarity|segment/i,"analytics_sdk"),text(c,/(?<!no\\s)(?:uses?|using|powered by|analytics provider|analytics tools?)\\s+(?:google analytics|plausible|posthog|mixpanel|amplitude)/i,"analytics_disclosure"));
   const cookie=combine(headers(c,"set-cookie","cookie_header"),scripts(c,/cookiebot|onetrust|cookieyes|cookieconsent|iubenda|osano/i,"cookie_platform"),text(c,/cookie preferences|manage cookies|accept cookies|cookie settings/i,"cookie_control"));
   const tracking=combine(analytics,scripts(c,/facebook\\.net|connect\\.facebook|doubleclick|googleadservices|hotjar|clarity|segment|pixel/i,"tracking_sdk"),text(c,/(?<!no\\s)(?:uses?|using|we use|our use of)\\s+(?:tracking technologies|tracking pixels|web beacons|tracking scripts)/i,"tracking_disclosure"));
-  const aiFunctional=combine(homeText(c,/\b(?:ai[- ]powered|ai assistant|ai agent|generative ai|generate (?:an|your|a)|chat with (?:our|the) ai|ask (?:our|the) ai|prompt (?:the|our)|choose a model)\b/i,"ai_functionality",.94),forms(c,/prompt|message|generate|chat with|ask ai|ai assistant/i,"ai_input",.92),scripts(c,/api\.openai\.com|anthropic|generativelanguage|gemini|openrouter|replicate|huggingface/i,"ai_provider",.97));
-  const ai=aiFunctional.length>=1?aiFunctional:[];
+  const aiProductText=combine(
+    homeText(c,/\b(?:ai[- ]powered|ai assistant|ai agent|generative ai|chat with (?:our|the) ai|ask (?:our|the) ai|choose an? ai model|generate (?:text|images?|code|content|videos?|responses?))\b/i,"ai_functionality",.95),
+    text(c,/\b(?:AI assistant|AI agent|AI-powered|generative AI)\b.{0,140}\b(?:generate|create|chat|prompt|model|assistant|agent)\b/i,"ai_functionality",.93),
+    forms(c,/\b(?:prompt|generate|chat with|ask ai|ai assistant|message the ai)\b/i,"ai_input",.91)
+  );
+  const aiProvider=scripts(c,/api\.openai\.com|anthropic|generativelanguage|gemini|openrouter|replicate|huggingface/i,"ai_provider",.97);
+  // A provider reference by itself is not enough; it must agree with a product-level AI signal.
+  const ai=aiProductText.length>=1?combine(aiProductText,aiProvider):[];
   const aiData=combine(text(c,/(?:send|share|process|use|submit).{0,120}(?:AI|OpenAI|Anthropic|Gemini|model).{0,120}(?:data|information|content|prompt)/i,"ai_data_processing",.9),text(c,/(?:AI|model|OpenAI|Anthropic|Gemini).{0,120}(?:process|use).{0,120}(?:data|information|content)/i,"ai_data_processing",.9));
-  const subscription=combine(text(c,/\b(?:\$|€|£|₹)\s?\d+\s*\/\s*(?:month|year)|\b(?:monthly|annual|yearly|billed monthly|billed annually|subscription|recurring billing|renews automatically)\b/i,"subscription_text",.95),links(c,/subscription|plans|monthly|annual/i,"subscription_link",.82));
+  // "Plans" or "pricing" alone does not prove a recurring subscription.
+  // Require recurring-billing language or an explicit subscription/renewal signal.
+  const subscription=combine(
+    text(c,/\b(?:\$|€|£|₹)\s?\d+\s*\/\s*(?:month|year|week)\b/i,"subscription_text",.97),
+    text(c,/\b(?:monthly|annual|yearly|weekly)\s+(?:subscription|plan|billing|price|fee)\b|\bbilled\s+(?:monthly|annually|yearly|weekly)\b|\bsubscription\b|\brecurring\s+(?:billing|payment|charge)\b|\brenews?\s+automatically\b/i,"subscription_text",.96),
+    links(c,/subscription|monthly|annual|yearly|recurring/i,"subscription_link",.84)
+  );
   const autoRenew=text(c,/auto[- ]?renew|automatically renew|renews automatically|recurring (?:charge|billing|payment)/i,"auto_renewal",.97);
   const ecommerce=combine(text(c,/add to cart|shopping cart|product catalog|product variants|shipping|quantity|order now|buy now/i,"ecommerce_flow",.93),links(c,/shop|store|cart|checkout/i,"ecommerce_navigation",.9),scripts(c,/shopify|woocommerce/i,"ecommerce_platform",.96),text(c,/\b(product|sku|in stock|out of stock)\b.{0,80}(?:\$|€|£|₹)\s?\d+/i,"ecommerce_product_price",.94));
   const marketplace=combine(text(c,/marketplace|seller|vendor|list your (?:product|service)|seller profile|buyer and seller/i,"marketplace_language",.94),text(c,/(?:listings|products|services).{0,120}(?:seller|vendor)/i,"marketplace_flow",.9));
   const ugc=combine(forms(c,/type=["']file["']|upload|comment|review|post|message|profile/i,"ugc_form",.9),text(c,/user[- ]generated|community posts|comments|reviews|upload your|public profile|create a post/i,"ugc_text",.9));
   const developerApi=combine(links(c,/\b(api|developers|docs|sdk|integrat(?:e|ion))\b/i,"developer_navigation",.82),text(c,/api key|webhook|endpoint|sdk|developer platform|api access/i,"developer_functionality",.9));
-  const advertising=combine(scripts(c,/adsbygoogle|doubleclick|googlesyndication|facebook.*pixel|adservice/i,"advertising_sdk",.96),text(c,/advertise with us|sponsored|advertisement|ad space/i,"advertising_text",.9));
+  const advertising=combine(scripts(c,/adsbygoogle|doubleclick|googlesyndication|facebook.*pixel|adservice/i,"advertising_sdk",.96),text(c,/advertise with us|sponsored content|advertisement|ad space/i,"advertising_text",.9));
   const personal=combine(forms(c,/type=["'](?:email|tel|text|password|date)["']|name=["'](?:email|phone|name|address)/i,"personal_data_form",.88),auth,marketing,text(c,/we collect|personal information|personal data|contact information/i,"personal_data_disclosure",.78));
 
   set("pricing",pricing);set("checkout",checkout);set("payments",payment);set("authentication",auth);set("accountCreation",account);
@@ -131,7 +143,14 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   for(const key of Object.keys(signalEvidence) as Array<keyof ProductSignals>) { const r=sv(signalEvidence[key]??[]);signals[key]=r.detected;signalConfidence[key]=r.confidence; }
   const home=c.pages.find(p=>p.isHome)??c.pages[0];
   const dynamicRenderingLikely=c.pages.some(p=>p.text.length<220&&p.scripts.length>=5)||Boolean(home?.html.match(/<div[^>]*id=["'](?:root|app|__next|__nuxt)["'][^>]*>\s*<\/div>/i));
-  const score=Math.max(.35,Math.min(1,.45+Math.min(c.pages.length,9)*.05+Math.min(c.pages.reduce((n,p)=>n+p.text.length,0),12000)/12000*.35-(dynamicRenderingLikely?.22:0)));
+  const usefulPageSignals=c.pages.reduce((n,p)=>n+( /pricing|plans|product|features|shop|store|checkout|login|sign[- ]?up|account|dashboard|api|docs|community|services|about|contact|terms|privacy/i.test(p.text+" "+p.url.pathname) ? 1 : 0),0);
+  const score=Math.max(.35,Math.min(1,
+    .38+
+    Math.min(c.pages.length,12)*.035+
+    Math.min(usefulPageSignals,8)*.035+
+    Math.min(c.pages.reduce((n,p)=>n+p.text.length,0),18000)/18000*.28-
+    (dynamicRenderingLikely?.18:0)
+  ));
   const classified=classify(signals,allEvidence);
   return {productTypes:classified.productTypes,commercialModel:classified.commercialModel,signals,signalConfidence,evidence:allEvidence.slice(0,80),confidence:classified.confidence*score,coverage:{pages:c.pages.length,linkedPages:Math.max(0,c.pages.length-1),forms:c.pages.reduce((n,p)=>n+p.forms.length,0),scripts:c.pages.reduce((n,p)=>n+p.scripts.length,0),dynamicRenderingLikely,score}};
 }
