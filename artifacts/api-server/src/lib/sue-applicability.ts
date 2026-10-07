@@ -69,7 +69,7 @@ export function evaluateApplicability(rule:Rule, ctx:ProductContext):Applicabili
   if (rule.allSignals?.length && rule.allSignals.every(k => signal(ctx,k))) return "applicable";
   if (rule.anySignals?.length && rule.anySignals.some(k => signal(ctx,k))) return "applicable";
   if (rule.productTypes?.length && hasProduct(ctx,rule.productTypes)) return "applicable";
-  if (rule.unknownIfLowCoverage && ctx.coverage.score < 0.65) return "unknown";
+  if (rule.unknownIfLowCoverage && ctx.coverage.dynamicRenderingLikely && ctx.coverage.score < 0.65) return "unknown";
   return "not_applicable";
 }
 
