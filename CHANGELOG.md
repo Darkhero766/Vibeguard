@@ -99,3 +99,38 @@ Final verification scan (Darkhero766/Vibeguard): 0 findings, 100 files scanned.
 ### Contributor workflow
 
 - Documented the project convention to update this changelog after each change and push the summary to GitHub.
+## 2026-10-07 — SUE audit/applicability hardening and deployment validation
+
+### Completed
+
+- Stabilized the SUE applicability build after multiple Render/esbuild failures in `sue-context.ts`; the production build now completes successfully.
+- Fixed the malformed/double-escaped JavaScript regex literals used by SUE context detection, including analytics disclosure, tracking disclosure, and Facebook/SDK domain detection.
+- Added/maintained SUE applicability regression coverage and verified the suite passes: **13 scenarios × 50 checks = 650 evaluations**.
+- Regression coverage currently validates portfolio, blog, ecommerce, SaaS, AI product, AI mention-only, analytics, no-tracking, free SaaS, VibeSane-like SaaS, legal-page contamination, generic search input, and JS-heavy coverage scenarios.
+- Confirmed the Render production API build and startup are healthy: build succeeds, SUE regression tests pass, server listens successfully, database initialization completes, and the service becomes live.
+- Confirmed GitHub protection webhook processing is operational in production, including repository lookup, installation-token creation, security-check creation, delta-scan startup/completion, and zero-finding handling for an unchanged-file push.
+- Added/validated the real-world SUE benchmark workflow for representative public sites so classification/applicability can be checked against actual web content rather than fixtures alone.
+
+### Current SUE architecture
+
+- URL submission → crawl → product/context classification → applicability evaluation → evidence collection → final PASS/REVIEW/MISSING/N/A status → score → report → master fix prompt.
+- Applicability is evidence/confidence weighted and coverage-aware; insufficient crawl visibility can produce REVIEW/UNKNOWN instead of confidently declaring a requirement absent or irrelevant.
+- The master fix prompt only uses missing/review requirements and treats crawled evidence as untrusted data, protecting the downstream coding-agent handoff from prompt-injection content found on audited sites.
+- Not-applicable requirements are excluded from the score denominator so products are not penalized for requirements that do not apply to their product model.
+
+### Remaining SUE work / next priorities
+
+1. **Audit the 13 imperative applicability overrides** in `runApplicabilityAwareChecks`: test each against its declarative `Rule`, remove redundant overrides, and document which remaining overrides are genuinely load-bearing.
+2. **Move load-bearing exceptions into the declarative rule model** where justified, using capabilities such as `noneSignals`, `unknownIfAbsent`, and `forceApplicableIf`; do this only after the override audit proves the need.
+3. **Harden SSRF protection fully**: resolve hostnames explicitly, validate resolved IPv4/IPv6 addresses against private/link-local/loopback/reserved ranges, and protect against DNS rebinding while preserving the intended Host header behavior.
+4. **Verify the N/A UI end-to-end**: confirm the filter/tab and summary count render correctly in `AuditReportPage`; add only if missing.
+5. **Benchmark real crawl latency** with a multi-page site. If sequential fetching of up to 16 pages is materially slow, introduce bounded concurrency (target ~4–5 concurrent fetches) with `Promise.allSettled` while preserving SSRF and timeout protections.
+6. **Add robots.txt support** before following linked pages, using the same SSRF-safe fetch path and respecting disallowed paths.
+7. **Use the live benchmark results to identify classifier blind spots** before adding an LLM fallback. Deterministic classification remains preferred; add an LLM fallback only if real scans demonstrate a meaningful low-confidence/unknown rate.
+8. **Keep expanding regression scenarios from real-world failures**. Every new classifier/applicability rule should add a regression case and the full SUE suite must remain green.
+9. **Re-run production verification after each security/crawl change**: Render build, SUE regression suite, API startup, GitHub webhook/delta protection path, and at least one real-world SUE audit.
+
+### Operational rule
+
+Do not treat a green build alone as proof that SUE is correct. Changes must be validated at three levels: deterministic regression tests, real-world crawl/benchmark behavior, and production deployment/runtime behavior. Preserve the existing 50-check applicability contract unless a requirement is intentionally changed and covered by a new regression scenario.
+
