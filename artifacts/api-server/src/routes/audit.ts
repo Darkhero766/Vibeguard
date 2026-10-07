@@ -124,7 +124,7 @@ async function fetchPublicPage(start:URL):Promise<{url:URL;html:string;headers:H
   const resource=await fetchPublicResource(start,MAX_HTML_BYTES);
   if(resource.status<200||resource.status>=300)throw new Error("The site returned HTTP "+resource.status+".");
   const contentType=resource.headers.get("content-type")??"";
-  if(!/text\\/html|application\\/xhtml\\+xml/i.test(contentType))throw new Error("The URL did not return an HTML page. Audit a deployed web page or app landing page.");
+  if(!/text\/html|application\/xhtml\+xml/i.test(contentType))throw new Error("The URL did not return an HTML page. Audit a deployed web page or app landing page.");
   const html=resource.body.toString("utf8");
   return {url:resource.url,html,headers:resource.headers,redirectCount:resource.redirectCount};
 }
@@ -133,9 +133,9 @@ type RobotsRule={allow:boolean;pattern:string};
 
 function parseRobots(body:string,userAgent="VibeSane-Audit"):RobotsRule[] {
   const groups:Array<{agents:string[];rules:RobotsRule[]}>=[];let current:{agents:string[];rules:RobotsRule[]}|null=null;
-  for(const raw of body.split(/\\r?\\n/)){
+  for(const raw of body.split(/\r?\n/)){
     const line=raw.replace(/#.*$/,"").trim();if(!line)continue;
-    const m=line.match(/^([^:]+):\\s*(.*)$/);if(!m)continue;
+    const m=line.match(/^([^:]+):\s*(.*)$/);if(!m)continue;
     const key=m[1].trim().toLowerCase(),value=m[2].trim();
     if(key==="user-agent"){if(!current||current.rules.length){current={agents:[],rules:[]};groups.push(current);}current.agents.push(value.toLowerCase());}
     else if((key==="allow"||key==="disallow")&&current)current.rules.push({allow:key==="allow",pattern:value});
