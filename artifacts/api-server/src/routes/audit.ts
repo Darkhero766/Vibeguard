@@ -8,7 +8,7 @@ const router = Router();
 
 const MAX_REDIRECTS = 5;
 const MAX_HTML_BYTES = 2_500_000;
-const MAX_LINK_PAGES = 8;
+const MAX_LINK_PAGES = 16;
 const FETCH_TIMEOUT_MS = 12_000;
 
 function normalizeUrl(raw: unknown): URL {
@@ -164,18 +164,35 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   const home=await fetchPublicPage(start);
   const homePage=makePage(home,true);
   const sameOrigin=home.url.origin;
-  const candidates=homePage.links.filter(l=>{
+  // Build a scored first-party crawl instead of following only legal links.
+  // Product applicability depends on seeing the actual product surface (pricing,
+  // login, checkout, AI features, forms, etc.), not just Terms/Privacy pages.
+  const candidateScores = new Map<string,{url:string;score:number}>();
+  const pageSignal = /pricing|plans|product|features|solution|shop|store|cart|checkout|buy|order|subscription|billing|login|log[- ]?in|sign[- ]?up|register|account|dashboard|app|workspace|api|developers?|docs?|integrat|community|marketplace|seller|services?|consult|agency|about|contact|support|terms|privacy|cookie|refund|return|cancel|legal|acceptable|disclaimer|security|dpa|subprocessor|data|ai|assistant|generate/i;
+  for(const l of homePage.links){
     try {
       const u=new URL(l.href);
-      return u.origin===sameOrigin && /terms|privacy|cookie|refund|return|cancel|legal|acceptable|disclaimer|policy|security|dpa|subprocessor|data/i.test(l.text+" "+l.href);
-    } catch { return false; }
-  }).slice(0,MAX_LINK_PAGES);
+      if(u.origin!==sameOrigin || !["http:","https:"].includes(u.protocol)) continue;
+      u.hash="";
+      const key=u.toString();
+      if(key===home.url.toString()) continue;
+      const hay=(l.text+" "+u.pathname+" "+u.search).toLowerCase();
+      let score=pageSignal.test(hay)?2:0;
+      if(/pricing|plans|product|features|shop|store|cart|checkout|login|sign[- ]?up|account|dashboard|api|docs|community|marketplace|services|about|ai|assistant|generate/i.test(hay)) score+=2;
+      if(/terms|privacy|cookie|refund|return|cancel|legal|acceptable|disclaimer|security|dpa|subprocessor/i.test(hay)) score+=1;
+      const previous=candidateScores.get(key);
+      candidateScores.set(key,{url:key,score:Math.max(previous?.score??0,score)});
+    } catch {}
+  }
+  const candidates=[...candidateScores.values()]
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,MAX_LINK_PAGES);
 
   const pages:AuditPage[]=[homePage];
   for(const candidate of candidates){
-    if(pages.some(p=>p.url.toString()===candidate.href)) continue;
+    if(pages.some(p=>p.url.toString()===candidate.url)) continue;
     try {
-      const fetched=await fetchPublicPage(new URL(candidate.href));
+      const fetched=await fetchPublicPage(new URL(candidate.url));
       pages.push(makePage(fetched,false));
     } catch {}
   }
