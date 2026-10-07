@@ -8,7 +8,8 @@
     "build": "node ./build.mjs && pnpm run test:sue",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:sue": "node ./scripts/test-sue-applicability.mjs"
+    "test:sue": "node ./scripts/test-sue-applicability.mjs",
+    "benchmark:sue": "node ./scripts/benchmark-sue-accuracy.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
