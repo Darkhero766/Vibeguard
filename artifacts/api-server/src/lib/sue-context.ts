@@ -59,7 +59,11 @@ export function combine(...groups:Evidence[][]) {
 
 function isPolicySurface(page:AuditPage) {
   const p=page.url.pathname.toLowerCase();
-  if (/(?:^|\\/)(terms(?:-and-conditions)?|privacy(?:-policy)?|cookies?|cookie-policy|refunds?|returns?|cancellations?|acceptable-use|aup|legal|disclaimer|dpa|subprocessors?|security-policy)(?:\\/|$)/i.test(p)) return true;
+
+  // Keep this deliberately simple: in a RegExp literal "/" must be escaped
+  // exactly once. The previous expression contained "\\/" which caused
+  // esbuild to terminate the regex early and report "Unexpected ?".
+  if (/(?:^|\/)(?:terms(?:-and-conditions)?|privacy(?:-policy)?|cookies?|cookie-policy|refunds?|returns?|cancellations?|acceptable-use|aup|legal|disclaimer|dpa|subprocessors?|security-policy)(?:\/|$)/i.test(p)) return true;
 
   // Crawlers/tests can expose a legal document at the site root ("/"), so
   // pathname-only classification is insufficient. Treat a page as a policy
@@ -118,111 +122,3 @@ function classify(s:ProductSignals,evidence:Evidence[]) {
   else if(s.advertising) commercialModel="advertising";
   else if(!s.commercialActivity) commercialModel="free";
   const max=Math.max(...Object.values(scores),0);
-  return {productTypes:[...new Set(types)],commercialModel,confidence:Math.min(.98,.45+max*.45)};
-}
-
-export function buildProductContext(c:AuditCorpus):ProductContext {
-  const surface=productSurface(c);
-  const signalEvidence:Partial<Record<keyof ProductSignals,Evidence[]>>={};
-  const allEvidence:Evidence[]=[];
-  const set=(key:keyof ProductSignals,ev:Evidence[])=>{signalEvidence[key]=ev;allEvidence.push(...ev);};
-
-  const pricing=combine(text(surface,/\b(pricing|plans|price list|starting at|per month|per year)\b/i,"pricing_text"),text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?/i,"price_amount"),links(surface,/pricing|plans|shop|store/i,"pricing_link"));
-  const checkout=combine(text(surface,/\b(add to cart|buy now|checkout|place order|complete purchase|subscribe now)\b/i,"checkout_action"),links(surface,/checkout|cart|buy|order/i,"checkout_link"),forms(surface,/checkout|payment|billing|order/i,"checkout_form"));
-  const payment=combine(scripts(surface,/stripe|paypal|razorpay|adyen|checkout\.com|dodo|paddle|lemonsqueezy|shopify|woocommerce/i,"payment_provider"),checkout);
-  const auth=combine(
-    links(surface,/\b(login|log in|sign in|sign up|register|create account|account)\b/i,"authentication_link"),
-    forms(surface,/type=["'](?:email|password)["']|login|sign[- ]?up|register|create account/i,"authentication_form"),
-    text(surface,/\b(?:log in|login|sign in|sign up|register|create account|create an account|authentication|member account)\b/i,"authentication_text",.9),
-    scripts(surface,/auth0|clerk|supabase|firebase.*auth|cognito|nextauth|auth\.js/i,"authentication_provider")
-  );
-  const account=combine(auth,text(surface,/\b(create your account|your dashboard|workspace|profile settings)\b/i,"account_text"));
-  const marketing=combine(
-    forms(surface,/newsletter|marketing|promotional|subscribe to (?:our )?(?:updates|emails)|mailchimp|klaviyo|convertkit|hubspot|brevo/i,"marketing_form"),
-    scripts(surface,/mailchimp|klaviyo|convertkit|hubspot|brevo/i,"marketing_provider"),
-    text(surface,/newsletter|subscribe to (?:our )?(?:updates|emails)|marketing emails|promotional emails|mailing list/i,"marketing_text")
-  );
-  const analytics=combine(
-    scripts(surface,/google-analytics|googletagmanager|gtag\(|plausible|posthog|mixpanel|amplitude|heap|hotjar|matomo|clarity|segment/i,"analytics_sdk",.96),
-    text(surface,/(?<!no\\s)(?<!without\\s)(?:uses?|using|powered by|analytics provider|analytics tools?)\\s+(?:google analytics|plausible|posthog|mixpanel|amplitude)/i,"analytics_disclosure",.94)
-  );
-  const cookie=combine(
-    headers(surface,"set-cookie","cookie_header"),
-    scripts(surface,/cookiebot|onetrust|cookieyes|cookieconsent|iubenda|osano|document\.cookie/i,"cookie_platform"),
-    text(surface,/cookie preferences|manage cookies|accept cookies|cookie settings/i,"cookie_control")
-  );
-  const tracking=combine(
-    analytics,
-    scripts(surface,/facebook\\.net|connect\\.facebook|doubleclick|googleadservices|hotjar|clarity|segment|pixel/i,"tracking_sdk",.96),
-    text(surface,/(?<!no\\s)(?<!without\\s)(?:uses?|using|we use|our use of)\\s+(?:tracking technologies|tracking pixels|web beacons|tracking scripts)/i,"tracking_disclosure",.94)
-  );
-  const aiProductText=combine(
-    homeText(surface,/\b(?:ai[- ]powered|ai assistant|ai agent|generative ai|chat with (?:our|the) ai|ask (?:our|the) ai|choose an? ai model|generate (?:text|images?|code|content|videos?|responses?))\b/i,"ai_functionality",.95),
-    text(surface,/\b(?:AI assistant|AI agent|AI-powered (?:tool|product|platform|assistant|agent)|generative AI)\b.{0,140}\b(?:generate|create|chat|prompt|model|assistant|agent)\b/i,"ai_functionality",.93),
-    forms(surface,/(?:\bprompt\b.{0,120}\b(?:generate|send|submit)\b|\b(?:AI assistant|AI agent|chat with AI|ask AI)\b)/i,"ai_input",.91)
-  );
-  const aiProvider=scripts(surface,/api\.openai\.com|anthropic|generativelanguage|gemini|openrouter|replicate|huggingface/i,"ai_provider",.97);
-  // A provider reference by itself is not enough; it must agree with a product-level AI signal.
-  const ai=aiProductText.length>=1?combine(aiProductText,aiProvider):[];
-  const aiData=combine(text(surface,/(?:send|share|process|use|submit).{0,120}(?:AI|OpenAI|Anthropic|Gemini|model).{0,120}(?:data|information|content|prompt)/i,"ai_data_processing",.9),text(surface,/(?:AI|model|OpenAI|Anthropic|Gemini).{0,120}(?:process|use).{0,120}(?:data|information|content)/i,"ai_data_processing",.9));
-  // "Plans" or "pricing" alone does not prove a recurring subscription.
-  // Require recurring-billing language or an explicit subscription/renewal signal.
-  const subscription=combine(
-    text(surface,/\b(?:\$|€|£|₹)\s?\d+\s*\/\s*(?:month|year|week)\b/i,"subscription_text",.97),
-    text(surface,/\b(?:monthly|annual|yearly|weekly)\s+(?:subscription|plan|billing|price|fee)\b|\bbilled\s+(?:monthly|annually|yearly|weekly)\b|\bsubscription\b|\brecurring\s+(?:billing|payment|charge)\b|\brenews?\s+automatically\b/i,"subscription_text",.96),
-    links(surface,/subscription|monthly|annual|yearly|recurring/i,"subscription_link",.84)
-  );
-  const autoRenew=text(surface,/auto[- ]?renew|automatically renew|renews automatically|recurring (?:charge|billing|payment)/i,"auto_renewal",.97);
-  const ecommerce=combine(text(surface,/add to cart|shopping cart|product catalog|product variants|shipping|quantity|order now|buy now/i,"ecommerce_flow",.93),links(surface,/shop|store|cart|checkout/i,"ecommerce_navigation",.9),scripts(surface,/shopify|woocommerce/i,"ecommerce_platform",.96),text(surface,/\b(product|sku|in stock|out of stock)\b.{0,80}(?:\$|€|£|₹)\s?\d+/i,"ecommerce_product_price",.94));
-  const marketplace=combine(text(surface,/marketplace|seller|vendor|list your (?:product|service)|seller profile|buyer and seller/i,"marketplace_language",.94),text(surface,/(?:listings|products|services).{0,120}(?:seller|vendor)/i,"marketplace_flow",.9));
-  const ugc=combine(forms(surface,/type=["']file["']|upload|comment|review|post|message|profile/i,"ugc_form",.9),text(surface,/user[- ]generated|community posts|comments|reviews|upload your|public profile|create a post/i,"ugc_text",.9));
-  const developerApi=combine(
-    links(surface,/\b(api|developers?)\b/i,"developer_navigation",.88),
-    text(surface,/api key|webhook|endpoint|sdk|developer platform|api access/i,"developer_functionality",.93)
-  );
-  const advertising=combine(scripts(surface,/adsbygoogle|doubleclick|googlesyndication|facebook.*pixel|adservice/i,"advertising_sdk",.96),text(surface,/advertise with us|sponsored content|advertisement|ad space/i,"advertising_text",.9));
-  const personal=combine(
-    forms(surface,/(?:type=["'](?:email|tel|password|date)["']|(?:name|id|autocomplete|placeholder)=["'][^"']*(?:email|e-?mail|phone|mobile|full[-_ ]?name|first[-_ ]?name|last[-_ ]?name|address|street|city|postal|zip|birth|dob|password)[^"']*["'])/i,"personal_data_form",.91),
-    auth,
-    marketing,
-    text(surface,/we collect|personal information|personal data|contact information/i,"personal_data_disclosure",.78)
-  );
-
-  set("pricing",pricing);set("checkout",checkout);set("payments",payment);set("authentication",auth);set("accountCreation",account);
-  set("personalDataCollection",personal);set("marketingCollection",marketing);set("analytics",analytics);set("cookies",cookie);set("tracking",tracking);
-  set("ai",ai);set("aiGeneration",combine(text(surface,/\b(?:generate|generation|generated output|image generation|text generation)\b/i,"ai_generation",.9),forms(surface,/generate|prompt|ai assistant/i,"ai_generation_input",.9)));
-  set("aiDataProcessing",aiData);set("userGeneratedContent",ugc);set("subscription",subscription);set("autoRenewal",autoRenew);set("advertising",advertising);
-  set("ecommerce",ecommerce);set("marketplace",marketplace);set("developerApi",developerApi);
-  set("persistentUserData",combine(auth,ugc,text(surface,/save your|saved projects|history|profile|dashboard data/i,"persistent_data_text",.82)));
-  const paidPricing=combine(
-    text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?|\b(?:paid|pro|premium|business|enterprise)\s+(?:plan|tier|subscription)\b|\bstarting at\b/i,"paid_pricing",.91),
-    text(surface,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
-  );
-  set("paidService",combine(payment,checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid|starting at/i,"paid_service_text",.78)));
-  set("highImpactAI",text(surface,/\b(?:medical|diagnos(?:is|tic)|treatment|clinical|mental health|credit|loan|insurance|employment|hiring|recruitment|legal advice|financial advice|biometric|risk score|eligibility decision|fraud decision)\b/i,"high_impact_ai_context",.88));
-  set("dataCommercialization",combine(
-    text(surface,/\b(?:sell|share|monetize|monetisation|monetization)\b.{0,100}\b(?:personal|user|customer)\s+(?:data|information)\b/i,"data_commercialization",.92),
-    text(surface,/targeted advertising|behavioral advertising|interest[- ]based advertising/i,"targeted_advertising",.88)
-  ));
-  set("commercialActivity",combine(pricing,payment,checkout,ecommerce,marketplace,text(surface,/\b(hire|services|consulting|agency|plans|pricing|shop|store|buy|subscribe|book a call|request a quote)\b/i,"commercial_language",.72)));
-
-  const signals={} as ProductSignals, signalConfidence:Partial<Record<keyof ProductSignals,number>>={};
-  for(const key of Object.keys(signalEvidence) as Array<keyof ProductSignals>) { const r=sv(signalEvidence[key]??[]);signals[key]=r.detected;signalConfidence[key]=r.confidence; }
-  const home=c.pages.find(p=>p.isHome)??c.pages[0];
-  // A React/Vite/Next shell is not, by itself, evidence that runtime-only
-  // coverage is insufficient. We already inspect the rendered HTML, links,
-  // forms, scripts, metadata and structured data. Only mark the crawl as
-  // runtime-limited when the public HTML is genuinely sparse AND there are
-  // several application scripts with little observable product content.
-  const dynamicRenderingLikely=c.pages.some(p=>p.text.length<120&&p.scripts.length>=6);
-  const usefulPageSignals=c.pages.reduce((n,p)=>n+( /pricing|plans|product|features|shop|store|checkout|login|sign[- ]?up|account|dashboard|api|docs|community|services|about|contact|terms|privacy/i.test(p.text+" "+p.url.pathname) ? 1 : 0),0);
-  const score=Math.max(.35,Math.min(1,
-    .38+
-    Math.min(c.pages.length,12)*.035+
-    Math.min(usefulPageSignals,8)*.035+
-    Math.min(c.pages.reduce((n,p)=>n+p.text.length,0),18000)/18000*.28-
-    (dynamicRenderingLikely?.18:0)
-  ));
-  const classified=classify(signals,allEvidence);
-  return {productTypes:classified.productTypes,commercialModel:classified.commercialModel,signals,signalConfidence,evidence:allEvidence.slice(0,80),confidence:classified.confidence*score,coverage:{pages:c.pages.length,linkedPages:Math.max(0,c.pages.length-1),forms:c.pages.reduce((n,p)=>n+p.forms.length,0),scripts:c.pages.reduce((n,p)=>n+p.scripts.length,0),dynamicRenderingLikely,score}};
-}
