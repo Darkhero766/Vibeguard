@@ -79,11 +79,10 @@ type PublicResource = {status:number;headers:Headers;body:Buffer};
 async function fetchPinnedResource(url:URL,maxBytes:number):Promise<PublicResource> {
   const resolved=await resolvePublicAddresses(url.hostname);
   const ip=resolved[0];
-  const transport=url.protocol==="https:"?httpsRequest:httpRequest;
   return await new Promise((resolve,reject)=>{
     let settled=false;
     const fail=(error:unknown)=>{if(!settled){settled=true;reject(error);}};
-    const req=transport({
+    const options:any={
       hostname:ip,
       port:url.port?Number(url.port):(url.protocol==="https:"?443:80),
       path:url.pathname+url.search,
@@ -91,12 +90,15 @@ async function fetchPinnedResource(url:URL,maxBytes:number):Promise<PublicResour
       headers:{"Host":url.host,"User-Agent":"VibeSane-Audit/2.0 (+https://vibesane.app)","Accept":"text/html,application/xhtml+xml,text/plain,*/*","Accept-Encoding":"identity"},
       ...(url.protocol==="https:"?{servername:url.hostname}:{}),
       timeout:FETCH_TIMEOUT_MS,
-    },response=>{
+    };
+    let req:any;
+    const onResponse=(response:any)=>{
       const chunks:Buffer[]=[];let total=0;
       response.on("data",(chunk:Buffer)=>{total+=chunk.length;if(total>maxBytes){req.destroy(new Error("The response is too large for the public audit."));return;}chunks.push(chunk);});
       response.on("end",()=>{if(settled)return;settled=true;const headers=new Headers();for(const [name,value] of Object.entries(response.headers)){if(value!==undefined)headers.set(name,Array.isArray(value)?value.join(", "):String(value));}resolve({status:response.statusCode??0,headers,body:Buffer.concat(chunks)});});
       response.on("error",fail);
-    });
+    };
+    req=url.protocol==="https:"?httpsRequest(options,onResponse):httpRequest(options,onResponse);
     req.on("timeout",()=>req.destroy(new Error("The audit request timed out.")));
     req.on("error",fail);
     req.end();
