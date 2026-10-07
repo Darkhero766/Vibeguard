@@ -106,8 +106,8 @@ try {
   assert.equal(by(noTracking,"L03").status,"not_applicable");
 
   const freeSaas=run(
-    \`<html><body><h1>Free Project Tool</h1><p>Team workspace with a free plan.</p>
-    <a href="/login">Log in</a><a href="/pricing">Pricing</a><div>Free forever</div></body></html>\`);
+    `<html><body><h1>Free Project Tool</h1><p>Team workspace with a free plan.</p>
+    <a href="/login">Log in</a><a href="/pricing">Pricing</a><div>Free forever</div></body></html>`);
   assert.equal(by(freeSaas,"B01").applicability,"applicable");
   assert.equal(by(freeSaas,"B02").status,"not_applicable");
   assert.equal(by(freeSaas,"B03").status,"not_applicable");
