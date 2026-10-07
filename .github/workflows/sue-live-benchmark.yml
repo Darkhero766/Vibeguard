@@ -3,6 +3,8 @@ name: SUE Live Benchmark
 on:
   push:
     branches: ["sue/live-real-world-benchmark"]
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
