@@ -132,7 +132,7 @@ try {
   }
 
   console.log("SUE applicability regression suite: PASS");
-  console.log("Scenarios: 9 | Checks per scenario: 50 | Total evaluations: 450");
+  console.log("Scenarios: 10 | Checks per scenario: 50 | Total evaluations: 500");
   console.log("Validated: portfolio, blog, ecommerce, SaaS, AI product, AI mention-only, analytics, no-tracking, JS-heavy coverage.");
 } finally {
   await rm(dir,{recursive:true,force:true});
