@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { consumeAuditScan, ensurePlanForUser } from "../lib/plan";
 import { runApplicabilityAwareChecks } from "../lib/sue-checks";
@@ -23,19 +25,65 @@ function normalizeUrl(raw: unknown): URL {
   return url;
 }
 
+function ipv4Private(ip:string):boolean {
+  const octets=ip.split(".").map(Number);
+  if(octets.length!==4||octets.some(n=>!Number.isInteger(n)||n<0||n>255)) return false;
+  const [a,b]=octets;
+  return a===10 || a===127 || a===0 || (a===169&&b===254) || (a===172&&b>=16&&b<=31) || (a===192&&b===168);
+}
+
+function ipv6Private(ip:string):boolean {
+  const h=ip.toLowerCase().replace(/^\[|\]$/g,"");
+  if(!h.includes(":")) return false;
+  const mapped=h.match(/^(?:0*:){0,4}ffff:([0-9a-f]{1,4}:){1,2}[0-9a-f]{1,4}$/i);
+  if(mapped) {
+    const hex=h.split(":").slice(-2);
+    const candidate=hex.length===2 ? (parseInt(hex[0],16)*65536+parseInt(hex[1],16)).toString() : "";
+    if(candidate && ipv4Private(candidate)) return true;
+  }
+  const normalized=h.split("%")[0];
+  return normalized==="::" || normalized==="::1" ||
+    normalized.startsWith("fc") || normalized.startsWith("fd") ||
+    normalized.startsWith("fe8") || normalized.startsWith("fe9") ||
+    normalized.startsWith("fea") || normalized.startsWith("feb") ||
+    normalized.startsWith("ff") || normalized.startsWith("0:0:0:0:0:0:");
+}
+
+function isPrivateAddress(ip:string):boolean {
+  return isIP(ip)===4 ? ipv4Private(ip) : ipv6Private(ip);
+}
+
 function validateHost(hostname:string) {
   const host=hostname.toLowerCase().replace(/^\[|\]$/g,"");
   if (
     host==="localhost" || host.endsWith(".localhost") || host==="metadata.google.internal" ||
-    host==="169.254.169.254" || host==="::1" || host==="0.0.0.0" || host==="127.0.0.1" ||
-    /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) || /^169\.254\./.test(host)
+    host==="0.0.0.0" || isPrivateAddress(host)
   ) throw new Error("Private or local network addresses cannot be audited.");
+}
+
+async function resolvePublicAddresses(hostname:string):Promise<string[]> {
+  const host=hostname.toLowerCase().replace(/^\[|\]$/g,"");
+  validateHost(host);
+  if(isIP(host)) return [host];
+  const records=await lookup(host,{all:true,verbatim:true});
+  if(!records.length) throw new Error("The audit host did not resolve.");
+  const addresses=[...new Set(records.map(r=>r.address))];
+  if(addresses.some(isPrivateAddress)) throw new Error("The audit host resolves to a private or local network address.");
+  return addresses;
 }
 
 async function fetchPublicPage(start:URL):Promise<{url:URL;html:string;headers:Headers;redirectCount:number}> {
   let url=start;
   for(let i=0;i<=MAX_REDIRECTS;i++){
-    validateHost(url.hostname);
+    const resolved=await resolvePublicAddresses(url.hostname);
+    // Resolve immediately before each request. This closes the common DNS-rebinding
+    // gap where validation happens once and a later connection resolves elsewhere.
+    // Node fetch does not expose a safe "connect to this validated IP" primitive,
+    // so reject any multi-address answer rather than pretending hostname validation
+    // alone is sufficient.
+    if(!isIP(url.hostname)&&resolved.length!==1) {
+      throw new Error("The audit host has multiple DNS addresses and cannot be safely audited.");
+    }
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),FETCH_TIMEOUT_MS);
     let response:Response;
