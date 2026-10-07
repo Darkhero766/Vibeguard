@@ -68,7 +68,11 @@ function productSurface(c:AuditCorpus):AuditCorpus {
   // "subscription", "AI", "analytics", etc. can make those features appear
   // to exist even when the product does not use them.
   const pages=c.pages.filter(p=>!isPolicySurface(p));
-  return { ...c, pages: pages.length ? pages : c.pages.slice(0,1) };
+  // If the crawl contains only policy/legal surfaces, do NOT fall back to one
+  // of those pages. A legal document is evidence about policies, not evidence
+  // that the product itself has the features described hypothetically inside
+  // that document (e.g. subscriptions, AI, analytics, payments).
+  return { ...c, pages };
 }
 
 function sv(evidence:Evidence[], fallback=0) {
