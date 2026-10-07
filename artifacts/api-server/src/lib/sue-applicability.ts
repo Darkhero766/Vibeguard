@@ -66,15 +66,43 @@ export function signal(ctx:ProductContext, key:keyof ProductSignals, min=0.55) {
 
 export function evaluateApplicability(rule:Rule, ctx:ProductContext):Applicability {
   if (rule.always) return "applicable";
-  if (rule.allSignals?.length && rule.allSignals.every(k => signal(ctx,k))) return "applicable";
-  if (rule.anySignals?.length && rule.anySignals.some(k => signal(ctx,k))) return "applicable";
-  if (rule.productTypes?.length && hasProduct(ctx,rule.productTypes)) return "applicable";
-  if (rule.unknownIfLowCoverage && ctx.coverage.dynamicRenderingLikely && ctx.coverage.score < 0.65) return "unknown";
+
+  const triggeredByAll = Boolean(
+    rule.allSignals?.length && rule.allSignals.every(k => signal(ctx,k)),
+  );
+  const triggeredByAny = Boolean(
+    rule.anySignals?.length && rule.anySignals.some(k => signal(ctx,k)),
+  );
+  const triggeredByType = Boolean(
+    rule.productTypes?.length && hasProduct(ctx,rule.productTypes),
+  );
+
+  if (triggeredByAll || triggeredByAny || triggeredByType) return "applicable";
+
+  // A sparse client-rendered shell is not evidence that a requirement is
+  // irrelevant. It is evidence that the crawler may not have observed the
+  // feature that would make it relevant. Treat that state as unknown rather
+  // than silently converting an observability failure into N/A.
+  if (ctx.coverage.dynamicRenderingLikely && ctx.coverage.score < 0.70) {
+    return "unknown";
+  }
+
   return "not_applicable";
 }
 
 export function legalApplicable(ctx:ProductContext) {
-  return ctx.signals.personalDataCollection || ctx.signals.authentication || ctx.signals.ecommerce || ctx.signals.subscription || ctx.signals.paidService || hasProduct(ctx,["saas","marketplace","ai_product","developer_tool","community","service_business"]);
+  // This is product-relevance detection, not a jurisdictional legal
+  // conclusion. A real legal obligation also depends on territory, audience,
+  // controller/processor role and the exact processing activity.
+  return Boolean(
+    ctx.signals.personalDataCollection ||
+    ctx.signals.authentication ||
+    ctx.signals.ecommerce ||
+    ctx.signals.subscription ||
+    ctx.signals.paidService ||
+    ctx.signals.commercialActivity ||
+    hasProduct(ctx,["saas","marketplace","ai_product","developer_tool","community","service_business"]),
+  );
 }
 
 export function finalizeRequirement(applicability:Applicability, evidence:Evidence[], ctx:ProductContext):RequirementStatus {
