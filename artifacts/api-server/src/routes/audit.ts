@@ -9,7 +9,7 @@ const router = Router();
 const MAX_REDIRECTS = 5;
 const MAX_HTML_BYTES = 2_500_000;
 const MAX_LINK_PAGES = 16;
-const FETCH_TIMEOUT_MS = 12_000;
+const FETCH_TIMEOUT_MS = 8_000;
 
 function normalizeUrl(raw: unknown): URL {
   if (typeof raw !== "string" || !raw.trim()) throw new Error("Enter a public website or deployed app URL.");
@@ -188,13 +188,17 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
     .sort((a,b)=>b.score-a.score)
     .slice(0,MAX_LINK_PAGES);
 
-  const pages:AuditPage[]=[homePage];
-  for(const candidate of candidates){
-    if(pages.some(p=>p.url.toString()===candidate.url)) continue;
-    try {
+  const results=await Promise.allSettled(
+    candidates.map(async candidate=>{
       const fetched=await fetchPublicPage(new URL(candidate.url));
-      pages.push(makePage(fetched,false));
-    } catch {}
+      return makePage(fetched,false);
+    })
+  );
+  const pages:AuditPage[]=[homePage];
+  for(const result of results){
+    if(result.status!=="fulfilled") continue;
+    if(pages.some(p=>p.url.toString()===result.value.url.toString())) continue;
+    pages.push(result.value);
   }
   return {corpus:{pages,origin:sameOrigin},redirectCount:home.redirectCount};
 }
