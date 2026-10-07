@@ -20,6 +20,7 @@ export type ProductSignals = {
   ai:boolean; aiGeneration:boolean; aiDataProcessing:boolean; userGeneratedContent:boolean; subscription:boolean;
   autoRenewal:boolean; advertising:boolean; ecommerce:boolean; marketplace:boolean; developerApi:boolean;
   persistentUserData:boolean; paidService:boolean; commercialActivity:boolean;
+  highImpactAI:boolean; dataCommercialization:boolean;
 };
 
 export type ProductContext = {
