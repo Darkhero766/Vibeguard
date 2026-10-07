@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { lookup } from "node:dns/promises";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { consumeAuditScan, ensurePlanForUser } from "../lib/plan";
@@ -72,41 +74,106 @@ async function resolvePublicAddresses(hostname:string):Promise<string[]> {
   return addresses;
 }
 
-async function fetchPublicPage(start:URL):Promise<{url:URL;html:string;headers:Headers;redirectCount:number}> {
+type PublicResource = {status:number;headers:Headers;body:Buffer};
+
+async function fetchPinnedResource(url:URL,maxBytes:number):Promise<PublicResource> {
+  const resolved=await resolvePublicAddresses(url.hostname);
+  const ip=resolved[0];
+  const transport=url.protocol==="https:"?httpsRequest:httpRequest;
+  return await new Promise((resolve,reject)=>{
+    let settled=false;
+    const fail=(error:unknown)=>{if(!settled){settled=true;reject(error);}};
+    const req=transport({
+      hostname:ip,
+      port:url.port?Number(url.port):(url.protocol==="https:"?443:80),
+      path:url.pathname+url.search,
+      method:"GET",
+      headers:{"Host":url.host,"User-Agent":"VibeSane-Audit/2.0 (+https://vibesane.app)","Accept":"text/html,application/xhtml+xml,text/plain,*/*","Accept-Encoding":"identity"},
+      ...(url.protocol==="https:"?{servername:url.hostname}:{}),
+      timeout:FETCH_TIMEOUT_MS,
+    },response=>{
+      const chunks:Buffer[]=[];let total=0;
+      response.on("data",(chunk:Buffer)=>{total+=chunk.length;if(total>maxBytes){req.destroy(new Error("The response is too large for the public audit."));return;}chunks.push(chunk);});
+      response.on("end",()=>{if(settled)return;settled=true;const headers=new Headers();for(const [name,value] of Object.entries(response.headers)){if(value!==undefined)headers.set(name,Array.isArray(value)?value.join(", "):String(value));}resolve({status:response.statusCode??0,headers,body:Buffer.concat(chunks)});});
+      response.on("error",fail);
+    });
+    req.on("timeout",()=>req.destroy(new Error("The audit request timed out.")));
+    req.on("error",fail);
+    req.end();
+  });
+}
+
+async function fetchPublicResource(start:URL,maxBytes=MAX_HTML_BYTES) {
   let url=start;
   for(let i=0;i<=MAX_REDIRECTS;i++){
-    const resolved=await resolvePublicAddresses(url.hostname);
-    // Resolve immediately before each request. This closes the common DNS-rebinding
-    // gap where validation happens once and a later connection resolves elsewhere.
-    // Node fetch does not expose a safe "connect to this validated IP" primitive,
-    // so reject any multi-address answer rather than pretending hostname validation
-    // alone is sufficient.
-    if(!isIP(url.hostname)&&resolved.length!==1) {
-      throw new Error("The audit host has multiple DNS addresses and cannot be safely audited.");
-    }
-    const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),FETCH_TIMEOUT_MS);
-    let response:Response;
-    try {
-      response=await fetch(url,{redirect:"manual",signal:controller.signal,headers:{"User-Agent":"VibeSane-Audit/2.0 (+https://vibesane.app)"}});
-    } finally { clearTimeout(timer); }
-    if(response.status>=300&&response.status<400){
-      const location=response.headers.get("location");
-      if(!location) throw new Error("The site returned a redirect without a destination.");
+    validateHost(url.hostname);
+    const resource=await fetchPinnedResource(url,maxBytes);
+    if(resource.status>=300&&resource.status<400){
+      const location=resource.headers.get("location");
+      if(!location)throw new Error("The site returned a redirect without a destination.");
       url=new URL(location,url);
-      if(!["http:","https:"].includes(url.protocol)) throw new Error("The site redirected to an unsupported protocol.");
+      if(!["http:","https:"].includes(url.protocol))throw new Error("The site redirected to an unsupported protocol.");
       continue;
     }
-    if(!response.ok) throw new Error("The site returned HTTP "+response.status+".");
-    const contentType=response.headers.get("content-type")??"";
-    if(!/text\/html|application\/xhtml\+xml/i.test(contentType)) throw new Error("The URL did not return an HTML page. Audit a deployed web page or app landing page.");
-    const length=Number(response.headers.get("content-length")??0);
-    if(length>MAX_HTML_BYTES) throw new Error("The page is too large for the public audit.");
-    const html=await response.text();
-    if(Buffer.byteLength(html,"utf8")>MAX_HTML_BYTES) throw new Error("The page is too large for the public audit.");
-    return {url,html,headers:response.headers,redirectCount:i};
+    return {...resource,url,redirectCount:i};
   }
   throw new Error("Too many redirects.");
+}
+
+async function fetchPublicPage(start:URL):Promise<{url:URL;html:string;headers:Headers;redirectCount:number}> {
+  const resource=await fetchPublicResource(start,MAX_HTML_BYTES);
+  if(resource.status<200||resource.status>=300)throw new Error("The site returned HTTP "+resource.status+".");
+  const contentType=resource.headers.get("content-type")??"";
+  if(!/text\\/html|application\\/xhtml\\+xml/i.test(contentType))throw new Error("The URL did not return an HTML page. Audit a deployed web page or app landing page.");
+  const html=resource.body.toString("utf8");
+  return {url:resource.url,html,headers:resource.headers,redirectCount:resource.redirectCount};
+}
+
+type RobotsRule={allow:boolean;pattern:string};
+
+function parseRobots(body:string,userAgent="VibeSane-Audit"):RobotsRule[] {
+  const groups:Array<{agents:string[];rules:RobotsRule[]}>=[];let current:{agents:string[];rules:RobotsRule[]}|null=null;
+  for(const raw of body.split(/\\r?\\n/)){
+    const line=raw.replace(/#.*$/,"").trim();if(!line)continue;
+    const m=line.match(/^([^:]+):\\s*(.*)$/);if(!m)continue;
+    const key=m[1].trim().toLowerCase(),value=m[2].trim();
+    if(key==="user-agent"){if(!current||current.rules.length){current={agents:[],rules:[]};groups.push(current);}current.agents.push(value.toLowerCase());}
+    else if((key==="allow"||key==="disallow")&&current)current.rules.push({allow:key==="allow",pattern:value});
+  }
+  const token=userAgent.toLowerCase();
+  const matching=groups.filter(g=>g.agents.some(a=>a==="*"||token.includes(a)));
+  return (matching.length?matching:groups.filter(g=>g.agents.includes("*"))).flatMap(g=>g.rules);
+}
+
+function robotsPatternMatches(pattern:string,path:string):boolean {
+  if(!pattern)return false;
+  let regex="^";
+  for(const ch of pattern){
+    if(ch==="*")regex+=".*";
+    else if(ch==="$"&&regex.length>1)regex+="$";
+    else if(".+?^()|[]{}\\".includes(ch))regex+="\\"+ch;
+    else regex+=ch;
+  }
+  try{return new RegExp(regex).test(path);}catch{return false;}
+}
+
+function allowedByRobots(url:URL,rules:RobotsRule[]):boolean {
+  let best:{allow:boolean;length:number}|null=null;
+  const path=url.pathname+(url.search||"");
+  for(const rule of rules){
+    if(!robotsPatternMatches(rule.pattern,path))continue;
+    const length=rule.pattern.replace(/[*$]/g,"").length;
+    if(!best||length>best.length||(length===best.length&&rule.allow))best={allow:rule.allow,length};
+  }
+  return best?best.allow:true;
+}
+
+async function loadRobots(start:URL):Promise<RobotsRule[]> {
+  try{
+    const resource=await fetchPublicResource(new URL("/robots.txt",start),512_000);
+    if(resource.status<200||resource.status>=300)return [];
+    return parseRobots(resource.body.toString("utf8"));
+  }catch{return [];}
 }
 
 function stripHtml(html:string):string {
@@ -212,6 +279,7 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   const home=await fetchPublicPage(start);
   const homePage=makePage(home,true);
   const sameOrigin=home.url.origin;
+  const robots=await loadRobots(home.url);
   // Build a scored first-party crawl instead of following only legal links.
   // Product applicability depends on seeing the actual product surface (pricing,
   // login, checkout, AI features, forms, etc.), not just Terms/Privacy pages.
@@ -224,6 +292,7 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
       u.hash="";
       const key=u.toString();
       if(key===home.url.toString()) continue;
+      if(!allowedByRobots(u,robots)) continue;
       const hay=(l.text+" "+u.pathname+" "+u.search).toLowerCase();
       let score=pageSignal.test(hay)?2:0;
       if(/pricing|plans|product|features|shop|store|cart|checkout|login|sign[- ]?up|account|dashboard|api|docs|community|marketplace|services|about|ai|assistant|generate/i.test(hay)) score+=2;
@@ -238,13 +307,15 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
 
   const results=await Promise.allSettled(
     candidates.map(async candidate=>{
-      const fetched=await fetchPublicPage(new URL(candidate.url));
+      const candidateUrl=new URL(candidate.url);
+      if(!allowedByRobots(candidateUrl,robots)) return null;
+      const fetched=await fetchPublicPage(candidateUrl);
       return makePage(fetched,false);
     })
   );
   const pages:AuditPage[]=[homePage];
   for(const result of results){
-    if(result.status!=="fulfilled") continue;
+    if(result.status!=="fulfilled"||!result.value) continue;
     if(pages.some(p=>p.url.toString()===result.value.url.toString())) continue;
     pages.push(result.value);
   }
