@@ -82,6 +82,7 @@ try {
   assert.equal(by(ai,"A01").applicability,"applicable");
   assert.equal(by(ai,"A04").applicability,"applicable");
   assert.equal(by(ai,"A07").applicability,"applicable");
+  assert.equal(by(ai,"A05").status,"not_applicable","Normal AI writing assistance should not require human oversight by default");
   assert.equal(by(ai,"B01").applicability,"applicable");
 
   const aiMentionOnly=run(`
@@ -101,7 +102,16 @@ try {
     <html><body><h1>Simple Site</h1><p>Just information. No analytics or tracking scripts.</p></body></html>`);
   assert.equal(by(noTracking,"C05").status,"not_applicable");
   assert.equal(by(noTracking,"C08").status,"not_applicable");
+  assert.equal(by(noTracking,"C07").status,"not_applicable");
   assert.equal(by(noTracking,"L03").status,"not_applicable");
+
+  const freeSaas=run(
+    \`<html><body><h1>Free Project Tool</h1><p>Team workspace with a free plan.</p>
+    <a href="/login">Log in</a><a href="/pricing">Pricing</a><div>Free forever</div></body></html>\`);
+  assert.equal(by(freeSaas,"B01").applicability,"applicable");
+  assert.equal(by(freeSaas,"B02").status,"not_applicable");
+  assert.equal(by(freeSaas,"B03").status,"not_applicable");
+  assert.equal(by(freeSaas,"B05").status,"not_applicable");
 
   const jsHeavy=run(`
     <html><body><div id="root"></div>
