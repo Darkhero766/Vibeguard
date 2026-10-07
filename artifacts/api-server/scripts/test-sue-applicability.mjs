@@ -132,13 +132,13 @@ try {
     <html><body><h1>Terms of Service</h1>
     <p>Subscriptions, recurring billing, AI providers, analytics, cookies and payment processors may be used.</p>
     <a href="/privacy">Privacy</a><a href="/terms">Terms</a></body></html>`);
-  assert.equal(by(legalPageOnly,"B03").status,"not_applicable","Legal-page language must not manufacture subscription applicability");
-  assert.equal(by(legalPageOnly,"A01").status,"not_applicable","Legal-page language must not manufacture AI applicability");
-  assert.equal(by(legalPageOnly,"C05").status,"not_applicable","Legal-page language must not manufacture analytics applicability");
+  assert.equal(by(legalPageOnly,"B03").applicability,"not_applicable","Legal-page language must not manufacture subscription applicability");
+  assert.equal(by(legalPageOnly,"A01").applicability,"not_applicable","Legal-page language must not manufacture AI applicability");
+  assert.equal(by(legalPageOnly,"C05").applicability,"not_applicable","Legal-page language must not manufacture analytics applicability");
 
   const searchOnly=run(`
     <html><body><h1>Documentation</h1><input type="text" name="q" placeholder="Search documentation"></body></html>`);
-  assert.equal(by(searchOnly,"P01").status,"not_applicable","Generic search input is not sufficient evidence of personal-data collection");
+  assert.equal(by(searchOnly,"P01").applicability,"not_applicable","Generic search input is not sufficient evidence of personal-data collection");
 
   const jsHeavy=run(`
     <html><body><div id="root"></div>
