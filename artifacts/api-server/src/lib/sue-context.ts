@@ -59,7 +59,18 @@ export function combine(...groups:Evidence[][]) {
 
 function isPolicySurface(page:AuditPage) {
   const p=page.url.pathname.toLowerCase();
-  return /(?:^|\/)(terms(?:-and-conditions)?|privacy(?:-policy)?|cookies?|cookie-policy|refunds?|returns?|cancellations?|acceptable-use|aup|legal|disclaimer|dpa|subprocessors?|security-policy)(?:\/|$)/i.test(p);
+  if (/(?:^|\\/)(terms(?:-and-conditions)?|privacy(?:-policy)?|cookies?|cookie-policy|refunds?|returns?|cancellations?|acceptable-use|aup|legal|disclaimer|dpa|subprocessors?|security-policy)(?:\\/|$)/i.test(p)) return true;
+
+  // Crawlers/tests can expose a legal document at the site root ("/"), so
+  // pathname-only classification is insufficient. Treat a page as a policy
+  // surface when its own heading/title is unmistakably legal and the body
+  // contains legal/policy vocabulary. This prevents Terms text such as
+  // "subscriptions may be used" from becoming product capability evidence.
+  const sample = `${page.text} ${page.html}`.replace(/<[^>]+>/g," ").replace(/\\s+/g," ").trim();
+  const titleOrHeading = /<(?:title|h1|h2)[^>]*>[^<]*(?:terms(?: of service)?|privacy(?: policy)?|cookie policy|acceptable use|legal|disclaimer|refund|return policy|security policy)[^<]*<\\/(?:title|h1|h2)>/i.test(page.html)
+    || /^(?:terms(?: of service)?|privacy(?: policy)?|cookie policy|acceptable use policy|legal disclaimer|refund policy|return policy|security policy)\\b/i.test(page.text.trim());
+  const legalVocabulary = /\\b(?:terms of service|terms and conditions|privacy policy|cookie policy|acceptable use|legal disclaimer|governing law|arbitration|limitation of liability|indemnification|intellectual property|data processing agreement)\\b/i.test(sample);
+  return titleOrHeading && legalVocabulary;
 }
 
 function productSurface(c:AuditCorpus):AuditCorpus {
