@@ -155,6 +155,14 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
     text(c,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
   );
   set("paidService",combine(payment,checkout,paidPricing,text(c,/paid service|paid plan|hire us|book a paid|starting at/i,"paid_service_text",.78)));
+  set("highImpactAI",combine(
+    ai,
+    text(c,/\b(?:medical|diagnos(?:is|tic)|treatment|clinical|mental health|credit|loan|insurance|employment|hiring|recruitment|legal advice|financial advice|biometric|risk score|eligibility decision|fraud decision)\b/i,"high_impact_ai_context",.88)
+  ));
+  set("dataCommercialization",combine(
+    text(c,/\b(?:sell|share|monetize|monetisation|monetization)\b.{0,100}\b(?:personal|user|customer)\s+(?:data|information)\b/i,"data_commercialization",.92),
+    text(c,/targeted advertising|behavioral advertising|interest[- ]based advertising/i,"targeted_advertising",.88)
+  ));
   set("commercialActivity",combine(pricing,payment,checkout,ecommerce,marketplace,text(c,/\b(hire|services|consulting|agency|plans|pricing|shop|store|buy|subscribe|book a call|request a quote)\b/i,"commercial_language",.72)));
 
   const signals={} as ProductSignals, signalConfidence:Partial<Record<keyof ProductSignals,number>>={};
