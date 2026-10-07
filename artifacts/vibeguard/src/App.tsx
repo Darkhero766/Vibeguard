@@ -10,6 +10,7 @@ import AdminPage from './pages/AdminPage';
 import SettingsPage from './pages/SettingsPage';
 import TermsPage from './pages/TermsPage';
 import AuditPage from './pages/AuditPage';
+import AuditReportPage from './pages/AuditReportPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 
@@ -92,6 +93,7 @@ export default function App() {
   const isSettingsPage = path === '/settings';
   const isTermsPage = path === '/terms';
   const isAuditPage = path === '/audit';
+  const isAuditReportPage = path === '/audit/report';
 
   if (isAdminPage) return <><BrandMigration /><AuthProvider><AdminPage /></AuthProvider></>;
   if (isCheckoutPage) return <><BrandMigration /><AuthProvider><CheckoutPage /></AuthProvider></>;
@@ -99,6 +101,7 @@ export default function App() {
   if (isAffiliatePage) return <><BrandMigration /><ReferralAttribution /><AuthProvider><AffiliatePage /></AuthProvider></>;
   if (isSettingsPage) return <><BrandMigration /><AuthProvider><SettingsPage /></AuthProvider></>;
   if (isTermsPage) return <><BrandMigration /><AuthProvider><TermsPage /></AuthProvider></>;
+  if (isAuditReportPage) return <><BrandMigration /><AuthProvider><AuditReportPage /></AuthProvider></>;
   if (isAuditPage) return <><BrandMigration /><AuthProvider><AuditPage /></AuthProvider></>;
   if (SEO_PATHS.has(path)) return <AuthProvider><SEOPage path={path} /></AuthProvider>;
   return <><BrandMigration /><ReferralAttribution /><PublicScanFlowBridge /><OriginalApp /><AffiliateWelcomePopup /></>;
