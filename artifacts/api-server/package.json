@@ -9,7 +9,8 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:sue": "node ./scripts/test-sue-applicability.mjs",
-    "benchmark:sue": "node ./scripts/benchmark-sue-accuracy.mjs"
+    "benchmark:sue": "node ./scripts/benchmark-sue-accuracy.mjs",
+    "benchmark:sue:live": "node ./scripts/benchmark-sue-live.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
