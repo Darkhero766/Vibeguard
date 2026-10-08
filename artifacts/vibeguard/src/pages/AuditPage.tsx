@@ -9,7 +9,7 @@ import { apiUrl } from "@/lib/api";
 type Status = "pass" | "review" | "missing" | "not_applicable";
 type Severity = "high" | "medium" | "low";
 type AuditCheck = { id: string; category: string; title: string; status: Status; applicability: "applicable" | "not_applicable" | "unknown"; confidence: number; evidence: Array<{ type: string; url?: string; location?: string; excerpt?: string; signal: string; confidence: number }>; severity: Severity; explanation: string; recommendation: string };
-type Report = { url: string; scannedAt: string; score: number; passed: number; review: number; missing: number; notApplicable: number; checks: AuditCheck[]; productContext?: { productTypes: string[]; commercialModel: string; signals: Record<string, boolean>; confidence: number; coverage: { pages: number; linkedPages: number; forms: number; scripts: number; dynamicRenderingLikely: boolean; score: number } }; quota?: { scansUsed: number; scansLimit: number } };
+type Report = { auditId?: string | null; url: string; scannedAt: string; score: number; passed: number; review: number; missing: number; notApplicable: number; checks: AuditCheck[]; productContext?: { productTypes: string[]; commercialModel: string; signals: Record<string, boolean>; confidence: number; coverage: { pages: number; linkedPages: number; forms: number; scripts: number; dynamicRenderingLikely: boolean; score: number } }; quota?: { scansUsed: number; scansLimit: number } };
 
 const statusLabel: Record<Status, string> = { pass: "PASS", review: "REVIEW", missing: "MISSING", not_applicable: "N/A" };
 
