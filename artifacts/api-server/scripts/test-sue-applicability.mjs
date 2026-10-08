@@ -108,7 +108,6 @@ try {
     <body><h1>Selected Work</h1><p>Designer portfolio, case studies, resume and about me.</p>
     <a href="/about">About</a><a href="/projects">Projects</a><a href="/contact">Contact</a>
     <p>contact: jane@example.test</p></body></html>`);
-  console.log("PORTFOLIO_DEBUG", JSON.stringify({context:runApplicabilityAwareChecks(corpus(`<html><head><title>Jane Doe — Designer Portfolio</title></head><body><h1>Selected Work</h1><p>Designer portfolio, case studies, resume and about me.</p><a href="/about">About</a><a href="/projects">Projects</a><a href="/contact">Contact</a><p>contact: jane@example.test</p></body></html>`,"https://example.test/").context,checks:portfolio.filter(x=>["L04","L05"].includes(x.id))}));
   assert.equal(by(portfolio,"L04").status,"not_applicable");
   assert.equal(by(portfolio,"L05").status,"not_applicable");
   assert.equal(by(portfolio,"B03").status,"not_applicable");
