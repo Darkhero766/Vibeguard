@@ -101,6 +101,15 @@ try {
   assert.equal(by(ai,"A01").applicability,"applicable");
   assert.equal(by(ai,"A04").applicability,"applicable");
   assert.equal(by(ai,"A07").applicability,"applicable");
+
+  const aiWithoutGeneration = run(`
+    <html><body><h1>AI Workspace</h1>
+    <p>AI-powered assistant for teams.</p>
+    <p>Generate invoices, reports and passwords using ordinary workflow tools.</p>
+    <form><button>Generate invoice</button></form>
+    </body></html>`);
+  assert.equal(by(aiWithoutGeneration,"A01").applicability,"applicable");
+  assert.equal(by(aiWithoutGeneration,"A07").applicability,"not_applicable","Generic generation language must not imply AI-generated output rights.");
   assert.equal(by(ai,"A05").status,"not_applicable","Normal AI writing assistance should not require human oversight by default");
   assert.equal(by(ai,"B01").applicability,"applicable");
 

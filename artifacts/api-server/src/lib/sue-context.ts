@@ -190,7 +190,10 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
 
   set("pricing",pricing);set("checkout",checkout);set("payments",payment);set("authentication",auth);set("accountCreation",account);
   set("personalDataCollection",personal);set("marketingCollection",marketing);set("analytics",analytics);set("cookies",cookie);set("tracking",tracking);
-  set("ai",ai);set("aiGeneration",combine(text(surface,/\b(?:generate|generation|generated output|image generation|text generation)\b/i,"ai_generation",.9),forms(surface,/generate|prompt|ai assistant/i,"ai_generation_input",.9)));
+  set("ai",ai);set("aiGeneration",combine(\
+    text(surface,/\b(?:AI|artificial intelligence|model|assistant|agent)\b.{0,100}\b(?:generate|generation|generated|output|image|text|code)\b|\b(?:generate|generation|generated|output)\b.{0,100}\b(?:AI|artificial intelligence|model|assistant|agent)\b/i,"ai_generation",.92),\
+    forms(surface,/(?:\bprompt\b.{0,120}\b(?:generate|create|submit|send)\b|\b(?:AI assistant|AI agent|AI generator|generate (?:text|images?|code|content|responses?))\b)/i,"ai_generation_input",.92)\
+)));
   set("aiDataProcessing",aiData);set("userGeneratedContent",ugc);set("subscription",subscription);set("autoRenewal",autoRenew);set("advertising",advertising);
   set("ecommerce",ecommerce);set("marketplace",marketplace);set("developerApi",developerApi);
   set("persistentUserData",combine(auth,ugc,text(surface,/save your|saved projects|history|profile|dashboard data/i,"persistent_data_text",.82)));
