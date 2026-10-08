@@ -229,3 +229,5 @@ WORKING RULES
 12. PublicScanPage owns the lifecycle of /scan-public query-driven scans; do not add simulated button-click effects in the global route bridge.
 13. After every successful public scan, the frontend MUST refresh authoritative usage so the public quota counter changes immediately.
 14. Test-only quota reset logic must never run in production; testing limits must be changed explicitly in the database or through a clearly isolated test mechanism.
+
+2026-10-08 — AI impact/data accuracy hardening is in PR #19; merge remains gated on fresh CI after the final test fixture corrections.
