@@ -252,3 +252,14 @@ WORKING RULES
 - Merged PRs: #23, #25, #26, #27, #28, #29.
 - Current baseline commit: 0f02289e21705692e050b30543f84abc8a9a5ead.
 - Remaining production work is operational rather than another blind batch of SUE rules: live deployment verification, Supabase production/RLS verification, observability/alerting, retention policy decision, rate limiting/abuse controls, and a larger external-product evaluation corpus.
+
+2026-10-08 — Final production infrastructure pass
+- Live Supabase project verified ACTIVE_HEALTHY on Postgres 17.
+- Security advisors reduced to one dashboard-only Auth warning: leaked-password protection.
+- RLS hardening applied live: service-owned tables have explicit deny-by-default client policies; audit ownership policy optimized.
+- Audit retention: 90-day cleanup trigger installed on audit_runs.
+- Distributed API rate limiting added via Supabase api_rate_limits, applied to audit/scans/protection/checkout/billing-sync.
+- API request bodies bounded (2MB JSON / 256KB URL-encoded), Render proxy trust configured, and /api/readyz checks database readiness.
+- SUE gate now also compiles the API app entrypoint; latest production API PR #30 merged.
+- Live Supabase migrations verified through 20261008060445 and 20261008060541.
+- Remaining manual production action: enable Supabase Auth leaked-password protection in Dashboard → Authentication → Providers/Password security (requires Pro+ according to current Supabase docs).
