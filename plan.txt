@@ -205,6 +205,14 @@ CHANGE LOG
 - Supabase production schema was inspected: public.usage already contains audit_scans_used with RLS enabled, so no database migration was required for this cleanup. Security advisors reported existing unrelated RLS-without-policy tables and disabled leaked-password protection; no unrelated schema/auth changes were made as part of SUE applicability cleanup.
 - Branch: sue/applicability-cleanup. Production main was not directly modified.
 
+2026-10-08 — SUE end-to-end verification + durable audit history
+- Verified the merged applicability cleanup through GitHub Actions: 13 scenarios × 50 checks = 650 evaluations PASS; applicability benchmark 82/82 expected assertions correct (100%); live benchmark reached 4/5 reachable public sites with the only non-pass being OpenAI API returning HTTP 403, not an SUE detection failure.
+- Added durable public.audit_runs storage with owner scoping, score/count fields, product context JSON, full 50-check JSON, URL, timestamp, and RLS owner-select policy.
+- Updated POST /api/audit to persist completed reports and return auditId; added authenticated GET /api/audit/:id for owner-scoped retrieval.
+- Updated SUE client report types to retain auditId and CI to run API-server typecheck before the SUE regression/benchmark gates.
+- Applied the audit_runs schema directly to the production Supabase project and committed the matching migration at supabase/migrations/20261008100000_create_audit_runs.sql.
+- Deployment status: code is on branch sue/audit-history-hardening; PR/CI/merge pending. Supabase schema is already applied.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
