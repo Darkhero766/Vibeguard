@@ -1,4 +1,5 @@
 import { Router, type Response } from "express";
+import { rateLimit } from "../middlewares/rateLimit";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
@@ -174,7 +175,7 @@ async function deactivatePro(subscriptionId: string | null, email: string | null
   `, [...params, status]);
 }
 
-router.post("/checkout", requireAuth, async (req: AuthedRequest, res: Response): Promise<void> => {
+router.post("/checkout", rateLimit({ name: "checkout", windowMs: 60_000, max: 6 }), requireAuth, async (req: AuthedRequest, res: Response): Promise<void> => {
   try {
     await ensureDodoTables();
     const userId = req.userId;
@@ -259,7 +260,7 @@ router.post("/checkout", requireAuth, async (req: AuthedRequest, res: Response):
 // This endpoint closes the gap where the webhook is still in flight: the authenticated
 // user can prove the subscription belongs to them, and we read the authoritative state
 // directly from Dodo before granting Pro access.
-router.post("/billing/sync", requireAuth, async (req: AuthedRequest, res: Response): Promise<void> => {
+router.post("/billing/sync", rateLimit({ name: "billing-sync", windowMs: 60_000, max: 10 }), requireAuth, async (req: AuthedRequest, res: Response): Promise<void> => {
   try {
     await ensureDodoTables();
     const userId = req.userId;

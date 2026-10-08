@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { rateLimit } from "../middlewares/rateLimit";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
 import { getInstallationIdForUser, getInstallationToken } from "../lib/githubApp";
@@ -50,7 +51,7 @@ router.get("/protection/:repo/events", requireAuth, async (req: AuthedRequest, r
   } catch (error) { req.log.error({ err: error }, "Could not load protection activity"); res.status(500).json({ error: "Could not load protection activity" }); }
 });
 
-router.post("/protection", requireAuth, async (req: AuthedRequest, res) => {
+router.post("/protection", rateLimit({ name: "protection", windowMs: 60_000, max: 6 }), requireAuth, async (req: AuthedRequest, res) => {
   const repoUrl = typeof req.body?.repoUrl === "string" ? req.body.repoUrl.trim().replace(/\/$/, "") : "";
   if (!githubUrlPattern.test(repoUrl)) { res.status(400).json({ error: "Enter a valid GitHub repository URL." }); return; }
 
