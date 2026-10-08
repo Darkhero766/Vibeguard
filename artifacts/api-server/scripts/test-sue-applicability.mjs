@@ -20,7 +20,6 @@ try {
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
 
 
-
   const headers=()=>new Headers();
   // SSRF host-validation unit coverage is kept in the audit route itself;
   // these cases document the security boundary for future route-level tests.
@@ -33,6 +32,31 @@ try {
   const corpus=(html,url="https://example.test/")=>({pages:[page(url,html)],origin:new URL(url).origin});
   const run=(html,url)=>runApplicabilityAwareChecks(corpus(html,url)).checks;
   const by=(checks,id)=>checks.find(x=>x.id===id);
+
+  const ordinarySaas = run(`
+    <html><body><h1>Acme Cloud</h1>
+    <p>Project management workspace for teams.</p>
+    <a href="/login">Log in</a><a href="/pricing">Pricing</a>
+    <p>$19/month billed monthly.</p>
+    </body></html>`);
+  assert.equal(by(ordinarySaas,"P08").applicability,"not_applicable","SaaS classification alone must not imply a processor/DPA relationship.");
+
+  const processorSaas = run(`
+    <html><body><h1>Acme Data Platform</h1>
+    <p>We process customer personal data on behalf of business customers.</p>
+    <p>We act as a processor and use subprocessors under our DPA.</p>
+    <a href="/login">Log in</a><a href="/pricing">Pricing</a>
+    </body></html>`);
+  assert.equal(by(processorSaas,"P08").applicability,"applicable","Explicit processor/B2B data-processing evidence must trigger DPA review.");
+
+  const sensitiveCollection = run(`
+    <html><body><h1>Health Intake</h1>
+    <p>We collect health information and medical records.</p>
+    <form><input name="medical_history"><input name="date_of_birth"></form>
+    </body></html>`);
+  assert.equal(by(sensitiveCollection,"P01").applicability,"applicable");
+  assert.equal(by(sensitiveCollection,"P02").applicability,"applicable");
+
 
   const anonymousAnalytics = run(`
     <html><body><h1>Public Blog</h1>
@@ -105,7 +129,7 @@ try {
   assert.equal(by(saas,"B04").applicability,"applicable");
   assert.equal(by(saas,"P04").applicability,"applicable");
   assert.equal(by(saas,"L11").applicability,"applicable");
-  assert.equal(by(saas,"P08").applicability,"applicable","SaaS must retain DPA applicability");
+  assert.equal(by(saas,"P08").applicability,"not_applicable","Generic SaaS language alone must not imply a processor/DPA relationship");
 
   const ai=run(`
     <html><body><h1>AI Writing Assistant</h1><p>AI-powered writing assistant. Generate text from your prompt.</p>
