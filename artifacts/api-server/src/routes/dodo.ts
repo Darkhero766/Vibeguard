@@ -175,7 +175,7 @@ async function deactivatePro(subscriptionId: string | null, email: string | null
   `, [...params, status]);
 }
 
-router.post("/checkout", requireAuth, async (req: AuthedRequest, res: Response): Promise<void> => {
+router.post("/checkout", rateLimit({ name: "checkout", windowMs: 60_000, max: 6 }), requireAuth, async (req: AuthedRequest, res: Response): Promise<void> => {
   try {
     await ensureDodoTables();
     const userId = req.userId;
