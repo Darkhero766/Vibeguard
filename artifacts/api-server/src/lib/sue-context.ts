@@ -185,7 +185,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   );
   const advertising=combine(scripts(surface,/adsbygoogle|doubleclick|googlesyndication|facebook.*pixel|adservice/i,"advertising_sdk",.96),text(surface,/advertise with us|sponsored content|advertisement|ad space/i,"advertising_text",.9));
   const personal=combine(
-    forms(surface,/(?:type=["'](?:email|tel|password|date)["']|(?:name|id|autocomplete|placeholder)=["'][^"']*(?:email|e-?mail|phone|mobile|full[-_ ]?name|first[-_ ]?name|last[-_ ]?name|address|street|city|postal|zip|birth|dob|password)[^"']*["'])/i,"personal_data_form",.91),
+    forms(surface,/(?:type=["'](?:email|tel|password|date)["']|(?:name|id|autocomplete|placeholder)=["'][^"']*(?:email|e-?mail|phone|mobile|full[-_ ]?name|first[-_ ]?name|last[-_ ]?name|address|street|city|postal|zip|birth|dob|password|medical|health|biometric|genetic|passport|national.?id|aadhaar|ssn|social.?security|bank|account.?number)[^"']*["'])/i,"personal_data_form",.91),
     auth,
     marketing,
     text(surface,/\b(?:we|our)\s+(?:collect|process|store|retain|use)\s+(?:your\s+)?(?:personal|customer|user|contact)\s+(?:data|information)\b/i,"personal_data_disclosure",.91)
