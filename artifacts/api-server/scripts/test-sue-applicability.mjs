@@ -39,6 +39,15 @@ try {
   const sparseChecks=runApplicabilityAwareChecks(sparseAppShell).checks;
   assert.equal(by(sparseChecks,"P01").applicability,"unknown","A sparse runtime shell must not turn privacy applicability into a false N/A.");
   assert.equal(by(sparseChecks,"P08").applicability,"unknown","DPA applicability should remain unknown when runtime coverage is insufficient.");
+  const lowEvidenceShell = {
+    pages:[page("https://example.test/","<html><head><title>App</title></head><body><div id="root"></div><script src="/assets/app.js"></script><script src="/assets/vendor.js"></script></body></html>")],
+    origin:"https://example.test"
+  };
+  const lowEvidenceChecks=runApplicabilityAwareChecks(lowEvidenceShell).checks;
+  assert.equal(by(lowEvidenceChecks,"P01").applicability,"unknown","A low-evidence two-script SPA shell must not become false N/A.");
+  assert.equal(by(lowEvidenceChecks,"P01").status,"review","Low-evidence applicability must surface as review.");
+  assert.equal(by(lowEvidenceChecks,"A01").status,"review","Low-evidence AI applicability must surface as review.");
+
 
 
   const ordinarySaas = run(`
