@@ -355,6 +355,27 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   // Add first-party sitemap URLs so product routes remain discoverable even when
   // the application shell renders navigation client-side.
   const sitemapUrls=await loadSitemaps(home.url);
+
+  // SPA routers often keep legal routes out of the server-rendered shell.
+  // Probe conservative same-origin policy routes as a fallback. These are
+  // candidate hints only; a route is included only when it actually returns
+  // a public HTML page. This lets SUE verify a real Terms/Privacy page without
+  // treating legal vocabulary as product-feature evidence.
+  const commonPolicyPaths=[
+    "/terms","/terms-of-service","/terms-and-conditions","/terms-and-conditions-of-use",
+    "/privacy","/privacy-policy","/privacy-notice",
+    "/cookies","/cookie-policy","/refund","/refund-policy","/returns","/return-policy",
+    "/cancellation","/cancellation-policy","/acceptable-use","/acceptable-use-policy",
+    "/aup","/legal","/disclaimer","/security","/security-policy","/dpa","/subprocessors"
+  ];
+  for(const path of commonPolicyPaths){
+    try{
+      const u=new URL(path,home.url);
+      if(!allowedByRobots(u,robots)) continue;
+      const previous=candidateScores.get(u.toString());
+      candidateScores.set(u.toString(),{url:u.toString(),score:Math.max(previous?.score??0,1)});
+    }catch{}
+  }
   for(const sitemapUrl of sitemapUrls){
     const key=sitemapUrl.toString();
     if(key===home.url.toString()) continue;
