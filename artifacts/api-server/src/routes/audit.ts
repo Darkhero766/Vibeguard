@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { pool } from "@workspace/db";
 import { lookup } from "node:dns/promises";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
@@ -320,10 +321,41 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   const pages:AuditPage[]=[homePage];
   for(const result of results){
     if(result.status!=="fulfilled"||!result.value) continue;
-    if(pages.some(p=>p.url.toString()===result.value.url.toString())) continue;
-    pages.push(result.value);
+    const page=result.value;
+    if(pages.some(p=>p.url.toString()===page.url.toString())) continue;
+    pages.push(page);
   }
   return {corpus:{pages,origin:sameOrigin},redirectCount:home.redirectCount};
+}
+
+async function persistAuditRun(userId:string, report:{
+  url:string; scannedAt:string; score:number; passed:number; review:number; missing:number; notApplicable:number;
+  checks:unknown[]; productContext:unknown; redirectCount:number;
+}):Promise<string|null>{
+  try{
+    const result=await pool.query(
+      `INSERT INTO public.audit_runs
+        (owner,url,scanned_at,score,passed,review,missing,not_applicable,redirect_count,product_context,checks)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb)
+       RETURNING id`,
+      [
+        userId,
+        report.url,
+        report.scannedAt,
+        report.score,
+        report.passed,
+        report.review,
+        report.missing,
+        report.notApplicable,
+        report.redirectCount,
+        JSON.stringify(report.productContext),
+        JSON.stringify(report.checks),
+      ],
+    );
+    return typeof result.rows[0]?.id==="string" ? result.rows[0].id : null;
+  }catch(error){
+    return null;
+  }
 }
 
 router.post("/audit",requireAuth,async(req:AuthedRequest,res):Promise<void>=>{
@@ -342,23 +374,38 @@ router.post("/audit",requireAuth,async(req:AuthedRequest,res):Promise<void>=>{
     const evaluatedCount=checks.length-notApplicable;
     const score=evaluatedCount===0?100:Math.round(((passed+review*.5)/evaluatedCount)*100);
     const updatedPlan=await consumeAuditScan(req.userId!);
-
-    res.json({
+    const scannedAt=new Date().toISOString();
+    const productContext={
+      productTypes:context.productTypes,
+      commercialModel:context.commercialModel,
+      signals:context.signals,
+      confidence:context.confidence,
+      coverage:context.coverage,
+    };
+    const auditId=await persistAuditRun(req.userId!,{
       url:corpus.pages[0].url.toString(),
-      scannedAt:new Date().toISOString(),
+      scannedAt,
       score,
       passed,
       review,
       missing,
       notApplicable,
       checks,
-      productContext:{
-        productTypes:context.productTypes,
-        commercialModel:context.commercialModel,
-        signals:context.signals,
-        confidence:context.confidence,
-        coverage:context.coverage,
-      },
+      productContext,
+      redirectCount,
+    });
+
+    res.json({
+      auditId,
+      url:corpus.pages[0].url.toString(),
+      scannedAt,
+      score,
+      passed,
+      review,
+      missing,
+      notApplicable,
+      checks,
+      productContext,
       quota:updatedPlan,
       redirectCount,
     });
@@ -367,6 +414,38 @@ router.post("/audit",requireAuth,async(req:AuthedRequest,res):Promise<void>=>{
     const status=/limit reached/i.test(message)?429:/private|local|URL|HTML|redirect|HTTP/i.test(message)?400:502;
     req.log.error({err:error},"Audit failed");
     res.status(status).json({error:message});
+  }
+});
+
+router.get("/audit/:id",requireAuth,async(req:AuthedRequest,res):Promise<void>=>{
+  try{
+    const id=String(req.params.id||"").trim();
+    if(!/^[0-9a-f-]{36}$/i.test(id)){res.status(400).json({error:"Invalid audit id."});return;}
+    const result=await pool.query(
+      `SELECT id,url,scanned_at,score,passed,review,missing,not_applicable,redirect_count,product_context,checks
+         FROM public.audit_runs
+        WHERE id=$1 AND owner=$2
+        LIMIT 1`,
+      [id,req.userId!],
+    );
+    const row=result.rows[0];
+    if(!row){res.status(404).json({error:"Audit report not found."});return;}
+    res.json({
+      auditId:row.id,
+      url:row.url,
+      scannedAt:row.scanned_at,
+      score:row.score,
+      passed:row.passed,
+      review:row.review,
+      missing:row.missing,
+      notApplicable:row.not_applicable,
+      checks:row.checks,
+      productContext:row.product_context,
+      redirectCount:row.redirect_count,
+    });
+  }catch(error){
+    req.log.error({err:error},"Audit history lookup failed");
+    res.status(500).json({error:"Unable to load the audit report."});
   }
 });
 

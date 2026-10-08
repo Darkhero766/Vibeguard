@@ -13,7 +13,7 @@ type AuditCheck = {
   confidence: number; evidence: Evidence[]; severity: Severity;
   explanation: string; recommendation: string;
 };
-type Report = {
+type Report = { auditId?: string | null;
   url: string; scannedAt: string; score: number; passed: number; review: number;
   missing: number; notApplicable: number; checks: AuditCheck[];
   productContext?: {
