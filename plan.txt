@@ -240,3 +240,15 @@ WORKING RULES
 2026-10-08 — Finalized AI impact/data accuracy hardening is merged to main in PR #22; fresh SUE regression, accuracy, and live benchmark gates passed.
 
 2026-10-08 — Personal-data applicability hardening merged in PR #23. Analytics/tracking no longer alone cascades into P01/P02/P09/P11; analytics disclosure remains separately applicable. Fresh SUE regression, accuracy, and live benchmark gates passed.
+
+2026-10-08 — SUE production-hardening pass
+- Applicability accuracy: analytics no longer cascades into personal-data findings; AI generation/data/high-impact signals require contextual evidence; DPA/subprocessor findings require explicit processor/B2B or AI-data evidence.
+- Privacy accuracy: sensitive-data disclosures/fields count as personal-data evidence; sparse dynamic shells preserve UNKNOWN/REVIEW instead of false N/A.
+- Benchmarks: expanded adversarial privacy scenarios; SUE regression, accuracy benchmark, and live benchmark all passed after the hardening changes.
+- Security: public audit SSRF boundary retains DNS/IP pinning, redirect revalidation, private-range rejection, response/page budgets; persisted/API-visible audit URLs now redact sensitive query parameters.
+- Quotas: per-user usage initialization/monthly resets are serialized with a PostgreSQL advisory transaction lock to prevent concurrent counter loss.
+- CI: SUE gate now includes focused compilation of quota and audit-route code plus the existing regression/accuracy/live suites.
+- UX: score label changed from READY to STRONG SIGNAL to avoid implying legal/compliance readiness.
+- Merged PRs: #23, #25, #26, #27, #28, #29.
+- Current baseline commit: 0f02289e21705692e050b30543f84abc8a9a5ead.
+- Remaining production work is operational rather than another blind batch of SUE rules: live deployment verification, Supabase production/RLS verification, observability/alerting, retention policy decision, rate limiting/abuse controls, and a larger external-product evaluation corpus.
