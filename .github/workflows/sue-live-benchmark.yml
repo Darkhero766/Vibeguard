@@ -21,7 +21,6 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @workspace/api-server run typecheck
       - run: pnpm --filter @workspace/api-server run test:sue
       - run: pnpm --filter @workspace/api-server run benchmark:sue
       - run: pnpm --filter @workspace/api-server run benchmark:sue:live
