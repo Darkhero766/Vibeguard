@@ -297,7 +297,7 @@ async function loadSitemaps(start:URL):Promise<URL[]> {
   const robotsResource=await fetchPublicResource(new URL("/robots.txt",start),512_000).catch(()=>null);
   if(robotsResource&&robotsResource.status>=200&&robotsResource.status<300){
     for(const line of robotsResource.body.toString("utf8").split(/\\r?\\n/)){
-      const m=line.match(/^\\s*sitemap\\s*:\\s*(https?:\\/\\/\\S+)\\s*$/i);
+      const m=line.match(/^\s*sitemap\s*:\s*(https?:\/\/\S+)\s*$/i);
       if(m) queue.push(new URL(m[1]));
     }
   }
@@ -311,7 +311,7 @@ async function loadSitemaps(start:URL):Promise<URL[]> {
       const resource=await fetchPublicResource(sitemap,1_500_000);
       if(resource.status<200||resource.status>=300) continue;
       const body=resource.body.toString("utf8");
-      for(const m of body.matchAll(/<loc>\\s*([^<]+?)\\s*<\\/loc>/gi)){
+      for(const m of body.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)){
         try{
           const u=new URL(m[1].trim(),start);
           if(u.origin===start.origin&&["http:","https:"].includes(u.protocol)){
