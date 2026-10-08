@@ -36,7 +36,9 @@ try {
     pages:[page("https://example.test/","<html><body><div id=\"root\"></div>" + "<script src=\"/assets/app.js\"></script>".repeat(6) + "</body></html>")],
     origin:"https://example.test"
   };
-  const sparseChecks=runApplicabilityAwareChecks(sparseAppShell).checks;
+  const sparseResult=runApplicabilityAwareChecks(sparseAppShell);
+  console.log("SPARSE_DEBUG", JSON.stringify({signals:sparseResult.context.signals,types:sparseResult.context.productTypes,confidence:sparseResult.context.confidence,coverage:sparseResult.context.coverage}));
+  const sparseChecks=sparseResult.checks;
   assert.equal(by(sparseChecks,"P01").applicability,"unknown","A sparse runtime shell must not turn privacy applicability into a false N/A.");
   assert.equal(by(sparseChecks,"P08").applicability,"unknown","DPA applicability should remain unknown when runtime coverage is insufficient.");
   const lowEvidenceShell = {
