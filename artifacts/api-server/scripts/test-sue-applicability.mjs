@@ -54,6 +54,27 @@ try {
 
 
 
+  // Legal/policy pages must satisfy evidence checks without contaminating
+  // product applicability. This is the regression for the real VibeSane failure
+  // mode: Terms/Privacy existed but were previously invisible to the checks.
+  const saasWithPolicies = {
+    pages:[
+      page("https://example.test/",`<html><body><h1>Acme Cloud</h1><p>Project management SaaS.</p><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/pricing">Pricing</a><button>Sign up</button></body></html>`),
+      page("https://example.test/terms",`<html><body><h1>Terms of Service</h1><p>These Terms of Service govern use of Acme Cloud.</p><p>Governing law and limitation of liability apply.</p></body></html>`,{home:false}),
+      page("https://example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect personal information and explain how we use your data.</p><p>We retain data, explain how long we keep it, provide account deletion and data access/export rights, and disclose service providers.</p></body></html>`,{home:false}),
+    ],
+    origin:"https://example.test"
+  };
+  const policyResult=runApplicabilityAwareChecks(saasWithPolicies);
+  const policyChecks=policyResult.checks;
+  assert.equal(by(policyChecks,"L01").status,"pass","Crawled Terms page must satisfy Terms evidence.");
+  assert.equal(by(policyChecks,"P01").status,"pass","Crawled Privacy page must satisfy data-collection disclosure.");
+  assert.equal(by(policyChecks,"P02").status,"pass","Crawled Privacy page must satisfy processing-purpose disclosure.");
+  assert.equal(by(policyChecks,"P03").status,"pass","Crawled Privacy page must satisfy retention disclosure.");
+  assert.equal(by(policyChecks,"P04").status,"pass","Crawled Privacy page must satisfy deletion evidence.");
+  assert.equal(by(policyChecks,"P05").status,"pass","Crawled Privacy page must satisfy access/export evidence.");
+  assert.equal(by(policyChecks,"P06").status,"pass","Crawled Privacy page must satisfy third-party sharing evidence.");
+
   const ordinarySaas = run(`
     <html><body><h1>Acme Cloud</h1>
     <p>Project management workspace for teams.</p>

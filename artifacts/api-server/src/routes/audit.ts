@@ -355,6 +355,29 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   // Add first-party sitemap URLs so product routes remain discoverable even when
   // the application shell renders navigation client-side.
   const sitemapUrls=await loadSitemaps(home.url);
+
+  // SPA routers often keep legal routes out of the server-rendered shell.
+  // Probe conservative same-origin policy routes as a fallback. These are
+  // candidate hints only; a route is included only when it actually returns
+  // a public HTML page. This lets SUE verify a real Terms/Privacy page without
+  // treating legal vocabulary as product-feature evidence.
+  const commonPolicyPaths=[
+    "/terms","/terms-of-service","/terms-and-conditions","/terms-and-conditions-of-use",
+    "/privacy","/privacy-policy","/privacy-notice",
+    "/cookies","/cookie-policy","/refund","/refund-policy","/returns","/return-policy",
+    "/cancellation","/cancellation-policy","/acceptable-use","/acceptable-use-policy",
+    "/aup","/legal","/disclaimer","/security","/security-policy","/dpa","/subprocessors"
+  ];
+  const policyCandidates=new Set<string>();
+  for(const path of commonPolicyPaths){
+    try{
+      const u=new URL(path,home.url);
+      if(!allowedByRobots(u,robots)) continue;
+      policyCandidates.add(u.toString());
+      const previous=candidateScores.get(u.toString());
+      candidateScores.set(u.toString(),{url:u.toString(),score:Math.max(previous?.score??0,1)});
+    }catch{}
+  }
   for(const sitemapUrl of sitemapUrls){
     const key=sitemapUrl.toString();
     if(key===home.url.toString()) continue;
@@ -363,9 +386,10 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
     candidateScores.set(key,{url:key,score:Math.max(previous?.score??0,3)});
   }
 
-  const candidates=[...candidateScores.values()]
-    .sort((a,b)=>b.score-a.score)
-    .slice(0,MAX_LINK_PAGES);
+  const rankedCandidates=[...candidateScores.values()].sort((a,b)=>b.score-a.score);
+  const policyRanked=rankedCandidates.filter(x=>policyCandidates.has(x.url)).slice(0,6);
+  const productRanked=rankedCandidates.filter(x=>!policyCandidates.has(x.url)).slice(0,Math.max(0,MAX_LINK_PAGES-policyRanked.length));
+  const candidates=[...productRanked,...policyRanked];
 
   const results=await Promise.allSettled(
     candidates.map(async candidate=>{
