@@ -321,8 +321,9 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   const pages:AuditPage[]=[homePage];
   for(const result of results){
     if(result.status!=="fulfilled"||!result.value) continue;
-    if(pages.some(p=>p.url.toString()===result.value.url.toString())) continue;
-    pages.push(result.value);
+    const page=result.value;
+    if(pages.some(p=>p.url.toString()===page.url.toString())) continue;
+    pages.push(page);
   }
   return {corpus:{pages,origin:sameOrigin},redirectCount:home.redirectCount};
 }
