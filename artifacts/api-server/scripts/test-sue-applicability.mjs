@@ -32,33 +32,6 @@ try {
   const run=(html,url)=>runApplicabilityAwareChecks(corpus(html,url)).checks;
   const by=(checks,id)=>checks.find(x=>x.id===id);
 
-  const aiEditorial = run(`
-    <html><body>
-      <h1>Healthcare AI news</h1>
-      <p>Our article explains how AI models are used in medical diagnosis and how OpenAI processes data.</p>
-    </body></html>`);
-  assert.equal(by(aiEditorial,"A01").applicability,"not_applicable");
-  assert.equal(by(aiEditorial,"A02").applicability,"not_applicable");
-  assert.equal(by(aiEditorial,"A05").applicability,"not_applicable");
-
-  const aiHighImpact = run(`
-    <html><body>
-      <h1>AI Hiring Assistant</h1>
-      <p>AI-powered hiring assistant. Our AI model screens applicants, ranks candidates and recommends who should proceed to interview.</p>
-      <form><input placeholder="Upload candidate resume"></form>
-    </body></html>`);
-  assert.equal(by(aiHighImpact,"A01").applicability,"applicable");
-  assert.equal(by(aiHighImpact,"A05").applicability,"applicable");
-
-  const aiData = run(`
-    <html><body>
-      <h1>AI Document Assistant</h1>
-      <p>AI-powered document assistant for uploaded files.</p>
-      <p>Send your documents to our AI model. We process your uploaded content to generate summaries.</p>
-      <form><input type="file" name="document"></form>
-    </body></html>`);
-  assert.equal(by(aiData,"A02").applicability,"applicable");
-
   // A necessary session/auth cookie alone must not imply non-essential cookie requirements.
   const sessionOnly = {
     pages:[page("https://example.test/","<html><body><h1>Sign in</h1></body></html>",{
@@ -71,6 +44,8 @@ try {
   assert.equal(by(sessionChecks,"L03").applicability,"not_applicable");
   assert.equal(by(sessionChecks,"C01").applicability,"not_applicable");
   assert.equal(by(sessionChecks,"C08").applicability,"not_applicable");
+
+
   const portfolio=run(`
     <html><head><title>Jane Doe — Designer Portfolio</title></head>
     <body><h1>Selected Work</h1><p>Designer portfolio, case studies, resume and about me.</p>
@@ -128,6 +103,23 @@ try {
   assert.equal(by(ai,"A04").applicability,"applicable");
   assert.equal(by(ai,"A07").applicability,"applicable");
 
+  const medicalContentAi=run(`
+    <html><body><h1>AI Writing Assistant</h1>
+    <p>AI-powered assistant that helps writers create content about medical topics and healthcare.</p>
+    <form><input name="prompt"><button>Generate</button></form>
+    </body></html>`);
+  assert.equal(by(medicalContentAi,"A01").applicability,"applicable");
+  assert.equal(by(medicalContentAi,"A05").applicability,"not_applicable","Medical-topic content alone is not a consequential AI decision signal.");
+  assert.equal(by(medicalContentAi,"A02").applicability,"not_applicable","Generic AI/data context without a data-flow statement must not imply AI data processing.");
+
+  const consequentialAi=run(`
+    <html><body><h1>AI Hiring Screening</h1>
+    <p>Our AI-powered hiring model automatically screens candidates and makes automated hiring decisions.</p>
+    <form><input type="file" name="resume"><button>Assess candidate</button></form>
+    </body></html>`);
+  assert.equal(by(consequentialAi,"A01").applicability,"applicable");
+  assert.equal(by(consequentialAi,"A05").applicability,"applicable","Consequential hiring AI should trigger human-oversight review.");
+
   const aiWithoutGeneration = run(`
     <html><body><h1>AI Workspace</h1>
     <p>AI-powered assistant for teams.</p>
@@ -136,6 +128,13 @@ try {
     </body></html>`);
   assert.equal(by(aiWithoutGeneration,"A01").applicability,"applicable");
   assert.equal(by(aiWithoutGeneration,"A07").applicability,"not_applicable","Generic generation language must not imply AI-generated output rights.");
+
+  const aiDataFlow=run(`
+    <html><body><h1>AI Assistant</h1>
+    <p>We send your prompts and uploaded customer data to our AI provider for processing.</p>
+    <form><textarea name="prompt"></textarea><input type="file"></form>
+    </body></html>`);
+  assert.equal(by(aiDataFlow,"A02").applicability,"applicable","Explicit prompt/customer-data transfer to an AI provider must trigger AI data-processing review.");
   assert.equal(by(ai,"A05").status,"not_applicable","Normal AI writing assistance should not require human oversight by default");
   assert.equal(by(ai,"B01").applicability,"applicable");
 

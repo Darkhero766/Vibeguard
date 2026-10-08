@@ -236,3 +236,5 @@ WORKING RULES
 12. PublicScanPage owns the lifecycle of /scan-public query-driven scans; do not add simulated button-click effects in the global route bridge.
 13. After every successful public scan, the frontend MUST refresh authoritative usage so the public quota counter changes immediately.
 14. Test-only quota reset logic must never run in production; testing limits must be changed explicitly in the database or through a clearly isolated test mechanism.
+
+2026-10-08 — Finalized AI impact/data accuracy hardening: AI data-processing requires explicit data flow to an AI/model provider; high-impact AI requires consequential decision/assessment signals; regression coverage includes AI editorial mentions, generic generation, medical-topic AI content, consequential hiring AI, and explicit AI data transfer. PR #19 was closed after stale/conflicting CI; clean implementation is being validated in a fresh branch.
