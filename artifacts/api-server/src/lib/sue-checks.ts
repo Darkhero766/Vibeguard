@@ -1,4 +1,4 @@
-import { AuditCorpus, AuditCheck, Applicability, Evidence, ProductContext, Rule, Severity, evaluateApplicability, finalizeRequirement, confidence, legalApplicable, hasProduct } from "./sue-applicability";
+import { AuditCorpus, AuditCheck, Evidence, ProductContext, Rule, Severity, evaluateApplicability, finalizeRequirement, confidence, legalApplicable } from "./sue-applicability";
 import { text, links, scripts, combine } from "./sue-context";
 
 type Def = {
@@ -66,7 +66,7 @@ D("L01","Legal","Terms of Service","high",{productTypes:["saas","ecommerce","mar
 D("L02","Legal","Privacy Policy","high",{anySignals:["personalDataCollection","authentication","analytics","tracking","marketingCollection","ecommerce"]},E.L02,"Add a clear Privacy Policy describing the data practices detected.","Personal-data processing signals were detected."),
 D("L03","Legal","Cookie Policy","medium",{anySignals:["analytics","tracking","cookies"]},E.L03,"Add a Cookie Policy or clear cookie section matching actual technologies.","Non-essential cookie/tracking signals were detected."),
 D("L04","Legal","Refund Policy","medium",{anySignals:["payments","checkout","ecommerce","subscription","paidService"]},E.L04,"Publish clear refund/return terms before purchase.","Paid or purchase-flow signals were detected."),
-D("L05","Legal","Cancellation Policy","medium",{anySignals:["subscription","autoRenewal","paidService"]},E.L05,"Publish cancellation terms and the route for stopping future charges.","A cancellable paid relationship or recurring billing signal was detected."),
+D("L05","Legal","Cancellation Policy","medium",{anySignals:["subscription","autoRenewal"]},E.L05,"Publish cancellation terms and the route for stopping future charges.","A cancellable paid relationship or recurring billing signal was detected."),
 D("L06","Legal","Acceptable Use Policy","low",{productTypes:["saas","community","marketplace","ai_product","developer_tool"],anySignals:["userGeneratedContent","authentication"]},E.L06,"Add an Acceptable Use Policy where users can access or submit content/services.","An account/platform/user-content surface was detected."),
 D("L07","Legal","Disclaimer","low",{productTypes:["ai_product","service_business"],anySignals:["ai","commercialActivity"]},E.L07,"Add a disclaimer when advice, consequential content or material limitations make one useful.","The product context suggests an AI/service surface."),
 D("L08","Legal","Copyright / IP notice","low",{anySignals:["commercialActivity","userGeneratedContent","ecommerce","authentication"]},E.L08,"Add a copyright/IP notice in the footer or legal pages.","Copyright/IP notices are most relevant where the site publishes or operates a commercial, account-based, or user-content service."),
@@ -82,7 +82,7 @@ D("P04","Privacy","Account/data deletion","high",{anySignals:["authentication","
 D("P05","Privacy","Access / export rights","medium",{anySignals:["persistentUserData","authentication","ecommerce"]},E.P05,"Document access/export rights or a request process.","Persistent user/customer data is likely present."),
 D("P06","Privacy","Third-party sharing","high",{anySignals:["analytics","payments","authentication","marketingCollection","aiDataProcessing","tracking"]},E.P06,"List relevant third parties/service providers and sharing purposes.","Third-party processing signals were detected."),
 D("P07","Privacy","Subprocessor disclosure","medium",{productTypes:["saas","ai_product","developer_tool"],anySignals:["authentication","aiDataProcessing"]},E.P07,"List subprocessors/service providers where customer data is processed.","The product looks like hosted software/API/AI."),
-D("P08","Privacy","DPA information","low",{productTypes:["saas","developer_tool"],anySignals:["authentication","paidService"]},E.P08,"Publish DPA information where B2B/processor relationships make it relevant.","The product appears to operate as B2B software/API."),
+D("P08","Privacy","DPA information","low",{productTypes:["saas","developer_tool"]},E.P08,"Publish DPA information where B2B/processor relationships make it relevant.","The product appears to operate as B2B software/API."),
 D("P09","Privacy","Security safeguards","medium",{anySignals:["personalDataCollection","authentication","payments","ecommerce","tracking"]},E.P09,"Describe appropriate technical and organizational safeguards.","Meaningful personal/account/payment data processing is likely."),
 D("P10","Privacy","Breach / incident language","medium",{anySignals:["personalDataCollection","authentication","persistentUserData","payments"]},E.P10,"Add incident/breach handling or notification language.","The product appears to process meaningful user/customer data."),
 D("P11","Privacy","Privacy rights","high",{anySignals:["personalDataCollection","authentication","analytics","tracking","marketingCollection","ecommerce"]},E.P11,"List applicable privacy rights and how users can exercise them.","Personal-data processing was detected."),
@@ -120,18 +120,9 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
   const context=buildProductContext(c);
   const checks=defs.map(d=>{
     let applicability=evaluateApplicability(d.rule,context);
-    if(d.id==="L01") applicability=legalApplicable(context)?"applicable":"unknown";
-    if(d.id==="L03"&&(!context.signals.analytics&&!context.signals.tracking)) applicability="not_applicable";
-    if((d.id==="C01"||d.id==="C08")&&!context.signals.analytics&&!context.signals.tracking&&!context.signals.cookies) applicability="not_applicable";
-    if(d.id==="A01"&&!context.signals.ai) applicability=context.coverage.dynamicRenderingLikely?"unknown":"not_applicable";
-    if(d.id==="C05"&&!context.signals.analytics) applicability=context.coverage.dynamicRenderingLikely?"unknown":"not_applicable";
-    if(d.id==="C05"&&context.signals.analytics) applicability="applicable";
-    if((d.id==="C03"||d.id==="C04")&&!context.signals.marketingCollection) applicability="not_applicable";
-    if((d.id==="B02"||d.id==="B03")&&!context.signals.subscription) applicability="not_applicable";
-    if(d.id==="L05"&&!context.signals.subscription&&!context.signals.autoRenewal) applicability="not_applicable";
-    if(d.id==="B06"&&!context.signals.payments&&!context.signals.checkout) applicability="not_applicable";
-    if(d.id==="A05"&&!context.signals.aiDataProcessing) applicability="not_applicable";
-    if(d.id==="P08"&&!hasProduct(context,["saas","developer_tool"])) applicability="not_applicable";
+    // L01 is the sole intentional imperative applicability exception.
+    // Its product/legal relevance is a composite predicate that the declarative Rule
+    // model intentionally does not approximate with a brittle list of signals.
     const evidence=d.evidence(c);
     const status=finalizeRequirement(applicability,evidence,context);
     let explanation=d.rationale;
