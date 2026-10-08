@@ -30,6 +30,7 @@ try {
   });
   const corpus=(html,url="https://example.test/")=>({pages:[page(url,html)],origin:new URL(url).origin});
   const run=(html,url)=>runApplicabilityAwareChecks(corpus(html,url)).checks;
+  const by=(checks,id)=>checks.find(x=>x.id===id);
 
   const aiEditorial = run(`
     <html><body>
@@ -69,8 +70,6 @@ try {
   assert.equal(by(sessionChecks,"L03").applicability,"not_applicable");
   assert.equal(by(sessionChecks,"C01").applicability,"not_applicable");
   assert.equal(by(sessionChecks,"C08").applicability,"not_applicable");
-  const by=(checks,id)=>checks.find(x=>x.id===id);
-
   const portfolio=run(`
     <html><head><title>Jane Doe — Designer Portfolio</title></head>
     <body><h1>Selected Work</h1><p>Designer portfolio, case studies, resume and about me.</p>
