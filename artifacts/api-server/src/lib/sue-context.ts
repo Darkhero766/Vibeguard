@@ -116,7 +116,7 @@ function classify(s:ProductSignals,evidence:Evidence[]) {
   else if(s.marketplace) commercialModel="marketplace";
   else if(s.paidService||s.payments||s.pricing) commercialModel="freemium";
   else if(s.advertising) commercialModel="advertising";
-  else if(!s.commercialActivity) commercialModel="free";
+  else commercialModel="unknown";
   const max=Math.max(...Object.values(scores),0);
   return {productTypes:[...new Set(types)],commercialModel,confidence:Math.min(.98,.45+max*.45)};
 }
