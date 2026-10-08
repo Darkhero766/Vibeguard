@@ -40,10 +40,21 @@ $$;
 
 revoke all on function public.cleanup_old_audit_runs() from public, anon, authenticated;
 
-do $$
+create or replace function public.cleanup_old_audit_runs()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
 begin
-  if not exists (select 1 from cron.job where jobname = 'vibeguard-audit-retention') then
-    perform cron.schedule('vibeguard-audit-retention', '17 3 * * *', 'select public.cleanup_old_audit_runs();');
-  end if;
+  delete from public.audit_runs where scanned_at < now() - interval '90 days';
+  return new;
 end
 $$;
+
+revoke all on function public.cleanup_old_audit_runs() from public, anon, authenticated;
+
+drop trigger if exists audit_runs_retention_trigger on public.audit_runs;
+create trigger audit_runs_retention_trigger
+after insert on public.audit_runs
+for each statement execute function public.cleanup_old_audit_runs();
