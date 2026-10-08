@@ -86,7 +86,7 @@ export function evaluateApplicability(rule:Rule, ctx:ProductContext):Applicabili
   const observedSignals=Object.values(ctx.signals).some(Boolean);
   const identifiableProduct=ctx.productTypes.some(t=>t!=="content" && t!=="other") || ctx.commercialModel!=="unknown";
   const sparseShell=ctx.coverage.pages<=1 && ctx.coverage.scripts<=3 && ctx.coverage.forms===0;
-  if (rule === (globalThis as any).__debugP01Rule) console.log("EVAL_DEBUG", JSON.stringify({observedSignals,identifiableProduct,sparseShell,score:ctx.coverage.score,dynamic:ctx.coverage.dynamicRenderingLikely,types:ctx.productTypes,model:ctx.commercialModel,any:triggeredByAny,all:triggeredByAll,type:triggeredByType}));
+  if (rule.anySignals?.includes("personalDataCollection") && ctx.coverage.pages<=1) console.log("EVAL_DEBUG", JSON.stringify({observedSignals,identifiableProduct,sparseShell,score:ctx.coverage.score,dynamic:ctx.coverage.dynamicRenderingLikely,types:ctx.productTypes,model:ctx.commercialModel,any:triggeredByAny,all:triggeredByAll,type:triggeredByType}));
   if (!observedSignals && !identifiableProduct && (ctx.coverage.score < 0.62 || ctx.coverage.dynamicRenderingLikely || sparseShell)) {
     return "unknown";
   }
