@@ -198,7 +198,6 @@ try {
   const aiMentionOnly=run(`
     <html><body><h1>Technology Blog</h1><p>We discuss AI, OpenAI and the future of artificial intelligence.</p>
     <article>Our latest AI news.</article></body></html>`);
-  console.log("AI_MENTION_DEBUG", JSON.stringify({context:runApplicabilityAwareChecks(corpus(`<html><body><h1>Technology Blog</h1><p>We discuss AI, OpenAI and the future of artificial intelligence.</p><article>Our latest AI news.</article></body></html>`)).context,check:by(aiMentionOnly,"A01")}));
   assert.equal(by(aiMentionOnly,"A01").status,"not_applicable","AI mentions alone must not trigger AI audit");
   assert.equal(by(aiMentionOnly,"A04").status,"not_applicable");
 
