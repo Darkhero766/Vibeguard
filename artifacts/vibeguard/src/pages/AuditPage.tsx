@@ -21,7 +21,7 @@ function statusClasses(status: Status) {
 }
 
 function scoreLabel(score: number) {
-  if (score >= 90) return "READY";
+  if (score >= 90) return "STRONG SIGNAL";
   if (score >= 75) return "NEEDS REVIEW";
   return "ATTENTION";
 }
