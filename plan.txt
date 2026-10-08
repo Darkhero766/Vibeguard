@@ -196,6 +196,15 @@ CHANGE LOG
 - Code commits: fefd491a943669b461e446e06c1ca86267877a8b (App navigation fix), 4c653897d63107b5cc1a0cb258736ca9cd0d213c (Settings UI hardening).
 - Deployment status: code committed to main; production build and live /settings click + refresh verification required.
 
+2026-10-08 — SUE applicability architecture cleanup
+- Audited the 50-check SUE applicability pipeline and removed redundant imperative overrides from artifacts/api-server/src/lib/sue-checks.ts.
+- Corrected the declarative rules for L05 Cancellation Policy (subscription/auto-renewal only) and P08 DPA information (SaaS/developer-tool product types only), eliminating the need for imperative compensation logic.
+- L01 Terms of Service remains the sole intentional imperative applicability exception because its composite legal/product relevance is not represented by the simple Rule type.
+- Added regression assertions for ecommerce P08 N/A and SaaS P08 applicability in artifacts/api-server/scripts/test-sue-applicability.mjs.
+- Updated .github/workflows/sue-live-benchmark.yml so the 50-check applicability regression suite runs before the existing SUE benchmarks on pull requests.
+- Supabase production schema was inspected: public.usage already contains audit_scans_used with RLS enabled, so no database migration was required for this cleanup. Security advisors reported existing unrelated RLS-without-policy tables and disabled leaked-password protection; no unrelated schema/auth changes were made as part of SUE applicability cleanup.
+- Branch: sue/applicability-cleanup. Production main was not directly modified.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
