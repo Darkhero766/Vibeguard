@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { rateLimit } from "../middlewares/rateLimit";
 import { pool } from "@workspace/db";
 import { lookup } from "node:dns/promises";
 import { request as httpRequest } from "node:http";
