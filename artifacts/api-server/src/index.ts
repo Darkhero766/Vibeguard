@@ -44,7 +44,7 @@ const shutdown = (signal: string) => {
 
   logger.info({ signal }, "Shutdown signal received; closing HTTP server");
 
-  server.close((error) => {
+  server.close(async (error) => {
     if (error) {
       logger.error({ err: error }, "Error while closing HTTP server");
       process.exit(1);
