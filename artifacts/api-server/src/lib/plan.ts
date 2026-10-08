@@ -82,68 +82,83 @@ function snapshotFromRow(row: UsageRow, now: Date): PlanSnapshot {
 
 export async function ensurePlanForUser(userId: string): Promise<PlanSnapshot> {
   await ensureQuotaSchema();
-  const result = await pool.query(`
-    SELECT u.email,
-           COALESCE(g.plan, 'free') AS plan,
-           COALESCE(g.scans_limit, 1) AS scans_limit,
-           COALESCE(g.protected_scans_used, 0) AS protected_scans_used,
-           COALESCE(g.public_scans_used, g.monthly_scans_used, g.scans_used, 0) AS public_scans_used,
-           COALESCE(g.audit_scans_used, 0) AS audit_scans_used,
-           g.pro_expires_at,
-           g.monthly_reset_at
-      FROM auth.users u
-      LEFT JOIN public.usage g ON g.owner = u.id
-     WHERE u.id = $1
-     LIMIT 1`, [userId]);
-  const row = result.rows[0] as UsageRow | undefined;
-  if (!row) throw new Error("Account not found");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // Serialize initialization/monthly-reset decisions per user. Without this lock,
+    // two concurrent requests can both observe an expired reset window and write
+    // zeroed counters, losing a scan consumed by the other request.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [userId]);
 
-  const now = new Date();
-  const resetAt = row.monthly_reset_at ? new Date(row.monthly_reset_at) : null;
-  const expired = row.plan === "pro" && row.pro_expires_at && new Date(row.pro_expires_at) <= now;
-  const needsReset = !resetAt || resetAt <= now;
-  const isAdmin = String(row.email).toLowerCase() === ADMIN_EMAIL;
-  const shouldBePro = isAdmin || (row.plan === "pro" && !expired);
-  const nextPlan = shouldBePro ? "pro" : "free";
-  const nextReset = needsReset ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) : resetAt!;
-  const nextProtectedUsed = needsReset ? 0 : Number(row.protected_scans_used ?? 0);
-  const nextPublicUsed = needsReset ? 0 : Number(row.public_scans_used ?? 0);
-  const nextAuditUsed = needsReset ? 0 : Number(row.audit_scans_used ?? 0);
-  const nextLimit = isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT);
-  const nextRepoLimit = shouldBePro ? PRO_REPO_LIMIT : FREE_REPO_LIMIT;
-  const nextExpiry = isAdmin ? null : (expired ? null : row.pro_expires_at);
+    const result = await client.query(`
+      SELECT u.email,
+             COALESCE(g.plan, 'free') AS plan,
+             COALESCE(g.scans_limit, 1) AS scans_limit,
+             COALESCE(g.protected_scans_used, 0) AS protected_scans_used,
+             COALESCE(g.public_scans_used, g.monthly_scans_used, g.scans_used, 0) AS public_scans_used,
+             COALESCE(g.audit_scans_used, 0) AS audit_scans_used,
+             g.pro_expires_at,
+             g.monthly_reset_at
+        FROM auth.users u
+        LEFT JOIN public.usage g ON g.owner = u.id
+       WHERE u.id = $1
+       LIMIT 1`, [userId]);
+    const row = result.rows[0] as UsageRow | undefined;
+    if (!row) throw new Error("Account not found");
 
-  await pool.query(`
-    INSERT INTO public.usage (owner, scans_used, scans_limit, plan, pro_expires_at, monthly_scans_used, monthly_scans_limit, monthly_reset_at, protected_scans_used, public_scans_used, audit_scans_used)
-    VALUES ($1, $2, $3, $4, $5, $2, $3, $6, $7, $8, $9)
-    ON CONFLICT (owner) DO UPDATE SET
-      scans_used = EXCLUDED.scans_used,
-      scans_limit = EXCLUDED.scans_limit,
-      plan = EXCLUDED.plan,
-      pro_expires_at = EXCLUDED.pro_expires_at,
-      monthly_scans_used = EXCLUDED.monthly_scans_used,
-      monthly_scans_limit = EXCLUDED.monthly_scans_limit,
-      monthly_reset_at = EXCLUDED.monthly_reset_at,
-      protected_scans_used = EXCLUDED.protected_scans_used,
-      public_scans_used = EXCLUDED.public_scans_used,
-      audit_scans_used = EXCLUDED.audit_scans_used`,
-    [userId, nextProtectedUsed + nextPublicUsed + nextAuditUsed, nextLimit, nextPlan, nextExpiry, nextReset.toISOString(), nextProtectedUsed, nextPublicUsed, nextAuditUsed]);
+    const now = new Date();
+    const resetAt = row.monthly_reset_at ? new Date(row.monthly_reset_at) : null;
+    const expired = row.plan === "pro" && row.pro_expires_at && new Date(row.pro_expires_at) <= now;
+    const needsReset = !resetAt || resetAt <= now;
+    const isAdmin = String(row.email).toLowerCase() === ADMIN_EMAIL;
+    const shouldBePro = isAdmin || (row.plan === "pro" && !expired);
+    const nextPlan = shouldBePro ? "pro" : "free";
+    const nextReset = needsReset ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) : resetAt!;
+    const nextProtectedUsed = needsReset ? 0 : Number(row.protected_scans_used ?? 0);
+    const nextPublicUsed = needsReset ? 0 : Number(row.public_scans_used ?? 0);
+    const nextAuditUsed = needsReset ? 0 : Number(row.audit_scans_used ?? 0);
+    const nextLimit = isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT);
+    const nextRepoLimit = shouldBePro ? PRO_REPO_LIMIT : FREE_REPO_LIMIT;
+    const nextExpiry = isAdmin ? null : (expired ? null : row.pro_expires_at);
 
-  return {
-    plan: nextPlan,
-    unlimited: isAdmin,
-    scansUsed: nextProtectedUsed + nextPublicUsed + nextAuditUsed,
-    scansLimit: nextLimit,
-    protectedScansUsed: nextProtectedUsed,
-    protectedScansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_PROTECTED_SCAN_LIMIT : FREE_SCAN_LIMIT),
-    publicScansUsed: nextPublicUsed,
-    auditScansUsed: nextAuditUsed,
-    auditScansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT),
-    publicScansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_PUBLIC_SCAN_LIMIT : FREE_SCAN_LIMIT),
-    repoLimit: nextRepoLimit,
-    proExpiresAt: nextExpiry,
-    monthlyResetAt: nextReset.toISOString(),
-  };
+    await client.query(`
+      INSERT INTO public.usage (owner, scans_used, scans_limit, plan, pro_expires_at, monthly_scans_used, monthly_scans_limit, monthly_reset_at, protected_scans_used, public_scans_used, audit_scans_used)
+      VALUES ($1, $2, $3, $4, $5, $2, $3, $6, $7, $8, $9)
+      ON CONFLICT (owner) DO UPDATE SET
+        scans_used = EXCLUDED.scans_used,
+        scans_limit = EXCLUDED.scans_limit,
+        plan = EXCLUDED.plan,
+        pro_expires_at = EXCLUDED.pro_expires_at,
+        monthly_scans_used = EXCLUDED.monthly_scans_used,
+        monthly_scans_limit = EXCLUDED.monthly_scans_limit,
+        monthly_reset_at = EXCLUDED.monthly_reset_at,
+        protected_scans_used = EXCLUDED.protected_scans_used,
+        public_scans_used = EXCLUDED.public_scans_used,
+        audit_scans_used = EXCLUDED.audit_scans_used`,
+      [userId, nextProtectedUsed + nextPublicUsed + nextAuditUsed, nextLimit, nextPlan, nextExpiry, nextReset.toISOString(), nextProtectedUsed, nextPublicUsed, nextAuditUsed]);
+
+    await client.query("COMMIT");
+    return {
+      plan: nextPlan,
+      unlimited: isAdmin,
+      scansUsed: nextProtectedUsed + nextPublicUsed + nextAuditUsed,
+      scansLimit: nextLimit,
+      protectedScansUsed: nextProtectedUsed,
+      protectedScansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_PROTECTED_SCAN_LIMIT : FREE_SCAN_LIMIT),
+      publicScansUsed: nextPublicUsed,
+      auditScansUsed: nextAuditUsed,
+      auditScansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_SCAN_LIMIT : FREE_SCAN_LIMIT),
+      publicScansLimit: isAdmin ? ADMIN_SCAN_LIMIT : (shouldBePro ? PRO_PUBLIC_SCAN_LIMIT : FREE_SCAN_LIMIT),
+      repoLimit: nextRepoLimit,
+      proExpiresAt: nextExpiry,
+      monthlyResetAt: nextReset.toISOString(),
+    };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function consumeBucket(userId: string, bucket: "protected" | "public" | "audit"): Promise<PlanSnapshot> {
