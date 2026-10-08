@@ -1,4 +1,5 @@
 import { Router, type Response } from "express";
+import { rateLimit } from "../middlewares/rateLimit";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
