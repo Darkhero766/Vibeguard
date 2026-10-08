@@ -19,19 +19,6 @@ try {
   const {runApplicabilityAwareChecks,definitionsCount}=await import(outfile);
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
 
-  // A necessary session/auth cookie alone must not imply non-essential cookie requirements.
-  const sessionOnly = {
-    pages:[page("https://example.test/","<html><body><h1>Sign in</h1></body></html>",{
-      scripts:["/assets/app.js"],
-      headers:new Headers({"set-cookie":"session_id=abc; HttpOnly; Secure; SameSite=Lax"})
-    })],
-    origin:"https://example.test"
-  };
-  const sessionChecks=runApplicabilityAwareChecks(sessionOnly).checks;
-  assert.equal(by(sessionChecks,"L03").applicability,"not_applicable");
-  assert.equal(by(sessionChecks,"C01").applicability,"not_applicable");
-  assert.equal(by(sessionChecks,"C08").applicability,"not_applicable");
-
   const headers=()=>new Headers();
   // SSRF host-validation unit coverage is kept in the audit route itself;
   // these cases document the security boundary for future route-level tests.
@@ -45,6 +32,45 @@ try {
   const run=(html,url)=>runApplicabilityAwareChecks(corpus(html,url)).checks;
   const by=(checks,id)=>checks.find(x=>x.id===id);
 
+  const aiEditorial = run(`
+    <html><body>
+      <h1>Healthcare AI news</h1>
+      <p>Our article explains how AI models are used in medical diagnosis and how OpenAI processes data.</p>
+    </body></html>`);
+  assert.equal(by(aiEditorial,"A01").applicability,"not_applicable");
+  assert.equal(by(aiEditorial,"A02").applicability,"not_applicable");
+  assert.equal(by(aiEditorial,"A05").applicability,"not_applicable");
+
+  const aiHighImpact = run(`
+    <html><body>
+      <h1>AI Hiring Assistant</h1>
+      <p>AI-powered hiring assistant. Our AI model screens applicants, ranks candidates and recommends who should proceed to interview.</p>
+      <form><input placeholder="Upload candidate resume"></form>
+    </body></html>`);
+  assert.equal(by(aiHighImpact,"A01").applicability,"applicable");
+  assert.equal(by(aiHighImpact,"A05").applicability,"applicable");
+
+  const aiData = run(`
+    <html><body>
+      <h1>AI Document Assistant</h1>
+      <p>AI-powered document assistant for uploaded files.</p>
+      <p>Send your documents to our AI model. We process your uploaded content to generate summaries.</p>
+      <form><input type="file" name="document"></form>
+    </body></html>`);
+  assert.equal(by(aiData,"A02").applicability,"applicable");
+
+  // A necessary session/auth cookie alone must not imply non-essential cookie requirements.
+  const sessionOnly = {
+    pages:[page("https://example.test/","<html><body><h1>Sign in</h1></body></html>",{
+      scripts:["/assets/app.js"],
+      headers:new Headers({"set-cookie":"session_id=abc; HttpOnly; Secure; SameSite=Lax"})
+    })],
+    origin:"https://example.test"
+  };
+  const sessionChecks=runApplicabilityAwareChecks(sessionOnly).checks;
+  assert.equal(by(sessionChecks,"L03").applicability,"not_applicable");
+  assert.equal(by(sessionChecks,"C01").applicability,"not_applicable");
+  assert.equal(by(sessionChecks,"C08").applicability,"not_applicable");
   const portfolio=run(`
     <html><head><title>Jane Doe — Designer Portfolio</title></head>
     <body><h1>Selected Work</h1><p>Designer portfolio, case studies, resume and about me.</p>

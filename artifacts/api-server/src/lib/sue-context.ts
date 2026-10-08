@@ -164,7 +164,10 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   const aiProvider=scripts(surface,/api\.openai\.com|anthropic|generativelanguage|gemini|openrouter|replicate|huggingface/i,"ai_provider",.97);
   // A provider reference by itself is not enough; it must agree with a product-level AI signal.
   const ai=aiProductText.length>=1?combine(aiProductText,aiProvider):[];
-  const aiData=combine(text(surface,/(?:send|share|process|use|submit).{0,120}(?:AI|OpenAI|Anthropic|Gemini|model).{0,120}(?:data|information|content|prompt)/i,"ai_data_processing",.9),text(surface,/(?:AI|model|OpenAI|Anthropic|Gemini).{0,120}(?:process|use).{0,120}(?:data|information|content)/i,"ai_data_processing",.9));
+  const aiData=aiProductText.length>=1?combine(
+    text(surface,/(?:send|share|process|use|submit).{0,120}(?:AI|OpenAI|Anthropic|Gemini|model).{0,120}(?:data|information|content|prompt)/i,"ai_data_processing",.93),
+    text(surface,/(?:AI|model|OpenAI|Anthropic|Gemini).{0,120}(?:process|use).{0,120}(?:data|information|content)/i,"ai_data_processing",.93)
+  ):[];
   // "Plans" or "pricing" alone does not prove a recurring subscription.
   // Require recurring-billing language or an explicit subscription/renewal signal.
   const subscription=combine(
@@ -190,10 +193,10 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
 
   set("pricing",pricing);set("checkout",checkout);set("payments",payment);set("authentication",auth);set("accountCreation",account);
   set("personalDataCollection",personal);set("marketingCollection",marketing);set("analytics",analytics);set("cookies",cookie);set("tracking",tracking);
-  set("ai",ai);set("aiGeneration",combine(\
-    text(surface,/\b(?:AI|artificial intelligence|model|assistant|agent)\b.{0,100}\b(?:generate|generation|generated|output|image|text|code)\b|\b(?:generate|generation|generated|output)\b.{0,100}\b(?:AI|artificial intelligence|model|assistant|agent)\b/i,"ai_generation",.92),\
-    forms(surface,/(?:\bprompt\b.{0,120}\b(?:generate|create|submit|send)\b|\b(?:AI assistant|AI agent|AI generator|generate (?:text|images?|code|content|responses?))\b)/i,"ai_generation_input",.92)\
-)));
+  set("ai",ai);set("aiGeneration",combine(
+    text(surface,/\b(?:AI|artificial intelligence|model|assistant|agent)\b.{0,100}\b(?:generate|generation|generated|output|image|text|code)\b|\b(?:generate|generation|generated|output)\b.{0,100}\b(?:AI|artificial intelligence|model|assistant|agent)\b/i,"ai_generation",.92),
+    forms(surface,/(?:\bprompt\b.{0,120}\b(?:generate|create|submit|send)\b|\b(?:AI assistant|AI agent|AI generator|generate (?:text|images?|code|content|responses?))\b)/i,"ai_generation_input",.92)
+  ));
   set("aiDataProcessing",aiData);set("userGeneratedContent",ugc);set("subscription",subscription);set("autoRenewal",autoRenew);set("advertising",advertising);
   set("ecommerce",ecommerce);set("marketplace",marketplace);set("developerApi",developerApi);
   set("persistentUserData",combine(auth,ugc,text(surface,/save your|saved projects|history|profile|dashboard data/i,"persistent_data_text",.82)));
@@ -202,7 +205,11 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
     text(surface,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
   );
   set("paidService",combine(payment,checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid|starting at/i,"paid_service_text",.78)));
-  set("highImpactAI",text(surface,/\b(?:medical|diagnos(?:is|tic)|treatment|clinical|mental health|credit|loan|insurance|employment|hiring|recruitment|legal advice|financial advice|biometric|risk score|eligibility decision|fraud decision)\b/i,"high_impact_ai_context",.88));
+  set("highImpactAI",combine(
+    text(surface,/\b(?:AI|artificial intelligence|model|algorithm|automated)\b.{0,120}\b(?:diagnos(?:is|tic)|treatment|clinical|mental health|credit|loan|insurance|employment|hiring|recruitment|legal advice|financial advice|biometric|risk score|eligibility decision|fraud decision)\b/i,"high_impact_ai_context",.94),
+    text(surface,/\b(?:diagnos(?:is|tic)|treatment|credit|loan|insurance|employment|hiring|recruitment|legal|financial|biometric|fraud)\b.{0,120}\b(?:AI|artificial intelligence|model|algorithm|automated)\b/i,"high_impact_ai_context",.94),
+    text(surface,/\b(?:AI|model|algorithm|automated)\b.{0,120}\b(?:decide|decision|score|screen|rank|recommend|determine|assess|approve|deny|eligib)/i,"high_impact_ai_decision",.96)
+  ));
   set("dataCommercialization",combine(
     text(surface,/\b(?:sell|share|monetize|monetisation|monetization)\b.{0,100}\b(?:personal|user|customer)\s+(?:data|information)\b/i,"data_commercialization",.92),
     text(surface,/targeted advertising|behavioral advertising|interest[- ]based advertising/i,"targeted_advertising",.88)
