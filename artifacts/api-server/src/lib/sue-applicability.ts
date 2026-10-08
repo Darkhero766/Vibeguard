@@ -83,7 +83,10 @@ export function evaluateApplicability(rule:Rule, ctx:ProductContext):Applicabili
   // irrelevant. It is evidence that the crawler may not have observed the
   // feature that would make it relevant. Treat that state as unknown rather
   // than silently converting an observability failure into N/A.
-  if (ctx.coverage.dynamicRenderingLikely && ctx.coverage.score < 0.70) {
+  const observedSignals=Object.values(ctx.signals).some(Boolean);
+  const identifiableProduct=ctx.evidence.length>0 || ctx.productTypes.some(t=>t!=="content" && t!=="other") || ctx.commercialModel!=="unknown";
+  const sparseShell=ctx.coverage.pages<=1 && ctx.coverage.scripts<=3 && ctx.coverage.forms===0;
+  if (!observedSignals && !identifiableProduct && (ctx.coverage.score < 0.62 || ctx.coverage.dynamicRenderingLikely || sparseShell)) {
     return "unknown";
   }
 

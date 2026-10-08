@@ -10,7 +10,7 @@ function excerpt(v:string) { return v.replace(/\s+/g," ").trim().slice(0,240); }
 
 function pageMatch(page:AuditPage, pattern:RegExp, signal:string, confidence=0.86, type:Evidence["type"]="text"):Evidence[] {
   const sources:[string,string,Evidence["type"]][] = [
-    ["text",page.text,type],["html",page.html,type],["metadata",page.metadata,"metadata"],["structured",page.structuredData,"structured_data"]
+    ["text",page.text,type],["metadata",page.metadata,"metadata"],["structured",page.structuredData,"structured_data"]
   ];
   for (const [location,value,evidenceType] of sources) {
     const m=value.match(pattern);
@@ -116,7 +116,7 @@ function classify(s:ProductSignals,evidence:Evidence[]) {
   else if(s.marketplace) commercialModel="marketplace";
   else if(s.paidService||s.payments||s.pricing) commercialModel="freemium";
   else if(s.advertising) commercialModel="advertising";
-  else if(!s.commercialActivity) commercialModel="free";
+  else commercialModel="unknown";
   const max=Math.max(...Object.values(scores),0);
   return {productTypes:[...new Set(types)],commercialModel,confidence:Math.min(.98,.45+max*.45)};
 }
@@ -220,6 +220,12 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   ));
   set("commercialActivity",combine(pricing,payment,checkout,ecommerce,marketplace,text(surface,/\b(hire|services|consulting|agency|plans|pricing|shop|store|buy|subscribe|book a call|request a quote)\b/i,"commercial_language",.72)));
 
+  const classificationEvidence=combine(
+    text(surface,/\b(?:portfolio|case studies?|selected work|resume|designer portfolio|developer portfolio)\b/i,"portfolio_context",.9),
+    text(surface,/\b(?:articles?|blog|news|resources|magazine|stories|editorial)\b/i,"content_context",.78)
+  );
+  allEvidence.push(...classificationEvidence);
+
   const signals={} as ProductSignals, signalConfidence:Partial<Record<keyof ProductSignals,number>>={};
   for(const key of Object.keys(signalEvidence) as Array<keyof ProductSignals>) { const r=sv(signalEvidence[key]??[]);signals[key]=r.detected;signalConfidence[key]=r.confidence; }
   const home=c.pages.find(p=>p.isHome)??c.pages[0];
@@ -237,6 +243,10 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
     Math.min(c.pages.reduce((n,p)=>n+p.text.length,0),18000)/18000*.28-
     (dynamicRenderingLikely?.18:0)
   ));
+  const observedSignalCount=Object.values(signals).filter(Boolean).length;
+  // A crawler that observes almost no product signals must not manufacture
+  // confidence simply because the HTML is small and technically valid.
+  const evidencePenalty=observedSignalCount===0 ? .12 : observedSignalCount<2 ? .06 : 0;
   const classified=classify(signals,allEvidence);
-  return {productTypes:classified.productTypes,commercialModel:classified.commercialModel,signals,signalConfidence,evidence:allEvidence.slice(0,80),confidence:classified.confidence*score,coverage:{pages:c.pages.length,linkedPages:Math.max(0,c.pages.length-1),forms:c.pages.reduce((n,p)=>n+p.forms.length,0),scripts:c.pages.reduce((n,p)=>n+p.scripts.length,0),dynamicRenderingLikely,score}};
+  return {productTypes:classified.productTypes,commercialModel:classified.commercialModel,signals,signalConfidence,evidence:allEvidence.slice(0,80),confidence:Math.max(.05,classified.confidence*score-evidencePenalty),coverage:{pages:c.pages.length,linkedPages:Math.max(0,c.pages.length-1),forms:c.pages.reduce((n,p)=>n+p.forms.length,0),scripts:c.pages.reduce((n,p)=>n+p.scripts.length,0),dynamicRenderingLikely,score}};
 }
