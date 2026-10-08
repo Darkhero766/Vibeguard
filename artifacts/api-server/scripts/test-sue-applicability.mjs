@@ -24,9 +24,9 @@ try {
   // these cases document the security boundary for future route-level tests.
   assert.ok((await import("node:net")).isIP("2001:db8::1")===6,"Node must recognize IPv6 test addresses");
 
-  const page=(url,html,{home=true,text:txt=null,scripts:sc=null,links:ls=[],forms:fs=[]}={})=>({
+  const page=(url,html,{home=true,text:txt=null,scripts:sc=null,links:ls=[],forms:fs=[],headers:hdrs=null}={})=>({
     url:new URL(url),html,text:txt??html.replace(/<[^>]+>/g," "),links:ls,scripts:sc??[...html.matchAll(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi)].map(m=>m[1]),forms:fs,
-    inputs:[],metadata:"",structuredData:"",headers:headers(),isHome:home
+    inputs:[],metadata:"",structuredData:"",headers:hdrs??headers(),isHome:home
   });
   const corpus=(html,url="https://example.test/")=>({pages:[page(url,html)],origin:new URL(url).origin});
   const run=(html,url)=>runApplicabilityAwareChecks(corpus(html,url)).checks;
