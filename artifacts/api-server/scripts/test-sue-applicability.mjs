@@ -102,6 +102,23 @@ try {
   assert.equal(by(ai,"A04").applicability,"applicable");
   assert.equal(by(ai,"A07").applicability,"applicable");
 
+  const medicalContentAi=run(`
+    <html><body><h1>AI Writing Assistant</h1>
+    <p>AI-powered assistant that helps writers create content about medical topics and healthcare.</p>
+    <form><input name="prompt"><button>Generate</button></form>
+    </body></html>`);
+  assert.equal(by(medicalContentAi,"A01").applicability,"applicable");
+  assert.equal(by(medicalContentAi,"A05").applicability,"not_applicable","Medical-topic content alone is not a consequential AI decision signal.");
+  assert.equal(by(medicalContentAi,"A02").applicability,"not_applicable","Generic AI/data context without a data-flow statement must not imply AI data processing.");
+
+  const consequentialAi=run(`
+    <html><body><h1>AI Hiring Screening</h1>
+    <p>Our AI model automatically screens candidates and makes hiring recommendations.</p>
+    <form><input type="file" name="resume"><button>Assess candidate</button></form>
+    </body></html>`);
+  assert.equal(by(consequentialAi,"A01").applicability,"applicable");
+  assert.equal(by(consequentialAi,"A05").applicability,"applicable","Consequential hiring AI should trigger human-oversight review.");
+
   const aiWithoutGeneration = run(`
     <html><body><h1>AI Workspace</h1>
     <p>AI-powered assistant for teams.</p>
@@ -110,6 +127,13 @@ try {
     </body></html>`);
   assert.equal(by(aiWithoutGeneration,"A01").applicability,"applicable");
   assert.equal(by(aiWithoutGeneration,"A07").applicability,"not_applicable","Generic generation language must not imply AI-generated output rights.");
+
+  const aiDataFlow=run(`
+    <html><body><h1>AI Assistant</h1>
+    <p>We send your prompts and uploaded customer data to our AI provider for processing.</p>
+    <form><textarea name="prompt"></textarea><input type="file"></form>
+    </body></html>`);
+  assert.equal(by(aiDataFlow,"A02").applicability,"applicable","Explicit prompt/customer-data transfer to an AI provider must trigger AI data-processing review.");
   assert.equal(by(ai,"A05").status,"not_applicable","Normal AI writing assistance should not require human oversight by default");
   assert.equal(by(ai,"B01").applicability,"applicable");
 
