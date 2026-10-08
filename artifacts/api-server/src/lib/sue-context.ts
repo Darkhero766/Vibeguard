@@ -188,7 +188,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
     forms(surface,/(?:type=["'](?:email|tel|password|date)["']|(?:name|id|autocomplete|placeholder)=["'][^"']*(?:email|e-?mail|phone|mobile|full[-_ ]?name|first[-_ ]?name|last[-_ ]?name|address|street|city|postal|zip|birth|dob|password|medical|health|biometric|genetic|passport|national.?id|aadhaar|ssn|social.?security|bank|account.?number)[^"']*["'])/i,"personal_data_form",.91),
     auth,
     marketing,
-    text(surface,/\b(?:we|our)\s+(?:collect|process|store|retain|use)\s+(?:your\s+)?(?:personal|customer|user|contact)\s+(?:data|information)\b/i,"personal_data_disclosure",.91)
+    text(surface,/\b(?:we|our)\s+(?:collect|process|store|retain|use)\s+(?:your\s+)?(?:personal|customer|user|contact|health|medical|biometric|genetic|financial|identity)\s+(?:data|information|records?)\b/i,"personal_data_disclosure",.91)
   );
 
   set("pricing",pricing);set("checkout",checkout);set("payments",payment);set("authentication",auth);set("accountCreation",account);
