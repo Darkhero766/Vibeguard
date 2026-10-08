@@ -20,7 +20,7 @@ try {
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
 
   const sparseAppShell = {
-    pages:[page("https://example.test/","<html><body><div id="root"></div>" + "<script src="/assets/app.js"></script>".repeat(6) + "</body></html>")],
+    pages:[page("https://example.test/","<html><body><div id=\"root\"></div>" + "<script src=\"/assets/app.js\"></script>".repeat(6) + "</body></html>")],
     origin:"https://example.test"
   };
   const sparseChecks=runApplicabilityAwareChecks(sparseAppShell).checks;
