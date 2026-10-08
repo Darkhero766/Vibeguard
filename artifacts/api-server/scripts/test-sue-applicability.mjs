@@ -52,7 +52,8 @@ try {
 
   const aiData = run(`
     <html><body>
-      <h1>AI document assistant</h1>
+      <h1>AI Document Assistant</h1>
+      <p>AI-powered document assistant for uploaded files.</p>
       <p>Send your documents to our AI model. We process your uploaded content to generate summaries.</p>
       <form><input type="file" name="document"></form>
     </body></html>`);
