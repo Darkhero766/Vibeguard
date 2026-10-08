@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { ensureTables } from "@workspace/db";
+import { ensureTables, pool } from "@workspace/db";
 
 const rawPort = process.env["PORT"];
 
@@ -51,6 +51,7 @@ const shutdown = (signal: string) => {
     }
 
     logger.info("HTTP server closed cleanly");
+    await pool.end().catch((error) => logger.warn({ err: error }, "Database pool close failed"));
     process.exit(0);
   });
 
