@@ -17,7 +17,7 @@ export type Evidence = {
 export type ProductSignals = {
   pricing:boolean; checkout:boolean; payments:boolean; authentication:boolean; accountCreation:boolean;
   personalDataCollection:boolean; marketingCollection:boolean; analytics:boolean; cookies:boolean; tracking:boolean;
-  ai:boolean; aiGeneration:boolean; aiDataProcessing:boolean; userGeneratedContent:boolean; subscription:boolean;
+  ai:boolean; aiGeneration:boolean; aiDataProcessing:boolean; b2bProcessor:boolean; sensitiveData:boolean; userGeneratedContent:boolean; subscription:boolean;
   autoRenewal:boolean; advertising:boolean; ecommerce:boolean; marketplace:boolean; developerApi:boolean;
   persistentUserData:boolean; paidService:boolean; commercialActivity:boolean;
   highImpactAI:boolean; dataCommercialization:boolean;
