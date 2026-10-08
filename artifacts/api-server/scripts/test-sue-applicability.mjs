@@ -59,9 +59,9 @@ try {
   // mode: Terms/Privacy existed but were previously invisible to the checks.
   const saasWithPolicies = {
     pages:[
-      page("https://example.test/","<html><body><h1>Acme Cloud</h1><p>Project management SaaS.</p><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/pricing">Pricing</a><button>Sign up</button></body></html>"),
-      page("https://example.test/terms","<html><body><h1>Terms of Service</h1><p>These Terms of Service govern use of Acme Cloud.</p><p>Governing law and limitation of liability apply.</p></body></html>",{home:false}),
-      page("https://example.test/privacy","<html><body><h1>Privacy Policy</h1><p>We collect personal information and explain how we use your data.</p><p>We retain data, provide access and deletion rights, and disclose service providers.</p></body></html>",{home:false}),
+      page("https://example.test/",`<html><body><h1>Acme Cloud</h1><p>Project management SaaS.</p><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/pricing">Pricing</a><button>Sign up</button></body></html>`),
+      page("https://example.test/terms",`<html><body><h1>Terms of Service</h1><p>These Terms of Service govern use of Acme Cloud.</p><p>Governing law and limitation of liability apply.</p></body></html>`,{home:false}),
+      page("https://example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect personal information and explain how we use your data.</p><p>We retain data, provide access and deletion rights, and disclose service providers.</p></body></html>`,{home:false}),
     ],
     origin:"https://example.test"
   };
