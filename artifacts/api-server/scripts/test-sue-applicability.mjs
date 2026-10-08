@@ -19,6 +19,18 @@ try {
   const {runApplicabilityAwareChecks,definitionsCount}=await import(outfile);
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
 
+  const headers=()=>new Headers();
+  // SSRF host-validation unit coverage is kept in the audit route itself;
+  // these cases document the security boundary for future route-level tests.
+  assert.ok((await import("node:net")).isIP("2001:db8::1")===6,"Node must recognize IPv6 test addresses");
+
+  const page=(url,html,{home=true,text:txt=null,scripts:sc=null,links:ls=[],forms:fs=[],headers:hdrs=null}={})=>({
+    url:new URL(url),html,text:txt??html.replace(/<[^>]+>/g," "),links:ls,scripts:sc??[...html.matchAll(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi)].map(m=>m[1]),forms:fs,
+    inputs:[],metadata:"",structuredData:"",headers:hdrs??headers(),isHome:home
+  });
+  const corpus=(html,url="https://example.test/")=>({pages:[page(url,html)],origin:new URL(url).origin});
+  const run=(html,url)=>runApplicabilityAwareChecks(corpus(html,url)).checks;
+
   const aiEditorial = run(`
     <html><body>
       <h1>Healthcare AI news</h1>
@@ -57,18 +69,6 @@ try {
   assert.equal(by(sessionChecks,"L03").applicability,"not_applicable");
   assert.equal(by(sessionChecks,"C01").applicability,"not_applicable");
   assert.equal(by(sessionChecks,"C08").applicability,"not_applicable");
-
-  const headers=()=>new Headers();
-  // SSRF host-validation unit coverage is kept in the audit route itself;
-  // these cases document the security boundary for future route-level tests.
-  assert.ok((await import("node:net")).isIP("2001:db8::1")===6,"Node must recognize IPv6 test addresses");
-
-  const page=(url,html,{home=true,text:txt=null,scripts:sc=null,links:ls=[],forms:fs=[],headers:hdrs=null}={})=>({
-    url:new URL(url),html,text:txt??html.replace(/<[^>]+>/g," "),links:ls,scripts:sc??[...html.matchAll(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi)].map(m=>m[1]),forms:fs,
-    inputs:[],metadata:"",structuredData:"",headers:hdrs??headers(),isHome:home
-  });
-  const corpus=(html,url="https://example.test/")=>({pages:[page(url,html)],origin:new URL(url).origin});
-  const run=(html,url)=>runApplicabilityAwareChecks(corpus(html,url)).checks;
   const by=(checks,id)=>checks.find(x=>x.id===id);
 
   const portfolio=run(`
