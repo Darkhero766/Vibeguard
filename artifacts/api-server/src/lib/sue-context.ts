@@ -188,7 +188,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
     forms(surface,/(?:type=["'](?:email|tel|password|date)["']|(?:name|id|autocomplete|placeholder)=["'][^"']*(?:email|e-?mail|phone|mobile|full[-_ ]?name|first[-_ ]?name|last[-_ ]?name|address|street|city|postal|zip|birth|dob|password)[^"']*["'])/i,"personal_data_form",.91),
     auth,
     marketing,
-    text(surface,/we collect|personal information|personal data|contact information/i,"personal_data_disclosure",.78)
+    text(surface,/\b(?:we|our)\s+(?:collect|process|store|retain|use)\s+(?:your\s+)?(?:personal|customer|user|contact)\s+(?:data|information)\b/i,"personal_data_disclosure",.91)
   );
 
   set("pricing",pricing);set("checkout",checkout);set("payments",payment);set("authentication",auth);set("accountCreation",account);
@@ -197,7 +197,15 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
     text(surface,/\b(?:AI|artificial intelligence|model|assistant|agent)\b.{0,100}\b(?:generate|generation|generated|output|image|text|code)\b|\b(?:generate|generation|generated|output)\b.{0,100}\b(?:AI|artificial intelligence|model|assistant|agent)\b/i,"ai_generation",.92),
     forms(surface,/(?:\bprompt\b.{0,120}\b(?:generate|create|submit|send)\b|\b(?:AI assistant|AI agent|AI generator|generate (?:text|images?|code|content|responses?))\b)/i,"ai_generation_input",.92)
   ));
-  set("aiDataProcessing",aiData);set("userGeneratedContent",ugc);set("subscription",subscription);set("autoRenewal",autoRenew);set("advertising",advertising);
+  const b2bProcessor=combine(
+    text(surface,/\b(?:process|store|handle|access|receive)\b.{0,100}\b(?:customer|client|user)\s+(?:personal\s+)?data\b.{0,100}\b(?:on behalf of|for|from)\b.{0,100}\b(?:business|company|organization|enterprise|client)\b/i,"b2b_processor_relationship",.95),
+    text(surface,/\b(?:DPA|data processing agreement|subprocessor|sub-processors?|processor)\b.{0,120}\b(?:customer|client|business|enterprise|company)\b/i,"processor_contract_signal",.96)
+  );
+  const sensitiveData=combine(
+    text(surface,/\b(?:health|medical|diagnos(?:is|tic)|mental health|biometric|genetic|religious|sexual orientation|racial|ethnic|political|union|criminal record|passport|national id|aadhaar|ssn|social security|financial account|bank account)\b.{0,100}\b(?:data|information|records?|details?)\b/i,"sensitive_data_context",.93),
+    forms(surface,/(?:health|medical|diagnos|biometric|genetic|religious|sexual|racial|ethnic|political|union|passport|national.?id|aadhaar|ssn|social.?security|bank|account.?number)/i,"sensitive_data_form",.93)
+  );
+  set("aiDataProcessing",aiData);set("b2bProcessor",b2bProcessor);set("sensitiveData",sensitiveData);set("userGeneratedContent",ugc);set("subscription",subscription);set("autoRenewal",autoRenew);set("advertising",advertising);
   set("ecommerce",ecommerce);set("marketplace",marketplace);set("developerApi",developerApi);
   set("persistentUserData",combine(auth,ugc,text(surface,/save your|saved projects|history|profile|dashboard data/i,"persistent_data_text",.82)));
   const paidPricing=combine(
