@@ -44,11 +44,12 @@ try {
     origin:"https://example.test"
   };
   const lowEvidenceResult=runApplicabilityAwareChecks(lowEvidenceShell);
-  console.log("LOW_EVIDENCE_DEBUG", JSON.stringify({signals:lowEvidenceResult.context.signals,coverage:lowEvidenceResult.context.coverage,types:lowEvidenceResult.context.productTypes}));
   const lowEvidenceChecks=lowEvidenceResult.checks;
   assert.equal(by(lowEvidenceChecks,"P01").applicability,"unknown","A low-evidence two-script SPA shell must not become false N/A.");
   assert.equal(by(lowEvidenceChecks,"P01").status,"review","Low-evidence applicability must surface as review.");
   assert.equal(by(lowEvidenceChecks,"A01").status,"review","Low-evidence AI applicability must surface as review.");
+  assert.equal(lowEvidenceResult.context.signals.marketplace,false,"Asset filename vendor.js must not create a marketplace signal.");
+  assert.equal(lowEvidenceResult.context.signals.commercialActivity,false,"Asset markup must not create commercial-activity signals.");
 
 
 
