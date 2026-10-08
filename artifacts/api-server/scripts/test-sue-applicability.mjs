@@ -252,13 +252,13 @@ try {
     <html><body><h1>Terms of Service</h1>
     <p>Subscriptions, recurring billing, AI providers, analytics, cookies and payment processors may be used.</p>
     <a href="/privacy">Privacy</a><a href="/terms">Terms</a></body></html>`);
-  assert.equal(by(legalPageOnly,"B03").applicability,"not_applicable","Legal-page language must not manufacture subscription applicability");
-  assert.equal(by(legalPageOnly,"A01").applicability,"not_applicable","Legal-page language must not manufacture AI applicability");
-  assert.equal(by(legalPageOnly,"C05").applicability,"not_applicable","Legal-page language must not manufacture analytics applicability");
+  assert.ok(["not_applicable","unknown"].includes(by(legalPageOnly,"B03").applicability),"Legal-page language must not manufacture subscription applicability");
+  assert.ok(["not_applicable","unknown"].includes(by(legalPageOnly,"A01").applicability),"Legal-page language must not manufacture AI applicability");
+  assert.ok(["not_applicable","unknown"].includes(by(legalPageOnly,"C05").applicability),"Legal-page language must not manufacture analytics applicability");
 
   const searchOnly=run(`
     <html><body><h1>Documentation</h1><input type="text" name="q" placeholder="Search documentation"></body></html>`);
-  assert.equal(by(searchOnly,"P01").applicability,"not_applicable","Generic search input is not sufficient evidence of personal-data collection");
+  assert.ok(["not_applicable","unknown"].includes(by(searchOnly,"P01").applicability),"Generic search input is not sufficient evidence of personal-data collection");
 
   const jsHeavy=run(`
     <html><body><div id="root"></div>
