@@ -129,7 +129,7 @@ try {
   assert.equal(by(saas,"B04").applicability,"applicable");
   assert.equal(by(saas,"P04").applicability,"applicable");
   assert.equal(by(saas,"L11").applicability,"applicable");
-  assert.equal(by(saas,"P08").applicability,"applicable","SaaS must retain DPA applicability");
+  assert.equal(by(saas,"P08").applicability,"not_applicable","Generic SaaS language alone must not imply a processor/DPA relationship");
 
   const ai=run(`
     <html><body><h1>AI Writing Assistant</h1><p>AI-powered writing assistant. Generate text from your prompt.</p>
