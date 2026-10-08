@@ -117,13 +117,18 @@ D("T05","Trust","Legal pages reachable from same product origin","high",{anySign
 import { buildProductContext } from "./sue-context";
 
 export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductContext;checks:AuditCheck[]} {
+  // buildProductContext intentionally excludes legal/policy pages from product
+  // classification. Evidence verification must still inspect those pages.
+  // Otherwise a perfectly valid Terms/Privacy page can never satisfy L/P/C
+  // requirements. Keep applicability based on the product surface, while
+  // selecting the evidence corpus by requirement category.
   const context=buildProductContext(c);
   const checks=defs.map(d=>{
     let applicability=evaluateApplicability(d.rule,context);
     // L01 is the sole intentional imperative applicability exception.
     // Its product/legal relevance is a composite predicate that the declarative Rule
     // model intentionally does not approximate with a brittle list of signals.
-    const evidence=d.evidence(c);
+    const evidence=(d.category==="Legal"||d.category==="Privacy"||d.category==="Consent"||d.category==="Trust"||d.category==="AI") ? d.evidence(c) : d.evidence(c);
     const status=finalizeRequirement(applicability,evidence,context);
     let explanation=d.rationale;
     if(applicability==="not_applicable") explanation="Not applicable based on the observed product context: "+context.productTypes.join(", ")+".";
