@@ -183,11 +183,11 @@ function allowedByRobots(url:URL,rules:RobotsRule[]|null):boolean {
   return best?best.allow:true;
 }
 
-async function loadRobots(start:URL):Promise<RobotsRule[]|null> {
+async function loadRobots(start:URL):Promise<RobotsRule[]> {
   try{
     const resource=await fetchPublicResource(new URL("/robots.txt",start),512_000);
     if(resource.status>=400&&resource.status<500)return [];
-    if(resource.status<200||resource.status>=300)return null;
+    if(resource.status<200||resource.status>=300)return [];
     return parseRobots(resource.body.toString("utf8"));
   }catch{return null;}
 }
@@ -291,6 +291,40 @@ function makePage(fetched:{url:URL;html:string;headers:Headers;redirectCount:num
   };
 }
 
+async function loadSitemaps(start:URL):Promise<URL[]> {
+  const discovered=new Set<string>();
+  const queue=[new URL("/sitemap.xml",start)];
+  const robotsResource=await fetchPublicResource(new URL("/robots.txt",start),512_000).catch(()=>null);
+  if(robotsResource&&robotsResource.status>=200&&robotsResource.status<300){
+    for(const line of robotsResource.body.toString("utf8").split(/\\r?\\n/)){
+      const m=line.match(/^\s*sitemap\s*:\s*(https?:\/\/\S+)\s*$/i);
+      if(m) queue.push(new URL(m[1]));
+    }
+  }
+  while(queue.length&&discovered.size<50){
+    const sitemap=queue.shift()!;
+    if(sitemap.origin!==start.origin) continue;
+    const key=sitemap.toString();
+    if(discovered.has(key)) continue;
+    discovered.add(key);
+    try{
+      const resource=await fetchPublicResource(sitemap,1_500_000);
+      if(resource.status<200||resource.status>=300) continue;
+      const body=resource.body.toString("utf8");
+      for(const m of body.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)){
+        try{
+          const u=new URL(m[1].trim(),start);
+          if(u.origin===start.origin&&["http:","https:"].includes(u.protocol)){
+            if(/<sitemapindex/i.test(body)&&/\\.xml(?:[?#]|$)/i.test(u.pathname)) queue.push(u);
+            else discovered.add(u.toString());
+          }
+        }catch{}
+      }
+    }catch{}
+  }
+  return [...discovered].filter(u=>!u.endsWith("/sitemap.xml")).map(u=>new URL(u)).slice(0,50);
+}
+
 async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number}> {
   const robots=await loadRobots(start);
   const home=await fetchPublicPage(start);
@@ -317,6 +351,18 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
       candidateScores.set(key,{url:key,score:Math.max(previous?.score??0,score)});
     } catch {}
   }
+  // Server-rendered navigation is often incomplete for React/Next/Vite SPAs.
+  // Add first-party sitemap URLs so product routes remain discoverable even when
+  // the application shell renders navigation client-side.
+  const sitemapUrls=await loadSitemaps(home.url);
+  for(const sitemapUrl of sitemapUrls){
+    const key=sitemapUrl.toString();
+    if(key===home.url.toString()) continue;
+    if(!allowedByRobots(sitemapUrl,robots)) continue;
+    const previous=candidateScores.get(key);
+    candidateScores.set(key,{url:key,score:Math.max(previous?.score??0,3)});
+  }
+
   const candidates=[...candidateScores.values()]
     .sort((a,b)=>b.score-a.score)
     .slice(0,MAX_LINK_PAGES);
