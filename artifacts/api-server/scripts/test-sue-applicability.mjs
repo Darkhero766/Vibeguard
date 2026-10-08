@@ -43,8 +43,8 @@ try {
 
   const aiHighImpact = run(`
     <html><body>
-      <h1>AI hiring assistant</h1>
-      <p>Our AI model screens applicants, ranks candidates and recommends who should proceed to interview.</p>
+      <h1>AI Hiring Assistant</h1>
+      <p>AI-powered hiring assistant. Our AI model screens applicants, ranks candidates and recommends who should proceed to interview.</p>
       <form><input placeholder="Upload candidate resume"></form>
     </body></html>`);
   assert.equal(by(aiHighImpact,"A01").applicability,"applicable");
