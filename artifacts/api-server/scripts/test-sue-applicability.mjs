@@ -65,6 +65,7 @@ try {
   assert.equal(by(shop,"B06").applicability,"applicable");
   assert.equal(by(shop,"L04").applicability,"applicable");
   assert.equal(by(shop,"L05").status,"not_applicable");
+  assert.equal(by(shop,"P08").status,"not_applicable","One-time ecommerce should not trigger a DPA finding merely because it is commercial");
   assert.equal(by(shop,"B03").status,"not_applicable");
 
   const saas=run(`
@@ -78,6 +79,7 @@ try {
   assert.equal(by(saas,"B04").applicability,"applicable");
   assert.equal(by(saas,"P04").applicability,"applicable");
   assert.equal(by(saas,"L11").applicability,"applicable");
+  assert.equal(by(saas,"P08").applicability,"applicable","SaaS must retain DPA applicability");
 
   const ai=run(`
     <html><body><h1>AI Writing Assistant</h1><p>AI-powered writing assistant. Generate text from your prompt.</p>
