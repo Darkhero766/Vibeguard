@@ -164,7 +164,10 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   const aiProvider=scripts(surface,/api\.openai\.com|anthropic|generativelanguage|gemini|openrouter|replicate|huggingface/i,"ai_provider",.97);
   // A provider reference by itself is not enough; it must agree with a product-level AI signal.
   const ai=aiProductText.length>=1?combine(aiProductText,aiProvider):[];
-  const aiData=combine(text(surface,/(?:send|share|process|use|submit).{0,120}(?:AI|OpenAI|Anthropic|Gemini|model).{0,120}(?:data|information|content|prompt)/i,"ai_data_processing",.9),text(surface,/(?:AI|model|OpenAI|Anthropic|Gemini).{0,120}(?:process|use).{0,120}(?:data|information|content)/i,"ai_data_processing",.9));
+  const aiData=combine(
+    text(surface,/\b(?:send|share|upload|submit|transmit)\b.{0,100}\b(?:prompt|content|personal data|personal information|customer data|user data)\b.{0,100}\b(?:AI|model|OpenAI|Anthropic|Gemini|provider|API)\b/i,"ai_data_processing",.94),
+    text(surface,/\b(?:AI|model|OpenAI|Anthropic|Gemini|provider|API)\b.{0,100}\b(?:process|store|retain|receive|access|use)\b.{0,100}\b(?:prompt|content|personal data|personal information|customer data|user data)\b/i,"ai_data_processing",.94)
+  );
   // "Plans" or "pricing" alone does not prove a recurring subscription.
   // Require recurring-billing language or an explicit subscription/renewal signal.
   const subscription=combine(
@@ -202,7 +205,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
     text(surface,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
   );
   set("paidService",combine(payment,checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid|starting at/i,"paid_service_text",.78)));
-  set("highImpactAI",text(surface,/\b(?:medical|diagnos(?:is|tic)|treatment|clinical|mental health|credit|loan|insurance|employment|hiring|recruitment|legal advice|financial advice|biometric|risk score|eligibility decision|fraud decision)\b/i,"high_impact_ai_context",.88));
+  set("highImpactAI",text(surface,/\b(?:AI|model|algorithm|automated)\b.{0,100}\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|loan approval|insurance eligibility|employment decision|hiring decision|candidate screening|legal decision|financial decision|biometric identification|risk scoring|eligibility decision|fraud decision)\b|\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|loan approval|insurance eligibility|employment decision|hiring decision|candidate screening|legal decision|financial decision|biometric identification|risk scoring|eligibility decision|fraud decision)\b.{0,100}\b(?:AI|model|algorithm|automated)\b/i,"high_impact_ai_context",.93));
   set("dataCommercialization",combine(
     text(surface,/\b(?:sell|share|monetize|monetisation|monetization)\b.{0,100}\b(?:personal|user|customer)\s+(?:data|information)\b/i,"data_commercialization",.92),
     text(surface,/targeted advertising|behavioral advertising|interest[- ]based advertising/i,"targeted_advertising",.88)
