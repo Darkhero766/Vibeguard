@@ -55,7 +55,7 @@ const scenarios=[
   },
   {
     name:"developer API",
-    html:`<html><body><h1>Acme Developer API</h1><p>API platform with API keys, endpoints, SDK and webhook access.</p><a href="/docs">Developers</a><a href="/pricing">Pricing</a><a href="/login">Sign in</a></body></html>`,
+    html:`<html><body><h1>Acme Developer API</h1><p>API platform with API keys, endpoints, SDK and webhook access. We process customer data on behalf of business customers as a processor.</p><a href="/docs">Developers</a><a href="/pricing">Pricing</a><a href="/login">Sign in</a></body></html>`,
     expect:{L01:"applicable",P01:"applicable",P08:"applicable",T02:"applicable",B01:"applicable"}
   },
   {
@@ -77,6 +77,21 @@ const scenarios=[
     name:"UGC social app",
     html:`<html><body><h1>Photo Community</h1><p>Users upload photos, create posts, comments and public profiles.</p><a href="/signup">Sign up</a><form><input type="file" name="upload"><textarea name="comment"></textarea></form></body></html>`,
     expect:{L01:"applicable",L06:"applicable",L13:"applicable",P01:"applicable",P04:"applicable",A01:"not_applicable"}
+  },
+  {
+    name:"analytics-only public blog",
+    html:`<html><body><h1>Public Blog</h1><p>Articles and resources.</p><script src="https://www.google-analytics.com/analytics.js"></script></body></html>`,
+    expect:{C05:"applicable",P01:"not_applicable",P02:"not_applicable",P11:"not_applicable"}
+  },
+  {
+    name:"generic SaaS without processor role",
+    html:`<html><body><h1>Team Notes</h1><p>Free workspace for teams. No customer data is processed on behalf of clients.</p><a href="/login">Log in</a><a href="/pricing">Pricing</a></body></html>`,
+    expect:{P08:"not_applicable",P01:"applicable",B01:"applicable"}
+  },
+  {
+    name:"explicit sensitive-data intake",
+    html:`<html><body><h1>Health Intake</h1><p>We collect health information and medical records.</p><form><input name="medical_history"><input name="date_of_birth"></form></body></html>`,
+    expect:{P01:"applicable",P02:"applicable"}
   },
   {
     name:"nonprofit",
