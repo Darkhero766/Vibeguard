@@ -213,6 +213,13 @@ CHANGE LOG
 - Applied the audit_runs schema directly to the production Supabase project and committed the matching migration at supabase/migrations/20261008100000_create_audit_runs.sql.
 - PR #13 merged to main as a4390fb96fcb35189bacc0e725aabc3f9cac7585 after all focused SUE CI gates passed. Supabase schema is already applied. Production deployment remains subject to the hosting provider's normal deployment pipeline.
 
+2026-10-08 — SUE AI accuracy hardening
+- Hardened AI data-processing detection so provider/data language only becomes an AI-data signal when actual AI product functionality is present.
+- Hardened high-impact AI detection so medical, hiring, credit, insurance, legal, financial, biometric and fraud vocabulary alone is insufficient; an AI/model/automated decision relationship is required.
+- Added adversarial regression cases for editorial AI mentions, high-impact hiring, and AI document processing.
+- PR #18 merged to main as 8e3f7b69283e893dc849eff0914bb0d4c61e200f.
+- Verification passed after corrections: SUE applicability regression, accuracy benchmark, and live benchmark all green.
+
 WORKING RULES
 -------------
 1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
