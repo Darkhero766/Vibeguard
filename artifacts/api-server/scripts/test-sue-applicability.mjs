@@ -19,6 +19,32 @@ try {
   const {runApplicabilityAwareChecks,definitionsCount}=await import(outfile);
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
 
+  const aiEditorial = run(`
+    <html><body>
+      <h1>Healthcare AI news</h1>
+      <p>Our article explains how AI models are used in medical diagnosis and how OpenAI processes data.</p>
+    </body></html>`);
+  assert.equal(by(aiEditorial,"A01").applicability,"not_applicable");
+  assert.equal(by(aiEditorial,"A02").applicability,"not_applicable");
+  assert.equal(by(aiEditorial,"A05").applicability,"not_applicable");
+
+  const aiHighImpact = run(`
+    <html><body>
+      <h1>AI hiring assistant</h1>
+      <p>Our AI model screens applicants, ranks candidates and recommends who should proceed to interview.</p>
+      <form><input placeholder="Upload candidate resume"></form>
+    </body></html>`);
+  assert.equal(by(aiHighImpact,"A01").applicability,"applicable");
+  assert.equal(by(aiHighImpact,"A05").applicability,"applicable");
+
+  const aiData = run(`
+    <html><body>
+      <h1>AI document assistant</h1>
+      <p>Send your documents to our AI model. We process your uploaded content to generate summaries.</p>
+      <form><input type="file" name="document"></form>
+    </body></html>`);
+  assert.equal(by(aiData,"A02").applicability,"applicable");
+
   // A necessary session/auth cookie alone must not imply non-essential cookie requirements.
   const sessionOnly = {
     pages:[page("https://example.test/","<html><body><h1>Sign in</h1></body></html>",{
