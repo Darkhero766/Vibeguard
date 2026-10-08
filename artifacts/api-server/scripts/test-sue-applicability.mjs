@@ -114,7 +114,7 @@ try {
 
   const consequentialAi=run(`
     <html><body><h1>AI Hiring Screening</h1>
-    <p>Our AI model automatically screens candidates and makes hiring recommendations.</p>
+    <p>Our AI-powered hiring model automatically screens candidates and makes hiring recommendations.</p>
     <form><input type="file" name="resume"><button>Assess candidate</button></form>
     </body></html>`);
   assert.equal(by(consequentialAi,"A01").applicability,"applicable");
