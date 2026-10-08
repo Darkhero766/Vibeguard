@@ -5,6 +5,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
+app.set("trust proxy", 1);
 
 app.use(
   pinoHttp({
@@ -28,12 +29,13 @@ app.use(
 app.use(cors());
 app.use(
   express.json({
+    limit: "2mb",
     verify: (req: Request, _res, buffer) => {
       (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
     },
   }),
 );
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: "256kb" }));
 
 // Render health check / root endpoint.
 app.get("/", (_req, res) => {
