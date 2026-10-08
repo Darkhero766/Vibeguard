@@ -8,6 +8,7 @@ import { optionalAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
 import { cacheScanResult } from "../lib/scanCache";
 import { ensurePlanForUser, consumePublicScan } from "../lib/plan";
+import { rateLimit } from "../middlewares/rateLimit";
 
 const router: IRouter = Router();
 const CORE_SECURITY_CHECKS = 8;
