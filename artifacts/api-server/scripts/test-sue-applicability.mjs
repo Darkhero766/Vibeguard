@@ -19,6 +19,14 @@ try {
   const {runApplicabilityAwareChecks,definitionsCount}=await import(outfile);
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
 
+  const sparseAppShell = {
+    pages:[page("https://example.test/","<html><body><div id="root"></div>" + "<script src="/assets/app.js"></script>".repeat(6) + "</body></html>")],
+    origin:"https://example.test"
+  };
+  const sparseChecks=runApplicabilityAwareChecks(sparseAppShell).checks;
+  assert.equal(by(sparseChecks,"P01").applicability,"unknown","A sparse runtime shell must not turn privacy applicability into a false N/A.");
+  assert.equal(by(sparseChecks,"P08").applicability,"unknown","DPA applicability should remain unknown when runtime coverage is insufficient.");
+
 
   const headers=()=>new Headers();
   // SSRF host-validation unit coverage is kept in the audit route itself;
