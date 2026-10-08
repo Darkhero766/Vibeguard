@@ -16,6 +16,16 @@ const MAX_HTML_BYTES = 2_500_000;
 const MAX_LINK_PAGES = 16;
 const FETCH_TIMEOUT_MS = 8_000;
 
+const SENSITIVE_QUERY_KEYS = /^(?:token|access[_-]?token|refresh[_-]?token|api[_-]?key|key|secret|password|passwd|signature|sig|auth|authorization|credential|code)$/i;
+
+function sanitizeAuditUrl(input: URL): string {
+  const safe = new URL(input.toString());
+  for (const key of [...safe.searchParams.keys()]) {
+    if (SENSITIVE_QUERY_KEYS.test(key)) safe.searchParams.set(key, "[redacted]");
+  }
+  return safe.toString();
+}
+
 function normalizeUrl(raw: unknown): URL {
   if (typeof raw !== "string" || !raw.trim()) throw new Error("Enter a public website or deployed app URL.");
   let url: URL;
@@ -365,6 +375,7 @@ router.post("/audit",requireAuth,async(req:AuthedRequest,res):Promise<void>=>{
 
     const start=normalizeUrl(req.body?.url);
     const {corpus,redirectCount}=await crawl(start);
+    const reportUrl=sanitizeAuditUrl(corpus.pages[0].url);
     const {context,checks}=runApplicabilityAwareChecks(corpus);
 
     const passed=checks.filter(x=>x.status==="pass").length;
@@ -383,7 +394,7 @@ router.post("/audit",requireAuth,async(req:AuthedRequest,res):Promise<void>=>{
       coverage:context.coverage,
     };
     const auditId=await persistAuditRun(req.userId!,{
-      url:corpus.pages[0].url.toString(),
+      url:reportUrl,
       scannedAt,
       score,
       passed,
@@ -397,7 +408,7 @@ router.post("/audit",requireAuth,async(req:AuthedRequest,res):Promise<void>=>{
 
     res.json({
       auditId,
-      url:corpus.pages[0].url.toString(),
+      url:reportUrl,
       scannedAt,
       score,
       passed,

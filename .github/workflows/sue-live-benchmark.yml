@@ -22,6 +22,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @workspace/api-server exec esbuild src/lib/plan.ts --bundle --platform=node --format=esm --external:@workspace/db --outfile=/tmp/vibeguard-plan-check.mjs
+      - run: pnpm --filter @workspace/api-server exec esbuild src/routes/audit.ts --bundle --platform=node --format=esm --external:@workspace/db --outfile=/tmp/vibeguard-audit-route-check.mjs
       - run: pnpm --filter @workspace/api-server run test:sue
       - run: pnpm --filter @workspace/api-server run benchmark:sue
       - run: pnpm --filter @workspace/api-server run benchmark:sue:live
