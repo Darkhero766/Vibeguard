@@ -19,6 +19,30 @@ try {
   const {runApplicabilityAwareChecks,definitionsCount}=await import(outfile);
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
 
+  const ordinarySaas = run(`
+    <html><body><h1>Acme Cloud</h1>
+    <p>Project management workspace for teams.</p>
+    <a href="/login">Log in</a><a href="/pricing">Pricing</a>
+    <p>$19/month billed monthly.</p>
+    </body></html>`);
+  assert.equal(by(ordinarySaas,"P08").applicability,"not_applicable","SaaS classification alone must not imply a processor/DPA relationship.");
+
+  const processorSaas = run(`
+    <html><body><h1>Acme Data Platform</h1>
+    <p>We process customer personal data on behalf of business customers.</p>
+    <p>We act as a processor and use subprocessors under our DPA.</p>
+    <a href="/login">Log in</a><a href="/pricing">Pricing</a>
+    </body></html>`);
+  assert.equal(by(processorSaas,"P08").applicability,"applicable","Explicit processor/B2B data-processing evidence must trigger DPA review.");
+
+  const sensitiveCollection = run(`
+    <html><body><h1>Health Intake</h1>
+    <p>We collect health information and medical records.</p>
+    <form><input name="medical_history"><input name="date_of_birth"></form>
+    </body></html>`);
+  assert.equal(by(sensitiveCollection,"P01").applicability,"applicable");
+  assert.equal(by(sensitiveCollection,"P02").applicability,"applicable");
+
 
 
   const headers=()=>new Headers();
