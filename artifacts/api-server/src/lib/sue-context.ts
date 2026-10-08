@@ -237,6 +237,10 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
     Math.min(c.pages.reduce((n,p)=>n+p.text.length,0),18000)/18000*.28-
     (dynamicRenderingLikely?.18:0)
   ));
+  const observedSignalCount=Object.values(signals).filter(Boolean).length;
+  // A crawler that observes almost no product signals must not manufacture
+  // confidence simply because the HTML is small and technically valid.
+  const evidencePenalty=observedSignalCount===0 ? .12 : observedSignalCount<2 ? .06 : 0;
   const classified=classify(signals,allEvidence);
-  return {productTypes:classified.productTypes,commercialModel:classified.commercialModel,signals,signalConfidence,evidence:allEvidence.slice(0,80),confidence:classified.confidence*score,coverage:{pages:c.pages.length,linkedPages:Math.max(0,c.pages.length-1),forms:c.pages.reduce((n,p)=>n+p.forms.length,0),scripts:c.pages.reduce((n,p)=>n+p.scripts.length,0),dynamicRenderingLikely,score}};
+  return {productTypes:classified.productTypes,commercialModel:classified.commercialModel,signals,signalConfidence,evidence:allEvidence.slice(0,80),confidence:Math.max(.05,classified.confidence*score-evidencePenalty),coverage:{pages:c.pages.length,linkedPages:Math.max(0,c.pages.length-1),forms:c.pages.reduce((n,p)=>n+p.forms.length,0),scripts:c.pages.reduce((n,p)=>n+p.scripts.length,0),dynamicRenderingLikely,score}};
 }
