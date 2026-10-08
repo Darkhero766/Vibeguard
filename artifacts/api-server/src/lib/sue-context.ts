@@ -10,7 +10,7 @@ function excerpt(v:string) { return v.replace(/\s+/g," ").trim().slice(0,240); }
 
 function pageMatch(page:AuditPage, pattern:RegExp, signal:string, confidence=0.86, type:Evidence["type"]="text"):Evidence[] {
   const sources:[string,string,Evidence["type"]][] = [
-    ["text",page.text,type],["html",page.html,type],["metadata",page.metadata,"metadata"],["structured",page.structuredData,"structured_data"]
+    ["text",page.text,type],["metadata",page.metadata,"metadata"],["structured",page.structuredData,"structured_data"]
   ];
   for (const [location,value,evidenceType] of sources) {
     const m=value.match(pattern);
