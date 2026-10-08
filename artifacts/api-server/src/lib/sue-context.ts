@@ -220,6 +220,12 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   ));
   set("commercialActivity",combine(pricing,payment,checkout,ecommerce,marketplace,text(surface,/\b(hire|services|consulting|agency|plans|pricing|shop|store|buy|subscribe|book a call|request a quote)\b/i,"commercial_language",.72)));
 
+  const classificationEvidence=combine(
+    text(surface,/\\b(?:portfolio|case studies?|selected work|resume|designer portfolio|developer portfolio)\\b/i,"portfolio_context",.9),
+    text(surface,/\\b(?:articles?|blog|news|resources|magazine|stories|editorial)\\b/i,"content_context",.78)
+  );
+  allEvidence.push(...classificationEvidence);
+
   const signals={} as ProductSignals, signalConfidence:Partial<Record<keyof ProductSignals,number>>={};
   for(const key of Object.keys(signalEvidence) as Array<keyof ProductSignals>) { const r=sv(signalEvidence[key]??[]);signals[key]=r.detected;signalConfidence[key]=r.confidence; }
   const home=c.pages.find(p=>p.isHome)??c.pages[0];
