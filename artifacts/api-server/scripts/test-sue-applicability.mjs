@@ -43,7 +43,9 @@ try {
     pages:[page("https://example.test/","<html><head><title>App</title></head><body><div id=\"root\"></div><script src=\"/assets/app.js\"></script><script src=\"/assets/vendor.js\"></script></body></html>")],
     origin:"https://example.test"
   };
-  const lowEvidenceChecks=runApplicabilityAwareChecks(lowEvidenceShell).checks;
+  const lowEvidenceResult=runApplicabilityAwareChecks(lowEvidenceShell);
+  console.log("LOW_EVIDENCE_DEBUG", JSON.stringify({signals:lowEvidenceResult.context.signals,coverage:lowEvidenceResult.context.coverage,types:lowEvidenceResult.context.productTypes}));
+  const lowEvidenceChecks=lowEvidenceResult.checks;
   assert.equal(by(lowEvidenceChecks,"P01").applicability,"unknown","A low-evidence two-script SPA shell must not become false N/A.");
   assert.equal(by(lowEvidenceChecks,"P01").status,"review","Low-evidence applicability must surface as review.");
   assert.equal(by(lowEvidenceChecks,"A01").status,"review","Low-evidence AI applicability must surface as review.");
