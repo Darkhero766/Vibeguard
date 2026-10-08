@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { rateLimit } from "../middlewares/rateLimit";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
 import { getInstallationIdForUser, getInstallationToken } from "../lib/githubApp";
