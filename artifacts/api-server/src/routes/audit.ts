@@ -369,7 +369,7 @@ async function persistAuditRun(userId:string, report:{
   }
 }
 
-router.post("/audit",requireAuth,async(req:AuthedRequest,res):Promise<void>=>{
+router.post("/audit", rateLimit({ name: "audit", windowMs: 60_000, max: 10 }),requireAuth,async(req:AuthedRequest,res):Promise<void>=>{
   try {
     const plan=await ensurePlanForUser(req.userId!);
     if(!plan.unlimited&&plan.scansUsed>=plan.scansLimit){res.status(429).json({error:"Monthly scan limit reached ("+plan.scansLimit+").",plan});return;}
