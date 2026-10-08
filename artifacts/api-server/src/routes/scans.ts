@@ -24,7 +24,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown repository scan error.";
 }
 
-router.post("/scans", optionalAuth, async (req: AuthedRequest, res): Promise<void> => {
+router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), optionalAuth, async (req: AuthedRequest, res): Promise<void> => {
   const parsed = CreateScanBody.safeParse(req.body);
   if (!parsed.success) {
     req.log.warn({ errors: parsed.error.message }, "Invalid scan request");
