@@ -362,11 +362,17 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   // a public HTML page. This lets SUE verify a real Terms/Privacy page without
   // treating legal vocabulary as product-feature evidence.
   const commonPolicyPaths=[
-    "/terms","/terms-of-service","/terms-and-conditions","/terms-and-conditions-of-use",
-    "/privacy","/privacy-policy","/privacy-notice",
-    "/cookies","/cookie-policy","/refund","/refund-policy","/returns","/return-policy",
-    "/cancellation","/cancellation-policy","/acceptable-use","/acceptable-use-policy",
-    "/aup","/legal","/disclaimer","/security","/security-policy","/dpa","/subprocessors"
+    "/terms","/terms-of-service","/terms-of-use","/terms-and-conditions","/terms-and-conditions-of-use",
+    "/terms.html","/terms-of-service.html","/terms-and-conditions.html",
+    "/privacy","/privacy-policy","/privacy-notice","/privacy.html","/privacy-policy.html",
+    "/data-privacy","/data-protection","/data-protection-policy",
+    "/cookies","/cookie-policy","/cookies-policy","/cookie-notice",
+    "/refund","/refunds","/refund-policy","/refunds-and-cancellations","/returns","/return-policy",
+    "/cancellation","/cancellation-policy","/cancellation-and-refunds",
+    "/acceptable-use","/acceptable-use-policy","/aup","/legal","/legal/terms","/legal/privacy",
+    "/legal/terms-of-service","/legal/privacy-policy","/policies/terms-of-service","/policies/privacy-policy",
+    "/disclaimer","/security","/security-policy","/dpa","/subprocessors","/subprocessor-list",
+    "/ai-policy","/ai-terms","/trust"
   ];
   const policyCandidates=new Set<string>();
   for(const path of commonPolicyPaths){
@@ -378,6 +384,16 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
       candidateScores.set(u.toString(),{url:u.toString(),score:Math.max(previous?.score??0,1)});
     }catch{}
   }
+  // Also reserve custom legal routes discovered in the real navigation/sitemap,
+  // not only the common fallback paths. Otherwise a custom Terms/Privacy URL
+  // can be pushed out by ordinary product links when the crawl budget is tight.
+  const policyPathHint=/(?:^|\\/)(?:terms?|terms-of-service|terms-of-use|privacy|privacy-policy|privacy-notice|cookies?|cookie-policy|refunds?|refund-policy|returns?|return-policy|cancellations?|cancellation-policy|legal|disclaimer|acceptable-use|aup|security-policy|dpa|subprocessors?|data-protection|ai-policy|ai-terms)(?:$|[\\/_-])/i;
+  for(const candidate of candidateScores.values()){
+    try{
+      const u=new URL(candidate.url);
+      if(policyPathHint.test(u.pathname.toLowerCase())) policyCandidates.add(u.toString());
+    }catch{}
+  }
   for(const sitemapUrl of sitemapUrls){
     const key=sitemapUrl.toString();
     if(key===home.url.toString()) continue;
@@ -387,7 +403,7 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   }
 
   const rankedCandidates=[...candidateScores.values()].sort((a,b)=>b.score-a.score);
-  const policyRanked=rankedCandidates.filter(x=>policyCandidates.has(x.url)).slice(0,6);
+  const policyRanked=rankedCandidates.filter(x=>policyCandidates.has(x.url)).slice(0,8);
   const productRanked=rankedCandidates.filter(x=>!policyCandidates.has(x.url)).slice(0,Math.max(0,MAX_LINK_PAGES-policyRanked.length));
   const candidates=[...productRanked,...policyRanked];
 
