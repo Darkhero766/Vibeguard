@@ -9,12 +9,12 @@ type Def = {
 const D=(id:string,category:string,title:string,severity:Severity,rule:Rule,evidence:(c:AuditCorpus)=>Evidence[],recommendation:string,rationale:string):Def=>({id,category,title,severity,rule,evidence,recommendation,rationale});
 
 const E={
- L01:(c:AuditCorpus)=>combine(links(c,/terms|terms of service|terms & conditions|legal/i,"terms_link"),text(c,/terms of service|terms and conditions|terms of use/i,"terms_document",.96)),
- L02:(c:AuditCorpus)=>combine(links(c,/privacy|data protection|privacy notice/i,"privacy_link"),text(c,/privacy policy|privacy notice|data protection notice/i,"privacy_document",.96)),
- L03:(c:AuditCorpus)=>combine(links(c,/cookie policy|cookie notice|cookies/i,"cookie_policy_link"),text(c,/cookie policy|cookie notice/i,"cookie_policy_document",.96)),
+ L01:(c:AuditCorpus)=>combine(links(c,/terms|terms of service|terms & conditions|legal/i,"terms_link"),text(policySurface(c),/terms of service|terms and conditions|terms of use/i,"terms_document",.96)),
+ L02:(c:AuditCorpus)=>combine(links(c,/privacy|data protection|privacy notice/i,"privacy_link"),text(policySurface(c),/privacy policy|privacy notice|data protection notice/i,"privacy_document",.96)),
+ L03:(c:AuditCorpus)=>combine(links(c,/cookie policy|cookie notice|cookies/i,"cookie_policy_link"),text(policySurface(c),/cookie policy|cookie notice/i,"cookie_policy_document",.96)),
  L04:(c:AuditCorpus)=>combine(links(c,/refund|returns?|money back/i,"refund_policy_link"),text(policySurface(c),/refund policy|refunds?|money[- ]back guarantee|return policy/i,"refund_terms",.96)),
  L05:(c:AuditCorpus)=>combine(links(c,/cancel|cancellation/i,"cancellation_link"),text(policySurface(c),/cancellation policy|cancel (?:your )?(?:subscription|plan|account)/i,"cancellation_terms",.96)),
- L06:(c:AuditCorpus)=>combine(links(c,/acceptable use|aup/i,"acceptable_use_link"),text(c,/acceptable use policy|prohibited uses/i,"acceptable_use_document",.96)),
+ L06:(c:AuditCorpus)=>combine(links(c,/acceptable use|aup/i,"acceptable_use_link"),text(policySurface(c),/acceptable use policy|prohibited uses/i,"acceptable_use_document",.96)),
  L07:(c:AuditCorpus)=>text(c,/disclaimer|not professional advice|no warranty|for informational purposes only/i,"disclaimer_document",.92),
  L08:(c:AuditCorpus)=>text(c,/©|copyright|all rights reserved|intellectual property/i,"copyright_notice",.92),
  L09:(c:AuditCorpus)=>combine(links(c,/contact|support|help/i,"contact_link"),text(c,/contact us|contact me|support@|hello@|info@|\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,"contact_signal",.92)),
@@ -164,7 +164,7 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
     // Content-disclosure checks must inspect legal/policy surfaces, not just
     // product marketing copy or provider scripts. Presence/link checks remain
     // on the full corpus so visible navigation can still prove discoverability.
-    const policyOnlyEvidenceIds=new Set(["P01","P02","P03","P04","P05","P06","P07","P08","P09","P10","P11","C02","C03","C05","C06","C07","C08","A01","A02","A03","A04","A05","A06","A07","B03","B04","L07","L12","L13"]);
+    const policyOnlyEvidenceIds=new Set(["P01","P02","P03","P04","P05","P06","P07","P08","P09","P10","P11","C02","C03","C05","C06","C07","C08","A01","A02","A03","A04","A05","A06","A07","B03","L07","L12","L13"]);
     const evidence=policyOnlyEvidenceIds.has(d.id) ? d.evidence(policySurface(c)) : d.evidence(c);
     const baseStatus=finalizeRequirement(applicability,evidence,context);
     const qualityIssue=baseStatus==="pass" ? evidenceQualityIssue(d.id,evidence) : null;
