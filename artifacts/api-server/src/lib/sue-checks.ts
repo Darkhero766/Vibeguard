@@ -1,5 +1,5 @@
 import { AuditCorpus, AuditCheck, Evidence, ProductContext, Rule, Severity, evaluateApplicability, finalizeRequirement, confidence, legalApplicable } from "./sue-applicability";
-import { text, links, scripts, combine } from "./sue-context";
+import { text, links, scripts, combine, policySurface } from "./sue-context";
 
 type Def = {
   id:string; category:string; title:string; severity:Severity; rule:Rule;
@@ -12,8 +12,8 @@ const E={
  L01:(c:AuditCorpus)=>combine(links(c,/terms|terms of service|terms & conditions|legal/i,"terms_link"),text(c,/terms of service|terms and conditions|terms of use/i,"terms_document",.96)),
  L02:(c:AuditCorpus)=>combine(links(c,/privacy|data protection|privacy notice/i,"privacy_link"),text(c,/privacy policy|privacy notice|data protection notice/i,"privacy_document",.96)),
  L03:(c:AuditCorpus)=>combine(links(c,/cookie policy|cookie notice|cookies/i,"cookie_policy_link"),text(c,/cookie policy|cookie notice/i,"cookie_policy_document",.96)),
- L04:(c:AuditCorpus)=>combine(links(c,/refund|returns?|money back/i,"refund_policy_link"),text(c,/refund policy|refunds?|money[- ]back guarantee|return policy/i,"refund_terms",.96)),
- L05:(c:AuditCorpus)=>combine(links(c,/cancel|cancellation/i,"cancellation_link"),text(c,/cancellation policy|cancel (?:your )?(?:subscription|plan|account)/i,"cancellation_terms",.96)),
+ L04:(c:AuditCorpus)=>combine(links(c,/refund|returns?|money back/i,"refund_policy_link"),text(policySurface(c),/refund policy|refunds?|money[- ]back guarantee|return policy/i,"refund_terms",.96)),
+ L05:(c:AuditCorpus)=>combine(links(c,/cancel|cancellation/i,"cancellation_link"),text(policySurface(c),/cancellation policy|cancel (?:your )?(?:subscription|plan|account)/i,"cancellation_terms",.96)),
  L06:(c:AuditCorpus)=>combine(links(c,/acceptable use|aup/i,"acceptable_use_link"),text(c,/acceptable use policy|prohibited uses/i,"acceptable_use_document",.96)),
  L07:(c:AuditCorpus)=>text(c,/disclaimer|not professional advice|no warranty|for informational purposes only/i,"disclaimer_document",.92),
  L08:(c:AuditCorpus)=>text(c,/©|copyright|all rights reserved|intellectual property/i,"copyright_notice",.92),
@@ -50,8 +50,8 @@ const E={
  A07:(c:AuditCorpus)=>text(c,/generated (?:content|output).*?(?:ownership|rights)|AI output.*?(?:ownership|rights)|output rights/i,"generated_output_rights",.94),
  B01:(c:AuditCorpus)=>combine(text(c,/pricing|plans|starting at|\b(?:\$|€|£|₹)\s?\d+/i,"pricing_transparency",.92),links(c,/pricing|plans/i,"pricing_link",.9)),
  B02:(c:AuditCorpus)=>text(c,/per month|monthly|per year|annual|yearly|billed (?:monthly|annually|yearly)|billing frequency/i,"billing_frequency",.95),
- B03:(c:AuditCorpus)=>text(c,/auto[- ]?renew|automatically renew|renews automatically|recurring (?:charge|billing|payment)/i,"auto_renewal_disclosure",.96),
- B04:(c:AuditCorpus)=>combine(links(c,/cancel|cancellation/i,"cancellation_route",.9),text(c,/cancel (?:your )?(?:subscription|plan|account)|cancellation instructions/i,"cancellation_flow",.94)),
+ B03:(c:AuditCorpus)=>text(policySurface(c),/auto[- ]?renew|automatically renew|renews automatically|recurring (?:charge|billing|payment)/i,"auto_renewal_disclosure",.96),
+ B04:(c:AuditCorpus)=>combine(links(c,/cancel|cancellation/i,"cancellation_route",.9),text(policySurface(c),/cancel (?:your )?(?:subscription|plan|account)|cancellation instructions/i,"cancellation_flow",.94)),
  B05:(c:AuditCorpus)=>E.L04(c),
  B06:(c:AuditCorpus)=>scripts(c,/stripe|paypal|razorpay|adyen|checkout\.com|dodo|paddle|lemonsqueezy|shopify|woocommerce/i,"payment_provider",.96),
  T01:(c:AuditCorpus)=>c.pages.some(p=>p.url.protocol==="https:")?[{type:"page",url:c.pages[0]?.url.toString(),location:"final URL",excerpt:"The audited URL was served over HTTPS.",signal:"https",confidence:.99}]:[],
@@ -76,7 +76,15 @@ const evidenceQuality:Partial<Record<string,{adequate:RegExp;message:string}>>={
   P07:{adequate:/\b(?:subprocessors? include|list of subprocessors?|see (?:our )?subprocessor|subprocessor list|available at https?:|subprocessors? page)\b/i,message:"Subprocessors are mentioned, but a list or concrete way to identify them was not found."},
   P11:{adequate:/\b(?:right to access|right to delete|right to correct|right to rectification|right to object|right to restrict|right to portability|request access|request deletion|exercise your rights)\b/i,message:"Privacy rights are mentioned, but the excerpt does not clearly identify a specific right or how to exercise it."},
   A03:{adequate:/\b(?:do not|don't|will not|won't|may|will|can|cannot|can't|never|use|using)\b.{0,100}\b(?:prompts?|submitted content|uploads?|user content|personal data|training data|model training|train(?:ing)? (?:our|the|AI|language) models|improve our models)\b/i,message:"Training is mentioned, but the policy's position on whether submitted content is used for training is not clear."},
-  B05:{adequate:/\b(?:within \d+ days?|\d+[- ]day|non[- ]refundable|not refundable|refunds? (?:are|will be|may be)|eligible for a refund|refund requests?|return window|final sale|unless|except)\b/i,message:"Refund language was found, but concrete eligibility, timing, or conditions were not identified."}
+  L04:{adequate:/\b(?:within \d+ days?|\d+[- ]day|non[- ]refundable|not refundable|refunds? (?:are|will be|may be)|eligible for a refund|refund requests?|return window|final sale|unless|except)\b/i,message:"A refund link or heading was found, but concrete eligibility, timing, or conditions were not identified."},
+  L05:{adequate:/\b(?:cancel at any time|cancel through|cancel via|cancel in your|cancellation request|before the next billing|before renewal|effective at the end of|email.{0,50}cancel|contact.{0,50}cancel|stop future charges)\b/i,message:"Cancellation is mentioned, but the supporting text does not clearly explain the cancellation method or timing."},
+  P09:{adequate:/\b(?:encrypt(?:ion|ed)|access controls?|multi[- ]factor|two[- ]factor|MFA|pseudonymi[sz]|regular security testing|backups?|least privilege|technical and organizational measures)\b/i,message:"Security is mentioned, but no concrete safeguard was identified in the supporting excerpt."},
+  P10:{adequate:/\b(?:notify|notification|incident response|report.{0,50}(?:breach|incident)|within \\d+ days?|supervisory authority|affected users|regulator)\b/i,message:"Incident or breach language was found, but a response or notification process was not clear."},
+  C05:{adequate:/\b(?:we use|uses|using|powered by|analytics providers include|analytics tools include)\\b.{0,100}\\b(?:analytics|Google Analytics|Plausible|PostHog|Mixpanel|Amplitude)\\b.{0,100}\\b(?:to understand|to measure|to improve|site usage|product usage|performance|traffic|usage patterns|analytics)\\b/i,message:"An analytics provider is mentioned, but its purpose is not clear in the policy text."},
+  C06:{adequate:/\b(?:tracking pixels?|web beacons?|tracking scripts?|tracking technologies|advertising cookies|marketing cookies)\\b.{0,100}\\b(?:measure|advertising|marketing|behavior|behaviour|conversion|analytics|personalize|personalise)\\b/i,message:"Tracking is mentioned, but the technology or purpose is not described clearly enough."},
+  C08:{adequate:/\b(?:necessary|essential) cookies\\b.{0,180}\\b(?:analytics|advertising|marketing|functional|preferences) cookies\\b/i,message:"Cookie categories are mentioned, but the excerpt does not identify more than one meaningful category."},
+  A01:{adequate:/\b(?:we use|uses|powered by|integrates with|sends.{0,40}to)\\b.{0,100}\\b(?:AI|artificial intelligence|AI provider|AI model|generative AI)\\b/i,message:"AI is mentioned, but the policy does not clearly describe actual AI use or provider integration."},
+  B05:{adequate:/\b(?:within \\d+ days?|\\d+[- ]day|non[- ]refundable|not refundable|refunds? (?:are|will be|may be)|eligible for a refund|refund requests?|return window|final sale|unless|except)\b/i,message:"Refund language was found, but concrete eligibility, timing, or conditions were not identified."}
 };
 
 function evidenceQualityIssue(checkId:string,evidence:Evidence[]):string|null {
@@ -153,7 +161,11 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
     // L01 is the sole intentional imperative applicability exception.
     // Its product/legal relevance is a composite predicate that the declarative Rule
     // model intentionally does not approximate with a brittle list of signals.
-    const evidence=(d.category==="Legal"||d.category==="Privacy"||d.category==="Consent"||d.category==="Trust"||d.category==="AI") ? d.evidence(c) : d.evidence(c);
+    // Content-disclosure checks must inspect legal/policy surfaces, not just
+    // product marketing copy or provider scripts. Presence/link checks remain
+    // on the full corpus so visible navigation can still prove discoverability.
+    const policyOnlyEvidenceIds=new Set(["P01","P02","P03","P04","P05","P06","P07","P08","P09","P10","P11","C02","C03","C05","C06","C07","C08","A01","A02","A03","A04","A05","A06","A07","B03","B04","L07","L12","L13"]);
+    const evidence=policyOnlyEvidenceIds.has(d.id) ? d.evidence(policySurface(c)) : d.evidence(c);
     const baseStatus=finalizeRequirement(applicability,evidence,context);
     const qualityIssue=baseStatus==="pass" ? evidenceQualityIssue(d.id,evidence) : null;
     const status=qualityIssue ? "review" : baseStatus;
@@ -163,7 +175,7 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
     else if(status==="pass") explanation="The requirement is applicable and supporting evidence was found. "+d.rationale;
     else if(status==="missing") explanation="The requirement is applicable, crawl coverage was sufficient, and no supporting evidence was found. "+d.rationale;
     else if(status==="review") explanation="The requirement needs human review because the public crawl cannot establish it confidently. "+(qualityIssue ? qualityIssue+" " : "")+d.rationale;
-    return {id:d.id,category:d.category,title:d.title,applicability,status,severity:status==="not_applicable"?"low":d.severity,confidence:confidence(context,evidence),evidence,explanation,reason:explanation,recommendation:d.recommendation};
+    return {id:d.id,category:d.category,title:d.title,applicability,status,severity:status==="not_applicable"?"low":d.severity,confidence:qualityIssue?Math.min(.68,confidence(context,evidence)):confidence(context,evidence),evidence,explanation,reason:explanation,recommendation:d.recommendation};
   });
   return {context,checks};
 }
