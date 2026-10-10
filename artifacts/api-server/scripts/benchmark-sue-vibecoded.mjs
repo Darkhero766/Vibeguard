@@ -135,9 +135,10 @@ async function crawlPolicies(site,runApplicabilityAwareChecks) {
       confidence:Number(x.confidence.toFixed(3)),evidence:x.evidence.slice(0,3).map(e=>({url:e.url,location:e.location,signal:e.signal,excerpt:e.excerpt}))
     }));
     const goldComparison=(site.goldPolicyDocuments??[]).map(g=>{
-      const targetPath=new URL(g.url).pathname;
-      const attempted=fetched.find(x=>{try{return new URL(x.url).pathname===targetPath}catch{return false}});
-      const verified=policyPages.some(x=>{try{return new URL(x.url).pathname===targetPath}catch{return false}});
+      const normalizePath=path=>path.replace(/\\/+$/,"")||"/";
+      const targetPath=normalizePath(new URL(g.url).pathname);
+      const attempted=fetched.find(x=>{try{return normalizePath(new URL(x.url).pathname)===targetPath}catch{return false}});
+      const verified=policyPages.some(x=>{try{return normalizePath(new URL(x.url).pathname)===targetPath}catch{return false}});
       return {type:g.type,url:g.url,expected:"present",source:g.source,crawlResult:verified?"found_and_verified":attempted?.ok?"route_fetched_but_policy_unverified":attempted?"route_attempted_failed":"not_discovered_by_crawl"};
     });
     return {
