@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:sue": "node ./scripts/test-sue-applicability.mjs",
     "benchmark:sue": "node ./scripts/benchmark-sue-accuracy.mjs",
-    "benchmark:sue:live": "node ./scripts/benchmark-sue-live.mjs"
+    "benchmark:sue:live": "node ./scripts/benchmark-sue-live.mjs",
+    "benchmark:sue:policies": "node ./scripts/benchmark-sue-vibecoded.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
