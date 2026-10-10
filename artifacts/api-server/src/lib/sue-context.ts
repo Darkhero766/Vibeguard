@@ -57,7 +57,7 @@ export function combine(...groups:Evidence[][]) {
   return out.slice(0,8);
 }
 
-function isPolicySurface(page:AuditPage) {
+export function isPolicySurface(page:AuditPage) {
   const p=page.url.pathname.toLowerCase();
   if (/(?:^|\/)(terms(?:-and-conditions)?|privacy(?:-policy)?|cookies?|cookie-policy|refunds?|returns?|cancellations?|acceptable-use|aup|legal|disclaimer|dpa|subprocessors?|security-policy)(?:\/|$)/i.test(p)) return true;
 
@@ -71,6 +71,10 @@ function isPolicySurface(page:AuditPage) {
     || /^(?:terms(?: of service)?|privacy(?: policy)?|cookie policy|acceptable use policy|legal disclaimer|refund policy|return policy|security policy)\b/i.test(page.text.trim());
   const legalVocabulary = /\b(?:terms of service|terms and conditions|privacy policy|cookie policy|acceptable use|legal disclaimer|governing law|arbitration|limitation of liability|indemnification|intellectual property|data processing agreement)\b/i.test(sample);
   return titleOrHeading && legalVocabulary;
+}
+
+export function policySurface(c:AuditCorpus):AuditCorpus {
+  return { ...c, pages:c.pages.filter(isPolicySurface) };
 }
 
 function productSurface(c:AuditCorpus):AuditCorpus {
