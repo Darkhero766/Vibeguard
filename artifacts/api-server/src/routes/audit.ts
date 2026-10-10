@@ -402,6 +402,14 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
     candidateScores.set(key,{url:key,score:Math.max(previous?.score??0,3)});
   }
 
+  // Sitemap-only custom legal routes need the same reserved crawl budget.
+  for(const candidate of candidateScores.values()){
+    try{
+      const u=new URL(candidate.url);
+      if(policyPathHint.test(u.pathname.toLowerCase())) policyCandidates.add(u.toString());
+    }catch{}
+  }
+
   const rankedCandidates=[...candidateScores.values()].sort((a,b)=>b.score-a.score);
   const policyRanked=rankedCandidates.filter(x=>policyCandidates.has(x.url)).slice(0,8);
   const productRanked=rankedCandidates.filter(x=>!policyCandidates.has(x.url)).slice(0,Math.max(0,MAX_LINK_PAGES-policyRanked.length));
