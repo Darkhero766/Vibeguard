@@ -99,8 +99,8 @@ function evidenceQualityIssue(checkId:string,evidence:Evidence[]):string|null {
   }
   if(checkId==="T05") {
     const documentEvidence=evidence.filter(e=>e.type!=="link").map(e=>e.excerpt??"").join(" ");
-    const termsFound=/\\b(?:terms of service|terms and conditions|terms of use)\\b/i.test(documentEvidence);
-    const privacyFound=/\\b(?:privacy policy|privacy notice)\\b/i.test(documentEvidence);
+    const termsFound=/\b(?:terms of service|terms and conditions|terms of use)\b/i.test(documentEvidence);
+    const privacyFound=/\b(?:privacy policy|privacy notice)\b/i.test(documentEvidence);
     if(!termsFound||!privacyFound) return "Both Terms and Privacy destinations were not verified as reachable policy documents in the crawl.";
   }
   const rule=evidenceQuality[checkId];
