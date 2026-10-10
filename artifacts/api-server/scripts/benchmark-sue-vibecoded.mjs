@@ -89,7 +89,7 @@ function isVerifiedPolicyDocument(page) {
 }
 
 async function fetchHtml(url,origin) {
-  const response=await fetch(url,{redirect:"follow",signal:AbortSignal.timeout(timeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
+  const response=await fetch(url,{redirect:"follow",signal:AbortSignal.timeout(sitemapTimeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
   if(!samePublicHost(response.url,origin)) return {ok:false,url:response.url,status:response.status,reason:"cross-origin redirect"};
   if(!response.ok) return {ok:false,url:response.url,status:response.status,reason:"HTTP "+response.status};
   const type=response.headers.get("content-type")??"";
@@ -100,7 +100,8 @@ async function fetchHtml(url,origin) {
 }
 async function discoverPolicySitemapUrls(homeUrl) {
   const origin=new URL(homeUrl).origin;
-  const queue=[new URL("/sitemap.xml",homeUrl).toString(),new URL("/sitemap_index.xml",homeUrl).toString(),new URL("/sitemap-index.xml",homeUrl).toString()];
+  const sitemapTimeoutMs=4000;
+  const queue=[new URL("/sitemap.xml",homeUrl).toString(),new URL("/sitemap_index.xml",homeUrl).toString()];
   const queued=new Set(queue),visited=new Set(),found=new Set();
   try {
     const response=await fetch(new URL("/robots.txt",homeUrl),{redirect:"follow",signal:AbortSignal.timeout(timeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
@@ -111,7 +112,7 @@ async function discoverPolicySitemapUrls(homeUrl) {
       }
     }
   }catch{}
-  for(let i=0;i<queue.length&&i<8;i++){
+  for(let i=0;i<queue.length&&i<4;i++){
     const sitemapUrl=queue[i];
     if(visited.has(sitemapUrl))continue;
     visited.add(sitemapUrl);
@@ -123,7 +124,7 @@ async function discoverPolicySitemapUrls(homeUrl) {
         try{
           const u=new URL(m[1].trim(),homeUrl);
           if(!samePublicHost(u.toString(),origin))continue;
-          if(/sitemap(?:[-_][^/]+)?\.xml(?:\.gz)?$/i.test(u.pathname)&&!queued.has(u.toString())&&queue.length<8){queued.add(u.toString());queue.push(u.toString());continue;}
+          if(/sitemap(?:[-_][^/]+)?\.xml(?:\.gz)?$/i.test(u.pathname)&&!queued.has(u.toString())&&queue.length<4){queued.add(u.toString());queue.push(u.toString());continue;}
           if(policyHint.test(u.pathname))found.add(u.toString());
         }catch{}
       }
