@@ -61,6 +61,31 @@ const E={
  T05:(c:AuditCorpus)=>links(c,/terms|privacy/i,"legal_page_link",.94),
 };
 
+
+// Presence is not the same as adequate policy evidence. These focused quality
+// gates keep broad keyword hits from becoming a confident PASS when the public
+// text does not explain the actual practice. They intentionally return REVIEW,
+// not a legal conclusion or a false MISSING, when evidence is too vague.
+const evidenceQuality:Partial<Record<string,{adequate:RegExp;message:string}>>={
+  P01:{adequate:/\\b(?:email|e-mail|name|phone|contact|account|profile|payment|billing|device|usage|location|prompt|upload|IP address|log data|transaction|order|address)\\b/i,message:"The collection language was found, but specific data categories were not clear in the supporting excerpt."},
+  P02:{adequate:/\\b(?:to provide|to operate|to deliver|to process|to secure|to improve|to personalize|to communicate|to support|to fulfil|to fulfill|to prevent|to comply|to respond|to manage|for account|for billing|for security|for service delivery|for customer support)\\b/i,message:"The policy mentions use or processing but does not clearly state a purpose in the supporting excerpt."},
+  P03:{adequate:/\\b(?:\\d+\\s*(?:days?|weeks?|months?|years?)|as long as necessary|for as long as|until (?:you|the)|when (?:you|your account)|delete[\\w ]{0,35}after|retention period of)\\b/i,message:"A retention keyword was found, but no concrete period or retention criterion was identified."},
+  P04:{adequate:/\\b(?:request|email|contact|account settings|settings page|privacy portal|deletion form|support team|delete your account|delete your data|erase your data)\\b/i,message:"Deletion is mentioned, but the supporting text does not clearly identify a usable deletion path or request mechanism."},
+  P05:{adequate:/\\b(?:request|download|export|data portability|privacy portal|contact|email|access request|subject access)\\b/i,message:"Access or export is mentioned, but the supporting text does not clearly identify how a user can exercise it."},
+  P06:{adequate:/\\b(?:share|disclose|transfer|provide)\\b.{0,100}\\b(?:with|to)\\b|\\b(?:service providers include|third parties include|payment processor|analytics provider|Stripe|PayPal|Razorpay|Supabase|Google Analytics|OpenAI|Anthropic)\\b/i,message:"Third-party sharing is mentioned, but the supporting text does not clearly identify recipients or a meaningful recipient category."},
+  P07:{adequate:/\\b(?:subprocessors? include|list of subprocessors?|see (?:our )?subprocessor|subprocessor list|available at https?:|subprocessors? page)\\b/i,message:"Subprocessors are mentioned, but a list or concrete way to identify them was not found."},
+  P11:{adequate:/\\b(?:right to access|right to delete|right to correct|right to rectification|right to object|right to restrict|right to portability|request access|request deletion|exercise your rights)\\b/i,message:"Privacy rights are mentioned, but the excerpt does not clearly identify a specific right or how to exercise it."},
+  A03:{adequate:/\\b(?:do not|don't|will not|won't|may|will|can|cannot|can't|never|use|using)\\b.{0,100}\\b(?:prompts?|submitted content|uploads?|user content|personal data|training data|model training|train(?:ing)? (?:our|the|AI|language) models|improve our models)\\b/i,message:"Training is mentioned, but the policy's position on whether submitted content is used for training is not clear."},
+  B05:{adequate:/\\b(?:within \\d+ days?|\\d+[- ]day|non[- ]refundable|not refundable|refunds? (?:are|will be|may be)|eligible for a refund|refund requests?|return window|final sale|unless|except)\\b/i,message:"Refund language was found, but concrete eligibility, timing, or conditions were not identified."}
+};
+
+function evidenceQualityIssue(checkId:string,evidence:Evidence[]):string|null {
+  const rule=evidenceQuality[checkId];
+  if(!rule||!evidence.length) return null;
+  const excerpts=evidence.map(e=>e.excerpt??"").join(" ");
+  return rule.adequate.test(excerpts) ? null : rule.message;
+}
+
 const defs:Def[]=[
 D("L01","Legal","Terms of Service","high",{productTypes:["saas","ecommerce","marketplace","ai_product","developer_tool","community","service_business"],anySignals:["authentication","paidService","userGeneratedContent"]},E.L01,"Publish a visible Terms of Service link.","Terms are relevant to this product surface."),
 D("L02","Legal","Privacy Policy","high",{anySignals:["personalDataCollection","authentication","analytics","tracking","marketingCollection","ecommerce"]},E.L02,"Add a clear Privacy Policy describing the data practices detected.","Personal-data processing signals were detected."),
@@ -129,13 +154,15 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
     // Its product/legal relevance is a composite predicate that the declarative Rule
     // model intentionally does not approximate with a brittle list of signals.
     const evidence=(d.category==="Legal"||d.category==="Privacy"||d.category==="Consent"||d.category==="Trust"||d.category==="AI") ? d.evidence(c) : d.evidence(c);
-    const status=finalizeRequirement(applicability,evidence,context);
+    const baseStatus=finalizeRequirement(applicability,evidence,context);
+    const qualityIssue=baseStatus==="pass" ? evidenceQualityIssue(d.id,evidence) : null;
+    const status=qualityIssue ? "review" : baseStatus;
     let explanation=d.rationale;
     if(applicability==="not_applicable") explanation="Not applicable based on the observed product context: "+context.productTypes.join(", ")+".";
     else if(applicability==="unknown") explanation="Applicability could not be established confidently because crawl/runtime coverage is limited. Observed context: "+context.productTypes.join(", ")+".";
     else if(status==="pass") explanation="The requirement is applicable and supporting evidence was found. "+d.rationale;
     else if(status==="missing") explanation="The requirement is applicable, crawl coverage was sufficient, and no supporting evidence was found. "+d.rationale;
-    else if(status==="review") explanation="The requirement needs human review because the public crawl cannot establish it confidently. "+d.rationale;
+    else if(status==="review") explanation="The requirement needs human review because the public crawl cannot establish it confidently. "+(qualityIssue ? qualityIssue+" " : "")+d.rationale;
     return {id:d.id,category:d.category,title:d.title,applicability,status,severity:status==="not_applicable"?"low":d.severity,confidence:confidence(context,evidence),evidence,explanation,reason:explanation,recommendation:d.recommendation};
   });
   return {context,checks};
