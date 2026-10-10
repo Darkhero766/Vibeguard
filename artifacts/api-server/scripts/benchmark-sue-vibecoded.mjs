@@ -30,11 +30,11 @@ const sites = [
 ];
 
 const commonPolicyPaths=[
-  "/terms","/terms-of-service","/terms-of-use","/terms-and-conditions",
-  "/privacy","/privacy-policy","/privacy-notice","/data-protection",
-  "/cookies","/cookie-policy","/refund-policy","/returns",
-  "/cancellation-policy","/legal","/legal/terms","/legal/privacy",
-  "/ai-policy","/subprocessors"
+  "/terms","/privacy","/terms-of-service","/privacy-policy",
+  "/cookies","/refund-policy","/cancellation-policy","/legal",
+  "/terms-of-use","/terms-and-conditions","/privacy-notice","/data-protection",
+  "/cookie-policy","/acceptable-use","/security","/data-processing",
+  "/subprocessors","/en/terms","/en/privacy"
 ];
 const policyHint=/(?:terms|privacy|cookie|refund|return|cancel|legal|acceptable|disclaimer|security|dpa|subprocessor|data-protection|ai-policy|policy)/i;
 const policyDocumentHint=/\b(?:terms of service|terms of use|terms and conditions|privacy policy|privacy notice|cookie policy|refund policy|cancellation policy|acceptable use policy|data processing agreement|legal disclaimer|security policy|legal notice)\b/i;
