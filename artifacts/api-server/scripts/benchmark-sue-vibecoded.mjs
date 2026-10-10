@@ -83,7 +83,8 @@ async function fetchHtml(url,origin) {
   if(!response.ok) return {ok:false,url:response.url,status:response.status,reason:"HTTP "+response.status};
   const type=response.headers.get("content-type")??"";
   if(type&&!/text\/html|application\/xhtml\+xml/i.test(type)) return {ok:false,url:response.url,status:response.status,reason:"non-HTML content"};
-  const bytes=await response.arrayBuffer();\n  const html=new TextDecoder().decode(bytes.slice(0,maxHtmlBytes));
+  const bytes=await response.arrayBuffer();
+  const html=new TextDecoder().decode(bytes.slice(0,maxHtmlBytes));
   return {ok:true,url:response.url,status:response.status,html,headers:new Headers(response.headers)};
 }
 async function crawlPolicies(site,runApplicabilityAwareChecks) {
