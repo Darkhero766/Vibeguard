@@ -73,9 +73,13 @@ function makePage(url,html,headers,isHome=false) {
   const structuredData=[...html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)].map(m=>m[1]).join(" ").slice(0,50000);
   return {url:new URL(url),html,text:stripHtml(html),links:links.map(l=>({text:l.text,href:l.url})),scripts,forms,inputs,metadata,structuredData,headers,isHome};
 }
+function samePublicHost(a,b) {
+  const normalize=host=>host.toLowerCase().replace(/^www\\./,"");
+  try { return normalize(new URL(a).hostname)===normalize(new URL(b).hostname); } catch { return false; }
+}
 async function fetchHtml(url,origin) {
   const response=await fetch(url,{redirect:"follow",signal:AbortSignal.timeout(timeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
-  if(new URL(response.url).origin!==origin) return {ok:false,url:response.url,status:response.status,reason:"cross-origin redirect"};
+  if(!samePublicHost(response.url,origin)) return {ok:false,url:response.url,status:response.status,reason:"cross-origin redirect"};
   if(!response.ok) return {ok:false,url:response.url,status:response.status,reason:"HTTP "+response.status};
   const type=response.headers.get("content-type")??"";
   if(type&&!/text\/html|application\/xhtml\+xml/i.test(type)) return {ok:false,url:response.url,status:response.status,reason:"non-HTML content"};
