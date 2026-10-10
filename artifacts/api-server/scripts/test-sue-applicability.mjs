@@ -169,6 +169,7 @@ try {
   assert.equal(by(shop,"B01").applicability,"applicable");
   assert.equal(by(shop,"B05").applicability,"applicable");
   assert.equal(by(shop,"B06").applicability,"applicable");
+  assert.notEqual(by(shop,"B06").status,"pass","A payment SDK script must not count as a payment-provider disclosure in policy text.");
   assert.equal(by(shop,"L04").applicability,"applicable");
   assert.equal(by(shop,"L05").status,"not_applicable");
   assert.equal(by(shop,"P08").status,"not_applicable","One-time ecommerce should not trigger a DPA finding merely because it is commercial");
@@ -192,6 +193,7 @@ try {
     <form><input type="text" name="prompt" placeholder="Enter a prompt"><button>Generate</button></form>
     <a href="/pricing">Pricing</a><a href="/login">Login</a></body></html>`);
   assert.equal(by(ai,"A01").applicability,"applicable");
+  assert.equal(by(ai,"A01").status,"missing","AI product marketing copy must not count as an AI-use policy disclosure.");
   assert.equal(by(ai,"A04").applicability,"applicable");
   assert.equal(by(ai,"A07").applicability,"applicable");
 
