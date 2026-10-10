@@ -75,11 +75,11 @@ export function isPolicySurface(page:AuditPage) {
 
 export function isVerifiedPolicySurface(page:AuditPage):boolean {
   if(!isPolicySurface(page)) return false;
-  const sample=`${page.text} ${page.metadata} ${page.structuredData}`.replace(/\\s+/g," ").trim();
-  const headingOrTitle=/<(?:title|h1|h2)\\b[^>]*>[^<]*(?:terms?|privacy|cookies?|refund|returns?|cancellation|acceptable use|legal|disclaimer|security policy|data processing agreement)[^<]*<\\/(?:title|h1|h2)>/i.test(page.html)
-    || /^(?:terms(?: of service| and conditions| of use)?|privacy(?: policy| notice)?|cookie policy|refund policy|return policy|cancellation policy|acceptable use policy|legal disclaimer|security policy)\\b/i.test(page.text.trim());
-  const policyContent=page.text.length>=160 && /\\b(?:terms of service|terms and conditions|terms of use|privacy policy|privacy notice|cookie policy|refund policy|cancellation policy|acceptable use policy|data processing agreement|governing law|limitation of liability|indemnification|personal data|information we collect|we collect|retention period|subprocessors?)\\b/i.test(sample);
-  return policyContent && (headingOrTitle || page.text.length>=500 && /\\b(?:governing law|limitation of liability|indemnification|personal data|information we collect|retention period|subprocessors?)\\b/i.test(sample));
+  const sample=`${page.text} ${page.metadata} ${page.structuredData}`.replace(/\s+/g," ").trim();
+  const headingOrTitle=/<(?:title|h1|h2)\b[^>]*>[^<]*(?:terms?|privacy|cookies?|refund|returns?|cancellation|acceptable use|legal|disclaimer|security policy|data processing agreement)[^<]*<\/(?:title|h1|h2)>/i.test(page.html)
+    || /^(?:terms(?: of service| and conditions| of use)?|privacy(?: policy| notice)?|cookie policy|refund policy|return policy|cancellation policy|acceptable use policy|legal disclaimer|security policy)\b/i.test(page.text.trim());
+  const policyContent=page.text.length>=160 && /\b(?:terms of service|terms and conditions|terms of use|privacy policy|privacy notice|cookie policy|refund policy|cancellation policy|acceptable use policy|data processing agreement|governing law|limitation of liability|indemnification|personal data|information we collect|we collect|retention period|subprocessors?)\b/i.test(sample);
+  return policyContent && (headingOrTitle || page.text.length>=500 && /\b(?:governing law|limitation of liability|indemnification|personal data|information we collect|retention period|subprocessors?)\b/i.test(sample));
 }
 
 export function policySurface(c:AuditCorpus):AuditCorpus {
