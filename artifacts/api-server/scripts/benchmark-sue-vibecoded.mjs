@@ -74,7 +74,7 @@ function makePage(url,html,headers,isHome=false) {
   return {url:new URL(url),html,text:stripHtml(html),links:links.map(l=>({text:l.text,href:l.url})),scripts,forms,inputs,metadata,structuredData,headers,isHome};
 }
 function samePublicHost(a,b) {
-  const normalize=host=>host.toLowerCase().replace(/^www\\./,"");
+  const normalize=host=>host.toLowerCase().replace(/^www\./,"");
   try { return normalize(new URL(a).hostname)===normalize(new URL(b).hostname); } catch { return false; }
 }
 async function fetchHtml(url,origin) {
