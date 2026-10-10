@@ -75,13 +75,19 @@ export function isPolicySurface(page:AuditPage) {
 
 export function isVerifiedPolicySurface(page:AuditPage):boolean {
   if(!isPolicySurface(page)) return false;
-  const sample=`${page.text} ${page.metadata} ${page.structuredData}`.replace(/\s+/g," ").trim();
-  const headingOrTitle=/<(?:title|h1|h2)\b[^>]*>[^<]*(?:terms?|privacy|cookies?|refund|returns?|cancellation|acceptable use|legal|disclaimer|security policy|data processing agreement)[^<]*<\/(?:title|h1|h2)>/i.test(page.html)
-    || /^(?:terms(?: of service| and conditions| of use)?|privacy(?: policy| notice)?|cookie policy|refund policy|return policy|cancellation policy|acceptable use policy|legal disclaimer|security policy)\b/i.test(page.text.trim());
-  const policyContent=page.text.length>=80 && /\b(?:terms of service|terms and conditions|terms of use|privacy policy|privacy notice|cookie policy|refund policy|cancellation policy|acceptable use policy|data processing agreement|governing law|limitation of liability|indemnification|personal data|information we collect|we collect|retention period|subprocessors?)\b/i.test(sample);
-  return policyContent && (headingOrTitle || page.text.length>=500 && /\b(?:governing law|limitation of liability|indemnification|personal data|information we collect|retention period|subprocessors?)\b/i.test(sample));
+  // Strip <head>, scripts and styles before checking content. SPA fallback pages
+  // often return a legal-looking title for every route while the visible body is
+  // still the product homepage; metadata alone must never verify a policy.
+  const bodyHtml=page.html.replace(/<head[\\s\\S]*?<\\/head>/gi," ")
+    .replace(/<script[\\s\\S]*?<\\/script>/gi," ")
+    .replace(/<style[\\s\\S]*?<\\/style>/gi," ");
+  const bodyText=bodyHtml.replace(/<[^>]+>/g," ").replace(/\\s+/g," ").trim();
+  const visibleHeading=/<h[12]\\b[^>]*>[^<]*(?:terms?|privacy|cookies?|refund|returns?|cancellation|acceptable use|legal|disclaimer|security policy|data processing agreement)[^<]*<\\/h[12]>/i.test(bodyHtml);
+  const bodyStartsLegal=/^(?:terms(?: of service| and conditions| of use)?|privacy(?: policy| notice)?|cookie policy|refund policy|return policy|cancellation policy|acceptable use policy|legal disclaimer|security policy)\\b/i.test(bodyText);
+  const legalContent=/\\b(?:terms of service govern|terms and conditions govern|you agree to|governing law|limitation of liability|indemnification|we collect|information we collect|data we collect|how we use|personal data|personal information|processing purposes|retention period|subprocessors?|service providers|data controller|data processor|cookie categories|refunds? (?:are|will be|may be)|cancellation instructions)\\b/i.test(bodyText);
+  const enoughBody=bodyText.length>=80;
+  return enoughBody && legalContent && (visibleHeading || bodyStartsLegal || bodyText.length>=500);
 }
-
 export function policySurface(c:AuditCorpus):AuditCorpus {
   // Only verified policy content may satisfy disclosure checks. Path-like legal
   // routes with generic SPA shells remain excluded from product classification,
