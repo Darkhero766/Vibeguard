@@ -61,7 +61,7 @@ try {
     pages:[
       page("https://example.test/",`<html><body><h1>Acme Cloud</h1><p>Project management SaaS.</p><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/pricing">Pricing</a><button>Sign up</button></body></html>`),
       page("https://example.test/terms",`<html><body><h1>Terms of Service</h1><p>These Terms of Service govern use of Acme Cloud.</p><p>Governing law and limitation of liability apply.</p></body></html>`,{home:false}),
-      page("https://example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect names, email addresses, account identifiers and usage logs. We use account data to provide the service, secure accounts and process payments.</p><p>We retain account activity logs for 30 days, then delete them. Users can request account deletion by emailing privacy@example.test. Users can request access to or export of their data by emailing privacy@example.test. We share data with payment processors and analytics providers.</p></body></html>`,{home:false}),
+      page("https://example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect names, email addresses, account identifiers and usage logs. We explain how we use account data to provide the service, secure accounts and process payments.</p><p>We retain account activity logs for 30 days, then delete them. Users can request account deletion by emailing privacy@example.test. Users can request data access or export their data by emailing privacy@example.test. We disclose data to payment processors and analytics providers.</p></body></html>`,{home:false}),
     ],
     origin:"https://example.test"
   };
