@@ -387,7 +387,7 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   // Also reserve custom legal routes discovered in the real navigation/sitemap,
   // not only the common fallback paths. Otherwise a custom Terms/Privacy URL
   // can be pushed out by ordinary product links when the crawl budget is tight.
-  const policyPathHint=/(?:^|\\/)(?:terms?|terms-of-service|terms-of-use|privacy|privacy-policy|privacy-notice|cookies?|cookie-policy|refunds?|refund-policy|returns?|return-policy|cancellations?|cancellation-policy|legal|disclaimer|acceptable-use|aup|security-policy|dpa|subprocessors?|data-protection|ai-policy|ai-terms)(?:$|[\\/_-])/i;
+  const policyPathHint=/(?:^|\/)(?:terms?|terms-of-service|terms-of-use|privacy|privacy-policy|privacy-notice|cookies?|cookie-policy|refunds?|refund-policy|returns?|return-policy|cancellations?|cancellation-policy|legal|disclaimer|acceptable-use|aup|security-policy|dpa|subprocessors?|data-protection|ai-policy|ai-terms)(?:$|[\/_-])/i;
   for(const candidate of candidateScores.values()){
     try{
       const u=new URL(candidate.url);
