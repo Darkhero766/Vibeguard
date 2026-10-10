@@ -61,7 +61,7 @@ try {
     pages:[
       page("https://example.test/",`<html><body><h1>Acme Cloud</h1><p>Project management SaaS.</p><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/pricing">Pricing</a><button>Sign up</button></body></html>`),
       page("https://example.test/terms",`<html><body><h1>Terms of Service</h1><p>These Terms of Service govern use of Acme Cloud.</p><p>Governing law and limitation of liability apply.</p></body></html>`,{home:false}),
-      page("https://example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect names, email addresses, account identifiers and usage logs. We explain how we use account data to provide the service, secure accounts and process payments.</p><p>We retain account activity logs for 30 days, then delete them. Users can request account deletion by emailing privacy@example.test. Users can request data access or export their data by emailing privacy@example.test. We disclose data to payment processors and analytics providers.</p></body></html>`,{home:false}),
+      page("https://example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect names, email addresses, account identifiers and usage logs. We explain how we use account data to provide the service, secure accounts and process payments.</p><p>We retain account activity logs for 30 days, then delete them. Users can request account deletion by emailing privacy@example.test. Users can request data access or export their data by emailing privacy@example.test. We disclose data to third-party payment processors and analytics providers.</p></body></html>`,{home:false}),
     ],
     origin:"https://example.test"
   };
@@ -78,7 +78,7 @@ try {
   const vaguePrivacy = {
     pages:[
       page("https://vague.example.test/","<html><body><h1>Vague Cloud</h1><p>Team workspace for users.</p><a href=\"/login\">Log in</a><form><input type=\"email\" name=\"email\"><input type=\"password\" name=\"password\"></form></body></html>"),
-      page("https://vague.example.test/privacy","<html><body><h1>Privacy Policy</h1><p>We collect personal information and use data. Retention is important. Delete data. Privacy rights apply.</p></body></html>",{home:false})
+      page("https://vague.example.test/privacy","<html><body><h1>Privacy Policy</h1><p>We collect personal information. We explain how we use your data. Retention is important. Delete data. Privacy rights apply.</p></body></html>",{home:false})
     ],
     origin:"https://vague.example.test"
   };
@@ -303,7 +303,7 @@ try {
   assert.equal(by(jsHeavy,"C05").status,"review","Low-visibility analytics checks should be review, not missing");
   assert.equal(by(jsHeavy,"A01").status,"review","Low-visibility AI checks should be review, not missing");
 
-  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,legalPageOnly,searchOnly,jsHeavy})) {
+  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,legalPageOnly,searchOnly,jsHeavy,vagueChecks})) {
     assert.equal(checks.length,50,`${name}: every scenario must evaluate all 50 checks`);
     for (const check of checks) {
       assert.ok(["applicable","not_applicable","unknown"].includes(check.applicability),`${name}/${check.id}: invalid applicability`);
@@ -314,7 +314,7 @@ try {
   }
 
   console.log("SUE applicability regression suite: PASS");
-  console.log("Scenarios: 13 | Checks per scenario: 50 | Total evaluations: 650");
+  console.log("Scenarios: 14 | Checks per scenario: 50 | Total evaluations: 700.");
   console.log("Validated: portfolio, blog, ecommerce, SaaS, AI product, AI mention-only, analytics, no-tracking, free SaaS, VibeSane-like SaaS, legal-page contamination, generic search input, JS-heavy coverage.");
 } finally {
   await rm(dir,{recursive:true,force:true});
