@@ -89,7 +89,7 @@ function isVerifiedPolicyDocument(page) {
 }
 
 async function fetchHtml(url,origin) {
-  const response=await fetch(url,{redirect:"follow",signal:AbortSignal.timeout(sitemapTimeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
+  const response=await fetch(url,{redirect:"follow",signal:AbortSignal.timeout(timeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
   if(!samePublicHost(response.url,origin)) return {ok:false,url:response.url,status:response.status,reason:"cross-origin redirect"};
   if(!response.ok) return {ok:false,url:response.url,status:response.status,reason:"HTTP "+response.status};
   const type=response.headers.get("content-type")??"";
@@ -104,7 +104,7 @@ async function discoverPolicySitemapUrls(homeUrl) {
   const queue=[new URL("/sitemap.xml",homeUrl).toString(),new URL("/sitemap_index.xml",homeUrl).toString()];
   const queued=new Set(queue),visited=new Set(),found=new Set();
   try {
-    const response=await fetch(new URL("/robots.txt",homeUrl),{redirect:"follow",signal:AbortSignal.timeout(timeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
+    const response=await fetch(new URL("/robots.txt",homeUrl),{redirect:"follow",signal:AbortSignal.timeout(sitemapTimeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
     if(response.ok&&samePublicHost(response.url,origin)){
       const robots=(await response.text()).slice(0,200000);
       for(const m of robots.matchAll(/^\s*sitemap:\s*(https?:\/\/\S+)/gim)){
@@ -117,7 +117,7 @@ async function discoverPolicySitemapUrls(homeUrl) {
     if(visited.has(sitemapUrl))continue;
     visited.add(sitemapUrl);
     try{
-      const response=await fetch(sitemapUrl,{redirect:"follow",signal:AbortSignal.timeout(timeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
+      const response=await fetch(sitemapUrl,{redirect:"follow",signal:AbortSignal.timeout(sitemapTimeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
       if(!response.ok||!samePublicHost(response.url,origin))continue;
       const xml=(await response.text()).slice(0,800000);
       for(const m of xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)){
