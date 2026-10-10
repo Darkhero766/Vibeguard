@@ -53,7 +53,7 @@ const E={
  B03:(c:AuditCorpus)=>text(policySurface(c),/auto[- ]?renew|automatically renew|renews automatically|recurring (?:charge|billing|payment)/i,"auto_renewal_disclosure",.96),
  B04:(c:AuditCorpus)=>combine(links(c,/cancel|cancellation/i,"cancellation_route",.9),text(policySurface(c),/cancel (?:your )?(?:subscription|plan|account)|cancellation instructions/i,"cancellation_flow",.94)),
  B05:(c:AuditCorpus)=>E.L04(c),
- B06:(c:AuditCorpus)=>text(policySurface(c),/payment provider|payment processor|payments? (?:are )?(?:processed|handled) by|Stripe|PayPal|Razorpay|Adyen|Checkout\.com|Paddle|Lemon Squeezy|Shopify Payments/i,"payment_provider_disclosure",.94),
+ B06:(c:AuditCorpus)=>text(policySurface(c),/payment provider|payment processor|payments? (?:are )?(?:processed|handled) by|(?:Stripe|PayPal|Razorpay|Adyen|Checkout\.com|Paddle|Lemon Squeezy|Shopify Payments).{0,60}(?:payment|checkout|billing)|(?:payment|checkout|billing).{0,60}(?:Stripe|PayPal|Razorpay|Adyen|Paddle|Lemon Squeezy|Shopify Payments)/i,"payment_provider_disclosure",.94),
  T01:(c:AuditCorpus)=>c.pages.some(p=>p.url.protocol==="https:")?[{type:"page",url:c.pages[0]?.url.toString(),location:"final URL",excerpt:"The audited URL was served over HTTPS.",signal:"https",confidence:.99}]:[],
  T02:(c:AuditCorpus)=>combine(text(c,/security@|security contact|report (?:a )?vulnerability|responsible disclosure|security policy/i,"security_contact",.94),links(c,/security|vulnerability|responsible disclosure/i,"security_link",.92)),
  T03:(c:AuditCorpus)=>text(c,/accessibility|WCAG|screen reader|keyboard navigation|aria-/i,"accessibility_signal",.88),
