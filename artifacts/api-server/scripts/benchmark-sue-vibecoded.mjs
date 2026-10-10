@@ -9,18 +9,18 @@ import { dirname, join } from "node:path";
 const sites = [
   {name:"Challenge Brew",url:"https://challengebrew.com/",group:"vibecoded",source:"https://madewithlovable.com/projects/challenge-brew"},
   {name:"PodPrime.ai",url:"https://podprime.ai/",group:"vibecoded",source:"https://madewithlovable.com/projects/podprimeai"},
-  {name:"KraflIO",url:"https://kraflio.com/",group:"vibecoded",source:"https://madewithlovable.com/projects/kraflio"},
+  {name:"KraflIO",url:"https://kraflio.com/",group:"vibecoded",source:"https://madewithlovable.com/projects/kraflio",goldPolicyDocuments:[{type:"terms",url:"https://kraflio.com/terms",source:"https://kraflio.com/terms"},{type:"privacy",url:"https://kraflio.com/privacy",source:"https://kraflio.com/privacy"}]},
   {name:"Real Property Planning",url:"https://realpropertyplanning.com/",group:"vibecoded",source:"https://madewithlovable.com/projects/real-property-planning"},
-  {name:"GradLoom",url:"https://gradloom.app/",group:"vibecoded",source:"https://madewithlovable.com/projects/gradloom"},
+  {name:"GradLoom",url:"https://gradloom.app/",group:"vibecoded",source:"https://madewithlovable.com/projects/gradloom",goldPolicyDocuments:[{type:"privacy",url:"https://gradloom.app/privacy",source:"https://gradloom.app/privacy"},{type:"security",url:"https://gradloom.app/security",source:"https://gradloom.app/security"},{type:"acceptable_use",url:"https://gradloom.app/acceptable-use",source:"https://gradloom.app/acceptable-use"},{type:"data_processing",url:"https://gradloom.app/data-processing",source:"https://gradloom.app/data-processing"},{type:"subprocessors",url:"https://gradloom.app/subprocessors",source:"https://gradloom.app/subprocessors"}]},
   {name:"Consile",url:"https://consile.app/",group:"vibecoded",source:"https://madewithlovable.com/projects/consile"},
   {name:"Hi-AI",url:"https://www.hi-ai.live/",group:"vibecoded",source:"https://madewithlovable.com/projects/hi-ai"},
-  {name:"Kalyvox",url:"https://kalyvox.ai/",group:"vibecoded",source:"https://madewithlovable.com/projects/kalyvox"},
+  {name:"Kalyvox",url:"https://kalyvox.ai/",group:"vibecoded",source:"https://madewithlovable.com/projects/kalyvox",goldPolicyDocuments:[{type:"terms",url:"https://kalyvox.ai/en/terms",source:"https://kalyvox.ai/en/terms"},{type:"privacy",url:"https://kalyvox.ai/en/privacy",source:"https://kalyvox.ai/en/privacy"}]},
   {name:"GiftGenie",url:"https://mygiftgenie.io/",group:"vibecoded",source:"https://madewithlovable.com/projects/giftgenie"},
   {name:"AprenderGratis English App",url:"https://ingles.aprendergratis.es/",group:"vibecoded",source:"https://madewithlovable.com/projects/aprendergratis-english-learning-app-duolingo-style"},
   {name:"DomainSpark",url:"https://domainspark.fyi/",group:"vibecoded",source:"https://madewithlovable.com/projects/domain-name-search-tool"},
   {name:"PathPilot",url:"https://pathpilot.pro/",group:"vibecoded",source:"https://madewithlovable.com/projects/pathpilot-your-smart-and-personalized-ai-powered-career-copilot"},
   {name:"Smart UnRetirement",url:"https://smart-unretirement-hero.lovable.app/",group:"vibecoded",source:"https://madewithlovable.com/projects/empower-every-generation-to-thrive-with-ai"},
-  {name:"Ideafy",url:"https://ideafy-project.lovable.app/",group:"vibecoded",source:"https://madewithlovable.com/projects/ideafy"},
+  {name:"Ideafy",url:"https://ideafy.dev/",group:"vibecoded",source:"https://madewithlovable.com/projects/ideafy",goldPolicyDocuments:[{type:"privacy",url:"https://ideafy.dev/privacy",source:"https://ideafy.dev/privacy"}]},
   {name:"Read It!",url:"https://readit.lovable.app/",group:"vibecoded",source:"https://madewithlovable.com/projects/read-it"},
   {name:"Lookitup AI",url:"https://lookitup-ai.lovable.app/",group:"vibecoded",source:"https://madewithlovable.com/projects/lookitup"},
   {name:"Stripe Billing",url:"https://stripe.com/billing",group:"control"},
@@ -92,7 +92,7 @@ async function crawlPolicies(site,runApplicabilityAwareChecks) {
   const start=new URL(site.url);
   try {
     const homeResult=await fetchHtml(start.toString(),start.origin);
-    if(!homeResult.ok) return {name:site.name,url:site.url,group:site.group,source:site.source,reachable:false,error:homeResult.reason,httpStatus:homeResult.status};
+    if(!homeResult.ok) return {name:site.name,url:site.url,group:site.group,source:site.source,reachable:false,error:homeResult.reason,httpStatus:homeResult.status,goldLabelStatus:site.goldPolicyDocuments?"manual_policy_document_presence":"pending_manual_review",goldPolicyDocuments:site.goldPolicyDocuments??[],goldComparison:(site.goldPolicyDocuments??[]).map(g=>({type:g.type,url:g.url,expected:"present",crawlResult:"not_evaluable_site_unreachable",source:g.source}))};
     const home=makePage(homeResult.url,homeResult.html,homeResult.headers,true);
     const candidates=[];
     const seen=new Set([home.url.toString()]);
@@ -134,6 +134,12 @@ async function crawlPolicies(site,runApplicabilityAwareChecks) {
       id:x.id,title:x.title,applicability:x.applicability,status:x.status,explanation:x.explanation,recommendation:x.recommendation,
       confidence:Number(x.confidence.toFixed(3)),evidence:x.evidence.slice(0,3).map(e=>({url:e.url,location:e.location,signal:e.signal,excerpt:e.excerpt}))
     }));
+    const goldComparison=(site.goldPolicyDocuments??[]).map(g=>{
+      const targetPath=new URL(g.url).pathname;
+      const attempted=fetched.find(x=>{try{return new URL(x.url).pathname===targetPath}catch{return false}});
+      const verified=policyPages.some(x=>{try{return new URL(x.url).pathname===targetPath}catch{return false}});
+      return {type:g.type,url:g.url,expected:"present",source:g.source,crawlResult:verified?"found_and_verified":attempted?.ok?"route_fetched_but_policy_unverified":attempted?"route_attempted_failed":"not_discovered_by_crawl"};
+    });
     return {
       name:site.name,url:site.url,group:site.group,source:site.source??null,reachable:true,httpStatus:homeResult.status,
       finalUrl:home.url.toString(),elapsedMs:Date.now()-started,
@@ -143,8 +149,10 @@ async function crawlPolicies(site,runApplicabilityAwareChecks) {
       context:{productTypes:context.productTypes,commercialModel:context.commercialModel,confidence:Number(context.confidence.toFixed(3)),coverage:context.coverage,
         signals:Object.fromEntries(["pricing","checkout","payments","authentication","personalDataCollection","analytics","cookies","tracking","ai","aiDataProcessing","subscription","ecommerce","commercialActivity"].map(k=>[k,context.signals[k]]))},
       policyPages,checks:selectedChecks,
-      goldLabelStatus:"pending_manual_review",
-      manualReviewNeeded:["Confirm actual product behaviour and which requirements apply.","Read each reachable policy in context; mark each selected check PASS/REVIEW/MISSING/N/A against a human-reviewed baseline.","Record whether any missing page was actually unavailable, blocked, or simply not discovered."]
+      goldPolicyDocuments:site.goldPolicyDocuments??[],
+      goldComparison,
+      goldLabelStatus:site.goldPolicyDocuments?"manual_policy_document_presence":"pending_manual_review",
+      manualReviewNeeded:["Confirm actual product behaviour and which requirements apply.","For gold-labeled sites, verify whether each known policy document was discovered by the crawler; presence labels do not imply legal adequacy.","For every other site, read reachable policies in context and mark each selected check PASS/REVIEW/MISSING/N/A against a human-reviewed baseline.","Record whether an unverified route was actually unavailable, blocked, or simply not discovered."]
     };
   } catch(error) {
     return {name:site.name,url:site.url,group:site.group,source:site.source??null,reachable:false,error:error instanceof Error?error.message:String(error),elapsedMs:Date.now()-started};
@@ -177,7 +185,7 @@ try {
       avgPagesFetched:reachable.length?Number((reachable.reduce((n,x)=>n+x.crawl.pagesFetched,0)/reachable.length).toFixed(2)):0,
       checkStatuses:Object.fromEntries(["pass","review","missing","not_applicable"].map(status=>[status,reachable.reduce((n,x)=>n+x.checks.filter(c=>c.status===status).length,0)]))
     },
-    limitations:["Builder attribution comes from public project-directory listings and may not reflect the current hosting stack.","Static HTML fetching cannot execute client-side JavaScript; sparse shells must not be interpreted as proof that policies or features are absent.","Expected statuses are deliberately not fabricated. The report requires manual labels before precision/recall can be claimed.","A discovered phrase is evidence for review, not a legal conclusion."],
+    limitations:["Builder attribution comes from public project-directory listings and may not reflect the current hosting stack.","Static HTML fetching cannot execute client-side JavaScript; sparse shells must not be interpreted as proof that policies or features are absent.","Policy-document presence is manually labeled only for the explicitly listed gold documents; other sites still need manual review before precision/recall can be claimed.","A discovered phrase is evidence for review, not a legal conclusion."],
     results
   };
   const reportPath=process.env.SUE_POLICY_REPORT_PATH;
