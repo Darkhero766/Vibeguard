@@ -173,6 +173,7 @@ try {
   const reachable=results.filter(x=>x.reachable);
   const vibecoded=reachable.filter(x=>x.group==="vibecoded");
   const controls=reachable.filter(x=>x.group==="control");
+  const goldDocs=results.flatMap(x=>x.goldComparison??[]);
   const report={
     generatedAt:new Date().toISOString(),
     title:"SUE Vibecoded Policy Benchmark",
@@ -183,6 +184,8 @@ try {
       policyPageDiscoverySites:reachable.filter(x=>x.crawl.policyPagesDetected>0).length,
       linkedPolicyCandidateSites:reachable.filter(x=>x.crawl.linkedPolicyCandidates>0).length,
       avgPagesFetched:reachable.length?Number((reachable.reduce((n,x)=>n+x.crawl.pagesFetched,0)/reachable.length).toFixed(2)):0,
+      manuallyLabeledPolicyDocuments:goldDocs.length,
+      goldDocumentDiscovery:Object.fromEntries(["found_and_verified","route_fetched_but_policy_unverified","route_attempted_failed","not_discovered_by_crawl","not_evaluable_site_unreachable"].map(state=>[state,goldDocs.filter(g=>g.crawlResult===state).length])),
       checkStatuses:Object.fromEntries(["pass","review","missing","not_applicable"].map(status=>[status,reachable.reduce((n,x)=>n+x.checks.filter(c=>c.status===status).length,0)]))
     },
     limitations:["Builder attribution comes from public project-directory listings and may not reflect the current hosting stack.","Static HTML fetching cannot execute client-side JavaScript; sparse shells must not be interpreted as proof that policies or features are absent.","Policy-document presence is manually labeled only for the explicitly listed gold documents; other sites still need manual review before precision/recall can be claimed.","A discovered phrase is evidence for review, not a legal conclusion."],
