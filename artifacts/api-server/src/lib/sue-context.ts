@@ -57,7 +57,7 @@ export function combine(...groups:Evidence[][]) {
   return out.slice(0,8);
 }
 
-function isPolicySurface(page:AuditPage) {
+export function isPolicySurface(page:AuditPage) {
   const p=page.url.pathname.toLowerCase();
   if (/(?:^|\/)(terms(?:-and-conditions)?|privacy(?:-policy)?|cookies?|cookie-policy|refunds?|returns?|cancellations?|acceptable-use|aup|legal|disclaimer|dpa|subprocessors?|security-policy)(?:\/|$)/i.test(p)) return true;
 
@@ -71,6 +71,28 @@ function isPolicySurface(page:AuditPage) {
     || /^(?:terms(?: of service)?|privacy(?: policy)?|cookie policy|acceptable use policy|legal disclaimer|refund policy|return policy|security policy)\b/i.test(page.text.trim());
   const legalVocabulary = /\b(?:terms of service|terms and conditions|privacy policy|cookie policy|acceptable use|legal disclaimer|governing law|arbitration|limitation of liability|indemnification|intellectual property|data processing agreement)\b/i.test(sample);
   return titleOrHeading && legalVocabulary;
+}
+
+export function isVerifiedPolicySurface(page:AuditPage):boolean {
+  if(!isPolicySurface(page)) return false;
+  // Strip <head>, scripts and styles before checking content. SPA fallback pages
+  // often return a legal-looking title for every route while the visible body is
+  // still the product homepage; metadata alone must never verify a policy.
+  const bodyHtml=page.html.replace(/<head[\s\S]*?<\/head>/gi," ")
+    .replace(/<script[\s\S]*?<\/script>/gi," ")
+    .replace(/<style[\s\S]*?<\/style>/gi," ");
+  const bodyText=bodyHtml.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+  const visibleHeading=/<h[12]\b[^>]*>[^<]*(?:terms?|privacy|cookies?|refund|returns?|cancellation|acceptable use|legal|disclaimer|security policy|data processing agreement)[^<]*<\/h[12]>/i.test(bodyHtml);
+  const bodyStartsLegal=/^(?:terms(?: of service| and conditions| of use)?|privacy(?: policy| notice)?|cookie policy|refund policy|return policy|cancellation policy|acceptable use policy|legal disclaimer|security policy)\b/i.test(bodyText);
+  const legalContent=/\b(?:terms of service govern|terms and conditions govern|you agree to|governing law|limitation of liability|indemnification|we collect|information we collect|data we collect|how we use|personal data|personal information|processing purposes|retention period|subprocessors?|service providers|data controller|data processor|cookie categories|refunds? (?:are|will be|may be)|cancellation instructions)\b/i.test(bodyText);
+  const enoughBody=bodyText.length>=80;
+  return enoughBody && legalContent && (visibleHeading || bodyStartsLegal || bodyText.length>=500);
+}
+export function policySurface(c:AuditCorpus):AuditCorpus {
+  // Only verified policy content may satisfy disclosure checks. Path-like legal
+  // routes with generic SPA shells remain excluded from product classification,
+  // but they do not count as policy evidence.
+  return { ...c, pages:c.pages.filter(isVerifiedPolicySurface) };
 }
 
 function productSurface(c:AuditCorpus):AuditCorpus {
@@ -213,7 +235,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
     text(surface,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
   );
   set("paidService",combine(payment,checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid|starting at/i,"paid_service_text",.78)));
-  set("highImpactAI",text(surface,/\b(?:AI|model|algorithm|automated)\b.{0,100}\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|eligibility decision|fraud decision)\b|\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|eligibility decision|fraud decision)\b.{0,100}\b(?:AI|model|algorithm|automated)\b/i,"high_impact_ai_context",.93));
+  set("highImpactAI",text(surface,/\b(?:AI|model|algorithm|automated)\b.{0,100}\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|creditworthiness|loan eligibility|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|risk scores?|eligibility decision|fraud decision)\b|\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|eligibility decision|fraud decision)\b.{0,100}\b(?:AI|model|algorithm|automated)\b/i,"high_impact_ai_context",.93));
   set("dataCommercialization",combine(
     text(surface,/\b(?:sell|share|monetize|monetisation|monetization)\b.{0,100}\b(?:personal|user|customer)\s+(?:data|information)\b/i,"data_commercialization",.92),
     text(surface,/targeted advertising|behavioral advertising|interest[- ]based advertising/i,"targeted_advertising",.88)

@@ -61,7 +61,7 @@ try {
     pages:[
       page("https://example.test/",`<html><body><h1>Acme Cloud</h1><p>Project management SaaS.</p><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/pricing">Pricing</a><button>Sign up</button></body></html>`),
       page("https://example.test/terms",`<html><body><h1>Terms of Service</h1><p>These Terms of Service govern use of Acme Cloud.</p><p>Governing law and limitation of liability apply.</p></body></html>`,{home:false}),
-      page("https://example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect personal information and explain how we use your data.</p><p>We retain data, explain how long we keep it, provide account deletion and data access/export rights, and disclose service providers.</p></body></html>`,{home:false}),
+      page("https://example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect names, email addresses, account identifiers and usage logs. We explain how we use account data to provide the service, secure accounts and process payments.</p><p>We retain account activity logs for 30 days, then delete them. Users can request account deletion by emailing privacy@example.test. Users can request data access or export their data by emailing privacy@example.test. We disclose data to third-party payment processors and analytics providers.</p></body></html>`,{home:false}),
     ],
     origin:"https://example.test"
   };
@@ -74,6 +74,32 @@ try {
   assert.equal(by(policyChecks,"P04").status,"pass","Crawled Privacy page must satisfy deletion evidence.");
   assert.equal(by(policyChecks,"P05").status,"pass","Crawled Privacy page must satisfy access/export evidence.");
   assert.equal(by(policyChecks,"P06").status,"pass","Crawled Privacy page must satisfy third-party sharing evidence.");
+
+  const vaguePrivacy = {
+    pages:[
+      page("https://vague.example.test/","<html><body><h1>Vague Cloud</h1><p>Team workspace for users.</p><a href=\"/login\">Log in</a><form><input type=\"email\" name=\"email\"><input type=\"password\" name=\"password\"></form></body></html>"),
+      page("https://vague.example.test/privacy","<html><body><h1>Privacy Policy</h1><p>We collect personal information. We explain how we use your data. Retention is important. Delete data. Privacy rights apply.</p></body></html>",{home:false})
+    ],
+    origin:"https://vague.example.test"
+  };
+  const vagueChecks=runApplicabilityAwareChecks(vaguePrivacy).checks;
+  assert.equal(by(vagueChecks,"P01").status,"review","Generic collection language must not count as an adequate data-category disclosure.");
+  assert.equal(by(vagueChecks,"P02").status,"review","Generic use language must not count as an adequate purpose disclosure.");
+  assert.equal(by(vagueChecks,"P03").status,"review","A generic retention mention must not count as a retention period or criterion.");
+  assert.equal(by(vagueChecks,"P01").applicability,"applicable");
+  assert.equal(by(vagueChecks,"P03").applicability,"applicable");
+
+  const policyShell = {
+    pages:[
+      page("https://shell.example.test/","<html><body><h1>Acme Cloud</h1><p>Team workspace for customers.</p><a href=\"/terms\">Terms</a><a href=\"/privacy\">Privacy Policy</a><a href=\"/login\">Log in</a><form><input type=\"email\" name=\"email\"><input type=\"password\" name=\"password\"></form></body></html>"),
+      page("https://shell.example.test/terms","<html><head><title>Acme Cloud</title></head><body><div id=\"root\">Loading application...</div></body></html>",{home:false})
+    ],
+    origin:"https://shell.example.test"
+  };
+  const policyShellChecks=runApplicabilityAwareChecks(policyShell).checks;
+  assert.equal(by(policyShellChecks,"L01").status,"review","A generic SPA shell at /terms is not a verified Terms document.");
+  assert.equal(by(policyShellChecks,"P01").status,"review","An unverified policy route should surface REVIEW rather than false MISSING.");
+  assert.equal(by(policyShellChecks,"T05").status,"review","A generic policy route must not satisfy legal-page reachability.");
 
   const ordinarySaas = run(`
     <html><body><h1>Acme Cloud</h1>
@@ -155,6 +181,7 @@ try {
   assert.equal(by(shop,"B01").applicability,"applicable");
   assert.equal(by(shop,"B05").applicability,"applicable");
   assert.equal(by(shop,"B06").applicability,"applicable");
+  assert.notEqual(by(shop,"B06").status,"pass","A payment SDK script must not count as a payment-provider disclosure in policy text.");
   assert.equal(by(shop,"L04").applicability,"applicable");
   assert.equal(by(shop,"L05").status,"not_applicable");
   assert.equal(by(shop,"P08").status,"not_applicable","One-time ecommerce should not trigger a DPA finding merely because it is commercial");
@@ -178,6 +205,7 @@ try {
     <form><input type="text" name="prompt" placeholder="Enter a prompt"><button>Generate</button></form>
     <a href="/pricing">Pricing</a><a href="/login">Login</a></body></html>`);
   assert.equal(by(ai,"A01").applicability,"applicable");
+  assert.notEqual(by(ai,"A01").status,"pass","AI product marketing copy must not count as an AI-use policy disclosure.");
   assert.equal(by(ai,"A04").applicability,"applicable");
   assert.equal(by(ai,"A07").applicability,"applicable");
 
@@ -230,6 +258,9 @@ try {
     <button>Sign up</button><button>Sign in</button>
     </body></html>`);
   assert.equal(by(vibeSaneLike,"L01").applicability,"applicable","Account-based SaaS should make Terms applicable");
+  assert.equal(by(vibeSaneLike,"L01").status,"review","A Terms link without a crawled destination must not count as a verified policy.");
+  assert.equal(by(vibeSaneLike,"L02").status,"review","A Privacy link without a crawled destination must not count as a verified policy.");
+  assert.equal(by(vibeSaneLike,"T05").status,"review","Legal-page reachability must be verified from fetched policy documents, not links alone.");
   assert.equal(by(vibeSaneLike,"P01").applicability,"applicable","Account creation makes privacy applicable");
   assert.equal(by(vibeSaneLike,"C05").status,"not_applicable","No analytics signal should not become review");
   assert.equal(by(vibeSaneLike,"C06").status,"not_applicable","No tracking signal should not become review");
@@ -289,7 +320,7 @@ try {
   assert.equal(by(jsHeavy,"C05").status,"review","Low-visibility analytics checks should be review, not missing");
   assert.equal(by(jsHeavy,"A01").status,"review","Low-visibility AI checks should be review, not missing");
 
-  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,legalPageOnly,searchOnly,jsHeavy})) {
+  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,legalPageOnly,searchOnly,jsHeavy,vagueChecks,policyShellChecks})) {
     assert.equal(checks.length,50,`${name}: every scenario must evaluate all 50 checks`);
     for (const check of checks) {
       assert.ok(["applicable","not_applicable","unknown"].includes(check.applicability),`${name}/${check.id}: invalid applicability`);
@@ -300,7 +331,7 @@ try {
   }
 
   console.log("SUE applicability regression suite: PASS");
-  console.log("Scenarios: 13 | Checks per scenario: 50 | Total evaluations: 650");
+  console.log("Scenarios: 15 | Checks per scenario: 50 | Total evaluations: 750.");
   console.log("Validated: portfolio, blog, ecommerce, SaaS, AI product, AI mention-only, analytics, no-tracking, free SaaS, VibeSane-like SaaS, legal-page contamination, generic search input, JS-heavy coverage.");
 } finally {
   await rm(dir,{recursive:true,force:true});
