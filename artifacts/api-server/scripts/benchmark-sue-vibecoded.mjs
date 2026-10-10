@@ -77,6 +77,17 @@ function samePublicHost(a,b) {
   const normalize=host=>host.toLowerCase().replace(/^www\./,"");
   try { return normalize(new URL(a).hostname)===normalize(new URL(b).hostname); } catch { return false; }
 }
+function isVerifiedPolicyDocument(page) {
+  const bodyHtml=page.html.replace(/<head[\s\S]*?<\/head>/gi," ")
+    .replace(/<script[\s\S]*?<\/script>/gi," ")
+    .replace(/<style[\s\S]*?<\/style>/gi," ");
+  const bodyText=stripHtml(bodyHtml);
+  const visibleHeading=/<h[12]\b[^>]*>[^<]*(?:terms?|privacy|cookies?|refund|returns?|cancellation|acceptable use|legal|disclaimer|security policy|data processing agreement)[^<]*<\/h[12]>/i.test(bodyHtml);
+  const bodyStartsLegal=/^(?:terms(?: of service| and conditions| of use)?|privacy(?: policy| notice)?|cookie policy|refund policy|return policy|cancellation policy|acceptable use policy|legal disclaimer|security policy)\b/i.test(bodyText);
+  const legalContent=/\b(?:terms of service govern|terms and conditions govern|you agree to|governing law|limitation of liability|indemnification|we collect|information we collect|data we collect|how we use|personal data|personal information|processing purposes|retention period|subprocessors?|service providers|data controller|data processor|cookie categories|refunds? (?:are|will be|may be)|cancellation instructions)\b/i.test(bodyText);
+  return bodyText.length>=80 && legalContent && (visibleHeading || bodyStartsLegal || bodyText.length>=500);
+}
+
 async function fetchHtml(url,origin) {
   const response=await fetch(url,{redirect:"follow",signal:AbortSignal.timeout(timeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
   if(!samePublicHost(response.url,origin)) return {ok:false,url:response.url,status:response.status,reason:"cross-origin redirect"};
@@ -117,7 +128,7 @@ async function crawlPolicies(site,runApplicabilityAwareChecks) {
         const result=await fetchHtml(candidate.url,home.url.origin);
         if(!result.ok) return {...candidate,ok:false,status:result.status,reason:result.reason};
         const page=makePage(result.url,result.html,result.headers,false);
-        const isPolicy=policyDocumentHint.test(page.text);
+        const isPolicy=isVerifiedPolicyDocument(page);
         return {...candidate,ok:true,status:result.status,page,isPolicy,policyHeading:page.text.slice(0,220)};
       } catch(error) {
         return {...candidate,ok:false,reason:error instanceof Error?error.message:String(error)};
@@ -126,7 +137,7 @@ async function crawlPolicies(site,runApplicabilityAwareChecks) {
     const pages=[home,...fetched.filter(x=>x.ok&&x.page).map(x=>x.page)];
     const {context,checks}=runApplicabilityAwareChecks({pages,origin:home.url.origin});
     const policyPages=fetched.filter(x=>x.ok&&x.page&&x.isPolicy).map(x=>({
-      url:x.page.url.toString(),discovery:x.source,policyTextDetected:policyDocumentHint.test(x.page.text),
+      url:x.page.url.toString(),discovery:x.source,policyTextDetected:isVerifiedPolicyDocument(x.page),
       textLength:x.page.text.length,excerpt:x.page.text.slice(0,280)
     }));
     const policyLinks=home.links.filter(l=>policyHint.test(l.text+" "+l.href)).map(l=>({text:l.text,url:l.href})).slice(0,30);
