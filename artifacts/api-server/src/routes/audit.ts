@@ -362,17 +362,21 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   // a public HTML page. This lets SUE verify a real Terms/Privacy page without
   // treating legal vocabulary as product-feature evidence.
   const commonPolicyPaths=[
-    "/terms","/terms-of-service","/terms-of-use","/terms-and-conditions","/terms-and-conditions-of-use",
+    // Keep the first eight fallbacks diverse: legal terms, privacy, cookies,
+    // refunds, cancellation, acceptable use, security, and data-processing.
+    "/terms","/privacy","/terms-of-service","/privacy-policy",
+    "/cookies","/refund-policy","/cancellation-policy","/legal",
+    "/terms-of-use","/terms-and-conditions","/terms-and-conditions-of-use",
     "/terms.html","/terms-of-service.html","/terms-and-conditions.html",
-    "/privacy","/privacy-policy","/privacy-notice","/privacy.html","/privacy-policy.html",
-    "/data-privacy","/data-protection","/data-protection-policy",
-    "/cookies","/cookie-policy","/cookies-policy","/cookie-notice",
-    "/refund","/refunds","/refund-policy","/refunds-and-cancellations","/returns","/return-policy",
-    "/cancellation","/cancellation-policy","/cancellation-and-refunds",
-    "/acceptable-use","/acceptable-use-policy","/aup","/legal","/legal/terms","/legal/privacy",
+    "/privacy-notice","/privacy.html","/privacy-policy.html","/data-privacy",
+    "/data-protection","/data-protection-policy","/cookie-policy","/cookies-policy",
+    "/cookie-notice","/refund","/refunds","/refunds-and-cancellations","/returns",
+    "/return-policy","/cancellation","/cancellation-and-refunds",
+    "/acceptable-use","/acceptable-use-policy","/aup","/legal/terms","/legal/privacy",
     "/legal/terms-of-service","/legal/privacy-policy","/policies/terms-of-service","/policies/privacy-policy",
-    "/disclaimer","/security","/security-policy","/dpa","/subprocessors","/subprocessor-list",
-    "/ai-policy","/ai-terms","/trust"
+    "/disclaimer","/security","/security-policy","/data-processing","/dpa",
+    "/subprocessors","/subprocessor-list","/ai-policy","/ai-terms","/trust",
+    "/en/terms","/en/privacy","/en/terms-of-service","/en/privacy-policy"
   ];
   const policyCandidates=new Set<string>();
   for(const path of commonPolicyPaths){
