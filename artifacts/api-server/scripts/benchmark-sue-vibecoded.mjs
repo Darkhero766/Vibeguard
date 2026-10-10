@@ -37,7 +37,7 @@ const commonPolicyPaths=[
   "/ai-policy","/subprocessors"
 ];
 const policyHint=/(?:terms|privacy|cookie|refund|return|cancel|legal|acceptable|disclaimer|security|dpa|subprocessor|data-protection|ai-policy|policy)/i;
-const policyDocumentHint=/\b(?:terms of service|terms and conditions|privacy policy|privacy notice|cookie policy|refund policy|acceptable use policy|data processing agreement|legal disclaimer)\b/i;
+const policyDocumentHint=/\b(?:terms of service|terms of use|terms and conditions|privacy policy|privacy notice|cookie policy|refund policy|cancellation policy|acceptable use policy|data processing agreement|legal disclaimer|security policy|legal notice)\b/i;
 const checkIds=["L01","L02","L03","L04","L05","P01","P02","P03","P04","P05","P06","P07","P08","P09","P11","C01","C05","A01","A02","A03","A04","B02","B03","B04","B05","T05"];
 const timeoutMs=9000;
 const maxHtmlBytes=1_500_000;
@@ -79,10 +79,10 @@ async function fetchHtml(url,origin) {
   if(!response.ok) return {ok:false,url:response.url,status:response.status,reason:"HTTP "+response.status};
   const type=response.headers.get("content-type")??"";
   if(type&&!/text\/html|application\/xhtml\+xml/i.test(type)) return {ok:false,url:response.url,status:response.status,reason:"non-HTML content"};
-  const html=(await response.text()).slice(0,maxHtmlBytes);
+  const bytes=await response.arrayBuffer();\n  const html=new TextDecoder().decode(bytes.slice(0,maxHtmlBytes));
   return {ok:true,url:response.url,status:response.status,html,headers:new Headers(response.headers)};
 }
-async function crawlPolicies(site) {
+async function crawlPolicies(site,runApplicabilityAwareChecks) {
   const started=Date.now();
   const start=new URL(site.url);
   try {
@@ -112,7 +112,7 @@ async function crawlPolicies(site) {
         const result=await fetchHtml(candidate.url,home.url.origin);
         if(!result.ok) return {...candidate,ok:false,status:result.status,reason:result.reason};
         const page=makePage(result.url,result.html,result.headers,false);
-        const isPolicy=policyDocumentHint.test(page.text)||policyHint.test(new URL(page.url).pathname);
+        const isPolicy=policyDocumentHint.test(page.text);
         return {...candidate,ok:true,status:result.status,page,isPolicy,policyHeading:page.text.slice(0,220)};
       } catch(error) {
         return {...candidate,ok:false,reason:error instanceof Error?error.message:String(error)};
@@ -154,7 +154,7 @@ try {
   const results=[];
   // A small concurrency cap avoids sending a burst of requests to one host.
   for(let i=0;i<sites.length;i+=4) {
-    const batch=await Promise.all(sites.slice(i,i+4).map(site=>crawlPolicies(site)));
+    const batch=await Promise.all(sites.slice(i,i+4).map(site=>crawlPolicies(site,runApplicabilityAwareChecks)));
     results.push(...batch);
   }
   const reachable=results.filter(x=>x.reachable);
