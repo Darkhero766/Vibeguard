@@ -1,5 +1,5 @@
 import { AuditCorpus, AuditCheck, Evidence, ProductContext, Rule, Severity, evaluateApplicability, finalizeRequirement, confidence, legalApplicable } from "./sue-applicability";
-import { text, links, scripts, combine, policySurface } from "./sue-context";
+import { text, links, scripts, combine, policySurface, isPolicySurface, isVerifiedPolicySurface } from "./sue-context";
 
 type Def = {
   id:string; category:string; title:string; severity:Severity; rule:Rule;
@@ -181,7 +181,12 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
     const policyOnlyEvidenceIds=new Set(["P01","P02","P03","P04","P05","P06","P07","P08","P09","P10","P11","C02","C03","C05","C06","C07","C08","A01","A02","A03","A04","A05","A06","A07","B03","L07","L12","L13"]);
     const evidence=policyOnlyEvidenceIds.has(d.id) ? d.evidence(policySurface(c)) : d.evidence(c);
     const baseStatus=finalizeRequirement(applicability,evidence,context);
-    const qualityIssue=baseStatus==="pass" ? evidenceQualityIssue(d.id,evidence) : null;
+    const unverifiedPolicyRoute=c.pages.some(p=>isPolicySurface(p)&&!isVerifiedPolicySurface(p));
+    const policyContentCheckIds=new Set(["L01","L02","L03","L04","L05","L06","P01","P02","P03","P04","P05","P06","P07","P08","P09","P10","P11","C02","C03","C05","C06","C07","C08","A01","A02","A03","A04","A05","A06","A07","B03","B04","B05","B06","L07","L12","L13","T05"]);
+    const unverifiedRouteIssue=baseStatus==="missing"&&unverifiedPolicyRoute&&policyContentCheckIds.has(d.id)
+      ? "A policy-like route was crawled, but its content could not be verified; review the destination before treating this as missing."
+      : null;
+    const qualityIssue=baseStatus==="pass" ? evidenceQualityIssue(d.id,evidence) : unverifiedRouteIssue;
     const status=qualityIssue ? "review" : baseStatus;
     let explanation=d.rationale;
     if(applicability==="not_applicable") explanation="Not applicable based on the observed product context: "+context.productTypes.join(", ")+".";
