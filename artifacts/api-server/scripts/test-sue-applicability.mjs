@@ -246,6 +246,9 @@ try {
     <button>Sign up</button><button>Sign in</button>
     </body></html>`);
   assert.equal(by(vibeSaneLike,"L01").applicability,"applicable","Account-based SaaS should make Terms applicable");
+  assert.equal(by(vibeSaneLike,"L01").status,"review","A Terms link without a crawled destination must not count as a verified policy.");
+  assert.equal(by(vibeSaneLike,"L02").status,"review","A Privacy link without a crawled destination must not count as a verified policy.");
+  assert.equal(by(vibeSaneLike,"T05").status,"review","Legal-page reachability must be verified from fetched policy documents, not links alone.");
   assert.equal(by(vibeSaneLike,"P01").applicability,"applicable","Account creation makes privacy applicable");
   assert.equal(by(vibeSaneLike,"C05").status,"not_applicable","No analytics signal should not become review");
   assert.equal(by(vibeSaneLike,"C06").status,"not_applicable","No tracking signal should not become review");
