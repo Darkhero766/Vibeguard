@@ -61,7 +61,7 @@ try {
     pages:[
       page("https://example.test/",`<html><body><h1>Acme Cloud</h1><p>Project management SaaS.</p><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/pricing">Pricing</a><button>Sign up</button></body></html>`),
       page("https://example.test/terms",`<html><body><h1>Terms of Service</h1><p>These Terms of Service govern use of Acme Cloud.</p><p>Governing law and limitation of liability apply.</p></body></html>`,{home:false}),
-      page("https://example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect personal information and explain how we use your data.</p><p>We retain data, explain how long we keep it, provide account deletion and data access/export rights, and disclose service providers.</p></body></html>`,{home:false}),
+      page("https://example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect names, email addresses, account identifiers and usage logs. We use account data to provide the service, secure accounts and process payments.</p><p>We retain account activity logs for 30 days, then delete them. Users can request account deletion by emailing privacy@example.test. Users can request access to or export of their data by emailing privacy@example.test. We share data with payment processors and analytics providers.</p></body></html>`,{home:false}),
     ],
     origin:"https://example.test"
   };
@@ -74,6 +74,20 @@ try {
   assert.equal(by(policyChecks,"P04").status,"pass","Crawled Privacy page must satisfy deletion evidence.");
   assert.equal(by(policyChecks,"P05").status,"pass","Crawled Privacy page must satisfy access/export evidence.");
   assert.equal(by(policyChecks,"P06").status,"pass","Crawled Privacy page must satisfy third-party sharing evidence.");
+
+  const vaguePrivacy = {
+    pages:[
+      page("https://vague.example.test/","<html><body><h1>Vague Cloud</h1><p>Team workspace for users.</p><a href=\"/login\">Log in</a><form><input type=\"email\" name=\"email\"><input type=\"password\" name=\"password\"></form></body></html>"),
+      page("https://vague.example.test/privacy","<html><body><h1>Privacy Policy</h1><p>We collect personal information and use data. Retention is important. Delete data. Privacy rights apply.</p></body></html>",{home:false})
+    ],
+    origin:"https://vague.example.test"
+  };
+  const vagueChecks=runApplicabilityAwareChecks(vaguePrivacy).checks;
+  assert.equal(by(vagueChecks,"P01").status,"review","Generic collection language must not count as an adequate data-category disclosure.");
+  assert.equal(by(vagueChecks,"P02").status,"review","Generic use language must not count as an adequate purpose disclosure.");
+  assert.equal(by(vagueChecks,"P03").status,"review","A generic retention mention must not count as a retention period or criterion.");
+  assert.equal(by(vagueChecks,"P01").applicability,"applicable");
+  assert.equal(by(vagueChecks,"P03").applicability,"applicable");
 
   const ordinarySaas = run(`
     <html><body><h1>Acme Cloud</h1>
