@@ -135,7 +135,7 @@ async function crawlPolicies(site,runApplicabilityAwareChecks) {
       confidence:Number(x.confidence.toFixed(3)),evidence:x.evidence.slice(0,3).map(e=>({url:e.url,location:e.location,signal:e.signal,excerpt:e.excerpt}))
     }));
     const goldComparison=(site.goldPolicyDocuments??[]).map(g=>{
-      const normalizePath=path=>path.replace(/\\/+$/,"")||"/";
+      const normalizePath=path=>path.replace(/\/+$/,"")||"/";
       const targetPath=normalizePath(new URL(g.url).pathname);
       const attempted=fetched.find(x=>{try{return normalizePath(new URL(x.url).pathname)===targetPath}catch{return false}});
       const verified=policyPages.some(x=>{try{return normalizePath(new URL(x.url).pathname)===targetPath}catch{return false}});
