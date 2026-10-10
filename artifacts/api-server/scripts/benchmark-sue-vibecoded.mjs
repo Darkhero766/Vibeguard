@@ -98,6 +98,40 @@ async function fetchHtml(url,origin) {
   const html=new TextDecoder().decode(bytes.slice(0,maxHtmlBytes));
   return {ok:true,url:response.url,status:response.status,html,headers:new Headers(response.headers)};
 }
+async function discoverPolicySitemapUrls(homeUrl) {
+  const origin=new URL(homeUrl).origin;
+  const queue=[new URL("/sitemap.xml",homeUrl).toString(),new URL("/sitemap_index.xml",homeUrl).toString(),new URL("/sitemap-index.xml",homeUrl).toString()];
+  const queued=new Set(queue),visited=new Set(),found=new Set();
+  try {
+    const response=await fetch(new URL("/robots.txt",homeUrl),{redirect:"follow",signal:AbortSignal.timeout(timeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
+    if(response.ok&&samePublicHost(response.url,origin)){
+      const robots=(await response.text()).slice(0,200000);
+      for(const m of robots.matchAll(/^\s*sitemap:\s*(https?:\/\/\S+)/gim)){
+        try{const u=new URL(m[1]);if(samePublicHost(u.toString(),origin)&&!queued.has(u.toString())){queued.add(u.toString());queue.push(u.toString());}}catch{}
+      }
+    }
+  }catch{}
+  for(let i=0;i<queue.length&&i<8;i++){
+    const sitemapUrl=queue[i];
+    if(visited.has(sitemapUrl))continue;
+    visited.add(sitemapUrl);
+    try{
+      const response=await fetch(sitemapUrl,{redirect:"follow",signal:AbortSignal.timeout(timeoutMs),headers:{"user-agent":"VibeSane-SUE-Policy-Benchmark/1.0"}});
+      if(!response.ok||!samePublicHost(response.url,origin))continue;
+      const xml=(await response.text()).slice(0,800000);
+      for(const m of xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)){
+        try{
+          const u=new URL(m[1].trim(),homeUrl);
+          if(!samePublicHost(u.toString(),origin))continue;
+          if(/sitemap(?:[-_][^/]+)?\.xml(?:\.gz)?$/i.test(u.pathname)&&!queued.has(u.toString())&&queue.length<8){queued.add(u.toString());queue.push(u.toString());continue;}
+          if(policyHint.test(u.pathname))found.add(u.toString());
+        }catch{}
+      }
+    }catch{}
+  }
+  return [...found].slice(0,40);
+}
+
 async function crawlPolicies(site,runApplicabilityAwareChecks) {
   const started=Date.now();
   const start=new URL(site.url);
@@ -116,6 +150,13 @@ async function crawlPolicies(site,runApplicabilityAwareChecks) {
         if(seen.has(u.toString())) continue;
         seen.add(u.toString()); candidates.push({url:u.toString(),source:"linked",label:link.text});
       } catch {}
+    }
+    // Sitemaps can expose localized/custom legal routes absent from the
+    // client-rendered homepage footer; prioritize those before guessed routes.
+    const sitemapPolicyUrls=await discoverPolicySitemapUrls(home.url.toString());
+    for(const url of sitemapPolicyUrls){
+      if(seen.has(url)) continue;
+      seen.add(url); candidates.push({url,source:"sitemap",label:new URL(url).pathname});
     }
     for(const path of commonPolicyPaths){
       const u=new URL(path,home.url);
