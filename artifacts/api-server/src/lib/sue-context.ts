@@ -78,13 +78,13 @@ export function isVerifiedPolicySurface(page:AuditPage):boolean {
   // Strip <head>, scripts and styles before checking content. SPA fallback pages
   // often return a legal-looking title for every route while the visible body is
   // still the product homepage; metadata alone must never verify a policy.
-  const bodyHtml=page.html.replace(/<head[\\s\\S]*?<\\/head>/gi," ")
-    .replace(/<script[\\s\\S]*?<\\/script>/gi," ")
-    .replace(/<style[\\s\\S]*?<\\/style>/gi," ");
-  const bodyText=bodyHtml.replace(/<[^>]+>/g," ").replace(/\\s+/g," ").trim();
-  const visibleHeading=/<h[12]\\b[^>]*>[^<]*(?:terms?|privacy|cookies?|refund|returns?|cancellation|acceptable use|legal|disclaimer|security policy|data processing agreement)[^<]*<\\/h[12]>/i.test(bodyHtml);
-  const bodyStartsLegal=/^(?:terms(?: of service| and conditions| of use)?|privacy(?: policy| notice)?|cookie policy|refund policy|return policy|cancellation policy|acceptable use policy|legal disclaimer|security policy)\\b/i.test(bodyText);
-  const legalContent=/\\b(?:terms of service govern|terms and conditions govern|you agree to|governing law|limitation of liability|indemnification|we collect|information we collect|data we collect|how we use|personal data|personal information|processing purposes|retention period|subprocessors?|service providers|data controller|data processor|cookie categories|refunds? (?:are|will be|may be)|cancellation instructions)\\b/i.test(bodyText);
+  const bodyHtml=page.html.replace(/<head[\s\S]*?<\/head>/gi," ")
+    .replace(/<script[\s\S]*?<\/script>/gi," ")
+    .replace(/<style[\s\S]*?<\/style>/gi," ");
+  const bodyText=bodyHtml.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+  const visibleHeading=/<h[12]\b[^>]*>[^<]*(?:terms?|privacy|cookies?|refund|returns?|cancellation|acceptable use|legal|disclaimer|security policy|data processing agreement)[^<]*<\/h[12]>/i.test(bodyHtml);
+  const bodyStartsLegal=/^(?:terms(?: of service| and conditions| of use)?|privacy(?: policy| notice)?|cookie policy|refund policy|return policy|cancellation policy|acceptable use policy|legal disclaimer|security policy)\b/i.test(bodyText);
+  const legalContent=/\b(?:terms of service govern|terms and conditions govern|you agree to|governing law|limitation of liability|indemnification|we collect|information we collect|data we collect|how we use|personal data|personal information|processing purposes|retention period|subprocessors?|service providers|data controller|data processor|cookie categories|refunds? (?:are|will be|may be)|cancellation instructions)\b/i.test(bodyText);
   const enoughBody=bodyText.length>=80;
   return enoughBody && legalContent && (visibleHeading || bodyStartsLegal || bodyText.length>=500);
 }
