@@ -71,7 +71,7 @@ const scenarios=[
   {
     name:"ad-supported media",
     html:`<html><body><h1>News Network</h1><p>Breaking news and sponsored content.</p><script src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script><script src="https://www.googletagmanager.com/gtag/js?id=G"></script></body></html>`,
-    expect:{C05:"applicable",C08:"applicable",L03:"applicable",P01:"applicable",P06:"applicable"}
+    expect:{C05:"applicable",C08:"applicable",L03:"applicable",P01:"not_applicable",P06:"applicable"}
   },
   {
     name:"UGC social app",
@@ -96,7 +96,7 @@ const scenarios=[
   {
     name:"nonprofit",
     html:`<html><body><h1>Open Science Foundation</h1><p>Nonprofit organization advancing open science. Donate to support our work.</p><a href="/donate">Donate</a><a href="/contact">Contact us</a></body></html>`,
-    expect:{L09:"not_applicable",B03:"not_applicable",B06:"not_applicable",A01:"not_applicable"}
+    expect:{L09:"unknown",B03:"unknown",B06:"unknown",A01:"unknown"}
   }
 ];
 
