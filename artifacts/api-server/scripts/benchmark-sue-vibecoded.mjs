@@ -126,7 +126,7 @@ async function crawlPolicies(site,runApplicabilityAwareChecks) {
     }));
     const policyLinks=home.links.filter(l=>policyHint.test(l.text+" "+l.href)).map(l=>({text:l.text,url:l.href})).slice(0,30);
     const selectedChecks=checks.filter(x=>checkIds.includes(x.id)).map(x=>({
-      id:x.id,title:x.title,applicability:x.applicability,status:x.status,
+      id:x.id,title:x.title,applicability:x.applicability,status:x.status,explanation:x.explanation,recommendation:x.recommendation,
       confidence:Number(x.confidence.toFixed(3)),evidence:x.evidence.slice(0,3).map(e=>({url:e.url,location:e.location,signal:e.signal,excerpt:e.excerpt}))
     }));
     return {
