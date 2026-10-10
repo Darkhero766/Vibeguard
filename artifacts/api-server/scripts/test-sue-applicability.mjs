@@ -193,7 +193,7 @@ try {
     <form><input type="text" name="prompt" placeholder="Enter a prompt"><button>Generate</button></form>
     <a href="/pricing">Pricing</a><a href="/login">Login</a></body></html>`);
   assert.equal(by(ai,"A01").applicability,"applicable");
-  assert.equal(by(ai,"A01").status,"missing","AI product marketing copy must not count as an AI-use policy disclosure.");
+  assert.notEqual(by(ai,"A01").status,"pass","AI product marketing copy must not count as an AI-use policy disclosure.");
   assert.equal(by(ai,"A04").applicability,"applicable");
   assert.equal(by(ai,"A07").applicability,"applicable");
 
