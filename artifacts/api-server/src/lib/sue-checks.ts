@@ -58,7 +58,7 @@ const E={
  T02:(c:AuditCorpus)=>combine(text(c,/security@|security contact|report (?:a )?vulnerability|responsible disclosure|security policy/i,"security_contact",.94),links(c,/security|vulnerability|responsible disclosure/i,"security_link",.92)),
  T03:(c:AuditCorpus)=>text(c,/accessibility|WCAG|screen reader|keyboard navigation|aria-/i,"accessibility_signal",.88),
  T04:(c:AuditCorpus)=>{const h=c.pages.find(p=>p.isHome)??c.pages[0];return h&&/footer/i.test(h.html)&&/terms/i.test(h.html)&&/privacy/i.test(h.html)?[{type:"page",url:h.url.toString(),location:"footer",excerpt:"Terms and Privacy links appear in the same footer surface.",signal:"legal_footer_group",confidence:.92}]:[];},
- T05:(c:AuditCorpus)=>links(c,/terms|privacy/i,"legal_page_link",.94),
+ T05:(c:AuditCorpus)=>combine(links(c,/terms|privacy/i,"legal_page_link",.94),text(policySurface(c),/terms of service|terms and conditions|terms of use|privacy policy|privacy notice/i,"legal_page_content",.94)),
 };
 
 
@@ -88,9 +88,23 @@ const evidenceQuality:Partial<Record<string,{adequate:RegExp;message:string}>>={
 };
 
 function evidenceQualityIssue(checkId:string,evidence:Evidence[]):string|null {
-  const rule=evidenceQuality[checkId];
-  if(!rule||!evidence.length) return null;
+  if(!evidence.length) return null;
   const excerpts=evidence.map(e=>e.excerpt??"").join(" ");
+  // A navigation link proves that a link exists, not that its destination
+  // contains a reachable policy. Do not award PASS until document content was
+  // actually fetched and matched from a policy surface.
+  const policyPresenceIds=["L01","L02","L03","L06"];
+  if(policyPresenceIds.includes(checkId)&&!evidence.some(e=>e.type!=="link")) {
+    return "A policy link was found, but its destination content was not verified in the crawl.";
+  }
+  if(checkId==="T05") {
+    const documentEvidence=evidence.filter(e=>e.type!=="link").map(e=>e.excerpt??"").join(" ");
+    const termsFound=/\\b(?:terms of service|terms and conditions|terms of use)\\b/i.test(documentEvidence);
+    const privacyFound=/\\b(?:privacy policy|privacy notice)\\b/i.test(documentEvidence);
+    if(!termsFound||!privacyFound) return "Both Terms and Privacy destinations were not verified as reachable policy documents in the crawl.";
+  }
+  const rule=evidenceQuality[checkId];
+  if(!rule) return null;
   return rule.adequate.test(excerpts) ? null : rule.message;
 }
 
