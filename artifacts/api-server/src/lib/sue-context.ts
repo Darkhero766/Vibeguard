@@ -168,7 +168,13 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   const allEvidence:Evidence[]=[];
   const set=(key:keyof ProductSignals,ev:Evidence[])=>{signalEvidence[key]=ev;allEvidence.push(...ev);};
 
-  const pricing=combine(text(surface,/\b(pricing|plans|price list|starting at|per month|per year)\b/i,"pricing_text"),text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?/i,"price_amount"),internalLinks(surface,/pricing|plans|shop|store/i,"pricing_link"));
+  const pricingRoute:Evidence[]=surface.pages.filter(p=>/(?:^|\/)(?:pricing|plans?)(?:\/|$)/i.test(p.url.pathname)).slice(0,2).map(p=>({type:"page",url:p.url.toString(),location:"URL path",excerpt:"The crawled first-party route is a pricing/plans page.",signal:"pricing_route",confidence:.88}));
+  const pricing=combine(
+    text(surface,/\bpricing (?:plans?|details?|options?|information)\b|\bprice list\b|\b(?:per month|per year|billed monthly|billed annually|monthly subscription|annual subscription)\b/i,"pricing_text"),
+    text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?/i,"price_amount"),
+    internalLinks(surface,/pricing|plans/i,"pricing_link"),
+    pricingRoute
+  );
   const checkout=combine(text(surface,/\b(add to cart|buy now|checkout|place order|complete purchase|subscribe now)\b/i,"checkout_action"),internalLinks(surface,/checkout|cart|buy|order/i,"checkout_link"),forms(surface,/checkout|payment|billing|order/i,"checkout_form"));
   const payment=combine(scripts(surface,/stripe|paypal|razorpay|adyen|checkout\.com|dodo|paddle|lemonsqueezy|shopify|woocommerce/i,"payment_provider"),checkout);
   const auth=combine(
@@ -250,16 +256,16 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   set("ecommerce",ecommerce);set("marketplace",marketplace);set("developerApi",developerApi);
   set("persistentUserData",combine(auth,ugc,text(surface,/save your|saved projects|history|profile|dashboard data/i,"persistent_data_text",.82)));
   const paidPricing=combine(
-    text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?|\b(?:paid|pro|premium|business|enterprise)\s+(?:plan|tier|subscription)\b|\bstarting at\b/i,"paid_pricing",.91),
+    text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?|\b(?:paid|pro|premium|business|enterprise)\s+(?:plan|tier|subscription)\b/i,"paid_pricing",.91),
     text(surface,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
   );
-  set("paidService",combine(checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid|starting at/i,"paid_service_text",.78)));
+  set("paidService",combine(checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid/i,"paid_service_text",.78)));
   set("highImpactAI",text(surface,/\b(?:AI|model|algorithm|automated)\b.{0,100}\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|creditworthiness|loan eligibility|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|risk scores?|eligibility decision|fraud decision)\b|\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|eligibility decision|fraud decision)\b.{0,100}\b(?:AI|model|algorithm|automated)\b/i,"high_impact_ai_context",.93));
   set("dataCommercialization",combine(
     text(surface,/\b(?:sell|share|monetize|monetisation|monetization)\b.{0,100}\b(?:personal|user|customer)\s+(?:data|information)\b/i,"data_commercialization",.92),
     text(surface,/targeted advertising|behavioral advertising|interest[- ]based advertising/i,"targeted_advertising",.88)
   ));
-  set("commercialActivity",combine(pricing,payment,checkout,ecommerce,marketplace,text(surface,/\b(hire|services|consulting|agency|plans|pricing|shop|store|buy|subscribe|book a call|request a quote)\b/i,"commercial_language",.72)));
+  set("commercialActivity",combine(pricing,payment,checkout,ecommerce,marketplace,text(surface,/\b(?:hire us|book a call|request a quote|contact sales|buy now|subscribe now|start (?:your )?(?:free )?trial|shop now|place an order)\b/i,"commercial_language",.78)));
 
   const classificationEvidence=combine(
     text(surface,/\b(?:portfolio|case studies?|selected work|resume|designer portfolio|developer portfolio)\b/i,"portfolio_context",.9),
