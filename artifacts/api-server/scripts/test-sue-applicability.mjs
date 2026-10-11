@@ -288,6 +288,9 @@ try {
     </body></html>`);
   assert.equal(by(securityContact,"T02").status,"pass","Explicit security contact and responsible-disclosure evidence should satisfy T02.");
 
+  const securityTeamOnly=run(`<html><body><h1>Code Security Scanner</h1><p>Meet our security team. We build the fastest scanner for developers.</p></body></html>`);
+  assert.notEqual(by(securityTeamOnly,"T02").status,"pass","A generic security-team mention must not count as a security contact.");
+
   const analytics=run(`
     <html><body><h1>Company</h1><p>Welcome.</p>
     <script src="https://www.googletagmanager.com/gtag/js?id=G-TEST"></script>
