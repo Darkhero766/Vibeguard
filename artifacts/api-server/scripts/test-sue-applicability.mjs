@@ -303,6 +303,7 @@ try {
   const encyclopedia=encyclopediaResult.checks;
   assert.equal(encyclopediaResult.context.signals.ecommerce,false,"An outbound store link must not prove first-party ecommerce.");
   assert.equal(encyclopediaResult.context.signals.pricing,false,"Outbound links must not create pricing evidence.");
+  assert.equal(encyclopediaResult.context.signals.subscription,false,"Incidental subscription language in an article must not prove a subscription business model.");
   assert.equal(encyclopediaResult.context.signals.developerApi,false,"An outbound API link must not prove a developer product.");
   assert.equal(encyclopediaResult.context.signals.payments,true,"A payment SDK can be detected without implying the product sells a paid service.");
   assert.equal(encyclopediaResult.context.signals.paidService,false,"A payment SDK alone must not imply a paid service.");
@@ -312,6 +313,17 @@ try {
   assert.ok(!encyclopediaResult.context.productTypes.includes("developer_tool"),"Informational content must not be classified as a developer tool from an outbound API link.");
   assert.deepEqual(encyclopediaResult.context.productTypes,["content"],"An encyclopedia must remain a content product when article text contains incidental commerce/API terms and the homepage only exposes generic login.");
   assert.equal(encyclopediaResult.context.commercialModel,"unknown","Article text must not invent a commercial model for an informational publication.");
+
+  const pricingSite=runApplicabilityAwareChecks({
+    pages:[
+      page("https://acme.example/","<html><body><h1>Acme Cloud</h1><p>Project workspace for teams.</p><a href=\"/pricing\">Pricing</a></body></html>"),
+      page("https://acme.example/pricing","<html><body><h1>Pricing Plans</h1><p>Pro plan $19/month, billed monthly.</p><button>Subscribe now</button></body></html>",{home:false})
+    ],
+    origin:"https://acme.example"
+  });
+  assert.equal(pricingSite.context.signals.pricing,true,"A first-party pricing route must be recognized.");
+  assert.equal(pricingSite.context.signals.subscription,true,"Recurring billing on a first-party pricing route must be recognized.");
+  assert.equal(pricingSite.context.commercialModel,"subscription","Verified recurring pricing must preserve subscription classification.");
   assert.equal(by(securityTool,"L01").applicability,"applicable","A clearly identified security scanning product must not be treated as generic content.");
   assert.equal(by(securityTool,"P01").applicability,"not_applicable","Product classification alone must not imply personal-data collection without supporting evidence.");
   assert.notEqual(by(securityTool,"T02").status,"pass","A security tool without a visible contact/disclosure route must not pass T02.");
