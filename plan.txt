@@ -263,3 +263,12 @@ WORKING RULES
 - SUE gate now also compiles the API app entrypoint; latest production API PR #30 merged.
 - Live Supabase migrations verified through 20261008060445 and 20261008060541.
 - Remaining manual production action: enable Supabase Auth leaked-password protection in Dashboard → Authentication → Providers/Password security (requires Pro+ according to current Supabase docs).
+
+2026-10-11 — SUE V1 core launch scope merged (PR #41)
+- Merged PR #41, “feat(sue): launch V1 with 12 core checks”, to main. Merge commit: b9b8e00b5ae6985bcc97a1f2e75b7fd365d67f55.
+- Report UI now defaults to the 12 core launch-readiness checks and exposes the full 50-check engine behind an explicitly labelled beta view. The existing 50-check engine and applicability contract are preserved.
+- Added/updated SUE regression coverage, the real-world vibecoded policy benchmark, and the five-site core-check smoke benchmark. The PR's previously inspected GitHub Actions run passed typechecking, build, regression, benchmark, and artifact-upload steps; this is test evidence, not proof of production accuracy or deployment.
+- Related merged SUE fixes: PR #38 policy evidence/benchmark quality (60a972d1e9b31032b9f31f90e3550b53acca91b4), PR #39 explicit security-scanning product classification (8bf0b1c9416b5176f8ba59b48c6e45322aaab882), and PR #40 explicit security-contact evidence (af1912d6392d05b23bb7f7c83f283618fa5bb69c).
+- Deployment status: code is merged to main; live Vercel/Render deployment and production rescan are NOT confirmed in this entry.
+- Known follow-up before calling SUE production-ready: investigate false positive product classification (Wikipedia was classified as SaaS in the homepage smoke test), improve linked legal/policy page discovery and evaluate against labelled policy fixtures, correct core-vs-beta attention/prompt scope consistency if still present, and perform a real multi-page production rescan.
+- Workflow preference: avoid unnecessary GitHub Actions runs when an equivalent focused local/tool-based validation is available; do not skip required security/regression validation. Do not report deployment as complete without checking the hosting provider/runtime.
