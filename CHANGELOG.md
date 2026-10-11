@@ -4,6 +4,14 @@ Short, human-readable notes for contributors and reviewers.
 
 ## 2026-10-11
 
+### SUE informational-site classification follow-up
+
+- Tightened ecommerce evidence so generic commerce phrases in linked editorial articles do not independently count as first-party shopping capability; homepage commerce actions, first-party store/cart routes, or commerce platform evidence remain available.
+- Added a conservative content-site classification guard for explicitly identified encyclopedia/reference publications. Generic login links and incidental subscription, commerce, or API terminology in article text no longer turn those publications into SaaS/ecommerce/developer-tool product types.
+- Expanded the encyclopedia regression fixture with a linked article containing misleading commerce/API terms; asserts content classification and an unknown commercial model.
+- Validation pending: repository network access is unavailable in this environment, so local build/test execution could not be performed here. Run the existing SUE regression suite and live benchmark before merge; the live benchmark already includes Wikipedia as a negative classification control.
+- Next SUE priorities remain: review linked policy discovery and human-labelled benchmark coverage, then verify deployed core/beta report counts and prompt scope.
+
 ### SUE V1 core launch scope — PR #41 merged
 
 - Merged PR #41 to `main` (merge commit `b9b8e00b5ae6985bcc97a1f2e75b7fd365d67f55`).
