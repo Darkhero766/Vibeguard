@@ -296,7 +296,7 @@ try {
         ],
         scripts:["https://js.stripe.com/v3/"]
       }),
-      page("https://encyclopedia.example/articles/commerce-terms","<html><body><h1>Commerce glossary</h1><p>This article explains monthly subscription plans, pricing strategies, shopping cart workflows, product catalogs, API keys and developer endpoints.</p></body></html>",{home:false})
+      page("https://encyclopedia.example/articles/commerce-terms","<html><body><h1>Commerce glossary</h1><p>This article explains monthly subscription plans, pricing strategies, shopping cart workflows, product catalogs and API documentation terminology.</p></body></html>",{home:false})
     ],
     origin:"https://encyclopedia.example"
   });
