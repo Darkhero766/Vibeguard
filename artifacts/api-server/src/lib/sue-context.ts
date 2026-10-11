@@ -155,7 +155,7 @@ function classify(s:ProductSignals,evidence:Evidence[]) {
   if(s.subscription) commercialModel="subscription";
   else if(s.ecommerce&&s.checkout) commercialModel="one_time_purchase";
   else if(s.marketplace) commercialModel="marketplace";
-  else if(s.paidService||s.payments||s.pricing) commercialModel="freemium";
+  else if(s.paidService||s.pricing) commercialModel="freemium";
   else if(s.advertising) commercialModel="advertising";
   else commercialModel="unknown";
   const max=Math.max(...Object.values(scores),0);
@@ -253,7 +253,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
     text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?|\b(?:paid|pro|premium|business|enterprise)\s+(?:plan|tier|subscription)\b|\bstarting at\b/i,"paid_pricing",.91),
     text(surface,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
   );
-  set("paidService",combine(payment,checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid|starting at/i,"paid_service_text",.78)));
+  set("paidService",combine(checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid|starting at/i,"paid_service_text",.78)));
   set("highImpactAI",text(surface,/\b(?:AI|model|algorithm|automated)\b.{0,100}\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|creditworthiness|loan eligibility|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|risk scores?|eligibility decision|fraud decision)\b|\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|eligibility decision|fraud decision)\b.{0,100}\b(?:AI|model|algorithm|automated)\b/i,"high_impact_ai_context",.93));
   set("dataCommercialization",combine(
     text(surface,/\b(?:sell|share|monetize|monetisation|monetization)\b.{0,100}\b(?:personal|user|customer)\s+(?:data|information)\b/i,"data_commercialization",.92),
