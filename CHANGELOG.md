@@ -4,6 +4,14 @@ Short, human-readable notes for contributors and reviewers.
 
 ## 2026-10-11
 
+### SUE pricing-signal regression correction (PR #43 follow-up)
+
+- Root cause: general crawled text was allowed to create pricing and recurring-billing signals. The encyclopedia regression fixture's article text therefore produced `signals.pricing=true`, causing the API build to fail because `build` runs `test:sue`.
+- Added product-surface-scoped text evidence for pricing, price amounts, checkout actions, subscription/renewal language and paid billing. These signals now use the homepage or explicit first-party commercial/product routes rather than unrelated editorial/article pages.
+- Added regression coverage that article text containing “monthly subscription plans billed monthly” does not create pricing/subscription/paid-service signals, while a real first-party `/pricing` page with recurring billing is still detected.
+- PR #42 has already merged; this is a follow-up fix and must pass fresh SUE regression, accuracy, policy and live smoke benchmarks before merge. Build/typecheck alone is not sufficient.
+
+
 ### SUE pricing-signal regression correction
 
 - Root cause: pricing and recurring-subscription signals were being extracted from any crawled first-party page, so an editorial article about commerce could make an encyclopedia appear to have pricing/subscription capabilities.
