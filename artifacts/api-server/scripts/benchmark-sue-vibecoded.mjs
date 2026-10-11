@@ -38,7 +38,7 @@ const commonPolicyPaths=[
 ];
 const policyHint=/(?:terms|privacy|cookie|refund|return|cancel|legal|acceptable|disclaimer|security|dpa|subprocessor|data-protection|ai-policy|policy)/i;
 const policyDocumentHint=/\b(?:terms of service|terms of use|terms and conditions|privacy policy|privacy notice|cookie policy|refund policy|cancellation policy|acceptable use policy|data processing agreement|legal disclaimer|security policy|legal notice)\b/i;
-const checkIds=["L01","L02","L03","L04","L05","P01","P02","P03","P04","P05","P06","P07","P08","P09","P11","C01","C05","A01","A02","A03","A04","B02","B03","B04","B05","T05"];
+const checkIds=["L01","L02","L03","L04","L05","L08","L09","L10","L12","P01","P02","P03","P04","P05","P06","P07","P08","P09","P11","C01","C05","A01","A02","A03","A04","B02","B03","B04","B05","T01","T02","T03","T05"];
 const timeoutMs=9000;
 const maxHtmlBytes=1_500_000;
 
