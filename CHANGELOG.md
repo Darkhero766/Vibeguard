@@ -2,6 +2,17 @@
 
 Short, human-readable notes for contributors and reviewers.
 
+## 2026-10-11
+
+### SUE V1 core launch scope — PR #41 merged
+
+- Merged PR #41 to `main` (merge commit `b9b8e00b5ae6985bcc97a1f2e75b7fd365d67f55`).
+- The SUE report defaults to the 12 core launch-readiness checks, with the full 50-check engine available in a clearly labelled beta view; the underlying 50-check engine remains intact.
+- The PR's existing validation run passed frontend/API typechecks, frontend build, SUE regression tests, the policy benchmark, and the five-site core-check smoke benchmark. A green test run does not establish production accuracy or deployment.
+- Related merged fixes: PR #38 improved policy evidence/benchmark quality; PR #39 recognizes explicit security-scanning products; PR #40 requires actual security-contact evidence.
+- Production deployment/rescan is still unverified. Follow-ups: address the observed Wikipedia-as-SaaS false classification, test discovery of linked Terms/Privacy/security-policy pages, improve labelled policy benchmark coverage, and verify the report's core/beta prompt and attention counts remain consistent.
+- Workflow preference recorded: minimize unnecessary GitHub Actions usage; prefer focused validation where practical without bypassing meaningful tests.
+
 ## 2026-09-09
 
 ### Replit setup and SEO
