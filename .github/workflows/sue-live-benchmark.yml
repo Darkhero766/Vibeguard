@@ -24,6 +24,7 @@ jobs:
       - run: pnpm --filter @workspace/api-server exec esbuild src/lib/plan.ts --bundle --platform=node --format=esm --external:@workspace/db --outfile=/tmp/vibeguard-plan-check.mjs
       - run: pnpm --filter @workspace/api-server exec esbuild src/routes/audit.ts --bundle --platform=node --format=esm --external:@workspace/db --outfile=/tmp/vibeguard-audit-route-check.mjs
       - run: pnpm --filter @workspace/api-server exec esbuild src/app.ts --bundle --platform=node --format=esm --external:@workspace/db --outfile=/tmp/vibeguard-app-check.mjs
+      - run: pnpm run typecheck:libs
       - run: pnpm --filter @workspace/vibeguard run typecheck
       - run: pnpm --filter @workspace/vibeguard run build
       - run: pnpm --filter @workspace/api-server run test:sue
