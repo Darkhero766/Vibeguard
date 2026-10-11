@@ -273,7 +273,7 @@ try {
     <p>Scan your repository for vulnerabilities with automated security testing.</p>
     </body></html>`);
   assert.equal(by(securityTool,"L01").applicability,"applicable","A clearly identified security scanning product must not be treated as generic content.");
-  assert.equal(by(securityTool,"P01").applicability,"applicable","A developer tool with a defined product context should evaluate privacy applicability.");
+  assert.equal(by(securityTool,"P01").applicability,"not_applicable","Product classification alone must not imply personal-data collection without supporting evidence.");
 
   const analytics=run(`
     <html><body><h1>Company</h1><p>Welcome.</p>
