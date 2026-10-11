@@ -74,6 +74,7 @@ try {
   assert.equal(by(policyChecks,"P04").status,"pass","Crawled Privacy page must satisfy deletion evidence.");
   assert.equal(by(policyChecks,"P05").status,"pass","Crawled Privacy page must satisfy access/export evidence.");
   assert.equal(by(policyChecks,"P06").status,"pass","Crawled Privacy page must satisfy third-party sharing evidence.");
+  assert.notEqual(by(policyChecks,"T02").status,"pass","Ordinary Terms/Privacy content must not satisfy the security-contact check.");
 
   const vaguePrivacy = {
     pages:[
@@ -261,6 +262,7 @@ try {
   assert.equal(by(vibeSaneLike,"L01").status,"review","A Terms link without a crawled destination must not count as a verified policy.");
   assert.equal(by(vibeSaneLike,"L02").status,"review","A Privacy link without a crawled destination must not count as a verified policy.");
   assert.equal(by(vibeSaneLike,"T05").status,"review","Legal-page reachability must be verified from fetched policy documents, not links alone.");
+  assert.notEqual(by(vibeSaneLike,"T02").status,"pass","A security-scanner feature link is not a security contact or disclosure process.");
   assert.equal(by(vibeSaneLike,"P01").applicability,"applicable","Account creation makes privacy applicable");
   assert.equal(by(vibeSaneLike,"C05").status,"not_applicable","No analytics signal should not become review");
   assert.equal(by(vibeSaneLike,"C06").status,"not_applicable","No tracking signal should not become review");
@@ -274,6 +276,14 @@ try {
     </body></html>`);
   assert.equal(by(securityTool,"L01").applicability,"applicable","A clearly identified security scanning product must not be treated as generic content.");
   assert.equal(by(securityTool,"P01").applicability,"not_applicable","Product classification alone must not imply personal-data collection without supporting evidence.");
+  assert.notEqual(by(securityTool,"T02").status,"pass","A security tool without a visible contact/disclosure route must not pass T02.");
+
+  const securityContact=run(`
+    <html><body><h1>Code Security Scanner</h1>
+    <p>Report a vulnerability to security@acme.test. We maintain a responsible disclosure process.</p>
+    <a href="/security-contact">Security contact</a>
+    </body></html>`);
+  assert.equal(by(securityContact,"T02").status,"pass","Explicit security contact and responsible-disclosure evidence should satisfy T02.");
 
   const analytics=run(`
     <html><body><h1>Company</h1><p>Welcome.</p>
@@ -327,7 +337,7 @@ try {
   assert.equal(by(jsHeavy,"C05").status,"review","Low-visibility analytics checks should be review, not missing");
   assert.equal(by(jsHeavy,"A01").status,"review","Low-visibility AI checks should be review, not missing");
 
-  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,securityTool,legalPageOnly,searchOnly,jsHeavy,vagueChecks,policyShellChecks})) {
+  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,securityTool,securityContact,legalPageOnly,searchOnly,jsHeavy,vagueChecks,policyShellChecks})) {
     assert.equal(checks.length,50,`${name}: every scenario must evaluate all 50 checks`);
     for (const check of checks) {
       assert.ok(["applicable","not_applicable","unknown"].includes(check.applicability),`${name}/${check.id}: invalid applicability`);
@@ -338,8 +348,8 @@ try {
   }
 
   console.log("SUE applicability regression suite: PASS");
-  console.log("Scenarios: 16 | Checks per scenario: 50 | Total evaluations: 800.");
-  console.log("Validated: portfolio, blog, ecommerce, SaaS, AI product, AI mention-only, analytics, no-tracking, free SaaS, VibeSane-like SaaS, explicit security-tool classification, legal-page contamination, generic search input, JS-heavy coverage.");
+  console.log("Scenarios: 17 | Checks per scenario: 50 | Total evaluations: 850.");
+  console.log("Validated: portfolio, blog, ecommerce, SaaS, AI product, AI mention-only, analytics, no-tracking, free SaaS, VibeSane-like SaaS, explicit security-tool classification, security-contact evidence, legal-page contamination, generic search input, JS-heavy coverage.");
 } finally {
   await rm(dir,{recursive:true,force:true});
 }
