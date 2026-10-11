@@ -24,13 +24,25 @@ jobs:
       - run: pnpm --filter @workspace/api-server exec esbuild src/lib/plan.ts --bundle --platform=node --format=esm --external:@workspace/db --outfile=/tmp/vibeguard-plan-check.mjs
       - run: pnpm --filter @workspace/api-server exec esbuild src/routes/audit.ts --bundle --platform=node --format=esm --external:@workspace/db --outfile=/tmp/vibeguard-audit-route-check.mjs
       - run: pnpm --filter @workspace/api-server exec esbuild src/app.ts --bundle --platform=node --format=esm --external:@workspace/db --outfile=/tmp/vibeguard-app-check.mjs
+      - run: pnpm --filter @workspace/vibeguard run typecheck
+      - run: pnpm --filter @workspace/vibeguard run build
       - run: pnpm --filter @workspace/api-server run test:sue
       - run: pnpm --filter @workspace/api-server run benchmark:sue
       - name: Run real-world vibecoded policy benchmark
         run: pnpm --filter @workspace/api-server run benchmark:sue:policies
         env:
           SUE_POLICY_REPORT_PATH: sue-policy-benchmark-report.json
-      - run: pnpm --filter @workspace/api-server run benchmark:sue:live
+      - name: Run five-site live core-check benchmark
+        run: pnpm --filter @workspace/api-server run benchmark:sue:live
+        env:
+          SUE_LIVE_REPORT_PATH: sue-live-core-benchmark.json
+      - name: Upload SUE core benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sue-v1-core-live-benchmark
+          path: artifacts/api-server/sue-live-core-benchmark.json
+          if-no-files-found: warn
       - name: Upload SUE policy benchmark report
         if: always()
         uses: actions/upload-artifact@v4
