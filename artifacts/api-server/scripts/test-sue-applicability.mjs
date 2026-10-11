@@ -16,8 +16,11 @@ try {
     external:["node:*"],
     logLevel:"silent"
   });
-  const {runApplicabilityAwareChecks,definitionsCount}=await import(outfile);
+  const {runApplicabilityAwareChecks,definitionsCount,CORE_CHECK_IDS}=await import(outfile);
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
+  assert.equal(CORE_CHECK_IDS.length,12,"V1 must expose exactly 12 core checks");
+  assert.equal(new Set(CORE_CHECK_IDS).size,12,"Core check IDs must be unique");
+  assert.deepEqual([...CORE_CHECK_IDS].sort(),["L01","L02","L03","L08","L09","L10","L12","P11","T01","T02","T03","T05"].sort(),"Core registry must match the approved V1 IDs");
 
   const headers=()=>new Headers();
   // SSRF host-validation unit coverage is kept in the audit route itself;
@@ -339,6 +342,9 @@ try {
 
   for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,securityTool,securityContact,legalPageOnly,searchOnly,jsHeavy,vagueChecks,policyShellChecks})) {
     assert.equal(checks.length,50,`${name}: every scenario must evaluate all 50 checks`);
+    assert.equal(checks.filter(check=>check.core===true).length,12,`${name}: exactly 12 checks must be core`);
+    assert.deepEqual(checks.filter(check=>check.core===true).map(check=>check.id).sort(),[...CORE_CHECK_IDS].sort(),`${name}: core flags must match the canonical registry`);
+    assert.ok(checks.filter(check=>check.core!==true).every(check=>!CORE_CHECK_IDS.includes(check.id)),`${name}: non-core checks must remain non-core`);
     for (const check of checks) {
       assert.ok(["applicable","not_applicable","unknown"].includes(check.applicability),`${name}/${check.id}: invalid applicability`);
       assert.ok(["pass","review","missing","not_applicable"].includes(check.status),`${name}/${check.id}: invalid status`);
