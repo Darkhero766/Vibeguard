@@ -4,6 +4,22 @@ Short, human-readable notes for contributors and reviewers.
 
 ## 2026-10-11
 
+### SUE pricing-signal regression correction (PR #43 follow-up)
+
+- Root cause: general crawled text was allowed to create pricing and recurring-billing signals. The encyclopedia regression fixture's article text therefore produced `signals.pricing=true`, causing the API build to fail because `build` runs `test:sue`.
+- Added product-surface-scoped text evidence for pricing, price amounts, checkout actions, subscription/renewal language and paid billing. These signals now use the homepage or explicit first-party commercial/product routes rather than unrelated editorial/article pages.
+- Added regression coverage that article text containing “monthly subscription plans billed monthly” does not create pricing/subscription/paid-service signals, while a real first-party `/pricing` page with recurring billing is still detected.
+- PR #42 has already merged; this is a follow-up fix and must pass fresh SUE regression, accuracy, policy and live smoke benchmarks before merge. Build/typecheck alone is not sufficient.
+
+
+### SUE pricing-signal regression correction
+
+- Root cause: pricing and recurring-subscription signals were being extracted from any crawled first-party page, so an editorial article about commerce could make an encyclopedia appear to have pricing/subscription capabilities.
+- Added product-surface-scoped text evidence: homepage plus explicit first-party commercial/product routes (pricing, plans, billing, checkout, subscription, products, features, shop, store). Incidental article/glossary text no longer supplies pricing, recurring-subscription, auto-renewal, paid-pricing, or checkout-action evidence.
+- Added regression assertions for article-only pricing/subscription false positives and positive detection on a genuine first-party pricing route.
+- Build status before this correction: the TypeScript bundle and frontend build steps passed in SUE Live Benchmark run #131; API build failed because its configured build command runs `test:sue`, which failed at the encyclopedia pricing assertion. Downstream accuracy/live benchmarks were skipped after that failure.
+- Validation of this correction pending: run the focused SUE suite, then accuracy, policy and live smoke benchmarks. Do not treat a successful build alone as proof of classification accuracy.
+
 ### SUE informational-site classification follow-up
 
 - Tightened ecommerce evidence so generic commerce phrases in linked editorial articles do not independently count as first-party shopping capability; homepage commerce actions, first-party store/cart routes, or commerce platform evidence remain available.
