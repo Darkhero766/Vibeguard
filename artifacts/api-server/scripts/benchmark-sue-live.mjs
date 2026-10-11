@@ -6,7 +6,7 @@ import { join } from "node:path";
 const cases = [
   { name: "Stripe Billing", url: "https://stripe.com/billing", expect: ["pricing","payments","subscription","commercialActivity"] },
   { name: "Shopify", url: "https://www.shopify.com", expect: ["ecommerce","commercialActivity"] },
-  { name: "OpenAI API", url: "https://openai.com/api/", expect: ["ai","developerApi","commercialActivity"] },
+  { name: "Challenge Brew", url: "https://challengebrew.com/", expect: [] },
   { name: "GitHub", url: "https://github.com", expect: ["authentication","developerApi","commercialActivity"] },
   { name: "Wikipedia", url: "https://www.wikipedia.org", expect: [] },
 ];
