@@ -32,7 +32,7 @@ function makePage(url,html,headers) {
 
 try {
   await build({entryPoints:["./src/lib/sue-checks.ts"],bundle:true,format:"esm",platform:"node",outfile,external:["node:*"],logLevel:"silent"});
-  const {runApplicabilityAwareChecks}=await import(outfile);
+  const {runApplicabilityAwareChecks,CORE_CHECK_IDS}=await import(outfile);
   const results=[];
   for (const c of cases) {
     const started=Date.now();
@@ -49,6 +49,7 @@ try {
         productTypes:context.productTypes,commercialModel:context.commercialModel,
         confidence:Number(context.confidence.toFixed(3)),coverage:context.coverage,
         expectedSignals:c.expect,detectedSignals:detected,missedSignals:missed,
+        coreChecks:checks.filter(x=>CORE_CHECK_IDS.includes(x.id)).map(x=>({id:x.id,title:x.title,status:x.status,applicability:x.applicability,confidence:Number(x.confidence.toFixed(3)),evidence:x.evidence.slice(0,2).map(e=>({type:e.type,url:e.url,signal:e.signal,excerpt:e.excerpt}))})),
         pass:missed.length===0,applicable:checks.filter(x=>x.applicability==="applicable").map(x=>x.id)
       });
     } catch (error) {
