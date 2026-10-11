@@ -9,8 +9,9 @@ import { apiUrl } from "@/lib/api";
 type Status = "pass" | "review" | "missing" | "not_applicable";
 type Severity = "high" | "medium" | "low";
 type AuditCheck = { id: string; category: string; title: string; status: Status; applicability: "applicable" | "not_applicable" | "unknown"; confidence: number; evidence: Array<{ type: string; url?: string; location?: string; excerpt?: string; signal: string; confidence: number }>; severity: Severity; explanation: string; recommendation: string };
-type Report = { auditId?: string | null; url: string; scannedAt: string; score: number; passed: number; review: number; missing: number; notApplicable: number; checks: AuditCheck[]; productContext?: { productTypes: string[]; commercialModel: string; signals: Record<string, boolean>; confidence: number; coverage: { pages: number; linkedPages: number; forms: number; scripts: number; dynamicRenderingLikely: boolean; score: number } }; quota?: { scansUsed: number; scansLimit: number } };
+type Report = { auditId?: string | null; url: string; scannedAt: string; score: number; passed: number; review: number; missing: number; notApplicable: number; checks: AuditCheck[]; coreChecks?: AuditCheck[]; coreSummary?: { total: number; passed: number; review: number; missing: number; notApplicable: number; score: number | null }; productContext?: { productTypes: string[]; commercialModel: string; signals: Record<string, boolean>; confidence: number; coverage: { pages: number; linkedPages: number; forms: number; scripts: number; dynamicRenderingLikely: boolean; score: number } }; quota?: { scansUsed: number; scansLimit: number } };
 
+const CORE_CHECK_IDS = ["L01","L02","L03","L08","L09","L10","L12","P11","T01","T02","T03","T05"];
 const statusLabel: Record<Status, string> = { pass: "PASS", review: "REVIEW", missing: "MISSING", not_applicable: "N/A" };
 
 function statusClasses(status: Status) {
@@ -33,15 +34,20 @@ export default function AuditPage() {
   const [error, setError] = useState("");
   const [scanning, setScanning] = useState(false);
   const [filter, setFilter] = useState<"all" | Status>("all");
+  const [showAllChecks, setShowAllChecks] = useState(false);
 
   const remaining = user?.email?.trim().toLowerCase() === "nightowlclub72@gmail.com"
     ? "∞"
     : usage ? String(Math.max(0, usage.scans_limit - usage.scans_used)) : "—";
 
+  const coreChecks = report?.coreChecks ?? report?.checks.filter((item) => CORE_CHECK_IDS.includes(item.id)) ?? [];
   const visibleChecks = useMemo(
-    () => report?.checks.filter((item) => filter === "all" || item.status === filter) ?? [],
-    [report, filter],
+    () => (showAllChecks ? report?.checks : coreChecks)?.filter((item) => filter === "all" || item.status === filter) ?? [],
+    [report, filter, showAllChecks, coreChecks],
   );
+  const fullSummary = report ? { total: report.checks.length, passed: report.passed, review: report.review, missing: report.missing, notApplicable: report.notApplicable, score: report.score } : null;
+  const summary = showAllChecks ? fullSummary : (report?.coreSummary ?? null);
+  const displayedScore = summary?.score ?? null;
 
   const runAudit = async () => {
     if (!session?.access_token) {
@@ -99,7 +105,7 @@ export default function AuditPage() {
 
         <header className="relative z-10">
           <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-[#f04a3f]">
-            <span className="h-px w-10 bg-[#e83a2f]" />SUE / product audit <span className="border border-[#66763e]/40 bg-[#66763e]/10 px-2 py-1 text-[#66763e]">50 CHECKS</span>
+            <span className="h-px w-10 bg-[#e83a2f]" />SUE / product audit <span className="border border-[#66763e]/40 bg-[#66763e]/10 px-2 py-1 text-[#66763e]">12 CORE CHECKS</span>
           </div>
           <div className="mt-5 grid gap-8 lg:grid-cols-[1fr_300px] lg:items-end">
             <div>
@@ -165,10 +171,10 @@ export default function AuditPage() {
                 <p className="mt-5 text-[11px] leading-5 text-[#a9aca4]">This is a signal score, not a legal-compliance guarantee.</p>
               </div>
               <div className="grid grid-cols-4 border-2 border-[#242522] bg-[#f8f5ed] text-[#171916] shadow-[8px_8px_0_#242522]">
-                <button onClick={() => setFilter("pass")} className="border-r border-[#242522]/15 p-5 text-left hover:bg-[#edf4df]"><div className="font-mono text-[9px] text-[#66763e]">PASSED</div><div className="mt-2 text-4xl font-extrabold">{report.passed}</div></button>
-                <button onClick={() => setFilter("review")} className="border-r border-[#242522]/15 p-5 text-left hover:bg-[#fbf0dc]"><div className="font-mono text-[9px] text-[#8a5e20]">REVIEW</div><div className="mt-2 text-4xl font-extrabold">{report.review}</div></button>
-                <button onClick={() => setFilter("missing")} className="border-r border-[#242522]/15 p-5 text-left hover:bg-[#fbedeb]"><div className="font-mono text-[9px] text-[#a52f27]">MISSING</div><div className="mt-2 text-4xl font-extrabold">{report.missing}</div></button>
-                <button onClick={() => setFilter("not_applicable")} className="p-5 text-left hover:bg-[#eceae2]"><div className="font-mono text-[9px] text-[#696c64]">N/A</div><div className="mt-2 text-4xl font-extrabold">{report.notApplicable}</div></button>
+                <button onClick={() => setFilter("pass")} className="border-r border-[#242522]/15 p-5 text-left hover:bg-[#edf4df]"><div className="font-mono text-[9px] text-[#66763e]">PASSED</div><div className="mt-2 text-4xl font-extrabold">{summary?.passed ?? "—"}</div></button>
+                <button onClick={() => setFilter("review")} className="border-r border-[#242522]/15 p-5 text-left hover:bg-[#fbf0dc]"><div className="font-mono text-[9px] text-[#8a5e20]">REVIEW</div><div className="mt-2 text-4xl font-extrabold">{summary?.review ?? "—"}</div></button>
+                <button onClick={() => setFilter("missing")} className="border-r border-[#242522]/15 p-5 text-left hover:bg-[#fbedeb]"><div className="font-mono text-[9px] text-[#a52f27]">MISSING</div><div className="mt-2 text-4xl font-extrabold">{summary?.missing ?? "—"}</div></button>
+                <button onClick={() => setFilter("not_applicable")} className="p-5 text-left hover:bg-[#eceae2]"><div className="font-mono text-[9px] text-[#696c64]">N/A</div><div className="mt-2 text-4xl font-extrabold">{summary?.notApplicable ?? "—"}</div></button>
               </div>
             </section>
 
@@ -176,7 +182,8 @@ export default function AuditPage() {
 
             <section className="relative z-10 mt-8">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#f04a3f]">Signal report</div><h2 className="mt-1 text-[28px] font-extrabold">50 launch-readiness checks</h2></div>
+                <div><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#f04a3f]">Signal report</div><h2 className="mt-1 text-[28px] font-extrabold">{showAllChecks ? "All checks (beta)" : "Core launch-readiness checks"}</h2><p className="mt-2 max-w-xl text-[11px] leading-5 text-[#62655d]">{showAllChecks ? "The full 50-check engine is visible in beta; findings may be experimental." : "Showing 12 core checks. Applicability varies by product, and N/A is not a pass."}</p></div>
+                <button type="button" onClick={() => { setShowAllChecks(value => !value); setFilter("all"); }} className="border-2 border-[#242522] bg-[#fffdf7] px-4 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.1em] shadow-[3px_3px_0_#242522] hover:bg-[#edf4df]">{showAllChecks ? "Show core checks" : "Show all checks (beta)"}</button>
                 <div className="flex max-w-full flex-wrap gap-1 border border-white/10 bg-[#101211] p-1">
                   {(["all","pass","review","missing","not_applicable"] as const).map((item) => <button key={item} onClick={() => setFilter(item)} className={`px-3 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.1em] ${filter === item ? "bg-[#66763e] text-[#101111]" : "text-[#9fa39a]"}`}>{item}</button>)}
                 </div>
