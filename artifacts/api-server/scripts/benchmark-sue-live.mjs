@@ -8,7 +8,7 @@ const cases = [
   { name: "Shopify", url: "https://www.shopify.com", expect: ["ecommerce","commercialActivity"], expectTypes: ["ecommerce"], forbidTypes: [] },
   { name: "Challenge Brew", url: "https://challengebrew.com/", expect: [], forbidTypes: [] },
   { name: "GitHub", url: "https://github.com", expect: ["authentication","developerApi","commercialActivity"], expectTypes: ["developer_tool"], forbidTypes: [] },
-  { name: "Wikipedia", url: "https://www.wikipedia.org", expect: [], forbidTypes: ["saas","ecommerce","developer_tool"] },
+  { name: "Wikipedia", url: "https://www.wikipedia.org", expect: [], forbidTypes: ["saas","ecommerce","developer_tool"], forbidSignals: ["ecommerce","developerApi","pricing","paidService"] },
 ];
 
 const dir=await mkdtemp(join(tmpdir(),"sue-live-"));
@@ -64,14 +64,15 @@ try {
       const missed=c.expect.filter(k=>!context.signals[k]);
       const missedTypes=(c.expectTypes??[]).filter(k=>!context.productTypes.includes(k));
       const forbiddenTypes=(c.forbidTypes??[]).filter(k=>context.productTypes.includes(k));
+      const unexpectedSignals=(c.forbidSignals??[]).filter(k=>context.signals[k]);
       results.push({
         name:c.name,url:c.url,httpStatus:response.status,ms:Date.now()-started,
-        productTypes:context.productTypes,commercialModel:context.commercialModel,
+        productTypes:context.productTypes,commercialModel:context.commercialModel,signals:context.signals,
         confidence:Number(context.confidence.toFixed(3)),coverage:context.coverage,pagesEvaluated:pages.length,
         expectedSignals:c.expect,detectedSignals:detected,missedSignals:missed,
-        expectedProductTypes:c.expectTypes??[],missedProductTypes:missedTypes,forbiddenProductTypes:forbiddenTypes,
+        expectedProductTypes:c.expectTypes??[],missedProductTypes:missedTypes,forbiddenProductTypes:forbiddenTypes,forbiddenSignals:unexpectedSignals,
         coreChecks:checks.filter(x=>CORE_CHECK_IDS.includes(x.id)).map(x=>({id:x.id,title:x.title,status:x.status,applicability:x.applicability,confidence:Number(x.confidence.toFixed(3)),evidence:x.evidence.slice(0,2).map(e=>({type:e.type,url:e.url,signal:e.signal,excerpt:e.excerpt}))})),
-        pass:missed.length===0&&missedTypes.length===0&&forbiddenTypes.length===0,applicable:checks.filter(x=>x.applicability==="applicable").map(x=>x.id)
+        pass:missed.length===0&&missedTypes.length===0&&forbiddenTypes.length===0&&unexpectedSignals.length===0,applicable:checks.filter(x=>x.applicability==="applicable").map(x=>x.id)
       });
     } catch (error) {
       results.push({name:c.name,url:c.url,pass:false,error:error instanceof Error?error.message:String(error)});
