@@ -277,6 +277,27 @@ try {
     <html><body><h1>Code Security Scanner</h1>
     <p>Scan your repository for vulnerabilities with automated security testing.</p>
     </body></html>`);
+
+  // Outbound store/API links on an informational site must not turn it into
+  // an ecommerce or developer-tool product. Product-type inference should use
+  // first-party capability evidence, not unrelated destinations.
+  const encyclopediaResult=runApplicabilityAwareChecks({
+    pages:[page("https://encyclopedia.example/","<html><body><h1>Open Encyclopedia</h1><p>Read articles and learn about history, science and culture.</p></body></html>",{
+      links:[
+        {text:"Shop",href:"https://store.encyclopedia.example/"},
+        {text:"API",href:"https://api.encyclopedia.example/"},
+        {text:"Donate",href:"https://donate.encyclopedia.example/"}
+      ]
+    })],
+    origin:"https://encyclopedia.example"
+  });
+  const encyclopedia=encyclopediaResult.checks;
+  assert.equal(encyclopediaResult.context.signals.ecommerce,false,"An outbound store link must not prove first-party ecommerce.");
+  assert.equal(encyclopediaResult.context.signals.pricing,false,"Outbound links must not create pricing evidence.");
+  assert.equal(encyclopediaResult.context.signals.developerApi,false,"An outbound API link must not prove a developer product.");
+  assert.ok(!encyclopediaResult.context.productTypes.includes("ecommerce"),"Informational content must not be classified as ecommerce from an outbound store link.");
+  assert.ok(!encyclopediaResult.context.productTypes.includes("saas"),"Informational content must not be classified as SaaS from unrelated commercial links.");
+  assert.ok(!encyclopediaResult.context.productTypes.includes("developer_tool"),"Informational content must not be classified as a developer tool from an outbound API link.");
   assert.equal(by(securityTool,"L01").applicability,"applicable","A clearly identified security scanning product must not be treated as generic content.");
   assert.equal(by(securityTool,"P01").applicability,"not_applicable","Product classification alone must not imply personal-data collection without supporting evidence.");
   assert.notEqual(by(securityTool,"T02").status,"pass","A security tool without a visible contact/disclosure route must not pass T02.");
@@ -343,7 +364,7 @@ try {
   assert.equal(by(jsHeavy,"C05").status,"review","Low-visibility analytics checks should be review, not missing");
   assert.equal(by(jsHeavy,"A01").status,"review","Low-visibility AI checks should be review, not missing");
 
-  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,securityTool,securityContact,legalPageOnly,searchOnly,jsHeavy,vagueChecks,policyShellChecks})) {
+  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,securityTool,securityContact,encyclopedia,legalPageOnly,searchOnly,jsHeavy,vagueChecks,policyShellChecks})) {
     assert.equal(checks.length,50,`${name}: every scenario must evaluate all 50 checks`);
     assert.equal(checks.filter(check=>check.core===true).length,12,`${name}: exactly 12 checks must be core`);
     assert.deepEqual(checks.filter(check=>check.core===true).map(check=>check.id).sort(),[...CORE_CHECK_IDS].sort(),`${name}: core flags must match the canonical registry`);
@@ -357,7 +378,7 @@ try {
   }
 
   console.log("SUE applicability regression suite: PASS");
-  console.log("Scenarios: 17 | Checks per scenario: 50 | Total evaluations: 850.");
+  console.log("Scenarios: 18 | Checks per scenario: 50 | Total evaluations: 900.");
   console.log("Validated: portfolio, blog, ecommerce, SaaS, AI product, AI mention-only, analytics, no-tracking, free SaaS, VibeSane-like SaaS, explicit security-tool classification, security-contact evidence, legal-page contamination, generic search input, JS-heavy coverage.");
 } finally {
   await rm(dir,{recursive:true,force:true});
