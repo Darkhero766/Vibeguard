@@ -278,6 +278,23 @@ try {
   assert.equal(by(vibeSaneLike,"B03").status,"not_applicable","Free preview without recurring billing should not trigger auto-renewal");
   assert.equal(by(vibeSaneLike,"B06").status,"not_applicable","No checkout/payment signal should not trigger payment-provider finding");
 
+  // Regression for the production VibeSane-like report: a recognizable security-scanning
+  // product must not mark core business/privacy/accessibility checks N/A merely because
+  // the crawl missed one of the secondary commercial or personal-data signals.
+  const vibesaneCore = runApplicabilityAwareChecks({
+    pages:[
+      page("https://vibesane.example/","<html><body><h1>VibeSane</h1><p>Security scanner for developers. Scan your website and repository for vulnerabilities.</p><a href=\"/pricing\">Pricing</a><a href=\"/terms\">Terms</a><a href=\"/privacy\">Privacy</a><a href=\"/login\">Log in</a><button>Sign up</button></body></html>"),
+      page("https://vibesane.example/pricing","<html><body><h1>Pricing</h1><p>Free preview; Pro plan for teams.</p></body></html>",{home:false}),
+    ],
+    origin:"https://vibesane.example"
+  });
+  for (const id of ["L09","L10","L12","P11","T03","T05"]) {
+    assert.notEqual(by(vibesaneCore.checks,id).applicability,"not_applicable",`VibeSane-like product must not silently N/A core check ${id} when product type is identified.`);
+    assert.notEqual(by(vibesaneCore.checks,id).status,"not_applicable",`VibeSane-like product must surface core check ${id} as applicable or review.`);
+  }
+  assert.equal(vibesaneCore.checks.length,50,"VibeSane regression must retain all 50 checks");
+  assert.equal(vibesaneCore.checks.filter(c=>c.core===true).length,12,"VibeSane regression must retain the 12-check V1 scope");
+
   const securityTool=run(`
     <html><body><h1>Code Security Scanner</h1>
     <p>Scan your repository for vulnerabilities with automated security testing.</p>
