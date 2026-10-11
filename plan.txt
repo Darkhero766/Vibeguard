@@ -275,6 +275,6 @@ WORKING RULES
 
 2026-10-11 — SUE pricing-signal regression correction (PR #42 follow-up)
 - Root cause confirmed from run #131: `test:sue` failed because article text on an encyclopedia fixture created `context.signals.pricing=true`. The API build command includes this regression suite, so Render's API build fails at the same assertion; later benchmark steps are skipped when this gate fails.
-- Code correction in progress: constrain pricing, price-amount, recurring-subscription, auto-renewal, paid-pricing and checkout-action text evidence to the homepage or an explicit first-party commercial/product route. Do not suppress real pricing routes or recurring billing evidence.
+- Code correction implemented: constrain pricing, price-amount, recurring-subscription, auto-renewal, paid-pricing, paid-billing and checkout-action text evidence to the homepage or an explicit first-party commercial/product route. Do not suppress real pricing routes or recurring billing evidence.
 - Regression coverage now asserts article-only pricing/subscription language is ignored and a genuine first-party `/pricing` route still detects recurring billing.
-- Code status: branch `fix/sue-informational-site-classification`; run the focused regression suite and all downstream benchmarks before merging or declaring deployment-ready.
+- Code status: branch `fix/sue-informational-site-classification`; PR #42 has merged, so this correction is a follow-up for a new PR. Run the focused regression suite and all downstream benchmarks before merging or declaring deployment-ready.
