@@ -55,7 +55,12 @@ const E={
  B05:(c:AuditCorpus)=>E.L04(c),
  B06:(c:AuditCorpus)=>text(policySurface(c),/payment provider|payment processor|payments? (?:are )?(?:processed|handled) by|(?:Stripe|PayPal|Razorpay|Adyen|Checkout\.com|Paddle|Lemon Squeezy|Shopify Payments).{0,60}(?:payment|checkout|billing)|(?:payment|checkout|billing).{0,60}(?:Stripe|PayPal|Razorpay|Adyen|Paddle|Lemon Squeezy|Shopify Payments)/i,"payment_provider_disclosure",.94),
  T01:(c:AuditCorpus)=>c.pages.some(p=>p.url.protocol==="https:")?[{type:"page",url:c.pages[0]?.url.toString(),location:"final URL",excerpt:"The audited URL was served over HTTPS.",signal:"https",confidence:.99}]:[],
- T02:(c:AuditCorpus)=>combine(text(c,/security@|security contact|report (?:a )?vulnerability|responsible disclosure|security policy/i,"security_contact",.94),links(c,/security|vulnerability|responsible disclosure/i,"security_link",.92)),
+ T02:(c:AuditCorpus)=>combine(
+   // A product link containing the word "security" (for example, a security scanner
+   // feature page) is not evidence of a security contact or disclosure process.
+   text(c,/\bsecurity@[\w.-]+\.[A-Z]{2,}\b|\bsecurity (?:contact|team|email)\b|\b(?:report|disclose) (?:a )?(?:security issue|vulnerabilit(?:y|ies))\b|\bresponsible disclosure\b|\bbug bounty\b/i,"security_contact",.96),
+   links(c,/security[-_/ ]?(?:contact|report|disclosure)|responsible[-_/ ]?disclosure|vulnerabilit(?:y|ies)[-_/ ]?(?:report|disclosure)|report[-_/ ]?(?:a[-_/ ]?)?(?:security|vulnerabilit(?:y|ies))|bug[-_/ ]?bounty|security\.txt/i,"security_contact_link",.92)
+ ),
  T03:(c:AuditCorpus)=>text(c,/accessibility|WCAG|screen reader|keyboard navigation|aria-/i,"accessibility_signal",.88),
  T04:(c:AuditCorpus)=>{const h=c.pages.find(p=>p.isHome)??c.pages[0];return h&&/footer/i.test(h.html)&&/terms/i.test(h.html)&&/privacy/i.test(h.html)?[{type:"page",url:h.url.toString(),location:"footer",excerpt:"Terms and Privacy links appear in the same footer surface.",signal:"legal_footer_group",confidence:.92}]:[];},
  T05:(c:AuditCorpus)=>combine(links(c,/terms|privacy/i,"legal_page_link",.94),text(policySurface(c),/terms of service|terms and conditions|terms of use|privacy policy|privacy notice/i,"legal_page_content",.94)),
