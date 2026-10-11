@@ -287,14 +287,17 @@ try {
   // an ecommerce or developer-tool product. Product-type inference should use
   // first-party capability evidence, not unrelated destinations.
   const encyclopediaResult=runApplicabilityAwareChecks({
-    pages:[page("https://encyclopedia.example/","<html><body><h1>Open Encyclopedia</h1><p>Read articles and learn about history, science and culture. An article discusses business plans and pricing strategies.</p></body></html>",{
-      links:[
-        {text:"Shop",href:"https://store.encyclopedia.example/"},
-        {text:"API",href:"https://api.encyclopedia.example/"},
-        {text:"Donate",href:"https://donate.encyclopedia.example/"}
-      ],
-      scripts:["https://js.stripe.com/v3/"]
-    })],
+    pages:[
+      page("https://encyclopedia.example/","<html><body><h1>Open Encyclopedia</h1><p>The free encyclopedia for history, science and culture.</p><a href=\"/login\">Log in</a><a href=\"/articles/commerce-terms\">Read article</a></body></html>",{
+        links:[
+          {text:"Shop",href:"https://store.encyclopedia.example/"},
+          {text:"API",href:"https://api.encyclopedia.example/"},
+          {text:"Donate",href:"https://donate.encyclopedia.example/"}
+        ],
+        scripts:["https://js.stripe.com/v3/"]
+      }),
+      page("https://encyclopedia.example/articles/commerce-terms","<html><body><h1>Commerce glossary</h1><p>This article explains monthly subscription plans, pricing strategies, shopping cart workflows, product catalogs, API keys and developer endpoints.</p></body></html>",{home:false})
+    ],
     origin:"https://encyclopedia.example"
   });
   const encyclopedia=encyclopediaResult.checks;
@@ -307,6 +310,8 @@ try {
   assert.ok(!encyclopediaResult.context.productTypes.includes("ecommerce"),"Informational content must not be classified as ecommerce from an outbound store link.");
   assert.ok(!encyclopediaResult.context.productTypes.includes("saas"),"Informational content must not be classified as SaaS from unrelated commercial links.");
   assert.ok(!encyclopediaResult.context.productTypes.includes("developer_tool"),"Informational content must not be classified as a developer tool from an outbound API link.");
+  assert.deepEqual(encyclopediaResult.context.productTypes,["content"],"An encyclopedia must remain a content product when article text contains incidental commerce/API terms and the homepage only exposes generic login.");
+  assert.equal(encyclopediaResult.context.commercialModel,"unknown","Article text must not invent a commercial model for an informational publication.");
   assert.equal(by(securityTool,"L01").applicability,"applicable","A clearly identified security scanning product must not be treated as generic content.");
   assert.equal(by(securityTool,"P01").applicability,"not_applicable","Product classification alone must not imply personal-data collection without supporting evidence.");
   assert.notEqual(by(securityTool,"T02").status,"pass","A security tool without a visible contact/disclosure route must not pass T02.");
