@@ -282,7 +282,7 @@ try {
   // an ecommerce or developer-tool product. Product-type inference should use
   // first-party capability evidence, not unrelated destinations.
   const encyclopediaResult=runApplicabilityAwareChecks({
-    pages:[page("https://encyclopedia.example/","<html><body><h1>Open Encyclopedia</h1><p>Read articles and learn about history, science and culture.</p></body></html>",{
+    pages:[page("https://encyclopedia.example/","<html><body><h1>Open Encyclopedia</h1><p>Read articles and learn about history, science and culture. An article discusses business plans and pricing strategies.</p></body></html>",{
       links:[
         {text:"Shop",href:"https://store.encyclopedia.example/"},
         {text:"API",href:"https://api.encyclopedia.example/"},
