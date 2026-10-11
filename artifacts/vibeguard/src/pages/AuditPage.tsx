@@ -46,7 +46,8 @@ export default function AuditPage() {
     [report, filter, showAllChecks, coreChecks],
   );
   const fullSummary = report ? { total: report.checks.length, passed: report.passed, review: report.review, missing: report.missing, notApplicable: report.notApplicable, score: report.score } : null;
-  const summary = showAllChecks ? fullSummary : (report?.coreSummary ?? null);
+  const fallbackCoreSummary = report ? { total: coreChecks.length, passed: coreChecks.filter(check => check.status === "pass").length, review: coreChecks.filter(check => check.status === "review").length, missing: coreChecks.filter(check => check.status === "missing").length, notApplicable: coreChecks.filter(check => check.status === "not_applicable").length, score: (() => { const evaluated = coreChecks.filter(check => check.status !== "not_applicable").length; return evaluated === 0 ? null : Math.round((coreChecks.filter(check => check.status === "pass").length + coreChecks.filter(check => check.status === "review").length * 0.5) / evaluated * 100); })() } : null;
+  const summary = showAllChecks ? fullSummary : (report?.coreSummary ?? fallbackCoreSummary);
   const displayedScore = summary?.score ?? null;
 
   const runAudit = async () => {
@@ -168,7 +169,7 @@ export default function AuditPage() {
                 <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#66763e]">Vibe Audit score</div>
                 <div className="mt-4 flex items-end gap-3"><span className="text-[76px] font-extrabold leading-none text-[#fffdf7]">{report.score}</span><span className="mb-2 text-sm text-[#9fa39a]">/ 100</span></div>
                 <div className="mt-4 inline-flex items-center gap-2 border border-[#8fae63]/30 bg-[#8fae63]/10 px-3 py-2 font-mono text-[9px] font-bold tracking-[0.12em] text-[#b8ce91]"><span className="h-2 w-2 rounded-full bg-[#8fae63]" />{scoreLabel(report.score)}</div>
-                <p className="mt-5 text-[11px] leading-5 text-[#a9aca4]">This is a signal score, not a legal-compliance guarantee.</p>
+                <p className="mt-5 text-[11px] leading-5 text-[#a9aca4]">This is a product signal, not a legal-compliance guarantee. N/A checks are excluded from the score.</p>
               </div>
               <div className="grid grid-cols-4 border-2 border-[#242522] bg-[#f8f5ed] text-[#171916] shadow-[8px_8px_0_#242522]">
                 <button onClick={() => setFilter("pass")} className="border-r border-[#242522]/15 p-5 text-left hover:bg-[#edf4df]"><div className="font-mono text-[9px] text-[#66763e]">PASSED</div><div className="mt-2 text-4xl font-extrabold">{summary?.passed ?? "—"}</div></button>
