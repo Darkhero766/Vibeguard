@@ -304,7 +304,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   // A crawler that observes almost no product signals must not manufacture
   // confidence simply because the HTML is small and technically valid.
   const evidencePenalty=observedSignalCount===0 ? .12 : observedSignalCount<2 ? .06 : 0;
-  const informationalHome=Boolean(home && /\\b(?:encyclopedia|encyclopaedia|reference work|online encyclopedia|wikipedia)\\b/i.test(home.text) && !/\\b(?:shop now|add to cart|start free trial|contact sales|pricing plans|security scanner|AI-powered product)\\b/i.test(home.text));
+  const informationalHome=Boolean(home && /\b(?:encyclopedia|encyclopaedia|reference work|online encyclopedia|wikipedia)\b/i.test(home.text) && !/\b(?:shop now|add to cart|start free trial|contact sales|pricing plans|security scanner|AI-powered product)\b/i.test(home.text));
   const classified=classify(signals,allEvidence,informationalHome);
   return {productTypes:classified.productTypes,commercialModel:classified.commercialModel,signals,signalConfidence,evidence:allEvidence.slice(0,80),confidence:Math.max(.05,classified.confidence*score-evidencePenalty),coverage:{pages:c.pages.length,linkedPages:Math.max(0,c.pages.length-1),forms:c.pages.reduce((n,p)=>n+p.forms.length,0),scripts:c.pages.reduce((n,p)=>n+p.scripts.length,0),dynamicRenderingLikely,score}};
 }
