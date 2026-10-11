@@ -228,7 +228,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
     internalLinks(surface,/subscription|monthly|annual|yearly|recurring/i,"subscription_link",.84)
   );
   const autoRenew=text(surface,/auto[- ]?renew|automatically renew|renews automatically|recurring (?:charge|billing|payment)/i,"auto_renewal",.97);
-  const ecommerce=combine(text(surface,/add to cart|shopping cart|product catalog|product variants|shipping|quantity|order now|buy now/i,"ecommerce_flow",.93),internalLinks(surface,/shop|store|cart|checkout/i,"ecommerce_navigation",.9),scripts(surface,/shopify|woocommerce/i,"ecommerce_platform",.96),text(surface,/\b(product|sku|in stock|out of stock)\b.{0,80}(?:\$|€|£|₹)\s?\d+/i,"ecommerce_product_price",.94));
+  const ecommerce=combine(homeText(surface,/add to cart|shopping cart|product catalog|product variants|shipping|quantity|order now|buy now/i,"ecommerce_flow",.93),internalLinks(surface,/shop|store|cart|checkout/i,"ecommerce_navigation",.9),scripts(surface,/shopify|woocommerce/i,"ecommerce_platform",.96),homeText(surface,/\b(product|sku|in stock|out of stock)\b.{0,80}(?:\$|€|£|₹)\s?\d+/i,"ecommerce_product_price",.94));
   const marketplace=combine(text(surface,/marketplace|seller|vendor|list your (?:product|service)|seller profile|buyer and seller/i,"marketplace_language",.94),text(surface,/(?:listings|products|services).{0,120}(?:seller|vendor)/i,"marketplace_flow",.9));
   const ugc=combine(forms(surface,/type=["']file["']|upload|comment|review|post|message|profile/i,"ugc_form",.9),text(surface,/user[- ]generated|community posts|comments|reviews|upload your|public profile|create a post/i,"ugc_text",.9));
   const developerApi=combine(
