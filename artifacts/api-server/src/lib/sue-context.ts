@@ -275,7 +275,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   set("persistentUserData",combine(auth,ugc,text(surface,/save your|saved projects|history|profile|dashboard data/i,"persistent_data_text",.82)));
   const paidPricing=combine(
     productText(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?\s*(?:\/\s*(?:month|year|week)|per\s+(?:month|year|week))|\b(?:paid|pro|premium|business|enterprise)\s+(?:plan|tier|subscription)\b/i,"paid_pricing",.91),
-    text(surface,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
+    productText(surface,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
   );
   set("paidService",combine(checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid/i,"paid_service_text",.78)));
   set("highImpactAI",text(surface,/\b(?:AI|model|algorithm|automated)\b.{0,100}\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|creditworthiness|loan eligibility|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|risk scores?|eligibility decision|fraud decision)\b|\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|eligibility decision|fraud decision)\b.{0,100}\b(?:AI|model|algorithm|automated)\b/i,"high_impact_ai_context",.93));
