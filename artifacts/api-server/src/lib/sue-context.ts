@@ -171,7 +171,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   const pricingRoute:Evidence[]=surface.pages.filter(p=>/(?:^|\/)(?:pricing|plans?)(?:\/|$)/i.test(p.url.pathname)).slice(0,2).map(p=>({type:"page",url:p.url.toString(),location:"URL path",excerpt:"The crawled first-party route is a pricing/plans page.",signal:"pricing_route",confidence:.88}));
   const pricing=combine(
     text(surface,/\bpricing (?:plans?|details?|options?|information)\b|\bprice list\b|\b(?:per month|per year|billed monthly|billed annually|monthly subscription|annual subscription)\b/i,"pricing_text"),
-    text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?/i,"price_amount"),
+    text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?\s*(?:\/\s*(?:month|year|week)|per\s+(?:month|year|week))/i,"price_amount"),
     internalLinks(surface,/pricing|plans/i,"pricing_link"),
     pricingRoute
   );
@@ -256,7 +256,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   set("ecommerce",ecommerce);set("marketplace",marketplace);set("developerApi",developerApi);
   set("persistentUserData",combine(auth,ugc,text(surface,/save your|saved projects|history|profile|dashboard data/i,"persistent_data_text",.82)));
   const paidPricing=combine(
-    text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?|\b(?:paid|pro|premium|business|enterprise)\s+(?:plan|tier|subscription)\b/i,"paid_pricing",.91),
+    text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?\s*(?:\/\s*(?:month|year|week)|per\s+(?:month|year|week))|\b(?:paid|pro|premium|business|enterprise)\s+(?:plan|tier|subscription)\b/i,"paid_pricing",.91),
     text(surface,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
   );
   set("paidService",combine(checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid/i,"paid_service_text",.78)));
