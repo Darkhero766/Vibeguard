@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -58,12 +58,15 @@ try {
   }
   const reachable=results.filter(x=>!x.error);
   const passed=reachable.filter(x=>x.pass).length;
-  console.log(JSON.stringify({
+  const report={
     generatedAt:new Date().toISOString(),
     total:results.length,reachable:reachable.length,passed,
-    note:"This is a live smoke/evaluation harness, not a legal-compliance oracle. Expected signals are intentionally conservative and should be reviewed when a public site changes.",
+    note:"This is a live smoke/evaluation harness, not a legal-compliance oracle. Core check outcomes are raw evidence for human review, not ground-truth labels.",
     results
-  },null,2));
+  };
+  const serialized=JSON.stringify(report,null,2);
+  console.log(serialized);
+  if(process.env.SUE_LIVE_REPORT_PATH) await writeFile(process.env.SUE_LIVE_REPORT_PATH,serialized+"\n","utf8");
   if(reachable.length<3) throw new Error("Too few public benchmark sites were reachable.");
   if(passed/reachable.length<0.75) throw new Error("Live SUE signal benchmark fell below 75%.");
 } finally {
