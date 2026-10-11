@@ -203,7 +203,7 @@ export default function AuditReportPage() {
     return <div className="min-h-[100dvh] bg-[#f3efe4] text-[#171916]"><Nav /><main className="mx-auto max-w-[900px] px-5 py-20"><div className="border-2 border-[#242522] bg-[#fffdf7] p-8 text-center shadow-[8px_8px_0_#e83a2f]"><ShieldAlert className="mx-auto text-[#e83a2f]" size={42} /><h1 className="mt-5 text-4xl font-extrabold">No SUE report found.</h1><p className="mt-3 text-sm text-[#62655d]">Run a new product audit to generate a report.</p><Link href="/audit" className="mt-6 inline-flex items-center gap-2 border-2 border-[#e83a2f] bg-[#e83a2f] px-5 py-3 text-sm font-bold text-white shadow-[4px_4px_0_#242522]"><ArrowLeft size={15} /> Back to SUE</Link></div></main><Footer /></div>;
   }
 
-  const attention = report.missing + report.review;
+  const attention = (summary?.missing ?? 0) + (summary?.review ?? 0);
 
   return (
     <div className="min-h-[100dvh] bg-[#f3efe4] text-[#171916]">
@@ -235,7 +235,7 @@ export default function AuditReportPage() {
             </button>
           </div>
           <div className="mt-5 max-h-[520px] overflow-auto border-2 border-[#242522] bg-[#101211] p-4">
-            <pre className="whitespace-pre-wrap font-mono text-[9px] leading-5 text-[#d8dbd3]">{masterPromptFor(report)}</pre>
+            <pre className="whitespace-pre-wrap font-mono text-[9px] leading-5 text-[#d8dbd3]">{masterPromptFor(report, showAllChecks)}</pre>
           </div>
         </section>
 
