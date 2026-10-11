@@ -272,3 +272,9 @@ WORKING RULES
 - Deployment status: code is merged to main; live Vercel/Render deployment and production rescan are NOT confirmed in this entry.
 - Known follow-up before calling SUE production-ready: investigate false positive product classification (Wikipedia was classified as SaaS in the homepage smoke test), improve linked legal/policy page discovery and evaluate against labelled policy fixtures, correct core-vs-beta attention/prompt scope consistency if still present, and perform a real multi-page production rescan.
 - Workflow preference: avoid unnecessary GitHub Actions runs when an equivalent focused local/tool-based validation is available; do not skip required security/regression validation. Do not report deployment as complete without checking the hosting provider/runtime.
+
+2026-10-11 — SUE pricing-signal regression correction (PR #42 follow-up)
+- Root cause confirmed from run #131: `test:sue` failed because article text on an encyclopedia fixture created `context.signals.pricing=true`. The API build command includes this regression suite, so Render's API build fails at the same assertion; later benchmark steps are skipped when this gate fails.
+- Code correction in progress: constrain pricing, price-amount, recurring-subscription, auto-renewal, paid-pricing and checkout-action text evidence to the homepage or an explicit first-party commercial/product route. Do not suppress real pricing routes or recurring billing evidence.
+- Regression coverage now asserts article-only pricing/subscription language is ignored and a genuine first-party `/pricing` route still detects recurring billing.
+- Code status: branch `fix/sue-informational-site-classification`; run the focused regression suite and all downstream benchmarks before merging or declaring deployment-ready.
