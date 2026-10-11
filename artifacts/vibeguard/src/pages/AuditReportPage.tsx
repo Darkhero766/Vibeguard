@@ -32,8 +32,10 @@ function statusClasses(status: Status) {
   return "border-[#e83a2f]/30 bg-[#fbedeb] text-[#a52f27]";
 }
 
-function masterPromptFor(report: Report) {
-  const actionable = (report.coreChecks ?? report.checks.filter((check) => CORE_CHECK_IDS.includes(check.id))).filter((check) => check.status === "missing" || check.status === "review");
+function masterPromptFor(report: Report, includeAllChecks = false) {
+  const sourceChecks = includeAllChecks ? report.checks : (report.coreChecks ?? report.checks.filter((check) => CORE_CHECK_IDS.includes(check.id)));
+  const actionable = sourceChecks.filter((check) => check.status === "missing" || check.status === "review");
+  const scoreSummary = includeAllChecks ? { score: report.score, passed: report.passed, review: report.review, missing: report.missing, notApplicable: report.notApplicable } : report.coreSummary;
   const context = report.productContext
     ? [
         "Product types: " + report.productContext.productTypes.join(", "),
@@ -55,11 +57,11 @@ function masterPromptFor(report: Report) {
       "Verify the existing implementation and keep the current behavior intact.",
       "",
       "Website: " + report.url,
-      "Score: " + report.score + "/100",
-      "Passed: " + report.passed,
-      "Review: " + report.review,
-      "Missing: " + report.missing,
-      "Not applicable: " + report.notApplicable,
+      "Score: " + (scoreSummary?.score ?? "not scored") + "/100",
+      "Passed: " + (scoreSummary?.passed ?? "—"),
+      "Review: " + (scoreSummary?.review ?? "—"),
+      "Missing: " + (scoreSummary?.missing ?? "—"),
+      "Not applicable: " + (scoreSummary?.notApplicable ?? "—"),
     ].join("\n");
   }
 
@@ -101,12 +103,12 @@ function masterPromptFor(report: Report) {
     "============================================================",
     "AUDIT SUMMARY",
     "============================================================",
-    "Score: " + report.score + "/100",
-    "Total checks: " + report.checks.length,
-    "Passed: " + report.passed,
-    "Review: " + report.review,
-    "Missing: " + report.missing,
-    "Not applicable: " + report.notApplicable,
+    "Score: " + (scoreSummary?.score ?? "not scored") + "/100",
+    "Total checks: " + sourceChecks.length,
+    "Passed: " + (scoreSummary?.passed ?? "—"),
+    "Review: " + (scoreSummary?.review ?? "—"),
+    "Missing: " + (scoreSummary?.missing ?? "—"),
+    "Not applicable: " + (scoreSummary?.notApplicable ?? "—"),
     "",
     "============================================================",
     "OBSERVED PRODUCT CONTEXT",
@@ -186,12 +188,13 @@ export default function AuditReportPage() {
     [report, filter, showAllChecks, coreChecks],
   );
   const fullSummary = report ? { total: report.checks.length, passed: report.passed, review: report.review, missing: report.missing, notApplicable: report.notApplicable, score: report.score } : null;
-  const summary = showAllChecks ? fullSummary : (report?.coreSummary ?? null);
+  const fallbackCoreSummary = report ? { total: coreChecks.length, passed: coreChecks.filter(check => check.status === "pass").length, review: coreChecks.filter(check => check.status === "review").length, missing: coreChecks.filter(check => check.status === "missing").length, notApplicable: coreChecks.filter(check => check.status === "not_applicable").length, score: (() => { const evaluated = coreChecks.filter(check => check.status !== "not_applicable").length; return evaluated === 0 ? null : Math.round((coreChecks.filter(check => check.status === "pass").length + coreChecks.filter(check => check.status === "review").length * 0.5) / evaluated * 100); })() } : null;
+  const summary = showAllChecks ? fullSummary : (report?.coreSummary ?? fallbackCoreSummary);
   const displayedScore = summary?.score ?? null;
 
   const copyMasterPrompt = async () => {
     if (!report) return;
-    await navigator.clipboard.writeText(masterPromptFor(report));
+    await navigator.clipboard.writeText(masterPromptFor(report, showAllChecks));
     setMasterCopied(true);
     window.setTimeout(() => setMasterCopied(false), 1800);
   };
