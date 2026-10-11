@@ -2,7 +2,7 @@ import { AuditCorpus, AuditCheck, Evidence, ProductContext, Rule, Severity, eval
 import { text, links, scripts, combine, policySurface, isPolicySurface, isVerifiedPolicySurface } from "./sue-context";
 
 type Def = {
-  id:string; category:string; title:string; severity:Severity; rule:Rule;
+  id:string; category:string; title:string; severity:Severity; rule:Rule; core?:boolean;
   evidence:(c:AuditCorpus)=>Evidence[]; recommendation:string; rationale:string;
 };
 
@@ -113,6 +113,10 @@ function evidenceQualityIssue(checkId:string,evidence:Evidence[]):string|null {
   return rule.adequate.test(excerpts) ? null : rule.message;
 }
 
+export const CORE_CHECK_IDS = [
+  "L01", "L02", "L03", "L08", "L09", "L10", "L12", "P11", "T01", "T02", "T03", "T05",
+] as const;
+
 const defs:Def[]=[
 D("L01","Legal","Terms of Service","high",{productTypes:["saas","ecommerce","marketplace","ai_product","developer_tool","community","service_business"],anySignals:["authentication","paidService","userGeneratedContent"]},E.L01,"Publish a visible Terms of Service link.","Terms are relevant to this product surface."),
 D("L02","Legal","Privacy Policy","high",{anySignals:["personalDataCollection","authentication","analytics","tracking","marketingCollection","ecommerce"]},E.L02,"Add a clear Privacy Policy describing the data practices detected.","Personal-data processing signals were detected."),
@@ -199,7 +203,7 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
     else if(status==="pass") explanation="The requirement is applicable and supporting evidence was found. "+d.rationale;
     else if(status==="missing") explanation="The requirement is applicable, crawl coverage was sufficient, and no supporting evidence was found. "+d.rationale;
     else if(status==="review") explanation="The requirement needs human review because the public crawl cannot establish it confidently. "+(qualityIssue ? qualityIssue+" " : "")+d.rationale;
-    return {id:d.id,category:d.category,title:d.title,applicability,status,severity:status==="not_applicable"?"low":d.severity,confidence:qualityIssue?Math.min(.68,confidence(context,evidence)):confidence(context,evidence),evidence,explanation,reason:explanation,recommendation:d.recommendation};
+    return {id:d.id,category:d.category,title:d.title,applicability,status,severity:status==="not_applicable"?"low":d.severity,confidence:qualityIssue?Math.min(.68,confidence(context,evidence)):confidence(context,evidence),evidence,explanation,reason:explanation,recommendation:d.recommendation,core:(CORE_CHECK_IDS as readonly string[]).includes(d.id)};
   });
   return {context,checks};
 }
