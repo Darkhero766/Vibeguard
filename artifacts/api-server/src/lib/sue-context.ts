@@ -133,7 +133,12 @@ function sv(evidence:Evidence[], fallback=0) {
   return {detected:true,confidence:Math.min(.99,Math.max(...evidence.map(e=>e.confidence))+boost),evidence};
 }
 
-function classify(s:ProductSignals,evidence:Evidence[]) {
+function classify(s:ProductSignals,evidence:Evidence[],informationalHome=false) {
+  // Strong first-party identity as an encyclopedia/reference publication takes
+  // precedence over incidental commercial/API language found in article text.
+  // Public editorial sites often expose login, donation, or community links;
+  // those alone do not turn the publication into SaaS, ecommerce, or a dev tool.
+  if(informationalHome) return {productTypes:["content"] as ProductContext["productTypes"],commercialModel:"unknown" as ProductContext["commercialModel"],confidence:0.84};
   const scores:Record<string,number>={}; const add=(k:string,n:number)=>scores[k]=(scores[k]??0)+n;
   if(s.authentication||s.accountCreation||s.persistentUserData) add("saas",.34);
   if(s.subscription||s.paidService) add("saas",.22);
@@ -299,6 +304,7 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   // A crawler that observes almost no product signals must not manufacture
   // confidence simply because the HTML is small and technically valid.
   const evidencePenalty=observedSignalCount===0 ? .12 : observedSignalCount<2 ? .06 : 0;
-  const classified=classify(signals,allEvidence);
+  const informationalHome=Boolean(home && /\\b(?:encyclopedia|encyclopaedia|reference work|online encyclopedia|wikipedia)\\b/i.test(home.text) && !/\\b(?:shop now|add to cart|start free trial|contact sales|pricing plans|security scanner|AI-powered product)\\b/i.test(home.text));
+  const classified=classify(signals,allEvidence,informationalHome);
   return {productTypes:classified.productTypes,commercialModel:classified.commercialModel,signals,signalConfidence,evidence:allEvidence.slice(0,80),confidence:Math.max(.05,classified.confidence*score-evidencePenalty),coverage:{pages:c.pages.length,linkedPages:Math.max(0,c.pages.length-1),forms:c.pages.reduce((n,p)=>n+p.forms.length,0),scripts:c.pages.reduce((n,p)=>n+p.scripts.length,0),dynamicRenderingLikely,score}};
 }
