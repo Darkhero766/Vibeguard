@@ -16,18 +16,26 @@ try {
     external:["node:*"],
     logLevel:"silent"
   });
-  const {runApplicabilityAwareChecks,definitionsCount}=await import(outfile);
+  const {runApplicabilityAwareChecks,definitionsCount,CORE_CHECK_IDS}=await import(outfile);
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
+  assert.equal(CORE_CHECK_IDS.length,12,"V1 must expose exactly 12 core checks");
+  assert.equal(new Set(CORE_CHECK_IDS).size,12,"Core check IDs must be unique");
+  assert.deepEqual([...CORE_CHECK_IDS].sort(),["L01","L02","L03","L08","L09","L10","L12","P11","T01","T02","T03","T05"].sort(),"Core registry must match the approved V1 IDs");
 
   const headers=()=>new Headers();
   // SSRF host-validation unit coverage is kept in the audit route itself;
   // these cases document the security boundary for future route-level tests.
   assert.ok((await import("node:net")).isIP("2001:db8::1")===6,"Node must recognize IPv6 test addresses");
 
-  const page=(url,html,{home=true,text:txt=null,scripts:sc=null,links:ls=[],forms:fs=[],headers:hdrs=null}={})=>({
-    url:new URL(url),html,text:txt??html.replace(/<[^>]+>/g," "),links:ls,scripts:sc??[...html.matchAll(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi)].map(m=>m[1]),forms:fs,
-    inputs:[],metadata:"",structuredData:"",headers:hdrs??headers(),isHome:home
-  });
+  const page=(url,html,{home=true,text:txt=null,scripts:sc=null,links:ls=[],forms:fs=[],headers:hdrs=null}={})=>{
+    const parsedLinks=[...html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)].map(m=>{
+      try { return {href:new URL(m[1],url).toString(),text:m[2].replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim()}; } catch { return null; }
+    }).filter(Boolean);
+    return {
+      url:new URL(url),html,text:txt??html.replace(/<[^>]+>/g," "),links:[...ls,...parsedLinks],scripts:sc??[...html.matchAll(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi)].map(m=>m[1]),forms:fs,
+      inputs:[],metadata:"",structuredData:"",headers:hdrs??headers(),isHome:home
+    };
+  };
   const corpus=(html,url="https://example.test/")=>({pages:[page(url,html)],origin:new URL(url).origin});
   const run=(html,url)=>runApplicabilityAwareChecks(corpus(html,url)).checks;
   const by=(checks,id)=>checks.find(x=>x.id===id);
@@ -274,6 +282,31 @@ try {
     <html><body><h1>Code Security Scanner</h1>
     <p>Scan your repository for vulnerabilities with automated security testing.</p>
     </body></html>`);
+
+  // Outbound store/API links on an informational site must not turn it into
+  // an ecommerce or developer-tool product. Product-type inference should use
+  // first-party capability evidence, not unrelated destinations.
+  const encyclopediaResult=runApplicabilityAwareChecks({
+    pages:[page("https://encyclopedia.example/","<html><body><h1>Open Encyclopedia</h1><p>Read articles and learn about history, science and culture. An article discusses business plans and pricing strategies.</p></body></html>",{
+      links:[
+        {text:"Shop",href:"https://store.encyclopedia.example/"},
+        {text:"API",href:"https://api.encyclopedia.example/"},
+        {text:"Donate",href:"https://donate.encyclopedia.example/"}
+      ],
+      scripts:["https://js.stripe.com/v3/"]
+    })],
+    origin:"https://encyclopedia.example"
+  });
+  const encyclopedia=encyclopediaResult.checks;
+  assert.equal(encyclopediaResult.context.signals.ecommerce,false,"An outbound store link must not prove first-party ecommerce.");
+  assert.equal(encyclopediaResult.context.signals.pricing,false,"Outbound links must not create pricing evidence.");
+  assert.equal(encyclopediaResult.context.signals.developerApi,false,"An outbound API link must not prove a developer product.");
+  assert.equal(encyclopediaResult.context.signals.payments,true,"A payment SDK can be detected without implying the product sells a paid service.");
+  assert.equal(encyclopediaResult.context.signals.paidService,false,"A payment SDK alone must not imply a paid service.");
+  assert.equal(encyclopediaResult.context.commercialModel,"unknown","A payment SDK alone must not imply a freemium commercial model.");
+  assert.ok(!encyclopediaResult.context.productTypes.includes("ecommerce"),"Informational content must not be classified as ecommerce from an outbound store link.");
+  assert.ok(!encyclopediaResult.context.productTypes.includes("saas"),"Informational content must not be classified as SaaS from unrelated commercial links.");
+  assert.ok(!encyclopediaResult.context.productTypes.includes("developer_tool"),"Informational content must not be classified as a developer tool from an outbound API link.");
   assert.equal(by(securityTool,"L01").applicability,"applicable","A clearly identified security scanning product must not be treated as generic content.");
   assert.equal(by(securityTool,"P01").applicability,"not_applicable","Product classification alone must not imply personal-data collection without supporting evidence.");
   assert.notEqual(by(securityTool,"T02").status,"pass","A security tool without a visible contact/disclosure route must not pass T02.");
@@ -284,6 +317,9 @@ try {
     <a href="/security-contact">Security contact</a>
     </body></html>`);
   assert.equal(by(securityContact,"T02").status,"pass","Explicit security contact and responsible-disclosure evidence should satisfy T02.");
+
+  const securityTeamOnly=run(`<html><body><h1>Code Security Scanner</h1><p>Meet our security team. We build the fastest scanner for developers.</p></body></html>`);
+  assert.notEqual(by(securityTeamOnly,"T02").status,"pass","A generic security-team mention must not count as a security contact.");
 
   const analytics=run(`
     <html><body><h1>Company</h1><p>Welcome.</p>
@@ -337,8 +373,11 @@ try {
   assert.equal(by(jsHeavy,"C05").status,"review","Low-visibility analytics checks should be review, not missing");
   assert.equal(by(jsHeavy,"A01").status,"review","Low-visibility AI checks should be review, not missing");
 
-  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,securityTool,securityContact,legalPageOnly,searchOnly,jsHeavy,vagueChecks,policyShellChecks})) {
+  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,securityTool,securityContact,encyclopedia,legalPageOnly,searchOnly,jsHeavy,vagueChecks,policyShellChecks})) {
     assert.equal(checks.length,50,`${name}: every scenario must evaluate all 50 checks`);
+    assert.equal(checks.filter(check=>check.core===true).length,12,`${name}: exactly 12 checks must be core`);
+    assert.deepEqual(checks.filter(check=>check.core===true).map(check=>check.id).sort(),[...CORE_CHECK_IDS].sort(),`${name}: core flags must match the canonical registry`);
+    assert.ok(checks.filter(check=>check.core!==true).every(check=>!CORE_CHECK_IDS.includes(check.id)),`${name}: non-core checks must remain non-core`);
     for (const check of checks) {
       assert.ok(["applicable","not_applicable","unknown"].includes(check.applicability),`${name}/${check.id}: invalid applicability`);
       assert.ok(["pass","review","missing","not_applicable"].includes(check.status),`${name}/${check.id}: invalid status`);
@@ -348,7 +387,7 @@ try {
   }
 
   console.log("SUE applicability regression suite: PASS");
-  console.log("Scenarios: 17 | Checks per scenario: 50 | Total evaluations: 850.");
+  console.log("Scenarios: 18 | Checks per scenario: 50 | Total evaluations: 900.");
   console.log("Validated: portfolio, blog, ecommerce, SaaS, AI product, AI mention-only, analytics, no-tracking, free SaaS, VibeSane-like SaaS, explicit security-tool classification, security-contact evidence, legal-page contamination, generic search input, JS-heavy coverage.");
 } finally {
   await rm(dir,{recursive:true,force:true});

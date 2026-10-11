@@ -2,7 +2,7 @@ import { AuditCorpus, AuditCheck, Evidence, ProductContext, Rule, Severity, eval
 import { text, links, scripts, combine, policySurface, isPolicySurface, isVerifiedPolicySurface } from "./sue-context";
 
 type Def = {
-  id:string; category:string; title:string; severity:Severity; rule:Rule;
+  id:string; category:string; title:string; severity:Severity; rule:Rule; core?:boolean;
   evidence:(c:AuditCorpus)=>Evidence[]; recommendation:string; rationale:string;
 };
 
@@ -58,7 +58,7 @@ const E={
  T02:(c:AuditCorpus)=>combine(
    // A product link containing the word "security" (for example, a security scanner
    // feature page) is not evidence of a security contact or disclosure process.
-   text(c,/\bsecurity@[\w.-]+\.[A-Z]{2,}\b|\bsecurity (?:contact|team|email)\b|\b(?:report|disclose) (?:a )?(?:security issue|vulnerabilit(?:y|ies))\b|\bresponsible disclosure\b|\bbug bounty\b/i,"security_contact",.96),
+   text(c,/\bsecurity@[\w.-]+\.[A-Z]{2,}\b|\bsecurity (?:contact|email|address)\b|\b(?:report|disclose) (?:a )?(?:security issue|vulnerabilit(?:y|ies))\b|\bresponsible disclosure\b|\bbug bounty\b/i,"security_contact",.96),
    links(c,/security[-_/ ]?(?:contact|report|disclosure)|responsible[-_/ ]?disclosure|vulnerabilit(?:y|ies)[-_/ ]?(?:report|disclosure)|report[-_/ ]?(?:a[-_/ ]?)?(?:security|vulnerabilit(?:y|ies))|bug[-_/ ]?bounty|security\.txt/i,"security_contact_link",.92)
  ),
  T03:(c:AuditCorpus)=>text(c,/accessibility|WCAG|screen reader|keyboard navigation|aria-/i,"accessibility_signal",.88),
@@ -113,6 +113,10 @@ function evidenceQualityIssue(checkId:string,evidence:Evidence[]):string|null {
   return rule.adequate.test(excerpts) ? null : rule.message;
 }
 
+export const CORE_CHECK_IDS = [
+  "L01", "L02", "L03", "L08", "L09", "L10", "L12", "P11", "T01", "T02", "T03", "T05",
+] as const;
+
 const defs:Def[]=[
 D("L01","Legal","Terms of Service","high",{productTypes:["saas","ecommerce","marketplace","ai_product","developer_tool","community","service_business"],anySignals:["authentication","paidService","userGeneratedContent"]},E.L01,"Publish a visible Terms of Service link.","Terms are relevant to this product surface."),
 D("L02","Legal","Privacy Policy","high",{anySignals:["personalDataCollection","authentication","analytics","tracking","marketingCollection","ecommerce"]},E.L02,"Add a clear Privacy Policy describing the data practices detected.","Personal-data processing signals were detected."),
@@ -164,7 +168,9 @@ D("T02","Trust","Security contact","low",{productTypes:["saas","developer_tool",
 D("T03","Trust","Accessibility signal","low",{anySignals:["commercialActivity","authentication","ecommerce","community","marketplace"]},E.T03,"Publish accessibility information and test the UI with assistive technology.","Accessibility review is most useful for customer-facing products and interactive services; absence of a visible statement is not proof of legal non-compliance."),
 D("T04","Trust","Legal links grouped in footer","medium",{anySignals:["commercialActivity","personalDataCollection","authentication"],unknownIfLowCoverage:true},E.T04,"Group applicable Terms and Privacy links in the footer.","Applicable legal documents should be easy to discover."),
 D("T05","Trust","Legal pages reachable from same product origin","high",{anySignals:["commercialActivity","personalDataCollection","authentication"],unknownIfLowCoverage:true},E.T05,"Ensure applicable legal pages are reachable from the deployed product origin.","Applicable legal documents should be discoverable from the product."),
-];
+ ];
+
+for (const def of defs) def.core = (CORE_CHECK_IDS as readonly string[]).includes(def.id);
 
 import { buildProductContext } from "./sue-context";
 
@@ -199,7 +205,7 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
     else if(status==="pass") explanation="The requirement is applicable and supporting evidence was found. "+d.rationale;
     else if(status==="missing") explanation="The requirement is applicable, crawl coverage was sufficient, and no supporting evidence was found. "+d.rationale;
     else if(status==="review") explanation="The requirement needs human review because the public crawl cannot establish it confidently. "+(qualityIssue ? qualityIssue+" " : "")+d.rationale;
-    return {id:d.id,category:d.category,title:d.title,applicability,status,severity:status==="not_applicable"?"low":d.severity,confidence:qualityIssue?Math.min(.68,confidence(context,evidence)):confidence(context,evidence),evidence,explanation,reason:explanation,recommendation:d.recommendation};
+    return {id:d.id,category:d.category,title:d.title,applicability,status,severity:status==="not_applicable"?"low":d.severity,confidence:qualityIssue?Math.min(.68,confidence(context,evidence)):confidence(context,evidence),evidence,explanation,reason:explanation,recommendation:d.recommendation,core:d.core===true};
   });
   return {context,checks};
 }

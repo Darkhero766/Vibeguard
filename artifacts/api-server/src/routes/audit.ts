@@ -7,8 +7,8 @@ import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { consumeAuditScan, ensurePlanForUser } from "../lib/plan";
-import { runApplicabilityAwareChecks } from "../lib/sue-checks";
-import type { AuditCorpus, AuditPage } from "../lib/sue-applicability";
+import { CORE_CHECK_IDS, runApplicabilityAwareChecks } from "../lib/sue-checks";
+import type { AuditCheck, AuditCorpus, AuditPage } from "../lib/sue-applicability";
 
 const router = Router();
 
@@ -16,6 +16,22 @@ const MAX_REDIRECTS = 5;
 const MAX_HTML_BYTES = 2_500_000;
 const MAX_LINK_PAGES = 16;
 const FETCH_TIMEOUT_MS = 8_000;
+
+const CORE_CHECK_ID_SET = new Set<string>(CORE_CHECK_IDS);
+type CoreSummary = { total: number; passed: number; review: number; missing: number; notApplicable: number; score: number | null };
+
+function buildCoreReport(checks: AuditCheck[]): { coreChecks: AuditCheck[]; coreSummary: CoreSummary } {
+  const coreChecks = checks.filter(check => CORE_CHECK_ID_SET.has(check.id)).map(check => ({ ...check, core: true }));
+  const passed = coreChecks.filter(check => check.status === "pass").length;
+  const review = coreChecks.filter(check => check.status === "review").length;
+  const missing = coreChecks.filter(check => check.status === "missing").length;
+  const notApplicable = coreChecks.filter(check => check.status === "not_applicable").length;
+  const evaluated = coreChecks.length - notApplicable;
+  return {
+    coreChecks,
+    coreSummary: { total: coreChecks.length, passed, review, missing, notApplicable, score: evaluated === 0 ? null : Math.round(((passed + review * 0.5) / evaluated) * 100) },
+  };
+}
 
 const SENSITIVE_QUERY_KEYS = /^(?:token|access[_-]?token|refresh[_-]?token|api[_-]?key|key|secret|password|passwd|signature|sig|auth|authorization|credential|code)$/i;
 
@@ -476,6 +492,8 @@ router.post("/audit", rateLimit({ name: "audit", windowMs: 60_000, max: 10 }),re
     const {corpus,redirectCount}=await crawl(start);
     const reportUrl=sanitizeAuditUrl(corpus.pages[0].url);
     const {context,checks}=runApplicabilityAwareChecks(corpus);
+    const {coreChecks,coreSummary}=buildCoreReport(checks);
+    if(coreChecks.length!==CORE_CHECK_IDS.length) throw new Error("SUE core-check registry does not match evaluated checks.");
 
     const passed=checks.filter(x=>x.status==="pass").length;
     const review=checks.filter(x=>x.status==="review").length;
@@ -515,6 +533,8 @@ router.post("/audit", rateLimit({ name: "audit", windowMs: 60_000, max: 10 }),re
       missing,
       notApplicable,
       checks,
+      coreChecks,
+      coreSummary,
       productContext,
       quota:updatedPlan,
       redirectCount,
@@ -540,6 +560,8 @@ router.get("/audit/:id",requireAuth,async(req:AuthedRequest,res):Promise<void>=>
     );
     const row=result.rows[0];
     if(!row){res.status(404).json({error:"Audit report not found."});return;}
+    const storedChecks = (Array.isArray(row.checks) ? row.checks : []) as AuditCheck[];
+    const {coreChecks,coreSummary}=buildCoreReport(storedChecks);
     res.json({
       auditId:row.id,
       url:row.url,
@@ -549,7 +571,9 @@ router.get("/audit/:id",requireAuth,async(req:AuthedRequest,res):Promise<void>=>
       review:row.review,
       missing:row.missing,
       notApplicable:row.not_applicable,
-      checks:row.checks,
+      checks:storedChecks,
+      coreChecks,
+      coreSummary,
       productContext:row.product_context,
       redirectCount:row.redirect_count,
     });

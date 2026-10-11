@@ -11,17 +11,18 @@ type AuditCheck = {
   id: string; category: string; title: string; status: Status;
   applicability: "applicable" | "not_applicable" | "unknown";
   confidence: number; evidence: Evidence[]; severity: Severity;
-  explanation: string; recommendation: string;
+  explanation: string; recommendation: string; core?: boolean;
 };
 type Report = { auditId?: string | null;
   url: string; scannedAt: string; score: number; passed: number; review: number;
-  missing: number; notApplicable: number; checks: AuditCheck[];
+  missing: number; notApplicable: number; checks: AuditCheck[]; coreChecks?: AuditCheck[]; coreSummary?: { total: number; passed: number; review: number; missing: number; notApplicable: number; score: number | null };
   productContext?: {
     productTypes: string[]; commercialModel: string; signals: Record<string, boolean>;
     confidence: number; coverage: { pages: number; linkedPages: number; forms: number; scripts: number; dynamicRenderingLikely: boolean; score: number };
   };
 };
 
+const CORE_CHECK_IDS = ["L01","L02","L03","L08","L09","L10","L12","P11","T01","T02","T03","T05"];
 const statusLabel: Record<Status,string> = { pass: "PASS", review: "REVIEW", missing: "MISSING", not_applicable: "N/A" };
 
 function statusClasses(status: Status) {
@@ -31,8 +32,10 @@ function statusClasses(status: Status) {
   return "border-[#e83a2f]/30 bg-[#fbedeb] text-[#a52f27]";
 }
 
-function masterPromptFor(report: Report) {
-  const actionable = report.checks.filter((check) => check.status === "missing" || check.status === "review");
+function masterPromptFor(report: Report, includeAllChecks = false) {
+  const sourceChecks = includeAllChecks ? report.checks : (report.coreChecks ?? report.checks.filter((check) => CORE_CHECK_IDS.includes(check.id)));
+  const actionable = sourceChecks.filter((check) => check.status === "missing" || check.status === "review");
+  const scoreSummary = includeAllChecks ? { score: report.score, passed: report.passed, review: report.review, missing: report.missing, notApplicable: report.notApplicable } : report.coreSummary;
   const context = report.productContext
     ? [
         "Product types: " + report.productContext.productTypes.join(", "),
@@ -54,11 +57,11 @@ function masterPromptFor(report: Report) {
       "Verify the existing implementation and keep the current behavior intact.",
       "",
       "Website: " + report.url,
-      "Score: " + report.score + "/100",
-      "Passed: " + report.passed,
-      "Review: " + report.review,
-      "Missing: " + report.missing,
-      "Not applicable: " + report.notApplicable,
+      "Score: " + (scoreSummary?.score ?? "not scored") + "/100",
+      "Passed: " + (scoreSummary?.passed ?? "—"),
+      "Review: " + (scoreSummary?.review ?? "—"),
+      "Missing: " + (scoreSummary?.missing ?? "—"),
+      "Not applicable: " + (scoreSummary?.notApplicable ?? "—"),
     ].join("\n");
   }
 
@@ -100,12 +103,12 @@ function masterPromptFor(report: Report) {
     "============================================================",
     "AUDIT SUMMARY",
     "============================================================",
-    "Score: " + report.score + "/100",
-    "Total checks: " + report.checks.length,
-    "Passed: " + report.passed,
-    "Review: " + report.review,
-    "Missing: " + report.missing,
-    "Not applicable: " + report.notApplicable,
+    "Score: " + (scoreSummary?.score ?? "not scored") + "/100",
+    "Total checks: " + sourceChecks.length,
+    "Passed: " + (scoreSummary?.passed ?? "—"),
+    "Review: " + (scoreSummary?.review ?? "—"),
+    "Missing: " + (scoreSummary?.missing ?? "—"),
+    "Not applicable: " + (scoreSummary?.notApplicable ?? "—"),
     "",
     "============================================================",
     "OBSERVED PRODUCT CONTEXT",
@@ -171,6 +174,7 @@ function masterPromptFor(report: Report) {
 export default function AuditReportPage() {
   const [masterCopied, setMasterCopied] = useState(false);
   const [filter, setFilter] = useState<"all" | Status>("all");
+  const [showAllChecks, setShowAllChecks] = useState(false);
   const [report] = useState<Report | null>(() => {
     try {
       const raw = sessionStorage.getItem("vibesane:sue-report");
@@ -178,14 +182,19 @@ export default function AuditReportPage() {
     } catch { return null; }
   });
 
+  const coreChecks = report?.coreChecks ?? report?.checks.filter((check) => CORE_CHECK_IDS.includes(check.id)) ?? [];
   const checks = useMemo(
-    () => report?.checks.filter((c) => filter === "all" || c.status === filter) ?? [],
-    [report, filter],
+    () => (showAllChecks ? report?.checks : coreChecks)?.filter((c) => filter === "all" || c.status === filter) ?? [],
+    [report, filter, showAllChecks, coreChecks],
   );
+  const fullSummary = report ? { total: report.checks.length, passed: report.passed, review: report.review, missing: report.missing, notApplicable: report.notApplicable, score: report.score } : null;
+  const fallbackCoreSummary = report ? { total: coreChecks.length, passed: coreChecks.filter(check => check.status === "pass").length, review: coreChecks.filter(check => check.status === "review").length, missing: coreChecks.filter(check => check.status === "missing").length, notApplicable: coreChecks.filter(check => check.status === "not_applicable").length, score: (() => { const evaluated = coreChecks.filter(check => check.status !== "not_applicable").length; return evaluated === 0 ? null : Math.round((coreChecks.filter(check => check.status === "pass").length + coreChecks.filter(check => check.status === "review").length * 0.5) / evaluated * 100); })() } : null;
+  const summary = showAllChecks ? fullSummary : (report?.coreSummary ?? fallbackCoreSummary);
+  const displayedScore = summary?.score ?? null;
 
   const copyMasterPrompt = async () => {
     if (!report) return;
-    await navigator.clipboard.writeText(masterPromptFor(report));
+    await navigator.clipboard.writeText(masterPromptFor(report, showAllChecks));
     setMasterCopied(true);
     window.setTimeout(() => setMasterCopied(false), 1800);
   };
@@ -194,7 +203,7 @@ export default function AuditReportPage() {
     return <div className="min-h-[100dvh] bg-[#f3efe4] text-[#171916]"><Nav /><main className="mx-auto max-w-[900px] px-5 py-20"><div className="border-2 border-[#242522] bg-[#fffdf7] p-8 text-center shadow-[8px_8px_0_#e83a2f]"><ShieldAlert className="mx-auto text-[#e83a2f]" size={42} /><h1 className="mt-5 text-4xl font-extrabold">No SUE report found.</h1><p className="mt-3 text-sm text-[#62655d]">Run a new product audit to generate a report.</p><Link href="/audit" className="mt-6 inline-flex items-center gap-2 border-2 border-[#e83a2f] bg-[#e83a2f] px-5 py-3 text-sm font-bold text-white shadow-[4px_4px_0_#242522]"><ArrowLeft size={15} /> Back to SUE</Link></div></main><Footer /></div>;
   }
 
-  const attention = report.missing + report.review;
+  const attention = (summary?.missing ?? 0) + (summary?.review ?? 0);
 
   return (
     <div className="min-h-[100dvh] bg-[#f3efe4] text-[#171916]">
@@ -203,10 +212,10 @@ export default function AuditReportPage() {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[560px] opacity-40" style={{ backgroundImage: "linear-gradient(rgba(102,118,62,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(102,118,62,.08) 1px, transparent 1px)", backgroundSize: "36px 36px" }} />
         <header className="relative z-10">
           <Link href="/audit" className="inline-flex items-center gap-2 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#62655d] hover:text-[#e83a2f]"><ArrowLeft size={13} /> New scan</Link>
-          <div className="mt-6 flex flex-wrap items-center gap-3 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-[#e83a2f]"><span className="h-px w-10 bg-[#e83a2f]" /> SUE / scan report <span className="border border-[#66763e]/40 bg-[#66763e]/10 px-2 py-1 text-[#66763e]">50 CHECKS</span></div>
+          <div className="mt-6 flex flex-wrap items-center gap-3 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-[#e83a2f]"><span className="h-px w-10 bg-[#e83a2f]" /> SUE / scan report <span className="border border-[#66763e]/40 bg-[#66763e]/10 px-2 py-1 text-[#66763e]">12 CORE CHECKS</span></div>
           <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_330px] lg:items-end">
             <div><p className="font-mono text-[9px] uppercase tracking-[0.14em] text-[#777a72]">{report.url}</p><h1 className="mt-2 text-[48px] font-extrabold leading-[.9] tracking-[-0.05em] sm:text-[70px]">Product audit<br /><span className="text-[#66763e]">decoded.</span></h1><p className="mt-5 max-w-2xl text-[13px] leading-6 text-[#5b5e57]">SUE first determined what appears to apply to this product, then evaluated the relevant requirements. N/A findings are intentionally excluded from the score.</p></div>
-            <div className="border-2 border-[#0a0b0a] bg-[#101211] p-6 text-[#fffdf7] shadow-[7px_7px_0_#e83a2f]"><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#66763e]">Launch signal</div><div className="mt-2 flex items-end gap-3"><span className="text-[70px] font-extrabold leading-none">{report.score}</span><span className="mb-2 font-mono text-[10px] text-[#9fa39a]">/100</span></div><div className="mt-4 grid grid-cols-2 gap-2 text-center font-mono text-[9px] sm:grid-cols-4"><div className="border border-[#8fae63]/30 bg-[#8fae63]/10 p-2"><b className="block text-lg text-[#b8ce91]">{report.passed}</b>PASS</div><div className="border border-[#d6a65b]/30 bg-[#d6a65b]/10 p-2"><b className="block text-lg text-[#e7c58e]">{report.review}</b>REVIEW</div><div className="border border-[#e83a2f]/30 bg-[#e83a2f]/10 p-2"><b className="block text-lg text-[#f09a92]">{report.missing}</b>MISSING</div><div className="border border-[#a7a89f]/30 bg-[#eceae2]/10 p-2 text-[#d0d1ca]"><b className="block text-lg">{report.notApplicable}</b>N/A</div></div></div>
+            <div className="border-2 border-[#0a0b0a] bg-[#101211] p-6 text-[#fffdf7] shadow-[7px_7px_0_#e83a2f]"><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#66763e]">{showAllChecks ? "Full-engine beta score" : "Core launch signal"}</div><div className="mt-2 flex items-end gap-3"><span className="text-[70px] font-extrabold leading-none">{displayedScore === null ? "—" : displayedScore}</span><span className="mb-2 font-mono text-[10px] text-[#9fa39a]">{displayedScore === null ? "not scored" : "/100"}</span></div><div className="mt-4 grid grid-cols-2 gap-2 text-center font-mono text-[9px] sm:grid-cols-4"><div className="border border-[#8fae63]/30 bg-[#8fae63]/10 p-2"><b className="block text-lg text-[#b8ce91]">{summary?.passed ?? "—"}</b>PASS</div><div className="border border-[#d6a65b]/30 bg-[#d6a65b]/10 p-2"><b className="block text-lg text-[#e7c58e]">{summary?.review ?? "—"}</b>REVIEW</div><div className="border border-[#e83a2f]/30 bg-[#e83a2f]/10 p-2"><b className="block text-lg text-[#f09a92]">{summary?.missing ?? "—"}</b>MISSING</div><div className="border border-[#a7a89f]/30 bg-[#eceae2]/10 p-2 text-[#d0d1ca]"><b className="block text-lg">{summary?.notApplicable ?? "—"}</b>N/A</div></div></div>
           </div>
         </header>
 
@@ -226,12 +235,12 @@ export default function AuditReportPage() {
             </button>
           </div>
           <div className="mt-5 max-h-[520px] overflow-auto border-2 border-[#242522] bg-[#101211] p-4">
-            <pre className="whitespace-pre-wrap font-mono text-[9px] leading-5 text-[#d8dbd3]">{masterPromptFor(report)}</pre>
+            <pre className="whitespace-pre-wrap font-mono text-[9px] leading-5 text-[#d8dbd3]">{masterPromptFor(report, showAllChecks)}</pre>
           </div>
         </section>
 
         <section className="relative z-10 mt-8">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#c92e25]">03 / Findings</div><h2 className="mt-1 text-3xl font-extrabold">What to fix, with context.</h2></div><div className="flex flex-wrap gap-1 border border-[#242522] bg-[#101211] p-1">{(["all","missing","review","pass","not_applicable"] as const).map((item) => <button key={item} onClick={() => setFilter(item)} className={"px-3 py-2 font-mono text-[9px] font-bold uppercase " + (filter === item ? "bg-[#66763e] text-[#101111]" : "text-[#9fa39a]")}>{item === "not_applicable" ? "N/A" : item}</button>)}</div></div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#c92e25]">03 / Findings</div><h2 className="mt-1 text-3xl font-extrabold">What to fix, with context.</h2><p className="mt-2 max-w-xl text-[11px] leading-5 text-[#62655d]">{showAllChecks ? "Beta view: the full 50-check engine is visible; findings may be experimental." : "Showing the 12 core launch-readiness checks. N/A means the requirement was not applicable based on observed product signals."}</p></div><button type="button" onClick={() => { setShowAllChecks(value => !value); setFilter("all"); }} className="border-2 border-[#242522] bg-[#fffdf7] px-4 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.1em] shadow-[3px_3px_0_#242522] hover:bg-[#edf4df]">{showAllChecks ? "Show core checks" : "Show all checks (beta)"}</button><div className="flex flex-wrap gap-1 border border-[#242522] bg-[#101211] p-1">{(["all","missing","review","pass","not_applicable"] as const).map((item) => <button key={item} onClick={() => setFilter(item)} className={"px-3 py-2 font-mono text-[9px] font-bold uppercase " + (filter === item ? "bg-[#66763e] text-[#101111]" : "text-[#9fa39a]")}>{item === "not_applicable" ? "N/A" : item}</button>)}</div></div>
 
           <div className="grid gap-4">
             {checks.map((item) => <article key={item.id} className="border-2 border-[#242522] bg-[#fffdf7] p-5 shadow-[6px_6px_0_#242522] sm:p-6">

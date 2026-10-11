@@ -34,6 +34,24 @@ export function links(c:AuditCorpus,p:RegExp,s:string,confidence=0.9) {
     if(out.length>=4) return out;
   } return out;
 }
+
+// Product capability signals should not be inferred from outbound links to
+// unrelated sites (for example, an encyclopedia linking to an external store
+// or API documentation). Legal links intentionally continue to use links(),
+// because first-party products may publish legal documents on a separate host.
+export function internalLinks(c:AuditCorpus,p:RegExp,s:string,confidence=0.9) {
+  const out:Evidence[]=[];
+  let origin:string;
+  try { origin=new URL(c.origin).origin; } catch { return out; }
+  for(const page of c.pages) for(const l of page.links) {
+    let target:URL;
+    try { target=new URL(l.href,page.url); } catch { continue; }
+    if(target.origin!==origin || !p.test(l.text+" "+target.pathname+" "+target.search)) continue;
+    out.push({type:"link",url:page.url.toString(),location:"navigation/link",excerpt:excerpt(l.text+" → "+target.toString()),signal:s,confidence});
+    if(out.length>=4) return out;
+  }
+  return out;
+}
 export function scripts(c:AuditCorpus,p:RegExp,s:string,confidence=0.94) {
   const out:Evidence[]=[]; for(const page of c.pages) for(const src of page.scripts) {
     if(!p.test(src)) continue;
@@ -137,7 +155,7 @@ function classify(s:ProductSignals,evidence:Evidence[]) {
   if(s.subscription) commercialModel="subscription";
   else if(s.ecommerce&&s.checkout) commercialModel="one_time_purchase";
   else if(s.marketplace) commercialModel="marketplace";
-  else if(s.paidService||s.payments||s.pricing) commercialModel="freemium";
+  else if(s.paidService||s.pricing) commercialModel="freemium";
   else if(s.advertising) commercialModel="advertising";
   else commercialModel="unknown";
   const max=Math.max(...Object.values(scores),0);
@@ -150,8 +168,14 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   const allEvidence:Evidence[]=[];
   const set=(key:keyof ProductSignals,ev:Evidence[])=>{signalEvidence[key]=ev;allEvidence.push(...ev);};
 
-  const pricing=combine(text(surface,/\b(pricing|plans|price list|starting at|per month|per year)\b/i,"pricing_text"),text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?/i,"price_amount"),links(surface,/pricing|plans|shop|store/i,"pricing_link"));
-  const checkout=combine(text(surface,/\b(add to cart|buy now|checkout|place order|complete purchase|subscribe now)\b/i,"checkout_action"),links(surface,/checkout|cart|buy|order/i,"checkout_link"),forms(surface,/checkout|payment|billing|order/i,"checkout_form"));
+  const pricingRoute:Evidence[]=surface.pages.filter(p=>/(?:^|\/)(?:pricing|plans?)(?:\/|$)/i.test(p.url.pathname)).slice(0,2).map(p=>({type:"page",url:p.url.toString(),location:"URL path",excerpt:"The crawled first-party route is a pricing/plans page.",signal:"pricing_route",confidence:.88}));
+  const pricing=combine(
+    text(surface,/\bpricing (?:plans?|details?|options?|information)\b|\bprice list\b|\b(?:per month|per year|billed monthly|billed annually|monthly subscription|annual subscription)\b/i,"pricing_text"),
+    text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?\s*(?:\/\s*(?:month|year|week)|per\s+(?:month|year|week))/i,"price_amount"),
+    internalLinks(surface,/pricing|plans/i,"pricing_link"),
+    pricingRoute
+  );
+  const checkout=combine(text(surface,/\b(add to cart|buy now|checkout|place order|complete purchase|subscribe now)\b/i,"checkout_action"),internalLinks(surface,/checkout|cart|buy|order/i,"checkout_link"),forms(surface,/checkout|payment|billing|order/i,"checkout_form"));
   const payment=combine(scripts(surface,/stripe|paypal|razorpay|adyen|checkout\.com|dodo|paddle|lemonsqueezy|shopify|woocommerce/i,"payment_provider"),checkout);
   const auth=combine(
     links(surface,/\b(login|log in|sign in|sign up|register|create account|account)\b/i,"authentication_link"),
@@ -196,14 +220,14 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   const subscription=combine(
     text(surface,/\b(?:\$|€|£|₹)\s?\d+\s*\/\s*(?:month|year|week)\b/i,"subscription_text",.97),
     text(surface,/\b(?:monthly|annual|yearly|weekly)\s+(?:subscription|plan|billing|price|fee)\b|\bbilled\s+(?:monthly|annually|yearly|weekly)\b|\bsubscription\b|\brecurring\s+(?:billing|payment|charge)\b|\brenews?\s+automatically\b/i,"subscription_text",.96),
-    links(surface,/subscription|monthly|annual|yearly|recurring/i,"subscription_link",.84)
+    internalLinks(surface,/subscription|monthly|annual|yearly|recurring/i,"subscription_link",.84)
   );
   const autoRenew=text(surface,/auto[- ]?renew|automatically renew|renews automatically|recurring (?:charge|billing|payment)/i,"auto_renewal",.97);
-  const ecommerce=combine(text(surface,/add to cart|shopping cart|product catalog|product variants|shipping|quantity|order now|buy now/i,"ecommerce_flow",.93),links(surface,/shop|store|cart|checkout/i,"ecommerce_navigation",.9),scripts(surface,/shopify|woocommerce/i,"ecommerce_platform",.96),text(surface,/\b(product|sku|in stock|out of stock)\b.{0,80}(?:\$|€|£|₹)\s?\d+/i,"ecommerce_product_price",.94));
+  const ecommerce=combine(text(surface,/add to cart|shopping cart|product catalog|product variants|shipping|quantity|order now|buy now/i,"ecommerce_flow",.93),internalLinks(surface,/shop|store|cart|checkout/i,"ecommerce_navigation",.9),scripts(surface,/shopify|woocommerce/i,"ecommerce_platform",.96),text(surface,/\b(product|sku|in stock|out of stock)\b.{0,80}(?:\$|€|£|₹)\s?\d+/i,"ecommerce_product_price",.94));
   const marketplace=combine(text(surface,/marketplace|seller|vendor|list your (?:product|service)|seller profile|buyer and seller/i,"marketplace_language",.94),text(surface,/(?:listings|products|services).{0,120}(?:seller|vendor)/i,"marketplace_flow",.9));
   const ugc=combine(forms(surface,/type=["']file["']|upload|comment|review|post|message|profile/i,"ugc_form",.9),text(surface,/user[- ]generated|community posts|comments|reviews|upload your|public profile|create a post/i,"ugc_text",.9));
   const developerApi=combine(
-    links(surface,/\b(api|developers?)\b/i,"developer_navigation",.88),
+    internalLinks(surface,/\b(?:api|developers?)\b/i,"developer_navigation",.88),
     text(surface,/api key|webhook|endpoint|sdk|developer platform|api access/i,"developer_functionality",.93)
   );
   const advertising=combine(scripts(surface,/adsbygoogle|doubleclick|googlesyndication|facebook.*pixel|adservice/i,"advertising_sdk",.96),text(surface,/advertise with us|sponsored content|advertisement|ad space/i,"advertising_text",.9));
@@ -232,16 +256,16 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
   set("ecommerce",ecommerce);set("marketplace",marketplace);set("developerApi",developerApi);
   set("persistentUserData",combine(auth,ugc,text(surface,/save your|saved projects|history|profile|dashboard data/i,"persistent_data_text",.82)));
   const paidPricing=combine(
-    text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?|\b(?:paid|pro|premium|business|enterprise)\s+(?:plan|tier|subscription)\b|\bstarting at\b/i,"paid_pricing",.91),
+    text(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?\s*(?:\/\s*(?:month|year|week)|per\s+(?:month|year|week))|\b(?:paid|pro|premium|business|enterprise)\s+(?:plan|tier|subscription)\b/i,"paid_pricing",.91),
     text(surface,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
   );
-  set("paidService",combine(payment,checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid|starting at/i,"paid_service_text",.78)));
+  set("paidService",combine(checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid/i,"paid_service_text",.78)));
   set("highImpactAI",text(surface,/\b(?:AI|model|algorithm|automated)\b.{0,100}\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|creditworthiness|loan eligibility|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|risk scores?|eligibility decision|fraud decision)\b|\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|eligibility decision|fraud decision)\b.{0,100}\b(?:AI|model|algorithm|automated)\b/i,"high_impact_ai_context",.93));
   set("dataCommercialization",combine(
     text(surface,/\b(?:sell|share|monetize|monetisation|monetization)\b.{0,100}\b(?:personal|user|customer)\s+(?:data|information)\b/i,"data_commercialization",.92),
     text(surface,/targeted advertising|behavioral advertising|interest[- ]based advertising/i,"targeted_advertising",.88)
   ));
-  set("commercialActivity",combine(pricing,payment,checkout,ecommerce,marketplace,text(surface,/\b(hire|services|consulting|agency|plans|pricing|shop|store|buy|subscribe|book a call|request a quote)\b/i,"commercial_language",.72)));
+  set("commercialActivity",combine(pricing,payment,checkout,ecommerce,marketplace,text(surface,/\b(?:hire us|book a call|request a quote|contact sales|buy now|subscribe now|start (?:your )?(?:free )?trial|shop now|place an order)\b/i,"commercial_language",.78)));
 
   const classificationEvidence=combine(
     text(surface,/\b(?:portfolio|case studies?|selected work|resume|designer portfolio|developer portfolio)\b/i,"portfolio_context",.9),
