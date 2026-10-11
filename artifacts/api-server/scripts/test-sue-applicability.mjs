@@ -287,7 +287,8 @@ try {
         {text:"Shop",href:"https://store.encyclopedia.example/"},
         {text:"API",href:"https://api.encyclopedia.example/"},
         {text:"Donate",href:"https://donate.encyclopedia.example/"}
-      ]
+      ],
+      scripts:["https://js.stripe.com/v3/"]
     })],
     origin:"https://encyclopedia.example"
   });
@@ -295,6 +296,9 @@ try {
   assert.equal(encyclopediaResult.context.signals.ecommerce,false,"An outbound store link must not prove first-party ecommerce.");
   assert.equal(encyclopediaResult.context.signals.pricing,false,"Outbound links must not create pricing evidence.");
   assert.equal(encyclopediaResult.context.signals.developerApi,false,"An outbound API link must not prove a developer product.");
+  assert.equal(encyclopediaResult.context.signals.payments,true,"A payment SDK can be detected without implying the product sells a paid service.");
+  assert.equal(encyclopediaResult.context.signals.paidService,false,"A payment SDK alone must not imply a paid service.");
+  assert.equal(encyclopediaResult.context.commercialModel,"unknown","A payment SDK alone must not imply a freemium commercial model.");
   assert.ok(!encyclopediaResult.context.productTypes.includes("ecommerce"),"Informational content must not be classified as ecommerce from an outbound store link.");
   assert.ok(!encyclopediaResult.context.productTypes.includes("saas"),"Informational content must not be classified as SaaS from unrelated commercial links.");
   assert.ok(!encyclopediaResult.context.productTypes.includes("developer_tool"),"Informational content must not be classified as a developer tool from an outbound API link.");
