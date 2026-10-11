@@ -4,6 +4,14 @@ Short, human-readable notes for contributors and reviewers.
 
 ## 2026-10-11
 
+### SUE pricing-signal regression correction
+
+- Root cause: pricing and recurring-subscription signals were being extracted from any crawled first-party page, so an editorial article about commerce could make an encyclopedia appear to have pricing/subscription capabilities.
+- Added product-surface-scoped text evidence: homepage plus explicit first-party commercial/product routes (pricing, plans, billing, checkout, subscription, products, features, shop, store). Incidental article/glossary text no longer supplies pricing, recurring-subscription, auto-renewal, paid-pricing, or checkout-action evidence.
+- Added regression assertions for article-only pricing/subscription false positives and positive detection on a genuine first-party pricing route.
+- Build status before this correction: the TypeScript bundle and frontend build steps passed in SUE Live Benchmark run #131; API build failed because its configured build command runs `test:sue`, which failed at the encyclopedia pricing assertion. Downstream accuracy/live benchmarks were skipped after that failure.
+- Validation of this correction pending: run the focused SUE suite, then accuracy, policy and live smoke benchmarks. Do not treat a successful build alone as proof of classification accuracy.
+
 ### SUE informational-site classification follow-up
 
 - Tightened ecommerce evidence so generic commerce phrases in linked editorial articles do not independently count as first-party shopping capability; homepage commerce actions, first-party store/cart routes, or commerce platform evidence remain available.
