@@ -123,6 +123,7 @@ function classify(s:ProductSignals,evidence:Evidence[]) {
   if(s.marketplace) add("marketplace",.9);
   if(s.ai) add("ai_product",.82);
   if(s.developerApi) add("developer_tool",.72);
+  if(evidence.some(e=>e.signal==="security_tool_product")) add("developer_tool",.72);
   if(s.authentication||s.ecommerce) add("web_app",.28);
   if(s.userGeneratedContent) add("community",.5);
   if(s.advertising) add("media",.5);
@@ -244,7 +245,12 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
 
   const classificationEvidence=combine(
     text(surface,/\b(?:portfolio|case studies?|selected work|resume|designer portfolio|developer portfolio)\b/i,"portfolio_context",.9),
-    text(surface,/\b(?:articles?|blog|news|resources|magazine|stories|editorial)\b/i,"content_context",.78)
+    text(surface,/\b(?:articles?|blog|news|resources|magazine|stories|editorial)\b/i,"content_context",.78),
+    // Product-level security tooling is a real application signal even when the
+    // landing page does not expose pricing, checkout, or a visible login form.
+    // Keep this phrase-based and corroborated; generic mentions of "security"
+    // alone must not classify an informational article as a developer tool.
+    text(surface,/\b(?:security scanner|vulnerability scanner|code scanning|repository scanning|scan your (?:website|app|repository|code)|website security audit|product audit platform|pull request security|automated security testing)\b/i,"security_tool_product",.94)
   );
   allEvidence.push(...classificationEvidence);
 
