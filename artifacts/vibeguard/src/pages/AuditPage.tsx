@@ -89,7 +89,7 @@ export default function AuditPage() {
             <ShieldCheck className="mx-auto text-[#e83a2f]" size={42} />
             <p className="mt-5 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-[#c92e25]">SUE / Product Audit</p>
             <h1 className="mt-3 text-5xl font-extrabold tracking-[-0.05em]">Audit your product.</h1>
-            <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-[#50534d]">Sign in to run the 50-point launch-readiness audit against a deployed web product.</p>
+            <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-[#50534d]">Sign in to check essential launch-readiness items on your deployed web product. Applicability varies by product, and results are evidence-based signals—not a compliance guarantee.</p>
             <Link href="/auth?mode=signin" className="mt-7 inline-flex items-center gap-2 border-2 border-[#e83a2f] bg-[#e83a2f] px-6 py-3 text-sm font-bold text-white shadow-[4px_4px_0_#242522]">Sign in <ArrowRight size={15} /></Link>
           </div>
         </main>
@@ -166,9 +166,9 @@ export default function AuditPage() {
           <>
             <section className="relative z-10 mt-8 grid gap-5 lg:grid-cols-[320px_1fr]">
               <div className="border-2 border-[#0b0c0b] bg-[#101211] p-6 shadow-[8px_8px_0_#66763e]">
-                <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#66763e]">Vibe Audit score</div>
-                <div className="mt-4 flex items-end gap-3"><span className="text-[76px] font-extrabold leading-none text-[#fffdf7]">{report.score}</span><span className="mb-2 text-sm text-[#9fa39a]">/ 100</span></div>
-                <div className="mt-4 inline-flex items-center gap-2 border border-[#8fae63]/30 bg-[#8fae63]/10 px-3 py-2 font-mono text-[9px] font-bold tracking-[0.12em] text-[#b8ce91]"><span className="h-2 w-2 rounded-full bg-[#8fae63]" />{scoreLabel(report.score)}</div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#66763e]">{showAllChecks ? "Full-engine beta score" : "Core launch signal"}</div>
+                <div className="mt-4 flex items-end gap-3"><span className="text-[76px] font-extrabold leading-none text-[#fffdf7]">{displayedScore ?? "—"}</span><span className="mb-2 text-sm text-[#9fa39a]">{displayedScore === null ? "not scored" : "/ 100"}</span></div>
+                <div className="mt-4 inline-flex items-center gap-2 border border-[#8fae63]/30 bg-[#8fae63]/10 px-3 py-2 font-mono text-[9px] font-bold tracking-[0.12em] text-[#b8ce91]"><span className="h-2 w-2 rounded-full bg-[#8fae63]" />{displayedScore === null ? "NOT SCORED" : scoreLabel(displayedScore)}</div>
                 <p className="mt-5 text-[11px] leading-5 text-[#a9aca4]">This is a product signal, not a legal-compliance guarantee. N/A checks are excluded from the score.</p>
               </div>
               <div className="grid grid-cols-4 border-2 border-[#242522] bg-[#f8f5ed] text-[#171916] shadow-[8px_8px_0_#242522]">
@@ -218,7 +218,7 @@ export default function AuditPage() {
           </div>
           <div>
             <div className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#c92e25]">02 / Scan</div>
-            <p className="mt-2 text-[11px] leading-5 text-[#62655d]">SUE follows relevant public legal and trust links and evaluates 50 signals.</p>
+            <p className="mt-2 text-[11px] leading-5 text-[#62655d]">SUE checks essential launch-readiness items and keeps the broader 50-check engine available in beta.</p>
           </div>
           <div>
             <div className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#c92e25]">03 / Fix</div>
