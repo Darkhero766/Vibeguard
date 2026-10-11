@@ -141,7 +141,7 @@ export default function SettingsPage() {
           <Section icon={CircleUserRound} eyebrow="Identity" title="Account">
             <Row label="Profile" description="Your display name and account email."><div className="text-right"><div className="text-[13px] font-extrabold text-[#171916]">{displayName}</div><div className="mt-1 max-w-[240px] truncate font-mono text-[10px] text-[#62655e]">{user.email}</div></div></Row>
             <Row label="Password & sign-in" description="Manage authentication and active sign-in sessions."><StatusChip>Authentication</StatusChip></Row>
-            <Row label="Connected GitHub" description={hasGithubToken ? 'GitHub access is connected for repository workflows.' : 'No GitHub connection is currently active.'}><StatusChip good={hasGithubToken}><Github size={13} />{hasGithubToken ? 'Connected' : 'Not connected'}</StatusChip></Row>
+            <Row label="Connected GitHub" description={hasGithubToken ? 'GitHub access is connected for repository workflows.' : 'No GitHub connection is currently active.'}><StatusChip good={Boolean(hasGithubToken)}><Github size={13} />{hasGithubToken ? 'Connected' : 'Not connected'}</StatusChip></Row>
             <Row label="Log out" description="End the current VibeSane session on this device."><button disabled={signedOut} onClick={handleSignOut} className="flex items-center gap-2 border-2 border-[#242522] bg-[#242522] px-4 py-2 text-[11px] font-bold text-white shadow-[3px_3px_0_#e83a2f]"><LogOut size={13} />{signedOut ? 'Signing out…' : 'Log out'}</button></Row>
           </Section>
 
