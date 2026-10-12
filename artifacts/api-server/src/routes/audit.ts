@@ -457,15 +457,15 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
 type PolicyFamily = "terms"|"privacy"|"cookies"|"refunds"|"cancellation"|"acceptable_use"|"disclaimer"|"security"|"dpa";
 type PolicyInventoryItem = { url:string; family:PolicyFamily; status:"verified"|"needs_review"|"not_crawled_or_unavailable"; title:string|null; contentLength:number; reason:string };
 const POLICY_FAMILY_PATTERNS:Record<PolicyFamily,RegExp>={
-  terms:/(?:^|\\/)(?:terms?|terms-of-service|terms-of-use|terms-and-conditions|conditions)(?:$|[\\/_-])/i,
-  privacy:/(?:^|\\/)(?:privacy|privacy-policy|privacy-notice|data-privacy|data-protection)(?:$|[\\/_-])/i,
-  cookies:/(?:^|\\/)(?:cookies?|cookie-policy|cookies-policy|cookie-notice)(?:$|[\\/_-])/i,
-  refunds:/(?:^|\\/)(?:refunds?|refund-policy|returns?|return-policy)(?:$|[\\/_-])/i,
-  cancellation:/(?:^|\\/)(?:cancellations?|cancellation-policy)(?:$|[\\/_-])/i,
-  acceptable_use:/(?:^|\\/)(?:acceptable-use|acceptable-use-policy|aup)(?:$|[\\/_-])/i,
-  disclaimer:/(?:^|\\/)(?:disclaimer)(?:$|[\\/_-])/i,
-  security:/(?:^|\\/)(?:security-policy|security)(?:$|[\\/_-])/i,
-  dpa:/(?:^|\\/)(?:data-processing|dpa|subprocessors?|subprocessor-list)(?:$|[\\/_-])/i,
+  terms:/(?:^|\/)(?:terms?|terms-of-service|terms-of-use|terms-and-conditions|conditions)(?:$|[\/_-])/i,
+  privacy:/(?:^|\/)(?:privacy|privacy-policy|privacy-notice|data-privacy|data-protection)(?:$|[\/_-])/i,
+  cookies:/(?:^|\/)(?:cookies?|cookie-policy|cookies-policy|cookie-notice)(?:$|[\/_-])/i,
+  refunds:/(?:^|\/)(?:refunds?|refund-policy|returns?|return-policy)(?:$|[\/_-])/i,
+  cancellation:/(?:^|\/)(?:cancellations?|cancellation-policy)(?:$|[\/_-])/i,
+  acceptable_use:/(?:^|\/)(?:acceptable-use|acceptable-use-policy|aup)(?:$|[\/_-])/i,
+  disclaimer:/(?:^|\/)(?:disclaimer)(?:$|[\/_-])/i,
+  security:/(?:^|\/)(?:security-policy|security)(?:$|[\/_-])/i,
+  dpa:/(?:^|\/)(?:data-processing|dpa|subprocessors?|subprocessor-list)(?:$|[\/_-])/i,
 };
 const POLICY_LABEL_PATTERNS:Record<PolicyFamily,RegExp>={
   terms:/terms(?: of service| of use| and conditions)?|conditions of use/i,
@@ -482,8 +482,8 @@ function policyFamilyFromText(value:string):PolicyFamily[]{
   return (Object.keys(POLICY_LABEL_PATTERNS) as PolicyFamily[]).filter(f=>POLICY_LABEL_PATTERNS[f].test(value));
 }
 function pageOwnTitle(page:AuditPage):string|null {
-  const match=page.html.match(/<(?:title|h1)\\b[^>]*>([\\s\\S]*?)<\\/(?:title|h1)>/i);
-  return match?.[1]?.replace(/<[^>]+>/g," ").replace(/\\s+/g," ").trim().slice(0,160)||null;
+  const match=page.html.match(/<(?:title|h1)\b[^>]*>([\s\S]*?)<\/(?:title|h1)>/i);
+  return match?.[1]?.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,160)||null;
 }
 function buildPolicyInventory(corpus:AuditCorpus):PolicyInventoryItem[]{
   const pagesByUrl=new Map(corpus.pages.map(p=>[p.url.toString(),p]));
@@ -492,14 +492,11 @@ function buildPolicyInventory(corpus:AuditCorpus):PolicyInventoryItem[]{
   for(const page of corpus.pages){
     const path=page.url.pathname;
     for(const family of Object.keys(POLICY_FAMILY_PATTERNS) as PolicyFamily[]) if(POLICY_FAMILY_PATTERNS[family].test(path)) add(page.url.toString(),family);
-    const ownHeading=[...page.html.matchAll(/<(?:title|h1|h2)\\b[^>]*>([\\s\\S]*?)<\\/(?:title|h1|h2)>/gi)].map(m=>m[1].replace(/<[^>]+>/g," ")).join(" ");
+    const ownHeading=[...page.html.matchAll(/<(?:title|h1|h2)\b[^>]*>([\s\S]*?)<\/(?:title|h1|h2)>/gi)].map(m=>m[1].replace(/<[^>]+>/g," ")).join(" ");
     for(const family of policyFamilyFromText(ownHeading)) add(page.url.toString(),family);
     for(const link of page.links){
       const linkedText=link.text+" "+link.href;
-      for(const family of policyFamilyFromText(linkedText)){
-        // Link labels discover candidates, but do not prove their content exists.
-        add(link.href,family);
-      }
+      for(const family of policyFamilyFromText(linkedText)) add(link.href,family);
       try{const u=new URL(link.href);for(const family of Object.keys(POLICY_FAMILY_PATTERNS) as PolicyFamily[])if(POLICY_FAMILY_PATTERNS[family].test(u.pathname))add(u.toString(),family);}catch{}
     }
   }
