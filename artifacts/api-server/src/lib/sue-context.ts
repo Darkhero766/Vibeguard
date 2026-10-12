@@ -90,7 +90,7 @@ export function combine(...groups:Evidence[][]) {
 
 export function isPolicySurface(page:AuditPage) {
   const p=page.url.pathname.toLowerCase();
-  if (/(?:^|\/)(terms(?:-and-conditions|-conditions)?|privacy(?:-policy)?|cookies?|cookie-policy|refunds?|returns?|cancellations?|acceptable-use|aup|legal|disclaimer|dpa|subprocessors?|security-policy|security-disclosure)(?:\/|$)/i.test(p)) return true;
+  if (/(?:^|\/)(terms(?:-and-conditions|-conditions)?|privacy(?:-policy)?|cookies?|cookie-policy|refunds?|returns?|cancellations?|acceptable-use|aup|legal|disclaimer|dpa|subprocessors?|security-policy|security-disclosure|accessibility)(?:\/|$)/i.test(p)) return true;
 
   // Crawlers/tests can expose a legal document at the site root ("/"), so
   // pathname-only classification is insufficient. Treat a page as a policy
