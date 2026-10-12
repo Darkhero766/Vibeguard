@@ -278,3 +278,11 @@ WORKING RULES
 - Code correction implemented: constrain pricing, price-amount, recurring-subscription, auto-renewal, paid-pricing, paid-billing and checkout-action text evidence to the homepage or an explicit first-party commercial/product route. Do not suppress real pricing routes or recurring billing evidence.
 - Regression coverage now asserts article-only pricing/subscription language is ignored and a genuine first-party `/pricing` route still detects recurring billing.
 - Code status: branch `fix/sue-informational-site-classification`; PR #42 has merged, so this correction is a follow-up for a new PR. Run the focused regression suite and all downstream benchmarks before merging or declaring deployment-ready.
+
+
+2026-10-11 — SUE core applicability false-N/A correction (branch: fix/sue-core-applicability-vibesane)
+- Root cause: core Contact, Business Identity, Governing Law, Privacy Rights, Accessibility and Legal-Page Reachability applicability relied too heavily on secondary signals. A recognizable SaaS/security product could be marked N/A when crawl coverage missed a signal.
+- Action: expanded the six core rules to recognize relevant product types, without forcing a PASS or asserting legal compliance. Added a VibeSane-like regression fixture; it asserts those checks remain applicable/review and the engine remains exactly 50 checks with 12 core checks.
+- Preserved policy evidence-quality gates, N/A score exclusions, the 50-check engine, 12-check V1 scope, and existing SSRF protections. No production configuration, database, or customer data changed.
+- Files: artifacts/api-server/src/lib/sue-checks.ts; artifacts/api-server/scripts/test-sue-applicability.mjs; CHANGELOG.md; plan.txt.
+- Commit/PR and validation: pending. Do not merge or claim production fixed until focused regression, accuracy, policy, and live core benchmarks pass; then verify the deployed production report.

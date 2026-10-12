@@ -4,6 +4,15 @@ Short, human-readable notes for contributors and reviewers.
 
 ## 2026-10-11
 
+### SUE core applicability false-N/A correction
+
+- Root cause: several launch-core rules relied only on secondary signals (commercial activity, payment, or detected personal-data collection). A recognizable first-party SaaS/security product could therefore receive N/A when the crawler missed one of those signals.
+- Expanded product-type applicability for core Contact, Business Identity, Governing Law, Privacy Rights, Accessibility and Legal-Page Reachability checks. Identified SaaS/developer/AI/service products now receive an applicable check or review rather than a silent N/A; this does not force a PASS or claim a legal obligation.
+- Added a VibeSane-like regression fixture asserting those six core checks cannot silently become N/A while preserving exactly 50 checks and 12 core checks.
+- Preserved evidence-quality gates: visible links alone do not prove policy content, unverified policy routes remain REVIEW, and N/A scoring behavior is unchanged.
+- Validation/deployment: pending fresh SUE regression, accuracy, policy and live core benchmarks; production deployment and a rescan are not yet confirmed.
+
+
 ### SUE pricing-signal regression correction (PR #43 follow-up)
 
 - Root cause: general crawled text was allowed to create pricing and recurring-billing signals. The encyclopedia regression fixture's article text therefore produced `signals.pricing=true`, causing the API build to fail because `build` runs `test:sue`.
