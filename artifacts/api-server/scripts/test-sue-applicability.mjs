@@ -122,7 +122,8 @@ try {
   };
   const privacyShellChecks=runApplicabilityAwareChecks(privacyShell).checks;
   assert.equal(by(privacyShellChecks,"P01").status,"review","A crawled but unverified /privacy SPA shell must trigger REVIEW for privacy-content checks.");
-  assert.equal(by(privacyShellChecks,"L01").status,"missing","An unverified privacy shell must not obscure missing Terms evidence.");
+  assert.equal(by(privacyShellChecks,"L01").status,"review","Low crawl confidence may still require Terms applicability review.");
+  assert.equal(by(privacyShellChecks,"L01").explanation.includes("relevant policy-like route"),false,"A Privacy-only shell must not be the reason Terms is sent to REVIEW.");
 
 
   const ordinarySaas = run(`
