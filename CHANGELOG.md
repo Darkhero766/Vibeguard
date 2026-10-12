@@ -1,5 +1,18 @@
 ## 2026-10-12
 
+### SUE self-audit crawlability and trust-page corrections
+
+- Root cause found from the live report and repository inspection: the production frontend is a client-rendered React SPA. The SEO generator created route-specific HTML files for /terms but changed only metadata; the generated #root stayed empty. The SUE public crawler does not execute browser JavaScript, so it could discover legal routes but could not verify the actual Terms/Privacy body text.
+- Added crawlable static body snapshots for Terms, Privacy, Contact, Security Disclosure, and Accessibility routes while keeping the client-rendered app routes intact. Added footer links and sitemap entries for the new trust routes.
+- Added Contact and Support, Security Disclosure, and Accessibility pages. Security disclosure instructions explicitly avoid public vulnerability details and make private GitHub reporting conditional on the feature being enabled.
+- Expanded the Privacy Policy to disclose that SUE audit reports are saved to account history with the URL, timestamp, score, statuses, context signals, and short evidence excerpts. This corrects the prior overbroad statement that scan findings are never stored.
+- Fixed Terms & Conditions matching in SUE and policy inventory. Added an evidence-quality gate so a generic “governing law” mention cannot pass without an identified jurisdiction; the current Terms deliberately says the jurisdiction provision still needs counsel review, so L12 should remain REVIEW until the real jurisdiction is supplied.
+- Added regression coverage for ampersand Terms headings, privacy-rights evidence, legal-page reachability, and governing-law quality.
+- Business Identity (L10) remains a genuine unresolved item: no actual legal operator name/entity was provided in the website or project context. Do not fabricate a company name; the operator's real legal identity and applicable jurisdiction must be supplied before this can be honestly resolved.
+- Validation/deployment: PR checks and a fresh production rescan are pending. Do not mark this production-fixed until CI passes, Render deploys the merged API commit, Vercel deploys the frontend build, and a new audit confirms the expected evidence/statuses.
+
+## 2026-10-12
+
 ### SUE policy discovery, verification, and evidence map
 
 - Fixed route uncertainty matching: an ordinary homepage Privacy link no longer makes the homepage look like an unverified Privacy policy. Relevant routes are identified from URL paths and page-owned title/headings, not navigation links.
