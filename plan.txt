@@ -286,3 +286,11 @@ WORKING RULES
 - Preserved policy evidence-quality gates, N/A score exclusions, the 50-check engine, 12-check V1 scope, and existing SSRF protections. No production configuration, database, or customer data changed.
 - Files: artifacts/api-server/src/lib/sue-checks.ts; artifacts/api-server/scripts/test-sue-applicability.mjs; CHANGELOG.md; plan.txt.
 - Commit/PR and validation: pending. Do not merge or claim production fixed until focused regression, accuracy, policy, and live core benchmarks pass; then verify the deployed production report.
+
+
+2026-10-12 — SUE accessibility evidence status correction (branch: fix/sue-accessibility-missing-vs-review)
+- Finding from fresh VibeSane production screenshots: T03 Accessibility Signal was marked Missing despite its rationale explicitly stating that absence of a visible statement is not proof of legal non-compliance.
+- Change: when T03 is applicable and no accessibility signal is found, surface Review with a clear uncertainty explanation; do not infer conformance or non-compliance from absence alone.
+- Added regression for a developer security scanner without crawler-detectable accessibility evidence. Preserves all 50 checks and 12 core checks, N/A scoring, policy content gates, and SSRF protections.
+- Files: artifacts/api-server/src/lib/sue-checks.ts; artifacts/api-server/scripts/test-sue-applicability.mjs; CHANGELOG.md; plan.txt.
+- Validation/deployment: pending focused SUE regression, accuracy, policy, and five-site live core benchmarks. Do not claim production fixed until PR validation passes and a fresh production scan confirms the status.
