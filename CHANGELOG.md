@@ -2,6 +2,15 @@
 
 Short, human-readable notes for contributors and reviewers.
 
+## 2026-10-12
+
+### SUE accessibility evidence status correction
+
+- Root cause: T03's rationale already states that absence of an accessibility statement is not proof of legal non-compliance, but an empty evidence result could still be emitted as Missing.
+- Change: when T03 is applicable but the crawl finds no accessibility statement or detectable accessibility signal, emit Review with an explicit explanation rather than Missing. Positive evidence remains subject to the existing evidence-based status rules.
+- Added regression coverage for a developer security scanner with no accessibility evidence. Preserves the 50-check engine, 12-check V1 scope, N/A semantics, policy evidence gates, and SSRF protections.
+- Validation/deployment: pending the focused SUE regression, accuracy, policy, and live core benchmarks; production rescan not yet verified.
+
 ## 2026-10-11
 
 ### SUE core applicability false-N/A correction
