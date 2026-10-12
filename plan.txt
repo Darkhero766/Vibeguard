@@ -5,7 +5,7 @@
 - Improved SUE Terms & Conditions detection and added a conservative governing-law evidence quality gate. A mention of governing law is not enough to pass when no actual jurisdiction is named.
 - Added regression coverage for Terms & Conditions with ampersand, privacy rights, legal-page reachability, and jurisdiction specificity.
 - L10 Business Identity remains unresolved pending the actual legal operator name/entity. Do not invent legal identity. L12 remains REVIEW until the real jurisdiction-specific clause is reviewed and added.
-- Branch: fix/sue-self-audit-legal-rendering-v1. PR/CI and production deployment verification pending; do not claim fixed until fresh VibeSane scan confirms.
+- Branch/PR: fix/sue-self-audit-legal-rendering-v2 / PR #49. SUE Live Benchmark run #148 passed API/frontend build checks, typechecks, SUE regression, accuracy, real-world vibecoded policy, and five-site live core benchmarks. Production deployment and fresh VibeSane scan remain pending; do not claim fixed until verified.
 
 VIBESANE / VIBEGUARD — PROJECT PLAN & CHANGE LOG
 ================================================
