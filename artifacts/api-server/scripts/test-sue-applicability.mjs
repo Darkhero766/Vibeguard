@@ -107,8 +107,10 @@ try {
   };
   const policyShellChecks=runApplicabilityAwareChecks(policyShell).checks;
   assert.equal(by(policyShellChecks,"L01").status,"review","A generic SPA shell at /terms is not a verified Terms document.");
-  assert.equal(by(policyShellChecks,"P01").status,"review","An unverified policy route should surface REVIEW rather than false MISSING.");
+  assert.equal(by(policyShellChecks,"P01").status,"missing","An unverified Terms route must not obscure the independent absence of a privacy-policy route.");
   assert.equal(by(policyShellChecks,"T05").status,"review","A generic policy route must not satisfy legal-page reachability.");
+  assert.equal(by(policyShellChecks,"L03").status,"missing","An unverified Terms shell must not downgrade an unrelated cookie-policy check.");
+  assert.equal(by(policyShellChecks,"L03").explanation.includes("relevant policy-like route"),false,"Unrelated policy routes must not force REVIEW.");
 
   const ordinarySaas = run(`
     <html><body><h1>Acme Cloud</h1>
