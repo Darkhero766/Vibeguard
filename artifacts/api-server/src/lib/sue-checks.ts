@@ -179,29 +179,29 @@ function unverifiedPolicyRouteRelevant(checkId:string,page:AuditCorpus["pages"][
   const path=page.url.pathname.toLowerCase();
   // Navigation links and generic app-shell text are not page identity. Only the
   // URL route plus the document's own title/headings can establish a family.
-  const ownHeadings=[...page.html.matchAll(/<(?:title|h1|h2)\\b[^>]*>([\\s\\S]*?)<\\/(?:title|h1|h2)>/gi)]
-    .map(m=>m[1].replace(/<[^>]+>/g," ").replace(/\\s+/g," ").trim().toLowerCase()).join(" ");
+  const ownHeadings=[...page.html.matchAll(/<(?:title|h1|h2)\b[^>]*>([\s\S]*?)<\/(?:title|h1|h2)>/gi)]
+    .map(m=>m[1].replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().toLowerCase()).join(" ");
   const groups:Record<string,RegExp>={
-    terms:/(?:^|\\/)(?:terms?|terms-of-service|terms-of-use|terms-and-conditions|conditions)(?:$|[\\/_-])/,
-    privacy:/(?:^|\\/)(?:privacy|privacy-policy|privacy-notice|data-privacy|data-protection)(?:$|[\\/_-])/,
-    cookies:/(?:^|\\/)(?:cookies?|cookie-policy|cookies-policy|cookie-notice)(?:$|[\\/_-])/,
-    refunds:/(?:^|\\/)(?:refunds?|refund-policy|returns?|return-policy)(?:$|[\\/_-])/,
-    cancellation:/(?:^|\\/)(?:cancellations?|cancellation-policy)(?:$|[\\/_-])/,
-    acceptable:/(?:^|\\/)(?:acceptable-use|acceptable-use-policy|aup)(?:$|[\\/_-])/,
-    disclaimer:/(?:^|\\/)(?:disclaimer)(?:$|[\\/_-])/,
-    security:/(?:^|\\/)(?:security-policy|security)(?:$|[\\/_-])/,
-    dpa:/(?:^|\\/)(?:data-processing|dpa|subprocessors?|subprocessor-list)(?:$|[\\/_-])/,
+    terms:/(?:^|\/)(?:terms?|terms-of-service|terms-of-use|terms-and-conditions|conditions)(?:$|[\/_-])/,
+    privacy:/(?:^|\/)(?:privacy|privacy-policy|privacy-notice|data-privacy|data-protection)(?:$|[\/_-])/,
+    cookies:/(?:^|\/)(?:cookies?|cookie-policy|cookies-policy|cookie-notice)(?:$|[\/_-])/,
+    refunds:/(?:^|\/)(?:refunds?|refund-policy|returns?|return-policy)(?:$|[\/_-])/,
+    cancellation:/(?:^|\/)(?:cancellations?|cancellation-policy)(?:$|[\/_-])/,
+    acceptable:/(?:^|\/)(?:acceptable-use|acceptable-use-policy|aup)(?:$|[\/_-])/,
+    disclaimer:/(?:^|\/)(?:disclaimer)(?:$|[\/_-])/,
+    security:/(?:^|\/)(?:security-policy|security)(?:$|[\/_-])/,
+    dpa:/(?:^|\/)(?:data-processing|dpa|subprocessors?|subprocessor-list)(?:$|[\/_-])/,
   };
   const headingGroups:Record<string,RegExp>={
-    terms:/\\bterms(?: of service| of use| and conditions)?\\b|\\bconditions of use\\b/,
-    privacy:/\\bprivacy(?: policy| notice)?\\b|\\bdata protection notice\\b/,
-    cookies:/\\bcookie policy\\b|\\bcookie notice\\b|\\bcookies policy\\b/,
-    refunds:/\\brefund policy\\b|\\breturn policy\\b|\\brefunds and returns\\b/,
-    cancellation:/\\bcancellation policy\\b|\\bcancellations\\b/,
-    acceptable:/\\bacceptable use policy\\b/,
-    disclaimer:/\\bdisclaimer\\b/,
-    security:/\\bsecurity policy\\b|\\bresponsible disclosure\\b/,
-    dpa:/\\bdata processing agreement\\b|\\bsubprocessors?\\b/
+    terms:/\bterms(?: of service| of use| and conditions)?\b|\bconditions of use\b/,
+    privacy:/\bprivacy(?: policy| notice)?\b|\bdata protection notice\b/,
+    cookies:/\bcookie policy\b|\bcookie notice\b|\bcookies policy\b/,
+    refunds:/\brefund policy\b|\breturn policy\b|\brefunds and returns\b/,
+    cancellation:/\bcancellation policy\b|\bcancellations\b/,
+    acceptable:/\bacceptable use policy\b/,
+    disclaimer:/\bdisclaimer\b/,
+    security:/\bsecurity policy\b|\bresponsible disclosure\b/,
+    dpa:/\bdata processing agreement\b|\bsubprocessors?\b/
   };
   const relevant:Record<string,string[]>={
     L01:["terms"],L02:["privacy"],L03:["cookies"],L04:["refunds"],L05:["cancellation"],L06:["acceptable"],L07:["disclaimer"],L12:["terms"],
