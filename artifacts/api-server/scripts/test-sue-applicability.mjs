@@ -115,7 +115,7 @@ try {
 
   const privacyShell = {
     pages:[
-      page("https://privacy-shell.example.test/","<html><body><h1>Acme Cloud</h1><p>Team workspace for customers.</p><a href=\"/privacy\">Privacy Policy</a><a href=\"/terms\">Terms</a></body></html>"),
+      page("https://privacy-shell.example.test/","<html><body><h1>Acme Cloud</h1><p>Team workspace for customers.</p><a href=\"/privacy\">Privacy Policy</a><a href=\"/terms\">Terms</a><a href=\"/login\">Log in</a><form><input type=\"email\" name=\"email\"><input type=\"password\" name=\"password\"></form></body></html>"),
       page("https://privacy-shell.example.test/privacy","<html><head><title>Acme Cloud</title></head><body><div id=\"root\">Loading application...</div></body></html>",{home:false})
     ],
     origin:"https://privacy-shell.example.test"
