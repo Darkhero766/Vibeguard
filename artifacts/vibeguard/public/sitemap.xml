@@ -30,4 +30,9 @@
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
+  <url><loc>https://vibesane.app/terms</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://vibesane.app/privacy</loc><changefreq>yearly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://vibesane.app/contact</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://vibesane.app/security-disclosure</loc><changefreq>yearly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://vibesane.app/accessibility</loc><changefreq>yearly</changefreq><priority>0.4</priority></url>
 </urlset>
