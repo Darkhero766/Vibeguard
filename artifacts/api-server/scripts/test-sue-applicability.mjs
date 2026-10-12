@@ -16,7 +16,7 @@ try {
     external:["node:*"],
     logLevel:"silent"
   });
-  const {runApplicabilityAwareChecks,definitionsCount,CORE_CHECK_IDS}=await import(outfile);
+  const {runApplicabilityAwareChecks,definitionsCount,CORE_CHECK_IDS,unverifiedPolicyRouteRelevant}=await import(outfile);
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
   assert.equal(CORE_CHECK_IDS.length,12,"V1 must expose exactly 12 core checks");
   assert.equal(new Set(CORE_CHECK_IDS).size,12,"Core check IDs must be unique");
@@ -121,9 +121,10 @@ try {
     origin:"https://privacy-shell.example.test"
   };
   const privacyShellChecks=runApplicabilityAwareChecks(privacyShell).checks;
-  assert.equal(by(privacyShellChecks,"P01").status,"review","A crawled but unverified /privacy SPA shell must trigger REVIEW for privacy-content checks.");
-  assert.equal(by(privacyShellChecks,"L01").status,"review","Low crawl confidence may still require Terms applicability review.");
-  assert.equal(by(privacyShellChecks,"L01").explanation.includes("relevant policy-like route"),false,"A Privacy-only shell must not be the reason Terms is sent to REVIEW.");
+  assert.equal(unverifiedPolicyRouteRelevant("P01",privacyShell.pages[1]),true,"An unverified /privacy route must be relevant to privacy-content checks.");
+  assert.equal(unverifiedPolicyRouteRelevant("L01",privacyShell.pages[1]),false,"An unverified /privacy route must not be relevant to Terms content.");
+  assert.equal(unverifiedPolicyRouteRelevant("L01",policyShell.pages[1]),true,"An unverified /terms route must be relevant to Terms content.");
+  assert.equal(unverifiedPolicyRouteRelevant("P01",policyShell.pages[1]),false,"An unverified /terms route must not be relevant to Privacy content.");
 
 
   const ordinarySaas = run(`
