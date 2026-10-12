@@ -65,6 +65,13 @@ export default function PrivacyPage() {
               </section>
 
               <section>
+                <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">Privacy rights</h2>
+                <p className="text-muted-foreground">
+                  Depending on your location and applicable law, you may have the right to request access to, correction of, or deletion of personal data, and to ask questions about how it is processed. To exercise a right, use the official support route on our <a href="/contact" className="text-primary underline underline-offset-4">Contact and Support</a> page. Do not include passwords, access tokens, or sensitive personal details in a public issue. If a request needs sensitive details, ask the maintainer for a private channel.
+                </p>
+              </section>
+
+              <section>
                 <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">Contact</h2>
                 <p className="text-muted-foreground">
                   For privacy-related questions or data deletion requests, open an issue on our{' '}
