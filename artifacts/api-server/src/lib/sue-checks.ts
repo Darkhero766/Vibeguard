@@ -174,7 +174,7 @@ for (const def of defs) def.core = (CORE_CHECK_IDS as readonly string[]).include
 
 import { buildProductContext } from "./sue-context";
 
-function unverifiedPolicyRouteRelevant(checkId:string,page:AuditCorpus["pages"][number]):boolean {
+export function unverifiedPolicyRouteRelevant(checkId:string,page:AuditCorpus["pages"][number]):boolean {
   if(!isPolicySurface(page)||isVerifiedPolicySurface(page)) return false;
   const path=page.url.pathname.toLowerCase();
   // Navigation links and generic app-shell text are not page identity. Only the
