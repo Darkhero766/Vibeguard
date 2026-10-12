@@ -464,7 +464,7 @@ const POLICY_FAMILY_PATTERNS:Record<PolicyFamily,RegExp>={
   cancellation:/(?:^|\/)(?:cancellations?|cancellation-policy)(?:$|[\/_-])/i,
   acceptable_use:/(?:^|\/)(?:acceptable-use|acceptable-use-policy|aup)(?:$|[\/_-])/i,
   disclaimer:/(?:^|\/)(?:disclaimer)(?:$|[\/_-])/i,
-  security:/(?:^|\/)(?:security-policy|security)(?:$|[\/_-])/i,
+  security:/(?:^|\/)(?:security-policy|security-disclosure|security)(?:$|[\/_-])/i,
   dpa:/(?:^|\/)(?:data-processing|dpa|subprocessors?|subprocessor-list)(?:$|[\/_-])/i,
 };
 const POLICY_LABEL_PATTERNS:Record<PolicyFamily,RegExp>={
