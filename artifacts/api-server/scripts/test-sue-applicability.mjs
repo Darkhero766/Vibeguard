@@ -399,6 +399,11 @@ try {
     <html><body><h1>Documentation</h1><input type="text" name="q" placeholder="Search documentation"></body></html>`);
   assert.ok(["not_applicable","unknown"].includes(by(searchOnly,"P01").applicability),"Generic search input is not sufficient evidence of personal-data collection");
 
+  const noAccessibilityEvidence=run(`
+    <html><body><h1>Developer Security Scanner</h1><p>Security scanning for developer repositories.</p><a href="/pricing">Pricing</a></body></html>`);
+  assert.equal(by(noAccessibilityEvidence,"T03").applicability,"applicable","Developer tools should receive an accessibility review.");
+  assert.equal(by(noAccessibilityEvidence,"T03").status,"review","Absence of a crawler-detectable accessibility statement must not be treated as proof of non-compliance.");
+
   const jsHeavy=run(`
     <html><body><div id="root"></div>
     <script src="/assets/a.js"></script><script src="/assets/b.js"></script><script src="/assets/c.js"></script>
@@ -407,7 +412,7 @@ try {
   assert.equal(by(jsHeavy,"C05").status,"review","Low-visibility analytics checks should be review, not missing");
   assert.equal(by(jsHeavy,"A01").status,"review","Low-visibility AI checks should be review, not missing");
 
-  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,securityTool,securityContact,encyclopedia,legalPageOnly,searchOnly,jsHeavy,vagueChecks,policyShellChecks})) {
+  for (const [name,checks] of Object.entries({portfolio,blog,shop,saas,ai,aiMentionOnly,analytics,noTracking,freeSaas,vibeSaneLike,securityTool,securityContact,encyclopedia,legalPageOnly,searchOnly,noAccessibilityEvidence,jsHeavy,vagueChecks,policyShellChecks})) {
     assert.equal(checks.length,50,`${name}: every scenario must evaluate all 50 checks`);
     assert.equal(checks.filter(check=>check.core===true).length,12,`${name}: exactly 12 checks must be core`);
     assert.deepEqual(checks.filter(check=>check.core===true).map(check=>check.id).sort(),[...CORE_CHECK_IDS].sort(),`${name}: core flags must match the canonical registry`);
@@ -421,8 +426,8 @@ try {
   }
 
   console.log("SUE applicability regression suite: PASS");
-  console.log("Scenarios: 18 | Checks per scenario: 50 | Total evaluations: 900.");
-  console.log("Validated: portfolio, blog, ecommerce, SaaS, AI product, AI mention-only, analytics, no-tracking, free SaaS, VibeSane-like SaaS, explicit security-tool classification, security-contact evidence, legal-page contamination, generic search input, JS-heavy coverage.");
+  console.log("Scenarios: 19 | Checks per scenario: 50 | Total evaluations: 950.");
+  console.log("Validated: portfolio, blog, ecommerce, SaaS, AI product, AI mention-only, analytics, no-tracking, free SaaS, VibeSane-like SaaS, explicit security-tool classification, security-contact evidence, legal-page contamination, generic search input, accessibility-evidence uncertainty, JS-heavy coverage.");
 } finally {
   await rm(dir,{recursive:true,force:true});
 }
