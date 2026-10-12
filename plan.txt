@@ -294,3 +294,11 @@ WORKING RULES
 - Added regression for a developer security scanner without crawler-detectable accessibility evidence. Preserves all 50 checks and 12 core checks, N/A scoring, policy content gates, and SSRF protections.
 - Files: artifacts/api-server/src/lib/sue-checks.ts; artifacts/api-server/scripts/test-sue-applicability.mjs; CHANGELOG.md; plan.txt.
 - Validation/deployment: pending focused SUE regression, accuracy, policy, and five-site live core benchmarks. Do not claim production fixed until PR validation passes and a fresh production scan confirms the status.
+
+
+2026-10-12 — SUE policy-route-specific review correction (branch: fix/sue-policy-route-specific-review-v2)
+- Root cause: one unverified policy-like route globally downgraded unrelated policy checks to REVIEW.
+- Change: tie uncertainty to the policy family relevant to each check; preserve review when a relevant route is a generic SPA shell, but do not let an unrelated unverified route obscure independent evidence.
+- Regression coverage ensures an unverified Terms route does not make absent Privacy/Cookie evidence appear uncertain.
+- Files: artifacts/api-server/src/lib/sue-checks.ts; artifacts/api-server/scripts/test-sue-applicability.mjs; CHANGELOG.md; plan.txt.
+- Validation/deployment: pending SUE regression, accuracy, policy, and five-site live core benchmarks. Production rescan remains required.
