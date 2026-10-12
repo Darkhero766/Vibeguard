@@ -302,3 +302,14 @@ WORKING RULES
 - Regression coverage ensures an unverified Terms route does not make absent Privacy/Cookie evidence appear uncertain.
 - Files: artifacts/api-server/src/lib/sue-checks.ts; artifacts/api-server/scripts/test-sue-applicability.mjs; CHANGELOG.md; plan.txt.
 - Validation/deployment: pending SUE regression, accuracy, policy, and five-site live core benchmarks. Production rescan remains required.
+
+
+2026-10-12 — SUE policy discovery, verification, and evidence map (branch: fix/sue-policy-inventory-and-review-v3)
+- Build-failure root cause: the route-family helper inspected body/navigation text, so a homepage Privacy link could be mistaken for an unverified Privacy page and force unrelated checks into REVIEW.
+- Fix: use route identity plus document-owned title/headings for uncertainty matching.
+- Added policyInventory API data: verified, needs_review, and not_crawled_or_unavailable states, with URLs, family, title, content length, and reasons. Linked routes are discovery hints only, never proof of policy content.
+- Added coreEvidenceMap API data for all 12 core checks with status, applicability, source URLs, evidence excerpts/signals/confidence, explanation, and recommendation. Existing stored checks rebuild the map for history.
+- Inventory persisted inside existing product_context JSON to avoid a schema migration.
+- Regression covers Terms-only shell not obscuring Privacy/Cookie findings and a real /privacy shell triggering REVIEW for privacy content.
+- Files: artifacts/api-server/src/lib/sue-checks.ts; artifacts/api-server/scripts/test-sue-applicability.mjs; artifacts/api-server/src/routes/audit.ts; CHANGELOG.md; plan.txt.
+- Validation/deployment: pending focused SUE regression, accuracy, real-world policy, five-site live core benchmark, and fresh production rescan.
