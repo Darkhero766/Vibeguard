@@ -11,6 +11,9 @@ export function Footer() {
           </p>
           <div className="flex shrink-0 flex-wrap items-center gap-5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
             <Link href="/refer" className="text-primary transition-colors hover:text-foreground">Refer &amp; Earn</Link>
+            <Link href="/contact" className="hover:text-foreground transition-colors">Contact</Link>
+            <Link href="/security-disclosure" className="hover:text-foreground transition-colors">Security</Link>
+            <Link href="/accessibility" className="hover:text-foreground transition-colors">Accessibility</Link>
             <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
             <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
           </div>
