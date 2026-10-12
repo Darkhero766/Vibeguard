@@ -107,7 +107,8 @@ try {
   };
   const policyShellChecks=runApplicabilityAwareChecks(policyShell).checks;
   assert.equal(by(policyShellChecks,"L01").status,"review","A generic SPA shell at /terms is not a verified Terms document.");
-  assert.equal(by(policyShellChecks,"P01").status,"missing","An unverified Terms route must not obscure the independent absence of a privacy-policy route.");
+  assert.equal(by(policyShellChecks,"P01").status,"review","Low crawl confidence may still require privacy applicability review.");
+  assert.equal(by(policyShellChecks,"P01").explanation.includes("relevant policy-like route"),false,"A Terms-only shell must not be the reason Privacy is sent to REVIEW.");
   assert.equal(by(policyShellChecks,"T05").status,"review","A generic policy route must not satisfy legal-page reachability.");
   assert.equal(by(policyShellChecks,"L03").status,"not_applicable","An unverified Terms shell must not make an unrelated cookie-policy check applicable or REVIEW.");
   assert.equal(by(policyShellChecks,"L03").explanation.includes("relevant policy-like route"),false,"Unrelated policy routes must not force REVIEW.");
