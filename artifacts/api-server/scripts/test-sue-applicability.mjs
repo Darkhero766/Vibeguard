@@ -112,6 +112,18 @@ try {
   assert.equal(by(policyShellChecks,"L03").status,"not_applicable","An unverified Terms shell must not make an unrelated cookie-policy check applicable or REVIEW.");
   assert.equal(by(policyShellChecks,"L03").explanation.includes("relevant policy-like route"),false,"Unrelated policy routes must not force REVIEW.");
 
+  const privacyShell = {
+    pages:[
+      page("https://privacy-shell.example.test/","<html><body><h1>Acme Cloud</h1><p>Team workspace for customers.</p><a href=\\"/privacy\\">Privacy Policy</a><a href=\\"/terms\\">Terms</a></body></html>"),
+      page("https://privacy-shell.example.test/privacy","<html><head><title>Acme Cloud</title></head><body><div id=\\"root\\">Loading application...</div></body></html>",{home:false})
+    ],
+    origin:"https://privacy-shell.example.test"
+  };
+  const privacyShellChecks=runApplicabilityAwareChecks(privacyShell).checks;
+  assert.equal(by(privacyShellChecks,"P01").status,"review","A crawled but unverified /privacy SPA shell must trigger REVIEW for privacy-content checks.");
+  assert.equal(by(privacyShellChecks,"L01").status,"missing","An unverified privacy shell must not obscure missing Terms evidence.");
+
+
   const ordinarySaas = run(`
     <html><body><h1>Acme Cloud</h1>
     <p>Project management workspace for teams.</p>
