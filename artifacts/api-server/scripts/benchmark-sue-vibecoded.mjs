@@ -23,6 +23,9 @@ const sites = [
   {name:"Ideafy",url:"https://ideafy.dev/",group:"vibecoded",source:"https://madewithlovable.com/projects/ideafy",goldPolicyDocuments:[{type:"privacy",url:"https://ideafy.dev/privacy",source:"https://ideafy.dev/privacy"}]},
   {name:"Read It!",url:"https://readit.lovable.app/",group:"vibecoded",source:"https://madewithlovable.com/projects/read-it"},
   {name:"Lookitup AI",url:"https://lookitup-ai.lovable.app/",group:"vibecoded",source:"https://madewithlovable.com/projects/lookitup"},
+  // Production regression target: these routes must return policy HTML in the
+  // initial response, not the generic client-rendered SPA shell.
+  {name:"VibeSane (production regression)",url:"https://vibesane.app/",group:"vibecoded",source:"https://vibesane.app/",goldPolicyDocuments:[{type:"terms",url:"https://vibesane.app/terms",source:"production regression target"},{type:"privacy",url:"https://vibesane.app/privacy",source:"production regression target"}]},
   {name:"Stripe Billing",url:"https://stripe.com/billing",group:"control"},
   {name:"Shopify",url:"https://www.shopify.com/",group:"control"},
   {name:"GitHub",url:"https://github.com/",group:"control"},
@@ -192,7 +195,8 @@ async function crawlPolicies(site,runApplicabilityAwareChecks) {
       const targetPath=normalizePath(new URL(g.url).pathname);
       const attempted=fetched.find(x=>{try{return normalizePath(new URL(x.url).pathname)===targetPath}catch{return false}});
       const verified=policyPages.some(x=>{try{return normalizePath(new URL(x.url).pathname)===targetPath}catch{return false}});
-      return {type:g.type,url:g.url,expected:"present",source:g.source,crawlResult:verified?"found_and_verified":attempted?.ok?"route_fetched_but_policy_unverified":attempted?"route_attempted_failed":"not_discovered_by_crawl"};
+      const genericShell = Boolean(attempted?.ok && attempted.page && attempted.page.text.length < 120 && /VibeSane — GitHub Security Scanner & Protection/i.test(attempted.page.metadata+" "+attempted.page.text));
+      return {type:g.type,url:g.url,expected:"present",source:g.source,crawlResult:verified?"found_and_verified":attempted?.ok?"route_fetched_but_policy_unverified":attempted?"route_attempted_failed":"not_discovered_by_crawl",genericShell};
     });
     return {
       name:site.name,url:site.url,group:site.group,source:site.source??null,reachable:true,httpStatus:homeResult.status,
