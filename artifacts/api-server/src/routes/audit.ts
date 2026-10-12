@@ -8,7 +8,7 @@ import { isIP } from "node:net";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { consumeAuditScan, ensurePlanForUser } from "../lib/plan";
 import { CORE_CHECK_IDS, runApplicabilityAwareChecks } from "../lib/sue-checks";
-import { isPolicySurface, isVerifiedPolicySurface } from "../lib/sue-context";
+import { isVerifiedPolicySurface } from "../lib/sue-context";
 import type { AuditCheck, AuditCorpus, AuditPage } from "../lib/sue-applicability";
 
 const router = Router();
