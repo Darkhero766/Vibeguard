@@ -1,5 +1,14 @@
 ## 2026-10-12
 
+### SUE policy crawl regression guard and production benchmark
+
+- Added a post-write artifact check to the static-page generator. The build now reads each generated route back from disk and fails if the route-specific title or configured static policy body is absent.
+- Added the live VibeSane production site to the real-world vibecoded policy benchmark with known `/terms` and `/privacy` targets. Benchmark output explicitly flags when either target returns the generic app shell, and records whether the crawler verified the actual policy document.
+- Existing benchmark includes public builder-attributed products plus Stripe, Shopify, GitHub and Wikipedia controls, with manually labelled policy routes for selected sites. This extends cross-site validation rather than treating VibeSane alone as the benchmark.
+- This guards build artifacts and makes the production failure measurable; it does not itself prove Render serves the generated nested files correctly. The live benchmark must run after deploy, and the known VibeSane policy routes must be verified before marking production fixed.
+
+## 2026-10-12
+
 ### SUE self-audit crawlability and trust-page corrections
 
 - Root cause found from the live report and repository inspection: the production frontend is a client-rendered React SPA. The SEO generator created route-specific HTML files for /terms but changed only metadata; the generated #root stayed empty. The SUE public crawler does not execute browser JavaScript, so it could discover legal routes but could not verify the actual Terms/Privacy body text.
