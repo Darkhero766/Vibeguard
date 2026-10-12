@@ -1,5 +1,16 @@
 ## 2026-10-12
 
+### SUE policy discovery, verification, and evidence map
+
+- Fixed route uncertainty matching: an ordinary homepage Privacy link no longer makes the homepage look like an unverified Privacy policy. Relevant routes are identified from URL paths and page-owned title/headings, not navigation links.
+- Added a policy inventory to audit results. It distinguishes verified policy pages, fetched-but-unverified routes, and discovered routes whose page content was not captured. A link alone never counts as verified policy evidence.
+- Added a core evidence map containing each of the 12 core checks, status/applicability, evidence URL/signal/excerpt/confidence, explanation, and recommended action. It is returned by new scans and reconstructed for historical reports from stored checks.
+- Persisted policy inventory inside existing product_context JSON; no database migration required.
+- Added regression coverage for Terms-only shells and a separately discovered Privacy shell.
+- Existing crawler safety controls, 50 checks, 12 core checks, policy-content quality gates, and N/A scoring are preserved. Validation and production rescan pending.
+
+## 2026-10-12
+
 ### SUE policy-route-specific review correction
 
 - Root cause: any unverified policy-like route could force REVIEW for every policy-content check, even when the route was unrelated to that check.
