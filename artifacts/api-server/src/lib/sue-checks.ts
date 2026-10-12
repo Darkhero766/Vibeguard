@@ -174,6 +174,14 @@ for (const def of defs) def.core = (CORE_CHECK_IDS as readonly string[]).include
 
 import { buildProductContext } from "./sue-context";
 
+function unverifiedPolicyRouteRelevant(checkId:string,page:AuditPage):boolean {
+ if(!isPolicySurface(page)||isVerifiedPolicySurface(page)) return false;
+ const path=page.url.pathname.toLowerCase(), sample=(page.url.pathname+" "+page.text.slice(0,1200)+" "+page.html.slice(0,2400)).toLowerCase();
+ const groups:Record<string,RegExp>={terms:/terms?|terms-of-service|terms-of-use|conditions|legal/,privacy:/privacy|data-protection|data-privacy|privacy-notice/,cookies:/cookies?|cookie-policy|cookie-notice/,refunds:/refund|returns?/,cancellation:/cancel|cancellation/,acceptable:/acceptable-use|aup/,disclaimer:/disclaimer/,security:/security-policy|security/,dpa:/data-processing|\bdpa\b|subprocessor/};
+ const relevant:Record<string,string[]>={L01:["terms"],L02:["privacy"],L03:["cookies"],L04:["refunds"],L05:["cancellation"],L06:["acceptable"],L07:["disclaimer"],L12:["terms"],P01:["privacy"],P02:["privacy"],P03:["privacy"],P04:["privacy"],P05:["privacy"],P06:["privacy"],P07:["privacy"],P08:["privacy","dpa"],P09:["privacy","security"],P10:["privacy","security"],P11:["privacy"],C02:["privacy","cookies"],C03:["privacy"],C05:["privacy","cookies"],C06:["privacy","cookies"],C07:["privacy"],C08:["cookies","privacy"],A01:["privacy"],A02:["privacy"],A03:["privacy"],A04:["privacy"],A05:["privacy"],A06:["privacy"],A07:["privacy"],B03:["terms"],B04:["terms","cancellation"],B05:["terms","refunds"],B06:["terms","privacy"],T05:["terms","privacy"]};
+ return (relevant[checkId]??[]).some(key=>groups[key]?.test(path)||groups[key]?.test(sample));
+}
+
 export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductContext;checks:AuditCheck[]} {
   // buildProductContext intentionally excludes legal/policy pages from product
   // classification. Evidence verification must still inspect those pages.
@@ -192,10 +200,10 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
     const policyOnlyEvidenceIds=new Set(["P01","P02","P03","P04","P05","P06","P07","P08","P09","P10","P11","C02","C03","C05","C06","C07","C08","A01","A02","A03","A04","A05","A06","A07","B03","L07","L12","L13"]);
     const evidence=policyOnlyEvidenceIds.has(d.id) ? d.evidence(policySurface(c)) : d.evidence(c);
     const baseStatus=finalizeRequirement(applicability,evidence,context);
-    const unverifiedPolicyRoute=c.pages.some(p=>isPolicySurface(p)&&!isVerifiedPolicySurface(p));
-    const policyContentCheckIds=new Set(["L01","L02","L03","L04","L05","L06","P01","P02","P03","P04","P05","P06","P07","P08","P09","P10","P11","C02","C03","C05","C06","C07","C08","A01","A02","A03","A04","A05","A06","A07","B03","B04","B05","B06","L07","L12","L13","T05"]);
-    const unverifiedRouteIssue=baseStatus==="missing"&&unverifiedPolicyRoute&&policyContentCheckIds.has(d.id)
-      ? "A policy-like route was crawled, but its content could not be verified; review the destination before treating this as missing."
+    // Only an unverified route relevant to this requirement should force REVIEW.
+    // An unverified /terms shell must not downgrade unrelated privacy/cookie checks.
+    const unverifiedRouteIssue=baseStatus==="missing"&&c.pages.some(p=>unverifiedPolicyRouteRelevant(d.id,p))
+      ? "A relevant policy-like route was crawled, but its content could not be verified; review that destination before treating this as missing."
       : null;
     // Accessibility conformance cannot be inferred from the absence of a public statement.
     // If the crawler finds no accessibility signal, surface REVIEW for human/UI testing
