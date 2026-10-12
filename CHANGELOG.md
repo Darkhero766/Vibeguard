@@ -9,7 +9,7 @@
 - Fixed Terms & Conditions matching in SUE and policy inventory. Added an evidence-quality gate so a generic “governing law” mention cannot pass without an identified jurisdiction; the current Terms deliberately says the jurisdiction provision still needs counsel review, so L12 should remain REVIEW until the real jurisdiction is supplied.
 - Added regression coverage for ampersand Terms headings, privacy-rights evidence, legal-page reachability, and governing-law quality.
 - Business Identity (L10) remains a genuine unresolved item: no actual legal operator name/entity was provided in the website or project context. Do not fabricate a company name; the operator's real legal identity and applicable jurisdiction must be supplied before this can be honestly resolved.
-- Validation/deployment: PR checks and a fresh production rescan are pending. Do not mark this production-fixed until CI passes, Render deploys the merged API commit, Vercel deploys the frontend build, and a new audit confirms the expected evidence/statuses.
+- Validation: SUE Live Benchmark run #148 passed frontend/API build checks, both typechecks, SUE regression, accuracy benchmark, real-world vibecoded policy benchmark, and five-site live core benchmark. Deployment/fresh rescan remain pending. Do not mark production-fixed until Render deploys the API commit, Vercel deploys the frontend build, and a new audit confirms expected evidence/statuses.
 
 ## 2026-10-12
 
