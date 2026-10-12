@@ -197,7 +197,13 @@ export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductConte
     const unverifiedRouteIssue=baseStatus==="missing"&&unverifiedPolicyRoute&&policyContentCheckIds.has(d.id)
       ? "A policy-like route was crawled, but its content could not be verified; review the destination before treating this as missing."
       : null;
-    const qualityIssue=baseStatus==="pass" ? evidenceQualityIssue(d.id,evidence) : unverifiedRouteIssue;
+    // Accessibility conformance cannot be inferred from the absence of a public statement.
+    // If the crawler finds no accessibility signal, surface REVIEW for human/UI testing
+    // rather than calling the requirement MISSING based on absence alone.
+    const accessibilityEvidenceIssue=d.id==="T03"&&baseStatus==="missing"
+      ? "No accessibility statement or machine-detectable accessibility signal was found; a crawler cannot determine accessibility conformance from absence alone."
+      : null;
+    const qualityIssue=baseStatus==="pass" ? evidenceQualityIssue(d.id,evidence) : (unverifiedRouteIssue??accessibilityEvidenceIssue);
     const status=qualityIssue ? "review" : baseStatus;
     let explanation=d.rationale;
     if(applicability==="not_applicable") explanation="Not applicable based on the observed product context: "+context.productTypes.join(", ")+".";
