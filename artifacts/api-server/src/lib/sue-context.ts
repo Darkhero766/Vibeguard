@@ -90,7 +90,7 @@ export function combine(...groups:Evidence[][]) {
 
 export function isPolicySurface(page:AuditPage) {
   const p=page.url.pathname.toLowerCase();
-  if (/(?:^|\/)(terms(?:-and-conditions)?|privacy(?:-policy)?|cookies?|cookie-policy|refunds?|returns?|cancellations?|acceptable-use|aup|legal|disclaimer|dpa|subprocessors?|security-policy)(?:\/|$)/i.test(p)) return true;
+  if (/(?:^|\/)(terms(?:-and-conditions|-conditions)?|privacy(?:-policy)?|cookies?|cookie-policy|refunds?|returns?|cancellations?|acceptable-use|aup|legal|disclaimer|dpa|subprocessors?|security-policy)(?:\/|$)/i.test(p)) return true;
 
   // Crawlers/tests can expose a legal document at the site root ("/"), so
   // pathname-only classification is insufficient. Treat a page as a policy
@@ -100,7 +100,7 @@ export function isPolicySurface(page:AuditPage) {
   const sample = `${page.text} ${page.html}`.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
   const titleOrHeading = /<(?:title|h1|h2)[^>]*>[^<]*(?:terms(?: of service)?|privacy(?: policy)?|cookie policy|acceptable use|legal|disclaimer|refund|return policy|security policy)[^<]*<\/(?:title|h1|h2)>/i.test(page.html)
     || /^(?:terms(?: of service)?|privacy(?: policy)?|cookie policy|acceptable use policy|legal disclaimer|refund policy|return policy|security policy)\b/i.test(page.text.trim());
-  const legalVocabulary = /\b(?:terms of service|terms and conditions|privacy policy|cookie policy|acceptable use|legal disclaimer|governing law|arbitration|limitation of liability|indemnification|intellectual property|data processing agreement)\b/i.test(sample);
+  const legalVocabulary = /\b(?:terms of service|terms\s*(?:&|and)\s*conditions|privacy policy|cookie policy|acceptable use|legal disclaimer|governing law|arbitration|limitation of liability|indemnification|intellectual property|data processing agreement)\b/i.test(sample);
   return titleOrHeading && legalVocabulary;
 }
 
@@ -114,8 +114,8 @@ export function isVerifiedPolicySurface(page:AuditPage):boolean {
     .replace(/<style[\s\S]*?<\/style>/gi," ");
   const bodyText=bodyHtml.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
   const visibleHeading=/<h[12]\b[^>]*>[^<]*(?:terms?|privacy|cookies?|refund|returns?|cancellation|acceptable use|legal|disclaimer|security policy|data processing agreement)[^<]*<\/h[12]>/i.test(bodyHtml);
-  const bodyStartsLegal=/^(?:terms(?: of service| and conditions| of use)?|privacy(?: policy| notice)?|cookie policy|refund policy|return policy|cancellation policy|acceptable use policy|legal disclaimer|security policy)\b/i.test(bodyText);
-  const legalContent=/\b(?:terms of service govern|terms and conditions govern|you agree to|governing law|limitation of liability|indemnification|we collect|information we collect|data we collect|how we use|personal data|personal information|processing purposes|retention period|subprocessors?|service providers|data controller|data processor|cookie categories|refunds? (?:are|will be|may be)|cancellation instructions)\b/i.test(bodyText);
+  const bodyStartsLegal=/^(?:terms(?: of service|\s*&\s*conditions| and conditions| of use)?|privacy(?: policy| notice)?|cookie policy|refund policy|return policy|cancellation policy|acceptable use policy|legal disclaimer|security policy)\b/i.test(bodyText);
+  const legalContent=/\b(?:terms of service govern|terms\s*(?:&|and)\s*conditions govern|you agree to|governing law|limitation of liability|indemnification|we collect|information we collect|data we collect|how we use|personal data|personal information|processing purposes|retention period|subprocessors?|service providers|data controller|data processor|cookie categories|refunds? (?:are|will be|may be)|cancellation instructions)\b/i.test(bodyText);
   const enoughBody=bodyText.length>=80;
   return enoughBody && legalContent && (visibleHeading || bodyStartsLegal || bodyText.length>=500);
 }
