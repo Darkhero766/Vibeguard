@@ -9,7 +9,7 @@ type Def = {
 const D=(id:string,category:string,title:string,severity:Severity,rule:Rule,evidence:(c:AuditCorpus)=>Evidence[],recommendation:string,rationale:string):Def=>({id,category,title,severity,rule,evidence,recommendation,rationale});
 
 const E={
- L01:(c:AuditCorpus)=>combine(links(c,/terms|terms of service|terms & conditions|legal/i,"terms_link"),text(policySurface(c),/terms of service|terms\\s*(?:&|and)\\s*conditions|terms of use/i,"terms_document",.96)),
+ L01:(c:AuditCorpus)=>combine(links(c,/terms|terms of service|terms & conditions|legal/i,"terms_link"),text(policySurface(c),/terms of service|terms\s*(?:&|and)\s*conditions|terms of use/i,"terms_document",.96)),
  L02:(c:AuditCorpus)=>combine(links(c,/privacy|data protection|privacy notice/i,"privacy_link"),text(policySurface(c),/privacy policy|privacy notice|data protection notice/i,"privacy_document",.96)),
  L03:(c:AuditCorpus)=>combine(links(c,/cookie policy|cookie notice|cookies/i,"cookie_policy_link"),text(policySurface(c),/cookie policy|cookie notice/i,"cookie_policy_document",.96)),
  L04:(c:AuditCorpus)=>combine(links(c,/refund|returns?|money back/i,"refund_policy_link"),text(policySurface(c),/refund policy|refunds?|money[- ]back guarantee|return policy/i,"refund_terms",.96)),
@@ -63,7 +63,7 @@ const E={
  ),
  T03:(c:AuditCorpus)=>text(c,/accessibility|WCAG|screen reader|keyboard navigation|aria-/i,"accessibility_signal",.88),
  T04:(c:AuditCorpus)=>{const h=c.pages.find(p=>p.isHome)??c.pages[0];return h&&/footer/i.test(h.html)&&/terms/i.test(h.html)&&/privacy/i.test(h.html)?[{type:"page",url:h.url.toString(),location:"footer",excerpt:"Terms and Privacy links appear in the same footer surface.",signal:"legal_footer_group",confidence:.92}]:[];},
- T05:(c:AuditCorpus)=>combine(links(c,/terms|privacy/i,"legal_page_link",.94),text(policySurface(c),/terms of service|terms\\s*(?:&|and)\\s*conditions|terms of use|privacy policy|privacy notice/i,"legal_page_content",.94)),
+ T05:(c:AuditCorpus)=>combine(links(c,/terms|privacy/i,"legal_page_link",.94),text(policySurface(c),/terms of service|terms\s*(?:&|and)\s*conditions|terms of use|privacy policy|privacy notice/i,"legal_page_content",.94)),
 };
 
 
@@ -80,7 +80,7 @@ const evidenceQuality:Partial<Record<string,{adequate:RegExp;message:string}>>={
   P06:{adequate:/\b(?:share|disclose|transfer|provide)\b.{0,100}\b(?:with|to)\b|\b(?:service providers include|third parties include|payment processor|analytics provider|Stripe|PayPal|Razorpay|Supabase|Google Analytics|OpenAI|Anthropic)\b/i,message:"Third-party sharing is mentioned, but the supporting text does not clearly identify recipients or a meaningful recipient category."},
   P07:{adequate:/\b(?:subprocessors? include|list of subprocessors?|see (?:our )?subprocessor|subprocessor list|available at https?:|subprocessors? page)\b/i,message:"Subprocessors are mentioned, but a list or concrete way to identify them was not found."},
   P11:{adequate:/\b(?:right to access|right to delete|right to correct|right to rectification|right to object|right to restrict|right to portability|request access|request deletion|exercise your rights)\b/i,message:"Privacy rights are mentioned, but the excerpt does not clearly identify a specific right or how to exercise it."},
-  L12:{adequate:/\\b(?:governed by|governed and construed in accordance with|subject to) the laws of (?:the state of )?[A-Z][A-Za-z .-]{2,60}\\b/i,message:"Governing-law language was found, but no specific governing-law jurisdiction was identified."},
+  L12:{adequate:/\b(?:governed by|governed and construed in accordance with|subject to) the laws of (?:the state of )?[A-Z][A-Za-z .-]{2,60}\b/i,message:"Governing-law language was found, but no specific governing-law jurisdiction was identified."},
   A03:{adequate:/\b(?:do not|don't|will not|won't|may|will|can|cannot|can't|never|use|using)\b.{0,100}\b(?:prompts?|submitted content|uploads?|user content|personal data|training data|model training|train(?:ing)? (?:our|the|AI|language) models|improve our models)\b/i,message:"Training is mentioned, but the policy's position on whether submitted content is used for training is not clear."},
   L04:{adequate:/\b(?:within \d+ days?|\d+[- ]day|non[- ]refundable|not refundable|refunds? (?:are|will be|may be)|eligible for a refund|refund requests?|return window|final sale|unless|except)\b/i,message:"A refund link or heading was found, but concrete eligibility, timing, or conditions were not identified."},
   L05:{adequate:/\b(?:cancel at any time|cancel through|cancel via|cancel in your|cancellation request|before the next billing|before renewal|effective at the end of|email.{0,50}cancel|contact.{0,50}cancel|stop future charges)\b/i,message:"Cancellation is mentioned, but the supporting text does not clearly explain the cancellation method or timing."},
@@ -105,7 +105,7 @@ function evidenceQualityIssue(checkId:string,evidence:Evidence[]):string|null {
   }
   if(checkId==="T05") {
     const documentEvidence=evidence.filter(e=>e.type!=="link").map(e=>e.excerpt??"").join(" ");
-    const termsFound=/\b(?:terms of service|terms\\s*(?:&|and)\\s*conditions|terms of use)\b/i.test(documentEvidence);
+    const termsFound=/\b(?:terms of service|terms\s*(?:&|and)\s*conditions|terms of use)\b/i.test(documentEvidence);
     const privacyFound=/\b(?:privacy policy|privacy notice)\b/i.test(documentEvidence);
     if(!termsFound||!privacyFound) return "Both Terms and Privacy destinations were not verified as reachable policy documents in the crawl.";
   }
