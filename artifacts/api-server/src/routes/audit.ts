@@ -468,7 +468,7 @@ const POLICY_FAMILY_PATTERNS:Record<PolicyFamily,RegExp>={
   dpa:/(?:^|\/)(?:data-processing|dpa|subprocessors?|subprocessor-list)(?:$|[\/_-])/i,
 };
 const POLICY_LABEL_PATTERNS:Record<PolicyFamily,RegExp>={
-  terms:/terms(?: of service| of use|\\s*(?:&|and)\\s*conditions)?|conditions of use/i,
+  terms:/terms(?: of service| of use|\s*(?:&|and)\s*conditions)?|conditions of use/i,
   privacy:/privacy(?: policy| notice)?|data protection notice/i,
   cookies:/cookie policy|cookie notice|cookies policy/i,
   refunds:/refund policy|return policy|refunds and returns/i,
