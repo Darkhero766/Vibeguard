@@ -84,6 +84,24 @@ try {
   assert.equal(by(policyChecks,"P06").status,"pass","Crawled Privacy page must satisfy third-party sharing evidence.");
   assert.notEqual(by(policyChecks,"T02").status,"pass","Ordinary Terms/Privacy content must not satisfy the security-contact check.");
 
+  // Real VibeSane policy headings use “Terms & Conditions”. Verify that the
+  // ampersand form is recognized, privacy rights are evidence-backed, and a
+  // generic governing-law disclaimer does not pass without a jurisdiction.
+  const ampersandTerms = {
+    pages:[
+      page("https://ampersand.example.test/","<html><body><h1>Acme Cloud</h1><p>Developer security scanner and SaaS for GitHub repositories.</p><a href=\"/terms\">Terms</a><a href=\"/privacy\">Privacy</a><a href=\"/pricing\">Pricing</a><a href=\"/login\">Log in</a><button>Sign up</button></body></html>"),
+      page("https://ampersand.example.test/terms","<html><body><h1>Terms &amp; Conditions</h1><p>These Terms &amp; Conditions govern your access. By using the Service, you agree to these Terms.</p><h2>Governing Law &amp; Mandatory Rights</h2><p>These Terms are intended to be interpreted under applicable law. A specific governing-law provision has not been identified and should be completed.</p></body></html>",{home:false,text:"Terms & Conditions govern your access. By using the Service, you agree to these Terms. Governing Law & Mandatory Rights. A specific governing-law provision has not been identified and should be completed."}),
+      page("https://ampersand.example.test/privacy","<html><body><h1>Privacy Policy</h1><p>We collect email addresses and account usage data. Depending on your location, privacy rights may include the right to access, correct, or delete personal data. Contact support to exercise your rights.</p></body></html>",{home:false,text:"Privacy Policy. We collect email addresses and account usage data. Privacy rights include the right to access, correct, or delete personal data. Contact support to exercise your rights."})
+    ],
+    origin:"https://ampersand.example.test"
+  };
+  const ampersandChecks=runApplicabilityAwareChecks(ampersandTerms).checks;
+  assert.equal(by(ampersandChecks,"L01").status,"pass","Terms & Conditions heading must be recognized as a real Terms page.");
+  assert.equal(by(ampersandChecks,"L12").status,"review","Generic governing-law wording must not pass without a named jurisdiction.");
+  assert.equal(by(ampersandChecks,"P11").status,"pass","Specific privacy rights and an exercise path should satisfy the rights check.");
+  assert.equal(by(ampersandChecks,"T05").status,"pass","Verified Terms & Conditions and Privacy Policy pages should satisfy legal reachability.");
+
+
   const vaguePrivacy = {
     pages:[
       page("https://vague.example.test/","<html><body><h1>Vague Cloud</h1><p>Team workspace for users.</p><a href=\"/login\">Log in</a><form><input type=\"email\" name=\"email\"><input type=\"password\" name=\"password\"></form></body></html>"),

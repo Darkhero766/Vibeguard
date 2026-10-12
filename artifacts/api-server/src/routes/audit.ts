@@ -351,7 +351,7 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   // Product applicability depends on seeing the actual product surface (pricing,
   // login, checkout, AI features, forms, etc.), not just Terms/Privacy pages.
   const candidateScores = new Map<string,{url:string;score:number}>();
-  const pageSignal = /pricing|plans|product|features|solution|shop|store|cart|checkout|buy|order|subscription|billing|login|log[- ]?in|sign[- ]?up|register|account|dashboard|app|workspace|api|developers?|docs?|integrat|community|marketplace|seller|services?|consult|agency|about|contact|support|terms|privacy|cookie|refund|return|cancel|legal|acceptable|disclaimer|security|dpa|subprocessor|data|ai|assistant|generate/i;
+  const pageSignal = /pricing|plans|product|features|solution|shop|store|cart|checkout|buy|order|subscription|billing|login|log[- ]?in|sign[- ]?up|register|account|dashboard|app|workspace|api|developers?|docs?|integrat|community|marketplace|seller|services?|consult|agency|about|contact|support|terms|privacy|cookie|refund|return|cancel|legal|acceptable|disclaimer|security|accessibility|dpa|subprocessor|data|ai|assistant|generate/i;
   for(const l of homePage.links){
     try {
       const u=new URL(l.href);
@@ -392,7 +392,7 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
     "/acceptable-use","/acceptable-use-policy","/aup","/legal/terms","/legal/privacy",
     "/legal/terms-of-service","/legal/privacy-policy","/policies/terms-of-service","/policies/privacy-policy",
     "/disclaimer","/security","/security-policy","/data-processing","/dpa",
-    "/subprocessors","/subprocessor-list","/ai-policy","/ai-terms","/trust",
+    "/subprocessors","/subprocessor-list","/accessibility","/ai-policy","/ai-terms","/trust",
     "/en/terms","/en/privacy","/en/terms-of-service","/en/privacy-policy"
   ];
   const policyCandidates=new Set<string>();
@@ -408,7 +408,7 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   // Also reserve custom legal routes discovered in the real navigation/sitemap,
   // not only the common fallback paths. Otherwise a custom Terms/Privacy URL
   // can be pushed out by ordinary product links when the crawl budget is tight.
-  const policyPathHint=/(?:^|\/)(?:terms?|terms-of-service|terms-of-use|privacy|privacy-policy|privacy-notice|cookies?|cookie-policy|refunds?|refund-policy|returns?|return-policy|cancellations?|cancellation-policy|legal|disclaimer|acceptable-use|aup|security-policy|dpa|subprocessors?|data-protection|ai-policy|ai-terms)(?:$|[\/_-])/i;
+  const policyPathHint=/(?:^|\/)(?:terms?|terms-of-service|terms-of-use|privacy|privacy-policy|privacy-notice|cookies?|cookie-policy|refunds?|refund-policy|returns?|return-policy|cancellations?|cancellation-policy|legal|disclaimer|acceptable-use|aup|security-policy|security-disclosure|accessibility|dpa|subprocessors?|data-protection|ai-policy|ai-terms)(?:$|[\/_-])/i;
   for(const candidate of candidateScores.values()){
     try{
       const u=new URL(candidate.url);
@@ -457,25 +457,25 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
 type PolicyFamily = "terms"|"privacy"|"cookies"|"refunds"|"cancellation"|"acceptable_use"|"disclaimer"|"security"|"dpa";
 type PolicyInventoryItem = { url:string; family:PolicyFamily; status:"verified"|"needs_review"|"not_crawled_or_unavailable"; title:string|null; contentLength:number; reason:string };
 const POLICY_FAMILY_PATTERNS:Record<PolicyFamily,RegExp>={
-  terms:/(?:^|\/)(?:terms?|terms-of-service|terms-of-use|terms-and-conditions|conditions)(?:$|[\/_-])/i,
+  terms:/(?:^|\/)(?:terms?|terms-of-service|terms-of-use|terms-and-conditions|terms-and-conditions-of-use|conditions)(?:$|[\/_-])/i,
   privacy:/(?:^|\/)(?:privacy|privacy-policy|privacy-notice|data-privacy|data-protection)(?:$|[\/_-])/i,
   cookies:/(?:^|\/)(?:cookies?|cookie-policy|cookies-policy|cookie-notice)(?:$|[\/_-])/i,
   refunds:/(?:^|\/)(?:refunds?|refund-policy|returns?|return-policy)(?:$|[\/_-])/i,
   cancellation:/(?:^|\/)(?:cancellations?|cancellation-policy)(?:$|[\/_-])/i,
   acceptable_use:/(?:^|\/)(?:acceptable-use|acceptable-use-policy|aup)(?:$|[\/_-])/i,
   disclaimer:/(?:^|\/)(?:disclaimer)(?:$|[\/_-])/i,
-  security:/(?:^|\/)(?:security-policy|security)(?:$|[\/_-])/i,
+  security:/(?:^|\/)(?:security-policy|security-disclosure|security)(?:$|[\/_-])/i,
   dpa:/(?:^|\/)(?:data-processing|dpa|subprocessors?|subprocessor-list)(?:$|[\/_-])/i,
 };
 const POLICY_LABEL_PATTERNS:Record<PolicyFamily,RegExp>={
-  terms:/terms(?: of service| of use| and conditions)?|conditions of use/i,
+  terms:/terms(?: of service| of use|\s*(?:&|and)\s*conditions)?|conditions of use/i,
   privacy:/privacy(?: policy| notice)?|data protection notice/i,
   cookies:/cookie policy|cookie notice|cookies policy/i,
   refunds:/refund policy|return policy|refunds and returns/i,
   cancellation:/cancellation policy|cancellations/i,
   acceptable_use:/acceptable use policy/i,
   disclaimer:/disclaimer/i,
-  security:/security policy|responsible disclosure/i,
+  security:/security policy|security disclosure|responsible disclosure/i,
   dpa:/data processing agreement|subprocessors?/i,
 };
 function policyFamilyFromText(value:string):PolicyFamily[]{

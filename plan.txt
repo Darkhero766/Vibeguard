@@ -1,3 +1,12 @@
+2026-10-12 — SUE self-audit crawlability and trust-page fixes
+- Live report showed five REVIEW and three MISSING findings despite visible Terms/Privacy links. Source inspection found the actual root cause: Vite's static SEO generator emitted an empty #root for /terms and only changed metadata; SUE's public crawler does not execute client JavaScript, so it could not verify legal page body text.
+- Added static crawlable content snapshots for /terms, /privacy, /contact, /security-disclosure, and /accessibility; added app routes for Contact, Security Disclosure, and Accessibility, linked them from the footer, and added them to the sitemap.
+- Updated the Privacy Policy to accurately disclose saved SUE audit report data (public URL, timestamp, score, check statuses, product-context signals, and short public-page evidence excerpts). Repository scan results and SUE audit reports have different storage behavior.
+- Improved SUE Terms & Conditions detection and added a conservative governing-law evidence quality gate. A mention of governing law is not enough to pass when no actual jurisdiction is named.
+- Added regression coverage for Terms & Conditions with ampersand, privacy rights, legal-page reachability, and jurisdiction specificity.
+- L10 Business Identity remains unresolved pending the actual legal operator name/entity. Do not invent legal identity. L12 remains REVIEW until the real jurisdiction-specific clause is reviewed and added.
+- Branch/PR: fix/sue-self-audit-legal-rendering-v2 / PR #49. SUE Live Benchmark run #148 passed API/frontend build checks, typechecks, SUE regression, accuracy, real-world vibecoded policy, and five-site live core benchmarks. Production deployment and fresh VibeSane scan remain pending; do not claim fixed until verified.
+
 VIBESANE / VIBEGUARD — PROJECT PLAN & CHANGE LOG
 ================================================
 Purpose
