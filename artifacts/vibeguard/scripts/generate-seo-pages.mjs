@@ -85,6 +85,7 @@ for (const page of pages) {
   html = replaceMetaTag(html, 'name', 'twitter:title', page.title);
   html = replaceMetaTag(html, 'name', 'twitter:description', page.description);
   html = html.replace('<div id="root"></div>', `<div id="root">${page.staticBody ?? ''}</div>`);
+  if (page.staticBody && !html.includes(page.staticBody)) throw new Error(`Failed to inject crawlable page body for ${page.path}`);
 
   const schema = {
     '@context': 'https://schema.org',
