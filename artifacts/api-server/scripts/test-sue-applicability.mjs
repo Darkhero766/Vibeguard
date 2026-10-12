@@ -16,7 +16,7 @@ try {
     external:["node:*"],
     logLevel:"silent"
   });
-  const {runApplicabilityAwareChecks,definitionsCount,CORE_CHECK_IDS}=await import(outfile);
+  const {runApplicabilityAwareChecks,definitionsCount,CORE_CHECK_IDS,unverifiedPolicyRouteRelevant}=await import(outfile);
   assert.equal(definitionsCount(),50,"SUE must retain exactly 50 checks");
   assert.equal(CORE_CHECK_IDS.length,12,"V1 must expose exactly 12 core checks");
   assert.equal(new Set(CORE_CHECK_IDS).size,12,"Core check IDs must be unique");
@@ -107,10 +107,25 @@ try {
   };
   const policyShellChecks=runApplicabilityAwareChecks(policyShell).checks;
   assert.equal(by(policyShellChecks,"L01").status,"review","A generic SPA shell at /terms is not a verified Terms document.");
-  assert.equal(by(policyShellChecks,"P01").status,"missing","An unverified Terms route must not obscure the independent absence of a privacy-policy route.");
+  assert.equal(by(policyShellChecks,"P01").status,"review","Low crawl confidence may still require privacy applicability review.");
+  assert.equal(by(policyShellChecks,"P01").explanation.includes("relevant policy-like route"),false,"A Terms-only shell must not be the reason Privacy is sent to REVIEW.");
   assert.equal(by(policyShellChecks,"T05").status,"review","A generic policy route must not satisfy legal-page reachability.");
   assert.equal(by(policyShellChecks,"L03").status,"not_applicable","An unverified Terms shell must not make an unrelated cookie-policy check applicable or REVIEW.");
   assert.equal(by(policyShellChecks,"L03").explanation.includes("relevant policy-like route"),false,"Unrelated policy routes must not force REVIEW.");
+
+  const privacyShell = {
+    pages:[
+      page("https://privacy-shell.example.test/","<html><body><h1>Acme Cloud</h1><p>Team workspace for customers.</p><a href=\"/privacy\">Privacy Policy</a><a href=\"/terms\">Terms</a><a href=\"/login\">Log in</a><form><input type=\"email\" name=\"email\"><input type=\"password\" name=\"password\"></form></body></html>"),
+      page("https://privacy-shell.example.test/privacy","<html><head><title>Acme Cloud</title></head><body><div id=\"root\">Loading application...</div></body></html>",{home:false})
+    ],
+    origin:"https://privacy-shell.example.test"
+  };
+  const privacyShellChecks=runApplicabilityAwareChecks(privacyShell).checks;
+  assert.equal(unverifiedPolicyRouteRelevant("P01",privacyShell.pages[1]),true,"An unverified /privacy route must be relevant to privacy-content checks.");
+  assert.equal(unverifiedPolicyRouteRelevant("L01",privacyShell.pages[1]),false,"An unverified /privacy route must not be relevant to Terms content.");
+  assert.equal(unverifiedPolicyRouteRelevant("L01",policyShell.pages[1]),true,"An unverified /terms route must be relevant to Terms content.");
+  assert.equal(unverifiedPolicyRouteRelevant("P01",policyShell.pages[1]),false,"An unverified /terms route must not be relevant to Privacy content.");
+
 
   const ordinarySaas = run(`
     <html><body><h1>Acme Cloud</h1>
