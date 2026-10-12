@@ -174,12 +174,43 @@ for (const def of defs) def.core = (CORE_CHECK_IDS as readonly string[]).include
 
 import { buildProductContext } from "./sue-context";
 
-function unverifiedPolicyRouteRelevant(checkId:string,page:AuditPage):boolean {
- if(!isPolicySurface(page)||isVerifiedPolicySurface(page)) return false;
- const path=page.url.pathname.toLowerCase(), sample=(page.url.pathname+" "+page.text.slice(0,1200)+" "+page.html.slice(0,2400)).toLowerCase();
- const groups:Record<string,RegExp>={terms:/terms?|terms-of-service|terms-of-use|conditions|legal/,privacy:/privacy|data-protection|data-privacy|privacy-notice/,cookies:/cookies?|cookie-policy|cookie-notice/,refunds:/refund|returns?/,cancellation:/cancel|cancellation/,acceptable:/acceptable-use|aup/,disclaimer:/disclaimer/,security:/security-policy|security/,dpa:/data-processing|\bdpa\b|subprocessor/};
- const relevant:Record<string,string[]>={L01:["terms"],L02:["privacy"],L03:["cookies"],L04:["refunds"],L05:["cancellation"],L06:["acceptable"],L07:["disclaimer"],L12:["terms"],P01:["privacy"],P02:["privacy"],P03:["privacy"],P04:["privacy"],P05:["privacy"],P06:["privacy"],P07:["privacy"],P08:["privacy","dpa"],P09:["privacy","security"],P10:["privacy","security"],P11:["privacy"],C02:["privacy","cookies"],C03:["privacy"],C05:["privacy","cookies"],C06:["privacy","cookies"],C07:["privacy"],C08:["cookies","privacy"],A01:["privacy"],A02:["privacy"],A03:["privacy"],A04:["privacy"],A05:["privacy"],A06:["privacy"],A07:["privacy"],B03:["terms"],B04:["terms","cancellation"],B05:["terms","refunds"],B06:["terms","privacy"],T05:["terms","privacy"]};
- return (relevant[checkId]??[]).some(key=>groups[key]?.test(path)||groups[key]?.test(sample));
+function unverifiedPolicyRouteRelevant(checkId:string,page:AuditCorpus["pages"][number]):boolean {
+  if(!isPolicySurface(page)||isVerifiedPolicySurface(page)) return false;
+  const path=page.url.pathname.toLowerCase();
+  // Navigation links and generic app-shell text are not page identity. Only the
+  // URL route plus the document's own title/headings can establish a family.
+  const ownHeadings=[...page.html.matchAll(/<(?:title|h1|h2)\\b[^>]*>([\\s\\S]*?)<\\/(?:title|h1|h2)>/gi)]
+    .map(m=>m[1].replace(/<[^>]+>/g," ").replace(/\\s+/g," ").trim().toLowerCase()).join(" ");
+  const groups:Record<string,RegExp>={
+    terms:/(?:^|\\/)(?:terms?|terms-of-service|terms-of-use|terms-and-conditions|conditions)(?:$|[\\/_-])/,
+    privacy:/(?:^|\\/)(?:privacy|privacy-policy|privacy-notice|data-privacy|data-protection)(?:$|[\\/_-])/,
+    cookies:/(?:^|\\/)(?:cookies?|cookie-policy|cookies-policy|cookie-notice)(?:$|[\\/_-])/,
+    refunds:/(?:^|\\/)(?:refunds?|refund-policy|returns?|return-policy)(?:$|[\\/_-])/,
+    cancellation:/(?:^|\\/)(?:cancellations?|cancellation-policy)(?:$|[\\/_-])/,
+    acceptable:/(?:^|\\/)(?:acceptable-use|acceptable-use-policy|aup)(?:$|[\\/_-])/,
+    disclaimer:/(?:^|\\/)(?:disclaimer)(?:$|[\\/_-])/,
+    security:/(?:^|\\/)(?:security-policy|security)(?:$|[\\/_-])/,
+    dpa:/(?:^|\\/)(?:data-processing|dpa|subprocessors?|subprocessor-list)(?:$|[\\/_-])/,
+  };
+  const headingGroups:Record<string,RegExp>={
+    terms:/\\bterms(?: of service| of use| and conditions)?\\b|\\bconditions of use\\b/,
+    privacy:/\\bprivacy(?: policy| notice)?\\b|\\bdata protection notice\\b/,
+    cookies:/\\bcookie policy\\b|\\bcookie notice\\b|\\bcookies policy\\b/,
+    refunds:/\\brefund policy\\b|\\breturn policy\\b|\\brefunds and returns\\b/,
+    cancellation:/\\bcancellation policy\\b|\\bcancellations\\b/,
+    acceptable:/\\bacceptable use policy\\b/,
+    disclaimer:/\\bdisclaimer\\b/,
+    security:/\\bsecurity policy\\b|\\bresponsible disclosure\\b/,
+    dpa:/\\bdata processing agreement\\b|\\bsubprocessors?\\b/
+  };
+  const relevant:Record<string,string[]>={
+    L01:["terms"],L02:["privacy"],L03:["cookies"],L04:["refunds"],L05:["cancellation"],L06:["acceptable"],L07:["disclaimer"],L12:["terms"],
+    P01:["privacy"],P02:["privacy"],P03:["privacy"],P04:["privacy"],P05:["privacy"],P06:["privacy"],P07:["privacy"],P08:["privacy","dpa"],
+    P09:["privacy","security"],P10:["privacy","security"],P11:["privacy"],C02:["privacy","cookies"],C03:["privacy"],C05:["privacy","cookies"],
+    C06:["privacy","cookies"],C07:["privacy"],C08:["cookies","privacy"],A01:["privacy"],A02:["privacy"],A03:["privacy"],A04:["privacy"],
+    A05:["privacy"],A06:["privacy"],A07:["privacy"],B03:["terms"],B04:["terms","cancellation"],B05:["terms","refunds"],B06:["terms","privacy"],T05:["terms","privacy"]
+  };
+  return (relevant[checkId]??[]).some(key=>groups[key]?.test(path)||headingGroups[key]?.test(ownHeadings));
 }
 
 export function runApplicabilityAwareChecks(c:AuditCorpus):{context:ProductContext;checks:AuditCheck[]} {
