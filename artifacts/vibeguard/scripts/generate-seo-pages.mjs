@@ -102,7 +102,18 @@ for (const page of pages) {
 
   const routeDir = path.join(outputDir, page.path.slice(1));
   await mkdir(routeDir, { recursive: true });
-  await writeFile(path.join(routeDir, 'index.html'), html);
+  const outputFile = path.join(routeDir, 'index.html');
+  await writeFile(outputFile, html);
+
+  // Verify the artifact on disk, not just the in-memory template. This catches
+  // path/output regressions before the static site is published.
+  const writtenHtml = await readFile(outputFile, 'utf8');
+  if (!writtenHtml.includes('<title>' + page.title + '</title>')) {
+    throw new Error('Generated page title is missing from output for ' + page.path);
+  }
+  if (page.staticBody && (!writtenHtml.includes(page.staticBody) || !writtenHtml.includes('<h1'))) {
+    throw new Error('Generated policy body is missing from output for ' + page.path);
+  }
 }
 
 console.log(`Generated ${pages.length} static pages with crawlable public content where configured.`);
