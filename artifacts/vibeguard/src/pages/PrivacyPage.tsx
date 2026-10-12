@@ -14,7 +14,7 @@ export default function PrivacyPage() {
             </div>
             <h1 className="mt-5 text-[32px] font-extrabold tracking-[-0.045em]">Privacy Policy</h1>
             <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
-              Last updated: July 2026
+              Last updated: October 12, 2026
             </p>
 
             <div className="mt-10 space-y-8 text-[14px] leading-7 text-foreground">
@@ -39,7 +39,7 @@ export default function PrivacyPage() {
               <section>
                 <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">Scan results</h2>
                 <p className="text-muted-foreground">
-                  Scan findings are returned directly to your browser session and are not stored on our servers. VibeSane's checks are automated and heuristic — they are not a substitute for a professional security audit.
+                  Repository-scan findings are returned to your browser session and are not stored on our servers. SUE website-audit reports are saved to your account history so you can reopen them; a report can include the audited public URL, scan timestamp, score, check statuses, product-context signals, and short evidence excerpts from public pages. The audit crawler fetches public pages to evaluate them and does not store submitted website source-code files. SUE checks are automated and heuristic — they are not a substitute for a professional security audit.
                 </p>
               </section>
 
@@ -53,7 +53,7 @@ export default function PrivacyPage() {
               <section>
                 <h2 className="mb-3 text-[18px] font-bold tracking-[-0.03em]">Data retention</h2>
                 <p className="text-muted-foreground">
-                  Your account data (email and usage count) is retained for as long as your account exists. You may request account deletion by opening an issue on our GitHub repository, after which all personal data will be removed within 30 days.
+                  Your account data and saved SUE audit reports are retained while your account exists. You may request account-data deletion through the Contact and Support route. We aim to process a verified deletion request within 30 days. Do not include passwords, access tokens, or sensitive personal details in a public issue; ask the maintainer for a private channel if needed.
                 </p>
               </section>
 
