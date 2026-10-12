@@ -1,3 +1,12 @@
+## 2026-10-12
+
+### SUE policy-route-specific review correction
+
+- Root cause: any unverified policy-like route could force REVIEW for every policy-content check, even when the route was unrelated to that check.
+- Change: route uncertainty now downgrades only checks relevant to that policy family (Terms, Privacy, Cookies, Refunds, Cancellation, Security, DPA, etc.). Unverified routes remain excluded from policy evidence and cannot create PASS.
+- Regression: assertions ensure an unverified Terms shell does not obscure independent Privacy/Cookie results.
+- Preserves 50 checks, 12 core checks, content verification gates, N/A scoring, and SSRF protections. Validation and production rescan pending.
+
 # Change Log
 
 Short, human-readable notes for contributors and reviewers.
