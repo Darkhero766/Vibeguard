@@ -8,6 +8,7 @@ import { isIP } from "node:net";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { consumeAuditScan, ensurePlanForUser } from "../lib/plan";
 import { CORE_CHECK_IDS, runApplicabilityAwareChecks } from "../lib/sue-checks";
+import { isPolicySurface, isVerifiedPolicySurface } from "../lib/sue-context";
 import type { AuditCheck, AuditCorpus, AuditPage } from "../lib/sue-applicability";
 
 const router = Router();
@@ -453,6 +454,70 @@ async function crawl(start:URL):Promise<{corpus:AuditCorpus;redirectCount:number
   return {corpus:{pages,origin:sameOrigin},redirectCount:home.redirectCount};
 }
 
+type PolicyFamily = "terms"|"privacy"|"cookies"|"refunds"|"cancellation"|"acceptable_use"|"disclaimer"|"security"|"dpa";
+type PolicyInventoryItem = { url:string; family:PolicyFamily; status:"verified"|"needs_review"|"not_crawled_or_unavailable"; title:string|null; contentLength:number; reason:string };
+const POLICY_FAMILY_PATTERNS:Record<PolicyFamily,RegExp>={
+  terms:/(?:^|\\/)(?:terms?|terms-of-service|terms-of-use|terms-and-conditions|conditions)(?:$|[\\/_-])/i,
+  privacy:/(?:^|\\/)(?:privacy|privacy-policy|privacy-notice|data-privacy|data-protection)(?:$|[\\/_-])/i,
+  cookies:/(?:^|\\/)(?:cookies?|cookie-policy|cookies-policy|cookie-notice)(?:$|[\\/_-])/i,
+  refunds:/(?:^|\\/)(?:refunds?|refund-policy|returns?|return-policy)(?:$|[\\/_-])/i,
+  cancellation:/(?:^|\\/)(?:cancellations?|cancellation-policy)(?:$|[\\/_-])/i,
+  acceptable_use:/(?:^|\\/)(?:acceptable-use|acceptable-use-policy|aup)(?:$|[\\/_-])/i,
+  disclaimer:/(?:^|\\/)(?:disclaimer)(?:$|[\\/_-])/i,
+  security:/(?:^|\\/)(?:security-policy|security)(?:$|[\\/_-])/i,
+  dpa:/(?:^|\\/)(?:data-processing|dpa|subprocessors?|subprocessor-list)(?:$|[\\/_-])/i,
+};
+const POLICY_LABEL_PATTERNS:Record<PolicyFamily,RegExp>={
+  terms:/terms(?: of service| of use| and conditions)?|conditions of use/i,
+  privacy:/privacy(?: policy| notice)?|data protection notice/i,
+  cookies:/cookie policy|cookie notice|cookies policy/i,
+  refunds:/refund policy|return policy|refunds and returns/i,
+  cancellation:/cancellation policy|cancellations/i,
+  acceptable_use:/acceptable use policy/i,
+  disclaimer:/disclaimer/i,
+  security:/security policy|responsible disclosure/i,
+  dpa:/data processing agreement|subprocessors?/i,
+};
+function policyFamilyFromText(value:string):PolicyFamily[]{
+  return (Object.keys(POLICY_LABEL_PATTERNS) as PolicyFamily[]).filter(f=>POLICY_LABEL_PATTERNS[f].test(value));
+}
+function pageOwnTitle(page:AuditPage):string|null {
+  const match=page.html.match(/<(?:title|h1)\\b[^>]*>([\\s\\S]*?)<\\/(?:title|h1)>/i);
+  return match?.[1]?.replace(/<[^>]+>/g," ").replace(/\\s+/g," ").trim().slice(0,160)||null;
+}
+function buildPolicyInventory(corpus:AuditCorpus):PolicyInventoryItem[]{
+  const pagesByUrl=new Map(corpus.pages.map(p=>[p.url.toString(),p]));
+  const candidates=new Map<string,{url:string;family:PolicyFamily}>();
+  const add=(url:string,family:PolicyFamily)=>{try{const u=new URL(url,corpus.origin);if(u.origin===corpus.origin&&["http:","https:"].includes(u.protocol)){u.hash="";candidates.set(u.toString()+"|"+family,{url:u.toString(),family});}}catch{}};
+  for(const page of corpus.pages){
+    const path=page.url.pathname;
+    for(const family of Object.keys(POLICY_FAMILY_PATTERNS) as PolicyFamily[]) if(POLICY_FAMILY_PATTERNS[family].test(path)) add(page.url.toString(),family);
+    const ownHeading=[...page.html.matchAll(/<(?:title|h1|h2)\\b[^>]*>([\\s\\S]*?)<\\/(?:title|h1|h2)>/gi)].map(m=>m[1].replace(/<[^>]+>/g," ")).join(" ");
+    for(const family of policyFamilyFromText(ownHeading)) add(page.url.toString(),family);
+    for(const link of page.links){
+      const linkedText=link.text+" "+link.href;
+      for(const family of policyFamilyFromText(linkedText)){
+        // Link labels discover candidates, but do not prove their content exists.
+        add(link.href,family);
+      }
+      try{const u=new URL(link.href);for(const family of Object.keys(POLICY_FAMILY_PATTERNS) as PolicyFamily[])if(POLICY_FAMILY_PATTERNS[family].test(u.pathname))add(u.toString(),family);}catch{}
+    }
+  }
+  return [...candidates.values()].map(candidate=>{
+    const page=pagesByUrl.get(candidate.url);
+    if(!page)return {url:candidate.url,family:candidate.family,status:"not_crawled_or_unavailable" as const,title:null,contentLength:0,reason:"The route was discovered from navigation or URL hints, but no page content was captured. Its policy content cannot be verified."};
+    const verified=isVerifiedPolicySurface(page);
+    return {url:candidate.url,family:candidate.family,status:verified?"verified" as const:"needs_review" as const,title:pageOwnTitle(page),contentLength:page.text.length,reason:verified?"The page contains a verified policy surface; individual requirements are evaluated separately against their own evidence.":"The route was fetched, but its content did not meet SUE's policy-page verification threshold."};
+  }).sort((a,b)=>a.family.localeCompare(b.family)||a.url.localeCompare(b.url));
+}
+function buildCoreEvidenceMap(checks:AuditCheck[]){
+  return checks.filter(check=>CORE_CHECK_ID_SET.has(check.id)).map(check=>({
+    id:check.id,title:check.title,status:check.status,applicability:check.applicability,
+    evidence:check.evidence.map(item=>({url:item.url,signal:item.signal,excerpt:item.excerpt,confidence:item.confidence})),
+    explanation:check.explanation,recommendation:check.recommendation
+  }));
+}
+
 async function persistAuditRun(userId:string, report:{
   url:string; scannedAt:string; score:number; passed:number; review:number; missing:number; notApplicable:number;
   checks:unknown[]; productContext:unknown; redirectCount:number;
@@ -503,12 +568,15 @@ router.post("/audit", rateLimit({ name: "audit", windowMs: 60_000, max: 10 }),re
     const score=evaluatedCount===0?100:Math.round(((passed+review*.5)/evaluatedCount)*100);
     const updatedPlan=await consumeAuditScan(req.userId!);
     const scannedAt=new Date().toISOString();
+    const policyInventory=buildPolicyInventory(corpus);
+    const coreEvidenceMap=buildCoreEvidenceMap(checks);
     const productContext={
       productTypes:context.productTypes,
       commercialModel:context.commercialModel,
       signals:context.signals,
       confidence:context.confidence,
       coverage:context.coverage,
+      policyInventory,
     };
     const auditId=await persistAuditRun(req.userId!,{
       url:reportUrl,
@@ -535,6 +603,8 @@ router.post("/audit", rateLimit({ name: "audit", windowMs: 60_000, max: 10 }),re
       checks,
       coreChecks,
       coreSummary,
+      coreEvidenceMap,
+      policyInventory,
       productContext,
       quota:updatedPlan,
       redirectCount,
@@ -574,6 +644,8 @@ router.get("/audit/:id",requireAuth,async(req:AuthedRequest,res):Promise<void>=>
       checks:storedChecks,
       coreChecks,
       coreSummary,
+      coreEvidenceMap:buildCoreEvidenceMap(storedChecks),
+      policyInventory:Array.isArray(row.product_context?.policyInventory)?row.product_context.policyInventory:[],
       productContext:row.product_context,
       redirectCount:row.redirect_count,
     });
