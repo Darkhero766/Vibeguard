@@ -35,7 +35,7 @@ export function Nav({ onReset }: { onReset?: () => void } = {}) {
   };
 
   return (
-    <header className="sticky top-0 z-50 px-3 pt-3 sm:px-5">
+    <header className="relative z-50 px-3 pt-3 sm:sticky sm:top-0 sm:px-5">
       <div className="mx-auto flex w-full max-w-[1040px] items-center justify-between gap-4 border-2 border-[#101111] bg-[#101111] px-4 py-3 text-[#f4f1ea] shadow-[5px_5px_0_#e34a3b] sm:px-6">
         <a href="/" onClick={(event) => { event.preventDefault(); handleLogoClick(); }} className="flex items-center gap-2.5 shrink-0"><span className="relative flex h-6 w-6 items-center justify-center border border-[#f4c842] text-[#f4c842]"><span className="absolute h-2.5 w-2.5 border border-[#f4c842]" /><span className="h-1 w-1 bg-[#f4c842]" /></span><span className="text-[15px] font-extrabold tracking-[-0.04em]">VibeSane</span></a>
         <nav className="hidden items-center gap-1 md:flex"><a href="/#how-it-works" className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#b8bbb5] transition-colors hover:bg-[#f4c842] hover:text-[#101111]">How it works</a><Link href="/pricing" className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#b8bbb5] transition-colors hover:bg-[#f4c842] hover:text-[#101111]">Pricing</Link>{user && <Link href="/settings" className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#b8bbb5] transition-colors hover:bg-[#f4c842] hover:text-[#101111]">Settings</Link>}</nav>
