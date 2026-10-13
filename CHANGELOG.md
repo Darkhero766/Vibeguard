@@ -1,3 +1,11 @@
+## 2026-10-13
+
+### Mobile SUE audit layout correction
+
+- Disabled the sticky global navigation on small screens so the header and SUE/product-controls tabs scroll with the page instead of covering the audit headline while scrolling.
+- Made the SUE hero headline scale fluidly between 40px and 48px on narrow viewports, with a slightly more forgiving mobile line height; desktop headline sizing is unchanged.
+- Validation required: run the frontend build and verify `/audit` on a narrow mobile viewport before merging and deploying.
+
 ## 2026-10-12
 
 ### SUE policy crawl regression guard and production benchmark
