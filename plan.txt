@@ -1,3 +1,8 @@
+2026-10-13 — SUE mobile layout fix
+- On mobile, make the global header non-sticky so it cannot overlay the SUE hero while the user scrolls; retain sticky navigation from the small-screen breakpoint upward.
+- Scale the SUE audit headline fluidly for narrow screens while preserving the existing desktop size.
+- Focused branch: fix/mobile-sue-audit-layout. Verify build and `/audit` at mobile widths before merge/deploy.
+
 2026-10-12 — SUE policy crawl regression guard and cross-site benchmark
 - Added post-write verification to generate-seo-pages.mjs: generated route HTML is read back from disk and the expected route-specific title/static policy body must exist or the build fails.
 - Added VibeSane production as a labelled target in benchmark-sue-vibecoded.mjs for /terms and /privacy, alongside the existing public vibecoded products and four control sites.

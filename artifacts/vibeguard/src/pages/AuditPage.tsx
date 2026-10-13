@@ -110,7 +110,7 @@ export default function AuditPage() {
           </div>
           <div className="mt-5 grid gap-8 lg:grid-cols-[1fr_300px] lg:items-end">
             <div>
-              <h1 className="text-[48px] font-extrabold leading-[.88] tracking-[-0.05em] sm:text-[72px]">Is your product<br /><span className="text-[#66763e]">ready to ship?</span></h1>
+              <h1 className="text-[clamp(40px,10vw,48px)] font-extrabold leading-[.94] tracking-[-0.05em] sm:text-[72px] sm:leading-[.88]">Is your product<br /><span className="text-[#66763e]">ready to ship?</span></h1>
               <p className="mt-6 max-w-2xl text-[14px] leading-6 text-[#555850]">Scan a deployed website or app landing page for legal, privacy, consent, AI, payment and trust signals that are easy to miss before launch.</p>
             </div>
             <div className="border-2 border-[#0a0b0a] bg-[#101211] p-5 shadow-[6px_6px_0_#e83a2f]">
