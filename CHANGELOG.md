@@ -1,3 +1,13 @@
+## 2026-10-17
+
+### SUE policy-evidence precision: governing law and privacy rights
+
+- Improve L12 evidence selection so a named governing-law clause is preferred over a generic “Governing Law” heading; incomplete clauses remain REVIEW rather than passing.
+- Expand P11 matching to recognize rights lists phrased as nouns (access, correction, deletion, restriction, portability, objection) as well as “right to …” wording.
+- Add regression assertions for jurisdiction clauses after a generic heading and noun-list privacy rights with an exercise path.
+- Preserve the 50-check engine, 12-check V1 core registry, conservative evidence quality gates, and crawl safety controls.
+- Validation required before merge: API build/typecheck, SUE regression, accuracy benchmark, policy benchmark, and live core benchmark. Production rescan is still required.
+
 ## 2026-10-13
 
 ### Mobile SUE audit layout correction

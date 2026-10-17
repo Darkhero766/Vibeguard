@@ -101,6 +101,28 @@ try {
   assert.equal(by(ampersandChecks,"P11").status,"pass","Specific privacy rights and an exercise path should satisfy the rights check.");
   assert.equal(by(ampersandChecks,"T05").status,"pass","Verified Terms & Conditions and Privacy Policy pages should satisfy legal reachability.");
 
+  // The operative jurisdiction clause can appear well after a generic heading.
+  const jurisdictionBeyondHeading = {
+    pages:[
+      page("https://jurisdiction.example.test/","<html><body><h1>Acme Cloud</h1><p>Commercial developer SaaS.</p><a href='/terms'>Terms</a><a href='/pricing'>Pricing</a></body></html>"),
+      page("https://jurisdiction.example.test/terms","<html><body><h1>Terms of Service</h1><h2>Governing Law</h2><p>These terms cover use of the service and other important matters for customers.</p><p>These Terms are governed by the laws of Tennessee, without regard to conflict of law principles.</p></body></html>",{home:false,text:"Terms of Service. Governing Law. These terms cover use of the service and other important matters for customers. These Terms are governed by the laws of Tennessee, without regard to conflict of law principles."})
+    ],
+    origin:"https://jurisdiction.example.test"
+  };
+  const jurisdictionChecks=runApplicabilityAwareChecks(jurisdictionBeyondHeading).checks;
+  assert.equal(by(jurisdictionChecks,"L12").status,"pass","A named jurisdiction in the operative clause must be detected even when a generic heading appears first.");
+
+  // Some privacy policies list rights as nouns instead of repeating 'right to'.
+  const nounListPrivacy = {
+    pages:[
+      page("https://rights.example.test/","<html><body><h1>Acme Cloud</h1><p>Developer SaaS that processes account data.</p><a href='/privacy'>Privacy Policy</a><a href='/terms'>Terms</a><a href='/pricing'>Pricing</a><a href='/contact'>Contact</a></body></html>"),
+      page("https://rights.example.test/privacy","<html><body><h1>Privacy Policy</h1><p>Depending on applicable law, you may have rights of access, correction, deletion, restriction, portability, and objection to processing. Contact our privacy team to exercise these rights.</p></body></html>",{home:false,text:"Privacy Policy. Depending on applicable law, you may have rights of access, correction, deletion, restriction, portability, and objection to processing. Contact our privacy team to exercise these rights."})
+    ],
+    origin:"https://rights.example.test"
+  };
+  const nounRightsChecks=runApplicabilityAwareChecks(nounListPrivacy).checks;
+  assert.equal(by(nounRightsChecks,"P11").status,"pass","A rights list expressed as nouns plus an exercise path must satisfy P11.");
+
 
   const vaguePrivacy = {
     pages:[
