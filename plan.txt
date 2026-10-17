@@ -1,3 +1,10 @@
+2026-10-17 — SUE evidence quality follow-up
+- Target: PlaceholderOS audit showed REVIEW findings for governing law and privacy rights despite public policy language.
+- Updated L12 to prefer evidence around a specific governing-law clause rather than a generic heading, while preserving REVIEW when jurisdiction is not named.
+- Expanded P11 matching for privacy rights listed as nouns (access, correction, deletion, restriction, portability, objection) and an exercise/contact path.
+- Added regression cases for jurisdiction wording after a generic heading and noun-list privacy rights.
+- Changes are on branch fix/sue-placeholderos-evidence-quality; validation and production rescan pending. Do not claim deployed until regression, accuracy, policy, and live-core benchmarks pass and a fresh scan confirms behavior.
+
 2026-10-13 — SUE mobile layout fix
 - On mobile, make the global header non-sticky so it cannot overlay the SUE hero while the user scrolls; retain sticky navigation from the small-screen breakpoint upward.
 - Scale the SUE audit headline fluidly for narrow screens while preserving the existing desktop size.
