@@ -1,3 +1,17 @@
+2026-10-27 — SUE production verification gate (live results; incomplete checks are NOT passes)
+- GitHub main baseline before this documentation entry: 36c4622ba2129bea32d8ed113c996a8a167f80e0 (PR #52).
+- Render workspace explicitly confirmed by user: My Workspace (tea-cu9p2kpu0jms73fi9stg).
+- PASS — Render API Vibeguard-api, deploy dep-db76l5cs728c739n2l4g: live, commit 36c4622ba2129bea32d8ed113c996a8a167f80e0, finished 2026-10-13T17:30:51Z; matched baseline main.
+- PASS — Render frontend Vibeguard, deploy dep-db76l5cs728c739n2ld0: live, commit 36c4622ba2129bea32d8ed113c996a8a167f80e0, finished 2026-10-13T17:30:26Z; matched baseline main.
+- NOT VERIFIED — Vercel frontend deployed commit: no Vercel deployment inspection integration available in this execution. Render static site is confirmed, but vibesane.app hosting origin has not been independently established.
+- FAIL (execution/verification, NOT asserted product defect) — Live vibesane.app desktop/mobile SUE scan and viewport overlap/headline check: no successful production audit response or rendered viewport captured. Public web fetch of https://vibesane.app/audit returned 'Internal Error / URL not accessible via this tool'; container HTTPS failed DNS resolution for vibesane.app. No PASS claim.
+- FAIL (execution/verification, NOT asserted product defect) — Live Wikipedia article classification: no successful live /api/audit response; cannot establish zero commercial/pricing findings.
+- FAIL (execution/verification, NOT asserted product defect) — Live privacy-without-terms route isolation: no successful live /api/audit response; cannot establish expected Terms status.
+- FAIL (execution/verification, NOT asserted product defect) — Live no-accessibility-statement T03: no successful live /api/audit response; cannot establish REVIEW vs MISSING.
+- API reachability evidence: public web fetch of https://vibeguard-api-zs2y.onrender.com/api/audit returned 'Internal Error / URL not accessible via this tool'; container HTTPS failed DNS resolution for vibeguard-api-zs2y.onrender.com. These are tool/network failures, not endpoint HTTP status codes.
+- GATE NOT SATISFIED: four live checks have no observed PASS; no audit verification timestamp/confidence label or new SUE feature work authorized. A future operator must run real production POST /api/audit with representative URLs and capture responses plus desktop/mobile screenshots, then record each observed result before any polish.
+- Documentation-only change to plan.txt will advance main and may initiate automatic Render deploys; re-check deployment commit against updated main before claiming it current again.
+
 2026-10-13 — SUE mobile layout fix
 - On mobile, make the global header non-sticky so it cannot overlay the SUE hero while the user scrolls; retain sticky navigation from the small-screen breakpoint upward.
 - Scale the SUE audit headline fluidly for narrow screens while preserving the existing desktop size.
