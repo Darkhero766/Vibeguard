@@ -40,6 +40,22 @@ try {
   const run=(html,url)=>runApplicabilityAwareChecks(corpus(html,url)).checks;
   const by=(checks,id)=>checks.find(x=>x.id===id);
 
+  // Encyclopedia/content fixture: verified documents and explicit account/paid signals.
+  // This is synthetic, not a saved Wikipedia production crawl.
+  const encyclopediaCorpus = {
+    pages:[
+      page("https://encyclopedia.example.test/",`<html><body><h1>Open Encyclopedia</h1><p>Free encyclopedia articles. Log in to edit pages. We collect account email addresses. Optional paid membership subscription.</p><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy</a><a href="/contact">Contact</a></body></html>`),
+      page("https://encyclopedia.example.test/terms",`<html><body><h1>Terms of Service</h1><p>These Terms of Service apply to contributors. This agreement is governed by the laws of California.</p><p>Open Encyclopedia Foundation Inc. operates this website.</p></body></html>`,{home:false}),
+      page("https://encyclopedia.example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect email addresses for account login. You have the right to access and the right to delete your personal data. Contact our privacy team to exercise your rights.</p></body></html>`,{home:false}),
+      page("https://encyclopedia.example.test/contact",`<html><body><h1>Contact us</h1><p>Contact our team at info@encyclopedia.example.test.</p></body></html>`,{home:false}),
+    ],origin:"https://encyclopedia.example.test"
+  };
+  const encyclopediaResult=runApplicabilityAwareChecks(encyclopediaCorpus);
+  assert.ok(encyclopediaResult.context.productTypes.includes("content"),"Fixture must exercise content classification.");
+  for(const id of ["L01","L09","L10","L12","P11","T05"]) {
+    assert.equal(by(encyclopediaResult.checks,id).status,"pass",id+" should PASS on a content site with verified evidence and its required signals.");
+  }
+
   const sparseAppShell = {
     pages:[page("https://example.test/","<html><body><div id=\"root\"></div>" + "<script src=\"/assets/app.js\"></script>".repeat(6) + "</body></html>")],
     origin:"https://example.test"
