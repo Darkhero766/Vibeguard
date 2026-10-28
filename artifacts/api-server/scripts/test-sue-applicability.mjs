@@ -50,10 +50,10 @@ try {
       page("https://encyclopedia.example.test/contact",`<html><body><h1>Contact us</h1><p>Contact our team at info@encyclopedia.example.test.</p></body></html>`,{home:false}),
     ],origin:"https://encyclopedia.example.test"
   };
-  const encyclopediaResult=runApplicabilityAwareChecks(encyclopediaCorpus);
-  assert.ok(encyclopediaResult.context.productTypes.includes("content"),"Fixture must exercise content classification.");
+  const encyclopediaFixtureResult=runApplicabilityAwareChecks(encyclopediaCorpus);
+  assert.ok(encyclopediaFixtureResult.context.productTypes.includes("content"),"Fixture must exercise content classification.");
   for(const id of ["L01","L09","L10","L12","P11","T05"]) {
-    assert.equal(by(encyclopediaResult.checks,id).status,"pass",id+" should PASS on a content site with verified evidence and its required signals.");
+    assert.equal(by(encyclopediaFixtureResult.checks,id).status,"pass",id+" should PASS on a content site with verified evidence and its required signals.");
   }
 
   const sparseAppShell = {
