@@ -40,6 +40,22 @@ try {
   const run=(html,url)=>runApplicabilityAwareChecks(corpus(html,url)).checks;
   const by=(checks,id)=>checks.find(x=>x.id===id);
 
+  // Encyclopedia/content fixture: verified documents and explicit account/paid signals.
+  // This is synthetic, not a saved Wikipedia production crawl.
+  const encyclopediaCorpus = {
+    pages:[
+      page("https://encyclopedia.example.test/",`<html><body><h1>Open Encyclopedia</h1><p>Free encyclopedia articles. Log in to edit pages. We collect account email addresses. Optional Premium plan subscription billed monthly at $5 per month; subscribe now to support our encyclopedia.</p><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy</a><a href="/contact">Contact</a></body></html>`),
+      page("https://encyclopedia.example.test/terms",`<html><body><h1>Terms of Service</h1><p>These Terms of Service govern access to the encyclopedia and contributions by registered editors. You agree to follow the community contribution rules and licensing requirements. This agreement is governed by the laws of California.</p><p>Open Encyclopedia Foundation Inc. operates this website.</p></body></html>`,{home:false}),
+      page("https://encyclopedia.example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect email addresses for account login. You have the right to access and the right to delete your personal data. Contact our privacy team to exercise your rights.</p></body></html>`,{home:false}),
+      page("https://encyclopedia.example.test/contact",`<html><body><h1>Contact us</h1><p>Contact our team at info@encyclopedia.example.test.</p></body></html>`,{home:false}),
+    ],origin:"https://encyclopedia.example.test"
+  };
+  const encyclopediaFixtureResult=runApplicabilityAwareChecks(encyclopediaCorpus);
+  assert.ok(encyclopediaFixtureResult.context.productTypes.includes("content"),"Fixture must exercise content classification.");
+  for(const id of ["L01","L09","L10","L12","P11","T05"]) {
+    assert.equal(by(encyclopediaFixtureResult.checks,id).status,"pass",id+" should PASS on a content site with verified evidence and its required signals.");
+  }
+
   const sparseAppShell = {
     pages:[page("https://example.test/","<html><body><div id=\"root\"></div>" + "<script src=\"/assets/app.js\"></script>".repeat(6) + "</body></html>")],
     origin:"https://example.test"
@@ -89,7 +105,7 @@ try {
   // generic governing-law disclaimer does not pass without a jurisdiction.
   const ampersandTerms = {
     pages:[
-      page("https://ampersand.example.test/","<html><body><h1>Acme Cloud</h1><p>Developer security scanner and SaaS for GitHub repositories.</p><a href=\"/terms\">Terms</a><a href=\"/privacy\">Privacy</a><a href=\"/pricing\">Pricing</a><a href=\"/login\">Log in</a><button>Sign up</button></body></html>"),
+      page("https://ampersand.example.test/","<html><body><h1>Acme Cloud</h1><p>Developer security scanner and SaaS for GitHub repositories. Premium plan subscription billed monthly at $12 per month.</p><a href=\"/terms\">Terms</a><a href=\"/privacy\">Privacy</a><a href=\"/pricing\">Pricing</a><a href=\"/login\">Log in</a><button>Sign up</button></body></html>"),
       page("https://ampersand.example.test/terms","<html><body><h1>Terms &amp; Conditions</h1><p>These Terms &amp; Conditions govern your access. By using the Service, you agree to these Terms.</p><h2>Governing Law &amp; Mandatory Rights</h2><p>These Terms are intended to be interpreted under applicable law. A specific governing-law provision has not been identified and should be completed.</p></body></html>",{home:false,text:"Terms & Conditions govern your access. By using the Service, you agree to these Terms. Governing Law & Mandatory Rights. A specific governing-law provision has not been identified and should be completed."}),
       page("https://ampersand.example.test/privacy","<html><body><h1>Privacy Policy</h1><p>We collect email addresses and account usage data. Depending on your location, privacy rights may include the right to access, correct, or delete personal data. Contact support to exercise your rights.</p></body></html>",{home:false,text:"Privacy Policy. We collect email addresses and account usage data. Privacy rights include the right to access, correct, or delete personal data. Contact support to exercise your rights."})
     ],
@@ -376,7 +392,7 @@ try {
   assert.equal(pricingSite.context.signals.pricing,true,"A first-party pricing route must be recognized.");
   assert.equal(pricingSite.context.signals.subscription,true,"Recurring billing on a first-party pricing route must be recognized.");
   assert.equal(pricingSite.context.commercialModel,"subscription","Verified recurring pricing must preserve subscription classification.");
-  assert.equal(by(securityTool,"L01").applicability,"applicable","A clearly identified security scanning product must not be treated as generic content.");
+  assert.equal(by(securityTool,"L01").applicability,"not_applicable","Product identity alone must not bypass the retained L01 authentication, paid-service, or user-generated-content signal gate.");
   assert.equal(by(securityTool,"P01").applicability,"not_applicable","Product classification alone must not imply personal-data collection without supporting evidence.");
   assert.notEqual(by(securityTool,"T02").status,"pass","A security tool without a visible contact/disclosure route must not pass T02.");
 
