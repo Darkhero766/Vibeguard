@@ -44,7 +44,7 @@ try {
   // This is synthetic, not a saved Wikipedia production crawl.
   const encyclopediaCorpus = {
     pages:[
-      page("https://encyclopedia.example.test/",`<html><body><h1>Open Encyclopedia</h1><p>Free encyclopedia articles. Log in to edit pages. We collect account email addresses. Optional paid membership subscription.</p><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy</a><a href="/contact">Contact</a></body></html>`),
+      page("https://encyclopedia.example.test/",`<html><body><h1>Open Encyclopedia</h1><p>Free encyclopedia articles. Log in to edit pages. We collect account email addresses. Optional Premium plan subscription billed monthly at $5 per month; subscribe now to support our encyclopedia.</p><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy</a><a href="/contact">Contact</a></body></html>`),
       page("https://encyclopedia.example.test/terms",`<html><body><h1>Terms of Service</h1><p>These Terms of Service govern access to the encyclopedia and contributions by registered editors. You agree to follow the community contribution rules and licensing requirements. This agreement is governed by the laws of California.</p><p>Open Encyclopedia Foundation Inc. operates this website.</p></body></html>`,{home:false}),
       page("https://encyclopedia.example.test/privacy",`<html><body><h1>Privacy Policy</h1><p>We collect email addresses for account login. You have the right to access and the right to delete your personal data. Contact our privacy team to exercise your rights.</p></body></html>`,{home:false}),
       page("https://encyclopedia.example.test/contact",`<html><body><h1>Contact us</h1><p>Contact our team at info@encyclopedia.example.test.</p></body></html>`,{home:false}),
