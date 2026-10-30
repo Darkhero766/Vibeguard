@@ -392,7 +392,7 @@ try {
   assert.equal(pricingSite.context.signals.pricing,true,"A first-party pricing route must be recognized.");
   assert.equal(pricingSite.context.signals.subscription,true,"Recurring billing on a first-party pricing route must be recognized.");
   assert.equal(pricingSite.context.commercialModel,"subscription","Verified recurring pricing must preserve subscription classification.");
-  assert.equal(by(securityTool,"L01").applicability,"applicable","A clearly identified security scanning product must not be treated as generic content.");
+  assert.equal(by(securityTool,"L01").applicability,"not_applicable","Product identity alone must not bypass the retained L01 authentication, paid-service, or user-generated-content signal gate.");
   assert.equal(by(securityTool,"P01").applicability,"not_applicable","Product classification alone must not imply personal-data collection without supporting evidence.");
   assert.notEqual(by(securityTool,"T02").status,"pass","A security tool without a visible contact/disclosure route must not pass T02.");
 
