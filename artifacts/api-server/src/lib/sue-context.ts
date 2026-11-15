@@ -277,13 +277,13 @@ export function buildProductContext(c:AuditCorpus):ProductContext {
     productText(surface,/(?:\$|€|£|₹)\s?\d{1,5}(?:[.,]\d{1,2})?\s*(?:\/\s*(?:month|year|week)|per\s+(?:month|year|week))|\b(?:paid|pro|premium|business|enterprise)\s+(?:plan|tier|subscription)\b/i,"paid_pricing",.91),
     productText(surface,/billed\s+(?:monthly|annually|yearly|weekly)|recurring\s+(?:billing|payment|charge)/i,"paid_billing",.94)
   );
-  set("paidService",combine(checkout,paidPricing,text(surface,/paid service|paid plan|hire us|book a paid/i,"paid_service_text",.78)));
+  set("paidService",combine(checkout,paidPricing,productText(surface,/paid service|paid plan|hire us|book a paid/i,"paid_service_text",.78)));
   set("highImpactAI",text(surface,/\b(?:AI|model|algorithm|automated)\b.{0,100}\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|creditworthiness|loan eligibility|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|risk scores?|eligibility decision|fraud decision)\b|\b(?:diagnos(?:e|is|tic)|treatment recommendation|clinical decision|mental health assessment|credit decision|loan approval|insurance eligibility|employment decision|hiring decisions?|candidate screening|legal decision|financial decision|biometric identification|risk scoring|eligibility decision|fraud decision)\b.{0,100}\b(?:AI|model|algorithm|automated)\b/i,"high_impact_ai_context",.93));
   set("dataCommercialization",combine(
     text(surface,/\b(?:sell|share|monetize|monetisation|monetization)\b.{0,100}\b(?:personal|user|customer)\s+(?:data|information)\b/i,"data_commercialization",.92),
     text(surface,/targeted advertising|behavioral advertising|interest[- ]based advertising/i,"targeted_advertising",.88)
   ));
-  set("commercialActivity",combine(pricing,payment,checkout,ecommerce,marketplace,text(surface,/\b(?:hire us|book a call|request a quote|contact sales|buy now|subscribe now|start (?:your )?(?:free )?trial|shop now|place an order)\b/i,"commercial_language",.78)));
+  set("commercialActivity",combine(pricing,payment,checkout,ecommerce,marketplace,productText(surface,/\b(?:hire us|book a call|request a quote|contact sales|buy now|subscribe now|start (?:your )?(?:free )?trial|shop now|place an order)\b/i,"commercial_language",.78)));
 
   const classificationEvidence=combine(
     text(surface,/\b(?:portfolio|case studies?|selected work|resume|designer portfolio|developer portfolio)\b/i,"portfolio_context",.9),
