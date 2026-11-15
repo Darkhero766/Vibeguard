@@ -364,7 +364,7 @@ try {
         ],
         scripts:["https://js.stripe.com/v3/"]
       }),
-      page("https://encyclopedia.example/articles/commerce-terms","<html><body><h1>Commerce glossary</h1><p>This article explains monthly subscription plans billed monthly, pricing strategies, shopping cart workflows, product catalogs and API documentation terminology.</p></body></html>",{home:false})
+      page("https://encyclopedia.example/articles/commerce-terms","<html><body><h1>Commerce glossary</h1><p>This article explains monthly subscription plans billed monthly, pricing strategies, shopping cart workflows, product catalogs and API documentation terminology. Historical advertising examples include paid plan, paid service, hire us, contact sales, subscribe now, buy now, and request a quote.</p></body></html>",{home:false})
     ],
     origin:"https://encyclopedia.example"
   });
@@ -375,6 +375,7 @@ try {
   assert.equal(encyclopediaResult.context.signals.developerApi,false,"An outbound API link must not prove a developer product.");
   assert.equal(encyclopediaResult.context.signals.payments,true,"A payment SDK can be detected without implying the product sells a paid service.");
   assert.equal(encyclopediaResult.context.signals.paidService,false,"A payment SDK alone must not imply a paid service.");
+  assert.equal(encyclopediaResult.context.signals.commercialActivity,false,"Commercial calls to action quoted in an encyclopedia article must not establish first-party commercial activity.");
   assert.equal(encyclopediaResult.context.commercialModel,"unknown","A payment SDK alone must not imply a freemium commercial model.");
   assert.ok(!encyclopediaResult.context.productTypes.includes("ecommerce"),"Informational content must not be classified as ecommerce from an outbound store link.");
   assert.ok(!encyclopediaResult.context.productTypes.includes("saas"),"Informational content must not be classified as SaaS from unrelated commercial links.");
