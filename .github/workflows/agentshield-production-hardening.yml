@@ -45,6 +45,8 @@ jobs:
         run: pnpm --filter @workspace/api-server run build:agentshield
       - name: Reproduce VibeSane GitHub check findings (safe metadata only)
         run: node artifacts/api-server/scripts/diagnose-vibesane-pr.mjs
+      - name: VibeSane check finding locations and output privacy tests
+        run: pnpm --filter @workspace/api-server run test:vibesane:check-output
       - name: Week 1 scanner regressions
         run: pnpm --filter @workspace/api-server run test:agentshield
       - name: Week 2 repair regressions
