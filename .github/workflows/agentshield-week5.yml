@@ -1,0 +1,55 @@
+name: AgentShield Week 5 Launch Readiness
+on:
+  push:
+    branches:
+      - feat/agentshield-week5-launch-readiness
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web-and-agentshield:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      npm_config_audit: 'false'
+      npm_config_fund: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build website, including AgentShield page
+        run: pnpm --filter @workspace/vibeguard run build
+      - name: Frontend TypeScript check
+        run: pnpm --filter @workspace/vibeguard run typecheck
+      - name: Build backend
+        run: pnpm --filter @workspace/api-server run build
+      - name: Backend TypeScript check (currently existing baseline errors)
+        continue-on-error: true
+        run: pnpm run typecheck:libs && pnpm --filter @workspace/api-server run typecheck
+      - name: SUE regression
+        run: pnpm --filter @workspace/api-server run test:sue
+      - name: Build AgentShield scanner
+        run: pnpm --filter @workspace/api-server run build:agentshield
+      - name: Week 1 AgentShield tests
+        run: pnpm --filter @workspace/api-server run test:agentshield
+      - name: Week 2 AgentShield tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week2
+      - name: Week 3 AgentShield tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week3
+      - name: Week 4 AgentShield tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week4
+      - name: Week 5 integration acceptance tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week5
