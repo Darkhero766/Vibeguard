@@ -48,3 +48,6 @@ jobs:
         run: pnpm --filter @workspace/api-server run test:agentshield:week4
       - name: Reproducible labeled accuracy report
         run: pnpm --filter @workspace/api-server run benchmark:agentshield
+
+      - name: Independent held-out challenge accuracy report
+        run: pnpm --filter @workspace/api-server run benchmark:agentshield -- --holdout
