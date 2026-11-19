@@ -27,7 +27,8 @@
     "test:agentshield:taint": "node --test ./scripts/test-agentshield-taint.mjs",
     "test:agentshield:release": "node --test ./scripts/test-agentshield-release.mjs",
     "benchmark:agentshield:taint": "node ./scripts/benchmark-agentshield-taint.mjs",
-    "test:vibesane:check-output": "node --test ./scripts/test-vibesane-checks.mjs"
+    "test:vibesane:check-output": "node --test ./scripts/test-vibesane-checks.mjs",
+    "test:agentshield:phase12": "node --test ./scripts/test-agentshield-phase12.mjs ./scripts/test-agentshield-crossfile.mjs ./scripts/test-agentshield-route-auth.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
