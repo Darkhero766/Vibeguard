@@ -238,8 +238,9 @@ async function atStop(event, root, config) {
       message = contextLines(pending, config) +
         '\nOne bounded continuation is requested before finishing. If approval is required, ask; do not override user permissions.';
     }
+    const alreadyRequested = entries.some(f => f.active?.length && f.lastStopSignature === f.signature);
     next.updatedAt = Date.now();
-    return { state: next, message, unscannedCount: unscanned.length, repeatedGate };
+    return { state: next, message, unscannedCount: unscanned.length, repeatedGate, alreadyRequested };
   });
   if (result.unscannedCount) {
     return { systemMessage: 'VibeSane AgentShield: final scan did not cover previously flagged files; result PARTIAL, not verified.' };
@@ -250,7 +251,7 @@ async function atStop(event, root, config) {
       hookSpecificOutput: { hookEventName: 'Stop', additionalContext: result.message } };
   }
   if (gate.blocking > 0) {
-    if (result.repeatedGate) return null;
+    if (result.repeatedGate || (config.mode === 'auto-fix' && result.alreadyRequested)) return null;
     return { systemMessage: 'VibeSane AgentShield: final static scan found ' + gate.blocking +
       ' finding(s) at or above ' + config.blockingSeverity +
       '. ' + (config.mode === 'auto-fix' ? 'Repair budget exhausted or continuation suppressed; request human review.' :
