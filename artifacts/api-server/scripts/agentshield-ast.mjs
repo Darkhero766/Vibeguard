@@ -4,6 +4,7 @@
 import ts from 'typescript';
 import { analyzeTaintedSql } from './agentshield-taint.mjs';
 import { analyzeCrossFileSqlFlows } from './agentshield-crossfile.mjs';
+import { analyzeNextRouteAuth } from './agentshield-route-auth.mjs';
 import { lstat, realpath, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -130,7 +131,7 @@ export async function analyzeRepositoryPaths(root, selectedPaths) {
   if (!Array.isArray(selectedPaths) || selectedPaths.length > 100) throw new Error('AST file count exceeds budget.');
   const rootReal=await realpath(root);
   let total=0, analyzed=0, nodes=0, ignored=0;
-  const findings=[], taintFindings=[], incomplete=[], codeInputs=[];
+  const findings=[], taintFindings=[], routeAuthFindings=[], incomplete=[], codeInputs=[];
   const unique=[...new Set(selectedPaths)];
   if (unique.length !== selectedPaths.length) throw new Error('Duplicate scanner coverage paths.');
   for (const rel of unique) {
@@ -155,12 +156,15 @@ export async function analyzeRepositoryPaths(root, selectedPaths) {
     else {
       const taint = analyzeTaintedSql(rel, buf.toString('utf8'));
       if (taint.status !== 'complete') throw new Error('Taint parser was incomplete.');
+      const routeAuth=analyzeNextRouteAuth(rel,source);
+      if(routeAuth.status==='scan_incomplete') throw Error('Route auth parser incomplete');
+      routeAuthFindings.push(...routeAuth.findings);
       analyzed++; nodes+=result.visitedNodes + taint.visitedNodes;
       codeInputs.push({path:rel,content:source});
       findings.push(...result.findings);
       taintFindings.push(...taint.findings);
     }
-    if (findings.length>MAX_FINDINGS || taintFindings.length>MAX_FINDINGS)
+    if (findings.length>MAX_FINDINGS || taintFindings.length>MAX_FINDINGS || routeAuthFindings.length>MAX_FINDINGS)
       throw new Error('AST or taint findings count exceeded.');
   }
   const crossFile=analyzeCrossFileSqlFlows(codeInputs);
@@ -169,9 +173,9 @@ export async function analyzeRepositoryPaths(root, selectedPaths) {
     status:incomplete.length?'scan_incomplete':'complete',
     filesAnalyzed:analyzed, codeFilesExpected:analyzed+incomplete.length,
     unsupportedFilesSkipped:ignored, visitedNodes:nodes+crossFile.visitedNodes,
-    findings, taintFindings, crossFileFindings:crossFile.findings,
+    findings, taintFindings, routeAuthFindings, crossFileFindings:crossFile.findings,
     crossFileCoverage:'changed_files_only',
     incompletePaths:incomplete.slice(0,20),
-    note:'Local SQL AST/taint plus one-hop named imports among changed files; no execution, npm resolution, complete interprocedural flow or exploit proof.',
+    note:'Selected SQL taint, one-hop changed-file imports and Next.js mutation guard heuristics. No execution, complete authorization or exploit proof.',
   };
 }
