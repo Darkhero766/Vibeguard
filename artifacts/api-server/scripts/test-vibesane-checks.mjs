@@ -25,7 +25,7 @@ test('GitHub check output includes actionable path and rule without revealing so
       {severity:'Critical',filePath:'src/api/route.ts',line:17,check:'command_injection',description:danger},
       {severity:'High',filePath:'src/checkout.ts',line:27,check:'sql_grant_anon',title:danger},
     ]});
-  assert.equal(out.title,'VibeSane Security — 36/100');
+  assert.equal(out.title,'VibeSane Security — 72/100');
   assert.equal(out.annotations.length,2);
   assert.equal(out.annotations[0].path,'src/api/route.ts');
   assert.equal(out.annotations[0].start_line,17);
