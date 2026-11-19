@@ -145,3 +145,26 @@ test('offline scanner handles malformed source as static data without executing 
   assert.notEqual(result.code, 2);
   assert.equal(result.report.filesScanned, 1);
 });
+
+test('unchecked guard call and commented guard do not suppress API authorization warning', async (t) => {
+  const root = await fixture(t);
+  const file = path.join(root, 'app/api/orders/route.ts');
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, "export async function POST() { await requireAuth(); await supabase.from('orders').insert({total:1}); }\n");
+  assert.ok((await scan(root)).report.findings.some(f => f.ruleId === 'unauthenticated_write'));
+  await writeFile(file, "// const u = await requireAuth(); if (!u) throw Error('unauthorized');\nexport async function POST() { await supabase.from('orders').insert({total:1}); }\n");
+  assert.ok((await scan(root)).report.findings.some(f => f.ruleId === 'unauthenticated_write'));
+});
+
+test('checked authorization guard and typed JWT literal are distinguished correctly', async (t) => {
+  const root = await fixture(t);
+  const guardFile = path.join(root, 'app/api/orders/route.ts');
+  const secretFile = path.join(root, 'src/auth.ts');
+  await mkdir(path.dirname(guardFile), { recursive: true });
+  await mkdir(path.dirname(secretFile), { recursive: true });
+  await writeFile(guardFile, "export async function POST() { const user = await requireAuth(); if (!user) throw Error('unauthorized'); await supabase.from('orders').insert({total:1}); }\n");
+  await writeFile(secretFile, 'const jwtSecret: string = "' + 'J'.repeat(36) + '";\n');
+  const findings = (await scan(root)).report.findings;
+  assert.ok(!findings.some(f => f.ruleId === 'unauthenticated_write'));
+  assert.ok(findings.some(f => f.ruleId === 'hardcoded_jwt_secret'));
+});
