@@ -24,11 +24,11 @@ export const CAPABILITIES = Object.freeze({
     note:'Other languages may be read by the GitHub web crawler but do not have proven language-specific static analysis.',
   },
   experimentalAst:{
-    status:'opt_in_checkout_only',
+    status:'opt_in_beta_package_supported',
     languages:['JavaScript','TypeScript','JSX','TSX'],
     analyses:['intra-file constructed SQL string detection','selected request-input-to-SQL-sink taint'],
     excludes:['interprocedural or cross-file flow','complete sanitizer modeling','full authorization verification','proof of exploitability'],
-    shippingNote:'Not included in standalone beta tarball or default Claude Code Stop gate.',
+    shippingNote:'Bundled in unpublished 0.7.0-beta.1 hybrid beta; opt-in only, not in default Claude Code Stop gate.',
   },
   ai:{
     status:'opt_in_local_advisory_only',
@@ -45,7 +45,7 @@ export function printCapabilities(format='json') {
     'VibeSane AgentShield coverage — NOT a security certification',
     'Code: JavaScript, TypeScript, SQL (selected static security heuristics)',
     'Configuration: JSON, YAML, .env (pattern-based partial checks)',
-    'Experimental: JS/TS AST + selected request-to-SQL taint (checkout and opt-in only)',
+    'Experimental: JS/TS AST + selected request-to-SQL taint (unpublished hybrid beta, opt-in only)',
     'Local AI: opt-in advisory explanations only; no independent AI detection',
     'Python, Go, Java, Rust, C#, PHP, Ruby and others: no dedicated SAST support',
     'Unsupported, incomplete and unverified results must not be labeled clean.',
