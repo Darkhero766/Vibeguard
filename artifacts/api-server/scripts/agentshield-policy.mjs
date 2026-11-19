@@ -106,6 +106,14 @@ export function trackFile(state, filePath, fileFindings, config, { now = Date.no
     entry.lastRepairSignature = sig;
   }
   next.files[filePath] = entry;
+  // Keep per-session metadata bounded. Never silently claim complete coverage
+  // once older entries have been evicted.
+  const keys = Object.keys(next.files);
+  if (keys.length > 200) {
+    keys.sort((a, b) => (next.files[a].updatedAt || 0) - (next.files[b].updatedAt || 0));
+    for (const key of keys.slice(0, keys.length - 200)) delete next.files[key];
+    next.prunedEntries = (next.prunedEntries || 0) + keys.length - 200;
+  }
   next.updatedAt = now;
   return { state: next, entry, novel, sendRepair, exhausted: findings.length && !budget };
 }
@@ -118,7 +126,7 @@ export function summarize(state, config) {
   const entries = Object.values(state.files || {});
   const active = entries.flatMap((e) => e.active || []);
   return {
-    filesTracked: entries.length, activeFindings: active.reduce((n, f) => n + f.count, 0),
+    filesTracked: entries.length, stateTruncated: Boolean(state.prunedEntries), activeFindings: active.reduce((n, f) => n + f.count, 0),
     blocking: active.filter((f) => severityBlocks(f.severity, config.blockingSeverity)).reduce((n, f) => n + f.count, 0),
     attempts: entries.reduce((n, e) => n + e.attempts, 0),
     files: entries.map((e) => ({ filePath: e.filePath, scanState: e.scanState, verificationState: e.verificationState,
