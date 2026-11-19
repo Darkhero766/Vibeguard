@@ -39,7 +39,8 @@ function querySink(node) {
   if (!ts.isCallExpression(node)) return false;
   const expr=unwrapped(node.expression);
   if (!ts.isPropertyAccessExpression(expr) || !QUERY_METHODS.has(expr.name.text)) return false;
-  if (expr.name.text.startsWith('
+  if (expr.name.text.startsWith('$')) return true;
+  if (expr.name.text === 'raw' && /^(?:knex|database|db)(?:\b|\.|\[)/i.test(expr.expression.getText())) return true;
   // Narrow heuristic to well-known DB handles, not arbitrary .query methods.
   const parent=expr.expression.getText();
   return /^(?:db|pool|client|conn|connection|database|sqlClient|pgClient|sequelize)(?:\b|\.|\[)/i.test(parent);
