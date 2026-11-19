@@ -38,8 +38,7 @@ jobs:
         run: pnpm --filter @workspace/vibeguard run typecheck
       - name: Build backend
         run: pnpm --filter @workspace/api-server run build
-      - name: Backend TypeScript check (currently existing baseline errors)
-        continue-on-error: true
+      - name: Backend TypeScript check (required)
         run: pnpm --filter @workspace/api-server run typecheck
       - name: SUE regression
         run: pnpm --filter @workspace/api-server run test:sue
