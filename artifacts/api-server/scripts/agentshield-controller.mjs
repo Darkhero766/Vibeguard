@@ -202,6 +202,7 @@ async function postEdit(event, root, config) {
   return resultForHook('PostToolUse', contextLines(result.entry, config));
 }
 async function atStop(event, root, config) {
+  if (event.stop_hook_active === true) return null; // avoid recursive Stop feedback
   // Every Stop event performs a fresh worktree scan, catching Git-visible Bash edits,
   // staging, and untracked files missed by per-tool PostToolUse notifications.
   const gate = await finalGate(root, config, scan);
@@ -214,12 +215,14 @@ async function atStop(event, root, config) {
   const session = event.session_id || 'session-unknown';
   const result = await withLockedState(root, session, config, async (state) => {
     let next = state;
+    const repeatedGate = state.lastGateFingerprint === gate.fingerprint;
     for (const file of gate.scannedPaths) {
       const scoped = gate.findings.filter((f) => f.filePath === file);
       next = trackFile(next, file, scoped, config, { edited: false }).state;
     }
     const unscanned = Object.values(next.files).filter(f => f.active?.length &&
       !gate.scannedPaths.includes(f.filePath)).map(f => f.filePath);
+    next.lastGateFingerprint = gate.fingerprint;
     next.lastGate = { at: Date.now(), status: unscanned.length ? 'partial' : 'complete',
       filesScanned: gate.filesScanned, blocking: gate.blocking, unscannedCount: unscanned.length };
     const entries = Object.values(next.files).filter((f) => f.active?.length);
@@ -236,7 +239,7 @@ async function atStop(event, root, config) {
         '\nOne bounded continuation is requested before finishing. If approval is required, ask; do not override user permissions.';
     }
     next.updatedAt = Date.now();
-    return { state: next, message, unscannedCount: unscanned.length };
+    return { state: next, message, unscannedCount: unscanned.length, repeatedGate };
   });
   if (result.unscannedCount) {
     return { systemMessage: 'VibeSane AgentShield: final scan did not cover previously flagged files; result PARTIAL, not verified.' };
@@ -247,6 +250,7 @@ async function atStop(event, root, config) {
       hookSpecificOutput: { hookEventName: 'Stop', additionalContext: result.message } };
   }
   if (gate.blocking > 0) {
+    if (result.repeatedGate) return null;
     return { systemMessage: 'VibeSane AgentShield: final static scan found ' + gate.blocking +
       ' finding(s) at or above ' + config.blockingSeverity +
       '. ' + (config.mode === 'auto-fix' ? 'Repair budget exhausted or continuation suppressed; request human review.' :
