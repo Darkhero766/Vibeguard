@@ -67,6 +67,8 @@ jobs:
         run: pnpm --filter @workspace/api-server run test:agentshield:release
       - name: Phase 1+2 security and evaluation tests
         run: pnpm --filter @workspace/api-server run test:agentshield:phase12
+      - name: First-pass Phase 2 cross-file and Next.js accuracy metrics
+        run: pnpm --filter @workspace/api-server run benchmark:agentshield:phase2
       - name: Existing SUE regression
         run: pnpm --filter @workspace/api-server run test:sue
       - name: Synthetic taint benchmark (tuned, not holdout)
