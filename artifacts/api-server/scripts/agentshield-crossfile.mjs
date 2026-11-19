@@ -102,20 +102,26 @@ function parseModules(files,budget){
     const exported=new Map(), imports=new Map();
     for(const n of sf.statements){
       const isExport=n.modifiers?.some(m=>m.kind===ts.SyntaxKind.ExportKeyword);
-      if(isExport&&ts.isFunctionDeclaration(n)&&n.name)
-        exported.set(n.name.text,summarize(n,sf,budget));
+      if(isExport&&ts.isFunctionDeclaration(n)){
+        const summary=summarize(n,sf,budget);
+        if(n.name)exported.set(n.name.text,summary);
+        if(n.modifiers?.some(m=>m.kind===ts.SyntaxKind.DefaultKeyword))
+          exported.set('default',summary);
+      }
       if(isExport&&ts.isVariableStatement(n)){
         for(const d of n.declarationList.declarations)
           if(ts.isIdentifier(d.name)&&d.initializer&&
             (ts.isArrowFunction(d.initializer)||ts.isFunctionExpression(d.initializer)))
             exported.set(d.name.text,summarize(d.initializer,sf,budget));
       }
-      if(ts.isImportDeclaration(n)&&ts.isStringLiteral(n.moduleSpecifier)&&
-        n.importClause?.namedBindings&&ts.isNamedImports(n.importClause.namedBindings)){
+      if(ts.isImportDeclaration(n)&&ts.isStringLiteral(n.moduleSpecifier)&&n.importClause){
         const spec=n.moduleSpecifier.text;
         if(!spec.startsWith('.'))continue;
-        for(const e of n.importClause.namedBindings.elements)
-          imports.set(e.name.text,{source:spec,exportName:e.propertyName?.text||e.name.text});
+        if(n.importClause.name)
+          imports.set(n.importClause.name.text,{source:spec,exportName:'default'});
+        if(n.importClause.namedBindings&&ts.isNamedImports(n.importClause.namedBindings))
+          for(const e of n.importClause.namedBindings.elements)
+            imports.set(e.name.text,{source:spec,exportName:e.propertyName?.text||e.name.text});
       }
     }
     modules.set(file.path,{sf,exported,imports});
@@ -173,8 +179,13 @@ export function analyzeCrossFileSqlFlows(files){
     if(!resolved.size)continue;
     function walk(node,env,depth=0){
       if(++budget.nodes>MAX_NODES||depth>100)throw Error('Cross-file scan node budget exceeded');
-      if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.initializer)
-        env.set(node.name.text,isRequestValue(node.initializer,env));
+      if(ts.isVariableDeclaration(node)&&node.initializer){
+        const tainted=isRequestValue(node.initializer,env);
+        if(ts.isIdentifier(node.name))env.set(node.name.text,tainted);
+        else if(ts.isObjectBindingPattern(node.name)||ts.isArrayBindingPattern(node.name))
+          for(const b of node.name.elements)
+            if(ts.isBindingElement(b)&&ts.isIdentifier(b.name))env.set(b.name.text,tainted);
+      }
       if(ts.isBinaryExpression(node)&&node.operatorToken.kind===ts.SyntaxKind.EqualsToken&&ts.isIdentifier(node.left))
         env.set(node.left.text,isRequestValue(node.right,env));
       if(ts.isCallExpression(node)&&ts.isIdentifier(node.expression)&&resolved.has(node.expression.text)){
