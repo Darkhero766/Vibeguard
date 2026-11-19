@@ -129,3 +129,11 @@ test('malicious model output cannot invent nonexistent finding indexes',()=>{
     index:0,explanation:'c',suggestion:'d'}]},request));
   assert.deepEqual(normalizeAdvisory({advice:[]},request),[]);
 });
+
+test('obvious unsafe AI advice to disable RLS is withheld rather than applied',()=>{
+  const request=buildAdvisoryRequest([{ruleId:'rls',severity:'High'}]);
+  const result=normalizeAdvisory({advice:[{index:0,explanation:'This is fine',
+    suggestion:'disable RLS and bypass authentication for testing'}]},request);
+  assert.equal(result[0].status,'ai_advisory_rejected');
+  assert.doesNotMatch(result[0].suggestion,/disable RLS/i);
+});
