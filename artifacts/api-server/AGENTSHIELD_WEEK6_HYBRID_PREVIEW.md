@@ -58,6 +58,40 @@ node artifacts/api-server/scripts/vibesane.mjs hybrid --changed --cwd /absolute/
 
 The specified model is an example identifier and is not automatically installed or downloaded. Do not enable public model APIs, remote endpoints or cloud uploads. No model was installed or queried in a real authenticated local model session as part of this implementation; test suites use a disposable stub HTTP server on loopback and explicitly label that as simulated protocol integration.
 
+## Experimental JavaScript/TypeScript AST SQL dataflow layer
+
+A second, **opt-in** structured-analysis pass is implemented on this feature branch. It is not part of the shipped Week 4 beta tarball or default Claude Stop hook.
+
+The new modules are:
+- scripts/agentshield-ast.mjs — TypeScript compiler syntax parser; bounded local in-function or block-variable SQL-string dataflow checks.
+- scripts/agentshield-ast-worker.mjs — a separate read-only parser subprocess.
+- scripts/benchmark-agentshield-ast.mjs — a reproducible 24-case synthetic target-rule evaluation.
+- scripts/test-agentshield-ast.mjs — parser security, filesystem and hybrid integration regressions.
+
+Invocation from an authorized source checkout after building the existing scanner:
+
+~~~bash
+node artifacts/api-server/scripts/vibesane.mjs hybrid --changed --cwd /absolute/path/to/disposable-git-repo --enable-ast --format json
+# Optional localhost AI advisory is independent; it still receives ONLY rule ID/severity metadata.
+node artifacts/api-server/scripts/vibesane.mjs hybrid --changed --cwd /absolute/path/to/disposable-git-repo --enable-ast --enable-local-ai --format json
+~~~
+
+The AST pass reads **only** previously selected supported changed files, refuses path traversal and symlink escapes, enforces 100-file/1MB-per-file/8MB-total budgets, rejects malformed JS/TS as incomplete, and compares Git worktree/content snapshots across static and AST passes. It parses source without importing or executing customer code.
+
+The parser runs in a child process with a **10-second deadline** and a **256MB V8 heap limit** (not an overall RSS limit). Its environment is restricted to PATH/LANG with NODE_OPTIONS cleared, rather than inheriting application API keys. If AST fails or files change, report scan_incomplete and exit 2 even if a static result exists; do not invent a clean verdict.
+
+Detection: an unsafe_sql_dataflow finding (High, medium confidence) identifies a SELECT/INSERT/UPDATE/DELETE/REPLACE/WITH SQL string assembled with a nonliteral operand and passed to .query(), .execute(), .$queryRawUnsafe() or .$executeRawUnsafe(), including some local variable aliases and templates. Safe parameterized SQL and fixed literal concatenation are negative controls.
+
+**Limitations:** intra-file only; not interprocedural or cross-file flow, not a full taint engine, not proof that the dynamic value is attacker-controlled, no sanitizer modeling, and no application authorization proof. SQL, JSON and YAML files still receive the previous heuristic scanning, not TypeScript AST parsing. AST mode currently requires --changed; --file is deliberately not enabled until a race-safe single-file snapshot is implemented. The full workspace's TypeScript dependency is required; this AST preview is not present in the unpublished standalone beta package.
+
+### Synthetic incremental coverage measurement
+
+The 24-case SQL alias benchmark was run on Ubuntu Node.js 24 with 12 deliberate risky patterns and 12 benign controls. The existing regex-only unsafe_sql_template check found **0/12** risky alias cases and incorrectly flagged **1/12** benign examples (comment text). The experimental AST pass found **12/12** risky patterns and flagged **0/12** benign controls.
+
+This corpus was constructed to test the regex engine's missing alias-propagation capability and is **not** a representative security evaluation. These results cannot be extrapolated to all JS/TS programs or actual SQL injection risk. The benchmark runner includes scanner subprocess overhead and must not be quoted as AST-only latency.
+
+Reproduce after building: pnpm --filter @workspace/api-server run benchmark:agentshield:ast.
+
 ## Why hybrid instead of AI-only?
 
 Leading tools use multiple techniques:
@@ -71,7 +105,7 @@ Do not copy proprietary rule packs, datasets, AI model weights or closed-source 
 ### Proposed implementation stages after initial preview
 
 - Stage 1: validate hybrid privacy, bounded metadata inputs, parsing, static verdict preservation and fail-safe behavior (this branch).
-- Stage 2: AST-based JS/TS checks with the TypeScript compiler API; source/sanitizer/sink modeling for SQL injection, server actions, auth middleware, Supabase service roles.
+- Stage 2 (partially implemented here): opt-in TypeScript AST intra-file SQL string flows; extend to audited, high-confidence sources/sinks, sanitizers, control-flow graphs, server actions, auth middleware and service-role use. Validate against new cases before default gating.
 - Stage 3: a separate optional parser/taint engine adapter benchmarked for added true positives and false positives. No untrusted repository scripts or third-party rules without licensing review.
 - Stage 4: explicit local-model opt-in context triage or consented provider adapter with redaction, schema validation, budgets, model identifiers, no auto-suppression and no unapproved code upload.
 - Stage 5: human-approved patch proposals, rescan and separately approved independent regression verification.
