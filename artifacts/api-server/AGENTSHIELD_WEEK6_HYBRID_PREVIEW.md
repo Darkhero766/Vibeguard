@@ -25,7 +25,7 @@ The actual protected tables are present: this is NOT evidence of missing databas
 
 Supabase security advisor reports **Leaked Password Protection Disabled**. Reference: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection. Recommend a reviewed Auth configuration change after deployment review; it was not enabled here.
 
-Supabase CLI v3 released in November 2026: local is now the default target; changing hosted state requires explicit remote intent. Before running migrations, check current syntax, create a reviewed schema diff and migration-baseline reconciliation plan, and obtain owner approval.
+Before running any future Supabase CLI operation, inspect the installed CLI version and its current help. Create a reviewed schema diff and migration-baseline reconciliation plan, and obtain owner approval before modifying hosted state.
 
 This read-only comparison establishes apparent major-table parity, not byte-for-byte migration history, deployed environment match, function-body equality, or end-to-end auth correctness. No user rows, tokens or credentials were queried.
 
