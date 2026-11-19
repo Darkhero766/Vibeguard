@@ -56,8 +56,23 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
       // Recognize a locally checked, awaited authorization guard without trusting
       // comments, unguarded calls, or an unrelated middleware filename.
       const activeBeforeWrite = before.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|\s)\/\/[^\n]*/g, '$1');
-      const protectedByGuard = /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+(?:requireAuth|requireUser)\s*\([^)]*\)\s*;[\s\S]{0,200}?\bif\s*\(\s*!\s*\1\s*\)/.test(activeBeforeWrite);
-      if (!protectedByGuard && !/auth\.getUser\s*\(|auth\.uid\s*\(|getServerSession\s*\(|session\.user\b/i.test(activeBeforeWrite)) {
+      // A call to getUser/getServerSession is NOT authorization by itself.
+      // Require a checked, explicitly denying branch before the mutation.
+      // This is intentionally conservative: custom middleware may still need
+      // human review, and absence of this finding is not proof of auth.
+      const authorizedValue = /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:requireAuth\s*\([^)]*\)|requireUser\s*\([^)]*\)|auth\.getUser\s*\([^)]*\)|getServerSession\s*\([^)]*\)|session\.user)\s*;/g;
+      let protectedByGuard = false;
+      for (const guard of activeBeforeWrite.matchAll(authorizedValue)) {
+        const variable = guard[1].replace(/[.*+?^${}()|[\]\\]/g, '\\      const protectedByGuard = /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+(?:requireAuth|requireUser)\s*\([^)]*\)\s*;[\s\S]{0,200}?\bif\s*\(\s*!\s*\1\s*\)/.test(activeBeforeWrite);
+      if (!protectedByGuard && !/auth\.getUser\s*\(|auth\.uid\s*\(|getServerSession\s*\(|session\.user\b/i.test(activeBeforeWrite)) {');
+        const denial = new RegExp('\\bif\\s*\\(\\s*!\\s*' + variable +
+          '\\s*\\)\\s*(?:(?:return|throw)\\b|\\{[\\s\\S]{0,200}?\\b(?:return|throw)\\b)');
+        if (denial.test(activeBeforeWrite.slice((guard.index ?? 0)+guard[0].length))) {
+          protectedByGuard = true;
+          break;
+        }
+      }
+      if (!protectedByGuard) {
         const line = lineAt(file.content, write);
         findings.push(finding(`write-${file.path}-${line}`, "High", "Database write is missing an auth check", "This API route writes to the database without a detected authentication check before the write.", file.path, line, "unauthenticated_write"));
       }
