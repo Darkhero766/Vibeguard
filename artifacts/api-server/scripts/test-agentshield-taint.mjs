@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { analyzeTaintedSql } from './agentshield-taint.mjs';
+import { benchmarkTaint } from './benchmark-agentshield-taint.mjs';
 const exec=promisify(execFile);
 const scripts=path.dirname(fileURLToPath(import.meta.url));
 const risk=(code)=>analyzeTaintedSql('app/api/users/route.ts',code);
@@ -112,4 +113,17 @@ test('taint report never prints unrelated literal private source',async t=>{
   let stdout;try{({stdout}=await exec(process.execPath,[entry,'hybrid','--changed','--cwd',dir,'--enable-ast'],{timeout:22000}));}
   catch(e){if(typeof e.stdout!=='string')throw e;stdout=e.stdout;}
   assert.doesNotMatch(stdout,/PRIVATE_ONLY_DO_NOT_UPLOAD/);
+});
+
+test('fresh 50-case taint challenge reports all misses and category-level rates',()=>{
+  const r=benchmarkTaint();
+  assert.equal(r.cases,50);
+  assert.equal(r.results.tp+r.results.tn+r.results.fp+r.results.fn,50);
+  assert.equal(r.misclassifications.length,r.results.fp+r.results.fn);
+  assert.equal(Object.keys(r.categories).length,5);
+  assert.ok(r.results.precision===null || (r.results.precision>=0 && r.results.precision<=1));
+  console.log('OBSERVED_AGENTSIELD_TAINT_CHALLENGE='+JSON.stringify({
+    result:r.results,categories:r.categories,misses:r.misclassifications,
+    elapsedMs:r.elapsedMs,runtime:r.runtime,
+  }));
 });
