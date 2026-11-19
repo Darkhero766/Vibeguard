@@ -14,7 +14,8 @@ const out = path.join(root, 'dist');
 export const PACKAGE_VERSION = '0.4.0-beta.1';
 const scripts = ['vibesane.mjs', 'agentshield-controller.mjs', 'agentshield-hook.mjs',
   'agentshield-stop.mjs', 'agentshield-policy.mjs', 'agentshield-gate.mjs',
-  'agentshield-verifier.mjs', 'agentshield-install.mjs'];
+  'agentshield-verifier.mjs', 'agentshield-install.mjs',
+  'agentshield-capabilities.mjs'];
 async function main() {
   const scanner = path.join(root, 'dist', 'agentshield.mjs');
   if (!(await stat(scanner).catch(() => null))?.isFile()) {
@@ -39,6 +40,7 @@ async function main() {
     'Local static security scanning and Claude Code hook integration.',
     'No application-wide security guarantee. Static checks may be incomplete.',
     'Run vibesane doctor --cwd /absolute/path/to/project, then vibesane init --cwd /absolute/path/to/project.',
+    'Use vibesane capabilities --format json to see supported and unsupported languages.',
     'Use vibesane uninstall --cwd /absolute/path/to/project before uninstalling the package.',
     'Requires Node >=20, Git, and macOS/Linux. Do not publish or distribute without approval.',
   ].join('\n') + '\n');
