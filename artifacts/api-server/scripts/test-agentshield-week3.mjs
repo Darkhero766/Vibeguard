@@ -1,13 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, utimes } from 'node:fs/promises';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { changedEntries, finalGate, snapshot } from './agentshield-gate.mjs';
-import { parseConfig } from './agentshield-policy.mjs';
+import { parseConfig, trackFile, freshState, summarize } from './agentshield-policy.mjs';
+import { createHash } from 'node:crypto';
 
 const exec = promisify(execFile);
 const scripts = path.dirname(fileURLToPath(import.meta.url));
@@ -254,4 +255,72 @@ test('snapshots are deterministic for stable local worktrees', async t => {
   const f = await fixture(t, 'src/file.js', 'const x = 10;\n');
   const a = await snapshot(f.root), b = await snapshot(f.root);
   assert.equal(a.fingerprint, b.fingerprint);
+});
+
+test('concurrent hook processes serialize state updates without corrupting JSON', async t => {
+  const f = await fixture(t, 'src/auth.ts', danger);
+  const events = await Promise.all(Array.from({ length: 5 }, () => f.send(post)));
+  assert.ok(events.every(x => x.code === 0 && !/UNKNOWN/.test(x.stdout)));
+  const s = await f.run('status', '--session', 'test-week3');
+  assert.equal(s.data?.status, 'complete');
+  assert.equal(s.data?.summary?.filesTracked, 1);
+});
+
+test('abandoned lock is recovered only when old and its owning process is gone', async t => {
+  const f = await fixture(t, 'src/auth.ts', danger);
+  await f.send(post);
+  const hash = text => createHash('sha256').update(text).digest('hex').slice(0, 28);
+  const lock = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, hash(f.root), hash('test-week3') + '.json.lock');
+  await mkdir(lock, { recursive: true });
+  await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: 2147483000, createdAt: Date.now() - 90_000 }));
+  const old = new Date(Date.now() - 90_000);
+  await utimes(lock, old, old);
+  const result = await f.send(post);
+  assert.equal(result.code, 0);
+  assert.doesNotMatch(result.stdout, /UNKNOWN/);
+});
+
+test('malformed persistent state produces explicit unknown status instead of a pass', async t => {
+  const f = await fixture(t, 'src/auth.ts', danger);
+  await f.send(post);
+  const hash = text => createHash('sha256').update(text).digest('hex').slice(0, 28);
+  const file = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, hash(f.root), hash('test-week3') + '.json');
+  await writeFile(file, '{ "corrupted":');
+  const result = await f.send(post);
+  assert.match(result.data?.hookSpecificOutput?.additionalContext || '', /UNKNOWN/);
+});
+
+test('local state never stores synthetic secret values or source excerpts', async t => {
+  const f = await fixture(t, 'src/auth.ts', danger);
+  await f.send(post);
+  const hash = text => createHash('sha256').update(text).digest('hex').slice(0, 28);
+  const file = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, hash(f.root), hash('test-week3') + '.json');
+  const data = await readFile(file, 'utf8');
+  assert.doesNotMatch(data, /Z{30}/);
+  assert.doesNotMatch(data, /const JWT_SECRET =/);
+});
+
+test('long sessions cap file metadata and explicitly report state truncation', () => {
+  let state = freshState();
+  const config = parseConfig({});
+  for (let i = 0; i < 210; i++) {
+    state = trackFile(state, 'src/file-' + i + '.ts', [{
+      filePath: 'src/file-' + i + '.ts', ruleId: 'hardcoded_jwt_secret',
+      title: 'JWT signing secret is hardcoded', severity: 'Critical',
+    }], config, { now: 1000 + i, edited: true }).state;
+  }
+  assert.equal(Object.keys(state.files).length, 200);
+  assert.ok(state.prunedEntries >= 10);
+  assert.equal(summarize(state, config).stateTruncated, true);
+});
+
+test('Git rename is scanned at its destination path without old path confusion', async t => {
+  const f = await fixture(t, 'src/old-auth.js', danger);
+  await exec('git', ['-C', f.root, 'add', 'src/old-auth.js']);
+  await exec('git', ['-C', f.root, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+    'commit', '-qm', 'initial']);
+  await exec('git', ['-C', f.root, 'mv', 'src/old-auth.js', 'src/renamed auth.js']);
+  const result = await finalGate(f.root, parseConfig({}), f.realScan);
+  assert.equal(result.status, 'complete');
+  assert.ok(result.findings.some(x => x.filePath === 'src/renamed auth.js'));
 });
