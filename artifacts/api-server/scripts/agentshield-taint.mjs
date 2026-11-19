@@ -107,21 +107,27 @@ export function analyzeTaintedSql(filePath, content) {
       if(ts.isPropertyAccessExpression(fn) && fn.name.text==='toString') {
         return evalExpr(fn.expression,env,depth+1);
       }
-      // Unrecognized transformations are NOT trusted sanitizers.
-      let result=safe();
+      // Unknown transformations are NOT trusted sanitizers. Preserve taint
+      // on the receiver (id.trim(), id.toLowerCase(), helper.normalize())
+      // as well as on arguments. Method calls can transform but do not
+      // prove attacker-controlled strings are safe for raw SQL.
+      let result=ts.isPropertyAccessExpression(fn)
+        ? evalExpr(fn.expression,env,depth+1) : safe();
       for(const arg of n.arguments) result=combine(result,evalExpr(arg,env,depth+1));
-      // Query string access from a parsed request URL remains untrusted even
-      // when the searchParams object is assigned to a local variable.
-      if(ts.isPropertyAccessExpression(fn) && ['get','getAll'].includes(fn.name.text) &&
-        /searchParams/.test(fn.expression.getText())) {
-        result=combine(result,evalExpr(fn.expression,env,depth+1));
-      }
       return result;
     }
     if(ts.isArrayLiteralExpression(n)){
       return n.elements.reduce((a,b)=>combine(a,evalExpr(b,env,depth+1)),safe());
     }
     if(ts.isObjectLiteralExpression(n)){
+      // PostgreSQL query configs pass {text, values}; bound values are
+      // DATA, not SQL code. Analyze only the 'text' field when it exists.
+      // This also handles a locally aliased config passed to db.query().
+      const textField=n.properties.find(p=>ts.isPropertyAssignment(p) &&
+        ((ts.isIdentifier(p.name) && p.name.text==='text') ||
+         (ts.isStringLiteral(p.name) && p.name.text==='text')));
+      if(textField && ts.isPropertyAssignment(textField))
+        return evalExpr(textField.initializer,env,depth+1);
       return n.properties.reduce((a,p)=>{
         if(ts.isPropertyAssignment(p)) return combine(a,evalExpr(p.initializer,env,depth+1));
         return a;
