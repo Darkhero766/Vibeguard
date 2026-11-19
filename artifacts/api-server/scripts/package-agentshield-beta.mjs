@@ -3,6 +3,8 @@
 // No production credentials, server runtime, or network publishing required.
 import { mkdir, cp, rm, readFile, writeFile, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { build } from 'esbuild';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
@@ -11,11 +13,11 @@ const exec = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const stage = path.join(root, 'dist', 'agentshield-beta-stage');
 const out = path.join(root, 'dist');
-export const PACKAGE_VERSION = '0.4.0-beta.1';
+export const PACKAGE_VERSION = '0.7.0-beta.1';
 const scripts = ['vibesane.mjs', 'agentshield-controller.mjs', 'agentshield-hook.mjs',
   'agentshield-stop.mjs', 'agentshield-policy.mjs', 'agentshield-gate.mjs',
   'agentshield-verifier.mjs', 'agentshield-install.mjs',
-  'agentshield-capabilities.mjs'];
+  'agentshield-capabilities.mjs', 'agentshield-hybrid.mjs'];
 async function main() {
   const scanner = path.join(root, 'dist', 'agentshield.mjs');
   if (!(await stat(scanner).catch(() => null))?.isFile()) {
@@ -26,12 +28,31 @@ async function main() {
   await mkdir(path.join(stage, 'dist'), { recursive: true, mode: 0o700 });
   await cp(scanner, path.join(stage, 'dist', 'agentshield.mjs'));
   for (const file of scripts) await cp(path.join(root, 'scripts', file), path.join(stage, 'scripts', file));
+  // Bundle the TypeScript compiler and the reviewed AST/taint worker into a
+  // portable, isolated CJS process. The installed package has ZERO runtime
+  // dependencies and never runs repository install scripts.
+  await build({
+    entryPoints:[path.join(root,'scripts/agentshield-ast-worker.mjs')],
+    outfile:path.join(stage,'scripts/agentshield-ast-worker.cjs'),
+    platform:'node',format:'cjs',bundle:true,target:'node20',
+    minify:true,sourcemap:false,legalComments:'eof',
+  });
+  const require=createRequire(import.meta.url);
+  const tsLicense=await readFile(path.join(path.dirname(require.resolve('typescript/package.json')),
+    'LICENSE.txt'),'utf8');
+  await writeFile(path.join(stage,'THIRD_PARTY_NOTICES.txt'),[
+    'VibeSane AgentShield internal beta — third-party component notice',
+    'The bundled JS/TS AST worker includes the TypeScript compiler by Microsoft.',
+    'TypeScript is licensed under the MIT license. Copyright Microsoft Corporation.',
+    '',
+    tsLicense,
+  ].join('\\n'));
   const manifest = {
     name: '@vibesane/agentshield', version: PACKAGE_VERSION, private: true,
     description: 'VibeSane AgentShield local-only Claude Code security preview (unpublished)',
     type: 'module', bin: { vibesane: './scripts/vibesane.mjs' },
     engines: { node: '>=20' },
-    files: ['dist/agentshield.mjs', 'scripts/*.mjs', 'README.md'],
+    files: ['dist/agentshield.mjs', 'scripts/*.mjs', 'scripts/*.cjs', 'README.md', 'THIRD_PARTY_NOTICES.txt'],
     license: 'UNLICENSED',
   };
   await writeFile(path.join(stage, 'package.json'), JSON.stringify(manifest, null, 2) + '\n');
@@ -41,6 +62,8 @@ async function main() {
     'No application-wide security guarantee. Static checks may be incomplete.',
     'Run vibesane doctor --cwd /absolute/path/to/project, then vibesane init --cwd /absolute/path/to/project.',
     'Use vibesane capabilities --format json to see supported and unsupported languages.',
+    'Experimental hybrid: vibesane hybrid --changed --enable-ast --cwd /path/to/project.',
+    'Optional local AI requires an explicit --enable-local-ai opt-in and an independently installed local model.',
     'Use vibesane uninstall --cwd /absolute/path/to/project before uninstalling the package.',
     'Requires Node >=20, Git, and macOS/Linux. Do not publish or distribute without approval.',
   ].join('\n') + '\n');
@@ -48,12 +71,12 @@ async function main() {
     '--pack-destination', out, stage], { timeout: 30000, maxBuffer: 250000,
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false' } });
   const metadata = JSON.parse(stdout)[0];
-  const expected = new Set(['package.json', 'README.md', 'dist/agentshield.mjs', ...scripts.map(x => 'scripts/' + x)]);
+  const expected = new Set(['package.json', 'README.md', 'THIRD_PARTY_NOTICES.txt', 'dist/agentshield.mjs', 'scripts/agentshield-ast-worker.cjs', ...scripts.map(x => 'scripts/' + x)]);
   const actual = new Set(metadata.files.map(x => x.path));
   if (actual.size !== expected.size || [...actual].some(x => !expected.has(x))) {
     throw new Error('Beta package has unexpected or missing files.');
   }
-  if (metadata.size > 2_000_000) throw new Error('Beta package unexpectedly exceeds 2 MB.');
+  if (metadata.size > 8_000_000) throw new Error('Beta package unexpectedly exceeds 8 MB.');
   const archive = path.join(out, metadata.filename);
   const digest = createHash('sha256').update(await readFile(archive)).digest('hex');
   process.stdout.write(JSON.stringify({ status: 'packaged_local_only', version: PACKAGE_VERSION,
