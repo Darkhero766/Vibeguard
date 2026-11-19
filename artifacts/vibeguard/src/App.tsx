@@ -14,6 +14,7 @@ import AuditReportPage from './pages/AuditReportPage';
 import ContactPage from './pages/ContactPage';
 import SecurityDisclosurePage from './pages/SecurityDisclosurePage';
 import AccessibilityPage from './pages/AccessibilityPage';
+import AgentShieldPage from './pages/AgentShieldPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
 
@@ -99,6 +100,7 @@ export default function App() {
   const isAuditReportPage = path === '/audit/report';
   const isContactPage = path === '/contact';
   const isSecurityDisclosurePage = path === '/security-disclosure';
+  const isAgentShieldPage = path === '/agentshield';
   const isAccessibilityPage = path === '/accessibility';
 
   if (isAdminPage) return <><BrandMigration /><AuthProvider><AdminPage /></AuthProvider></>;
@@ -109,6 +111,7 @@ export default function App() {
   if (isTermsPage) return <><BrandMigration /><AuthProvider><TermsPage /></AuthProvider></>;
   if (isContactPage) return <><BrandMigration /><AuthProvider><ContactPage /></AuthProvider></>;
   if (isSecurityDisclosurePage) return <><BrandMigration /><AuthProvider><SecurityDisclosurePage /></AuthProvider></>;
+  if (isAgentShieldPage) return <><BrandMigration /><AuthProvider><AgentShieldPage /></AuthProvider></>;
   if (isAccessibilityPage) return <><BrandMigration /><AuthProvider><AccessibilityPage /></AuthProvider></>;
   if (isAuditReportPage) return <><BrandMigration /><AuthProvider><AuditReportPage /></AuthProvider></>;
   if (isAuditPage) return <><BrandMigration /><AuthProvider><AuditPage /></AuthProvider></>;
