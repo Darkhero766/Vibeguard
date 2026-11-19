@@ -64,8 +64,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const lastUserId = useRef<string | null>(null);
 
   const refreshUsage = async () => { if (!user) return; setUsageLoading(true); try { setUsage(await ensureUsageRow(user.id)); } finally { setUsageLoading(false); } };
-  const refreshGithubConnection = async (userId: string, active = true) => { const { data, error } = await supabase.from('github_tokens').select('owner').eq('owner', userId).maybeSingle(); if (active && !error) setHasGithubToken(!!data); return !!data; };
-  const disconnectGithub = async () => { const currentSession = (await supabase.auth.getSession()).data.session; if (!currentSession?.access_token) return; await fetch(apiUrl('/api/github/token'), { method: 'DELETE', headers: { Authorization: `Bearer ${currentSession.access_token}` } }); setHasGithubToken(false); setGithubTokenVersion((v) => v + 1); };
+  const refreshGithubConnection = async (accessToken: string | undefined, active = true) => {
+    if (!accessToken) { if (active) setHasGithubToken(null); return false; }
+    try {
+      const response = await fetch(apiUrl('/api/github/token/status'), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error('Connection status unavailable');
+      const data: { connected?: unknown } = await response.json();
+      if (typeof data.connected !== 'boolean') throw new Error('Invalid connection status');
+      if (active) setHasGithubToken(data.connected);
+      return data.connected;
+    } catch {
+      if (active) setHasGithubToken(null);
+      return false;
+    }
+  };
+  const disconnectGithub = async () => { const currentSession = (await supabase.auth.getSession()).data.session; if (!currentSession?.access_token) return; const response = await fetch(apiUrl('/api/github/token'), { method: 'DELETE', headers: { Authorization: `Bearer ${currentSession.access_token}` } }); if (!response.ok) throw new Error('GitHub disconnection failed'); setHasGithubToken(false); setGithubTokenVersion((v) => v + 1); };
 
   useEffect(() => {
     let active = true;
@@ -86,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (active) setUsage(refreshed);
           }
         } finally { if (active) setUsageLoading(false); }
-        await refreshGithubConnection(u.id, active);
+        await refreshGithubConnection(s?.access_token, active);
       } else setHasGithubToken(null);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
@@ -104,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (active) setUsage(refreshed);
           }
         } finally { if (active) setUsageLoading(false); }
-        await refreshGithubConnection(u.id, active);
+        await refreshGithubConnection(s?.access_token, active);
       } else if (!u) { lastUserId.current = null; setUsage(null); setHasGithubToken(null); }
       const hasGithubIdentity = s?.user?.identities?.some((id: { provider: string }) => id.provider === 'github');
       if (_event === 'SIGNED_IN' && s?.provider_token && s.access_token && hasGithubIdentity) {
