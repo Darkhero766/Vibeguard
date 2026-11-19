@@ -13,7 +13,7 @@ async function requireAdmin(req: AuthedRequest, res: any, next: any) {
   next();
 }
 
-router.get("/admin/overview", requireAuth, requireAdmin, async (_req: AuthedRequest, res) => {
+router.get("/admin/overview", requireAuth, requireAdmin, async (req: AuthedRequest, res) => {
   try {
     const [users, plans, scans, repos, events] = await Promise.all([
       pool.query(`SELECT count(*)::int AS count FROM auth.users`),
