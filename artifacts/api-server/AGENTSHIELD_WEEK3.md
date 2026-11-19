@@ -81,6 +81,13 @@ Simulated end-to-end acceptance creates a disposable Git repository, writes a sy
 
 These tests simulate Claude hooks; no authenticated interactive Claude Code turn has been run.
 
+
+## Measured 100-file performance
+
+On the branch's GitHub Actions Ubuntu runner on November 19, 2026, the 100-file synthetic JavaScript changed-file final gate completed in **95 ms**, measured inside the fixture (the surrounding test took roughly 123 ms). A 101-file fixture correctly returned scan_incomplete. These are single-run synthetic measurements, not a production latency guarantee or representative benchmark of large real-world codebases.
+
+CI evidence: https://github.com/Darkhero766/Vibeguard/actions/runs/44467622980
+
 ## Manual live acceptance checklist before release
 
 1. Install into a disposable Git repository on supported macOS/Linux and verify the PostToolUse and Stop hooks using Claude Code's /hooks command.
