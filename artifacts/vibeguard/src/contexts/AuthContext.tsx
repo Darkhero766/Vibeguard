@@ -7,11 +7,12 @@ type AuthContextValue = { user: User | null; session: Session | null; usage: Usa
 const AuthContext = createContext<AuthContextValue | null>(null);
 const ADMIN_EMAIL = 'nightowlclub72@gmail.com';
 
+// Usage is server-owned (billing, quotas, entitlements). The database signup
+// trigger initializes records; the browser must never insert or change quotas.
 async function ensureUsageRow(userId: string): Promise<UsageRow | null> {
-  const { data: existing } = await supabase.from('usage').select('*').eq('owner', userId).maybeSingle();
-  if (existing) return existing as UsageRow;
-  const { data: inserted } = await supabase.from('usage').insert({ owner: userId, scans_used: 0, scans_limit: 1, reset_at: null }).select().single();
-  return (inserted as UsageRow) ?? null;
+  const { data, error } = await supabase.from('usage').select('*').eq('owner', userId).maybeSingle();
+  if (error) return null;
+  return (data as UsageRow) ?? null;
 }
 
 function setVibeSaneIdentity(user: User | null) {
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const lastUserId = useRef<string | null>(null);
 
   const refreshUsage = async () => { if (!user) return; setUsageLoading(true); try { setUsage(await ensureUsageRow(user.id)); } finally { setUsageLoading(false); } };
-  const refreshGithubConnection = async (userId: string, active = true) => { const { data, error } = await supabase.from('github_tokens').select('id').eq('owner', userId).maybeSingle(); if (active && !error) setHasGithubToken(!!data); return !!data; };
+  const refreshGithubConnection = async (userId: string, active = true) => { const { data, error } = await supabase.from('github_tokens').select('owner').eq('owner', userId).maybeSingle(); if (active && !error) setHasGithubToken(!!data); return !!data; };
   const disconnectGithub = async () => { const currentSession = (await supabase.auth.getSession()).data.session; if (!currentSession?.access_token) return; await fetch(apiUrl('/api/github/token'), { method: 'DELETE', headers: { Authorization: `Bearer ${currentSession.access_token}` } }); setHasGithubToken(false); setGithubTokenVersion((v) => v + 1); };
 
   useEffect(() => {
