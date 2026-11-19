@@ -32,13 +32,15 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build website, including AgentShield page
         run: pnpm --filter @workspace/vibeguard run build
+      - name: Build shared TypeScript library declarations
+        run: pnpm run typecheck:libs
       - name: Frontend TypeScript check
         run: pnpm --filter @workspace/vibeguard run typecheck
       - name: Build backend
         run: pnpm --filter @workspace/api-server run build
       - name: Backend TypeScript check (currently existing baseline errors)
         continue-on-error: true
-        run: pnpm run typecheck:libs && pnpm --filter @workspace/api-server run typecheck
+        run: pnpm --filter @workspace/api-server run typecheck
       - name: SUE regression
         run: pnpm --filter @workspace/api-server run test:sue
       - name: Build AgentShield scanner
