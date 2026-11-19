@@ -62,7 +62,7 @@ function parseRepo(repoUrl: string): { owner: string; repo: string; ref?: string
   return { owner: parts[0], repo, ref, paths };
 }
 
-function headers(token?: string): HeadersInit {
+function headers(token?: string): Record<string, string> {
   return {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": API_VERSION,
