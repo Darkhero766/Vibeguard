@@ -127,8 +127,7 @@ const rules: Array<{ id: string; severity: Finding["severity"]; title: string; d
   { id: "command_injection", severity: "Critical", title: "Command execution uses request-controlled input", description: "An OS command API appears to receive request-derived data. Validate against an allowlist and prefer argument arrays over shell strings.", pattern: /\b(?:exec|execSync|spawn|spawnSync)\s*\([^\n]*(?:req\.(?:query|params|body)|searchParams\.get)/gi, extensions: /\.(?:[cm]?[jt]sx?|ts|js|py|rb|php)$/i },
 ];
 
-export async function runExtendedSecurityChecks(repoUrl: string, githubToken?: string): Promise<Finding[]> {
-  const files = await readRepository(repoUrl, githubToken);
+export function scanExtendedFiles(files: RepositoryFile[]): Finding[] {
   const findings = [
     ...sqlChecks(files),
     ...rules.flatMap((rule) => regexFindings(files, rule)),
@@ -140,4 +139,9 @@ export async function runExtendedSecurityChecks(repoUrl: string, githubToken?: s
     seen.add(key);
     return true;
   });
+}
+
+export async function runExtendedSecurityChecks(repoUrl: string, githubToken?: string): Promise<Finding[]> {
+  const files = await readRepository(repoUrl, githubToken);
+  return scanExtendedFiles(files);
 }
