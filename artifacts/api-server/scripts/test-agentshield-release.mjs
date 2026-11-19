@@ -17,7 +17,7 @@ test('capability registry distinguishes supported heuristics and unimplemented l
   assert.ok(CAPABILITIES.staticScanner.unsupportedDedicatedSast.includes('Python'));
   assert.ok(CAPABILITIES.staticScanner.unsupportedDedicatedSast.includes('Go'));
   assert.equal(CAPABILITIES.securityGuarantee,false);
-  assert.equal(CAPABILITIES.experimentalAst.status,'opt_in_checkout_only');
+  assert.equal(CAPABILITIES.experimentalAst.status,'opt_in_beta_package_supported');
   assert.equal(CAPABILITIES.ai.status,'opt_in_local_advisory_only');
 });
 test('capabilities produces accurate offline JSON and readable text',async()=>{
@@ -70,11 +70,11 @@ test('hybrid worker has a bounded timeout, heap and restricted child environment
   assert.match(src,/timeout:10_000/);
   assert.match(src,/NODE_OPTIONS:''/);
 });
-test('beta installer includes self-describing metadata but does not claim to ship AST',async()=>{
+test('beta installer includes capability metadata and only audited bundled AST dependencies',async()=>{
   const pack=await read('artifacts/api-server/scripts/package-agentshield-beta.mjs');
   assert.match(pack,/agentshield-capabilities\.mjs/);
-  assert.doesNotMatch(pack,/['"]agentshield-ast\.mjs['"]/);
-  assert.doesNotMatch(pack,/['"]agentshield-taint\.mjs['"]/);
+  assert.match(pack,/agentshield-ast-worker\.cjs/);
+  assert.match(pack,/THIRD_PARTY_NOTICES\.txt/);
   assert.match(pack,/private:\s*true/);
 });
 test('production planning never silently replays the legacy Supabase migration script',async()=>{
