@@ -128,6 +128,14 @@ node artifacts/api-server/scripts/vibesane.mjs capabilities --format json
 
 The package build creates a **local ignored tarball only**; do not distribute without approval. Source and archives remain in the development environment.
 
+## VibeSane GitHub check accuracy and transparency (PR #60)
+
+The deployed GitHub check initially reported 16/100 (three Critical and three High) on PR #60. An independent local replay of the same extended rules and changed-file list identified all six as **test fixture context**, not runtime vulnerabilities: four intentionally unsafe DDL grant statements in the **isolated PostgreSQL privilege regression** and two filesystem traversal heuristic misfires on `writeFile(path.join(...), 'req.query...')` test strings. These were not validated exploit reports. The source was adjusted to separate literal fixture content from path construction, and the deliberately insecure PostgreSQL script was explicitly named `supabase/review-only/test-usage-entitlement-lockdown.sql.fixture`. It remains executed by disposable CI PostgreSQL through psql -f, but is not a production database migration.
+
+The GitHub check previously published only a numeric score. The new `vibesaneCheckOutput.ts` metadata-only reporter emits bounded, sanitized rule IDs, relative paths and line numbers and GitHub annotations (up to 50). It never embeds source snippets, matched secrets, or private values. Scan failures are distinguished from actual critical vulnerabilities. **This reporter will not affect the hosted VibeSane GitHub App until the application backend is explicitly deployed and verified.**
+
+A green PR security score proves only that no supported new findings were detected, not that the project is secure. CI itself must reproduce and cross-check VibeSane delta results.
+
 ## Critical remaining release gates
 
 1. **Supabase:** owner-approved review of usage entitlement lock-down, migration history drift, secret/token table grants and leaked-password Auth setting; staging migration and after-state verification; no blind production SQL replay.
