@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const hookPath = path.join(scriptsDir, 'agentshield-hook.mjs');
+const stopPath = path.join(scriptsDir, 'agentshield-stop.mjs');
 const usage = 'Usage: node scripts/agentshield-install.mjs install|uninstall /absolute/path/to/customer-project';
 
 async function main() {
@@ -18,6 +19,7 @@ async function main() {
   const settingsPath = path.join(claudeDir, 'settings.json');
   // Single-quoted POSIX shell argument. Only the fixed hook path is inserted.
   const command = "node '" + hookPath.replaceAll("'", "'\\''") + "'";
+  const stopCommand = "node '" + stopPath.replaceAll("'", "'\\''") + "'";
 
   let settings = {};
   try {
@@ -31,20 +33,26 @@ async function main() {
   }
   const hooks = settings.hooks && typeof settings.hooks === 'object' && !Array.isArray(settings.hooks) ? settings.hooks : {};
   const old = Array.isArray(hooks.PostToolUse) ? hooks.PostToolUse : [];
-  const without = old.map((entry) => {
+  const oldStop = Array.isArray(hooks.Stop) ? hooks.Stop : [];
+  const strip = (list, targetCommand) => list.map((entry) => {
     if (!entry || typeof entry !== 'object' || !Array.isArray(entry.hooks)) return entry;
-    const kept = entry.hooks.filter((item) => !(item?.type === 'command' && item.command === command));
+    const kept = entry.hooks.filter((item) => !(item?.type === 'command' && item.command === targetCommand));
     return kept.length ? { ...entry, hooks: kept } : null;
   }).filter(Boolean);
+  const without = strip(old, command);
+  const withoutStop = strip(oldStop, stopCommand);
 
   if (mode === 'install') without.push({ matcher: 'Edit|Write|MultiEdit', hooks: [{ type: 'command', command, timeout: 20 }] });
+  if (mode === 'install') withoutStop.push({ hooks: [{ type: 'command', command: stopCommand, timeout: 20 }] });
+  if (withoutStop.length) hooks.Stop = withoutStop;
+  else delete hooks.Stop;
   if (without.length) hooks.PostToolUse = without;
   else delete hooks.PostToolUse;
   if (Object.keys(hooks).length) settings.hooks = hooks;
   else delete settings.hooks;
 
   // Do not create or rewrite settings unnecessarily when removing an absent hook.
-  if (mode === 'uninstall' && JSON.stringify(old) === JSON.stringify(without)) {
+  if (mode === 'uninstall' && JSON.stringify(old) === JSON.stringify(without) && JSON.stringify(oldStop) === JSON.stringify(withoutStop)) {
     console.log('No matching AgentShield hook found; settings unchanged.'); return;
   }
   await mkdir(claudeDir, { recursive: true });
