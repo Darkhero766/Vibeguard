@@ -1,5 +1,5 @@
 import type { Finding } from "@workspace/api-zod";
-import { runExtendedSecurityChecks } from "./extendedScanner";
+import { runExtendedSecurityChecks, scanExtendedFiles } from "./extendedScanner";
 import { readRepositoryFiles } from "./githubRepoReader";
 import { SECURITY_CHECK_CATALOG } from "./securityCheckCatalog";
 
@@ -68,6 +68,11 @@ function deduplicate(findings: Finding[]): Finding[] {
     seen.add(key);
     return true;
   });
+}
+
+/** Apply the same filtering and de-duplication to local files without GitHub access. */
+export function scanExtendedFilesV2(files: RepoFile[]): Finding[] {
+  return deduplicate(scanExtendedFiles(files).filter((finding) => shouldKeepFinding(finding, files)));
 }
 
 function scopedRepoUrl(repoUrl: string, scanPaths?: string[]): string {
