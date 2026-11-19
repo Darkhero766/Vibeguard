@@ -175,6 +175,26 @@ function resultForHook(eventName, message) {
 }
 function printJSON(result) { process.stdout.write(JSON.stringify(result) + '\n'); }
 
+function humanReport(result) {
+  const totals = result.severityBreakdown || {};
+  const lines = [
+    'VibeSane AgentShield final scan: ' + result.status + ' (' + result.filesScanned + ' files)',
+    'Active findings: ' + result.activeFindings + '; blocking: ' + result.blocking,
+    'Severities: Critical ' + (totals.Critical || 0) + ', High ' + (totals.High || 0) +
+      ', Medium ' + (totals.Medium || 0) + ', Low ' + (totals.Low || 0),
+  ];
+  for (const row of (result.outcomes || []).slice(0, 30)) {
+    lines.push(JSON.stringify(brief(row.filePath, 180)) + ': ' + row.scanState + ' / ' +
+      row.verificationState + ' (active=' + row.activeFindings + ')');
+  }
+  if (result.status !== 'complete') lines.push('INCOMPLETE: do not interpret this result as a passing security check.');
+  else if (result.blocking) lines.push('ACTION REQUIRED: review unresolved findings and remediate under developer control.');
+  else lines.push('No blocking findings found in the scanned subset; this does not guarantee application security.');
+  lines.push('Static scan resolution and independent verification are different. No source code was uploaded.');
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
+
 async function readHookInput() {
   return new Promise((resolve, reject) => {
     let input = '';
@@ -405,7 +425,9 @@ export async function command(argv = process.argv.slice(2)) {
   if (opts.action === 'verify') {
     if (Boolean(opts.file) === Boolean(opts.changed)) throw new Error('verify requires exactly one of --changed or --file PATH.');
     const { result, code } = await verifyNow(root, opts, config);
-    printJSON(result);
+    if (opts.format === 'text') humanReport(result);
+    else if (opts.format === 'json') printJSON(result);
+    else throw new Error('Format must be text or json.');
     return code;
   }
 }
