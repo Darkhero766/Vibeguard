@@ -127,3 +127,28 @@ test('fresh 50-case taint challenge reports all misses and category-level rates'
     elapsedMs:r.elapsedMs,runtime:r.runtime,
   }));
 });
+
+test('Koa request body is recognized as untrusted source',()=>{
+  assert.equal(risk('const id=ctx.request.body.id;db.query("SELECT id FROM u WHERE id="+id);').findings.length,1);
+});
+test('context.req.query is recognized as a request source',()=>{
+  assert.equal(risk('const id=context.req.query.id;db.query("SELECT id FROM u WHERE id="+id);').findings.length,1);
+});
+test('Sequelize raw SQL query is recognized as a sink',()=>{
+  assert.equal(risk('const id=req.params.id;sequelize.query("SELECT id FROM u WHERE id="+id);').findings.length,1);
+});
+test('Knex raw SQL expression is recognized as a sink',()=>{
+  assert.equal(risk('const id=req.body.id;knex.raw("SELECT id FROM u WHERE id="+id);').findings.length,1);
+});
+test('URL derived from Next request remains tainted through searchParams.get',()=>{
+  assert.equal(risk('const url=new URL(request.url);const id=url.searchParams.get("id");db.query("SELECT id FROM u WHERE id="+id);').findings.length,1);
+});
+test('Sequelize bind parameters do not taint SQL code',()=>{
+  assert.equal(risk('sequelize.query("SELECT id FROM u WHERE id=$1",{bind:[req.params.id]});').findings.length,0);
+});
+test('Knex query builder with scoped parameter is not treated as raw SQL',()=>{
+  assert.equal(risk('knex("users").where("id",req.params.id);').findings.length,0);
+});
+test('Static URL instances do not become untrusted SQL input',()=>{
+  assert.equal(risk('const u=new URL("https://example.test");const id=u.searchParams.get("id");db.query("SELECT id FROM u WHERE id="+id);').findings.length,0);
+});
