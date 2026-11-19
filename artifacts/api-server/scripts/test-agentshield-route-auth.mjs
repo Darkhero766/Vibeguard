@@ -65,3 +65,8 @@ test('auth call in a string is not an executed guard',()=>{
  const r=scan('export async function POST(){const note="await requireAuth()";return db.from("orders").insert({});}');
  assert.equal(r.findings.length,1);
 });
+
+test('unchecked requireUser result is not evidence of access denial',()=>{
+ const r=scan('export async function POST(){const u=await requireUser();if(!other)return;db.from("orders").insert({});}');
+ assert.equal(r.findings.length,1);
+});
