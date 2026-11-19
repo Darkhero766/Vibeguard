@@ -89,7 +89,7 @@ export function buildVibeSaneCheckOutput(report: Report) {
       end_line:f.line!,
       annotation_level:f.severity==='Medium'?'warning':'failure',
       title:f.severity+': '+f.check,
-      message:'VibeSane rule '+f.check+' reported a potential '+f.severity.toLowerCase()+
+      message:'VibeSane rule '+f.check+' reported a potential '+f.severity!.toLowerCase()+
         '-severity issue. Review the affected code. No matched values are included.',
     }));
   return {
