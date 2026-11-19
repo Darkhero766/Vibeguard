@@ -229,3 +229,20 @@ test('independent held-out challenge set discloses weak patterns without alterin
     measuredElapsedMs: result.measuredElapsedMs,
   }));
 });
+
+test('human-readable verify shows scoped severity and action without revealing fake credentials', async (t) => {
+  const root = await fixture(t);
+  await mkdir(path.join(root, 'src'), { recursive: true });
+  const fake = 'K'.repeat(36);
+  await writeFile(path.join(root, 'src/auth.js'), 'const JWT_SECRET = "' + fake + '";\n');
+  const controller = path.join(api, 'scripts/agentshield-controller.mjs');
+  try {
+    await exec(process.execPath, [controller, 'verify', '--changed', '--format', 'text', '--cwd', root], { timeout: 15000 });
+    assert.fail('Blocking issue must return nonzero exit code.');
+  } catch (e) {
+    assert.equal(e.code, 1);
+    assert.match(e.stdout, /ACTION REQUIRED/);
+    assert.match(e.stdout, /Critical 1/);
+    assert.doesNotMatch(e.stdout, /K{30}/);
+  }
+});
