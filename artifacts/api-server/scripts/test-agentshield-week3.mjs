@@ -334,3 +334,28 @@ test('installer refuses symlinked Claude settings directory', async t => {
   assert.equal(result.code, 2);
   assert.match(result.stderr, /symlinked/);
 });
+
+test('100 changed source files are covered by the final scanner budget', async t => {
+  const f = await fixture(t);
+  await mkdir(path.join(f.root, 'src'), { recursive: true });
+  for (let n = 0; n < 100; n++) {
+    await writeFile(path.join(f.root, 'src/file-' + n + '.js'), 'export const n' + n + ' = ' + n + ';\n');
+  }
+  const began = performance.now();
+  const gate = await finalGate(f.root, parseConfig({}), f.realScan);
+  const elapsed = Math.round(performance.now() - began);
+  assert.equal(gate.status, 'complete');
+  assert.equal(gate.filesScanned, 100);
+  assert.equal(gate.blocking, 0);
+  console.log('OBSERVED_AGENTSIELD_100_FILE_GATE_MS=' + elapsed);
+});
+
+test('101 supported changed source files exceed cap and never return complete', async t => {
+  const f = await fixture(t);
+  await mkdir(path.join(f.root, 'src'), { recursive: true });
+  for (let n = 0; n < 101; n++) {
+    await writeFile(path.join(f.root, 'src/file-' + n + '.js'), 'export const n' + n + ' = ' + n + ';\n');
+  }
+  const gate = await finalGate(f.root, parseConfig({}), f.realScan);
+  assert.equal(gate.status, 'scan_incomplete');
+});
