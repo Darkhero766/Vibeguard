@@ -62,8 +62,7 @@ const groups=[
     'const id=req.headers.get("x-id");db.query("SELECT * FROM orders WHERE id="+id);',
     'const id=req.query.id;const user=id;const token=user;db.query("SELECT * FROM users WHERE token="+token);',
   ],benign:[
-    '// const q="SELECT id FROM users WHERE id="+req.body.id;
-const x=4;',
+    '// const q="SELECT id FROM users WHERE id="+req.body.id;\nconst x=4;',
     'const id="req.query.id";db.query("SELECT * FROM users WHERE id="+id);',
     'const id=req.params.id;queryClient.query(id);',
     'const id=req.params.id;await db.query("SELECT * FROM users WHERE id=$1",[id]);',
