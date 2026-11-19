@@ -300,11 +300,11 @@ export async function handleHook(kind) {
 
 function argsOf(argv) {
   const [action, ...tail] = argv;
-  const opts = { action, cwd: process.cwd(), file: null, changed: false, session: null, format: 'json', mode: null, attempts: null, syntaxCheck: null, threshold: null, enabled: null, budgetSeconds: null, retentionHours: null };
+  const opts = { action, cwd: process.cwd(), file: null, changed: false, session: null, format: 'json', mode: null, attempts: null, syntaxCheck: null, threshold: null, enabled: null, budgetSeconds: null, retentionHours: null, rule: null, reason: null, hours: null };
   for (let i = 0; i < tail.length; i++) {
     const a = tail[i];
     if (a === '--changed') opts.changed = true;
-    else if (['--cwd', '--file', '--session', '--format', '--mode', '--attempts', '--syntax-check', '--threshold', '--enabled', '--budget-seconds', '--retention-hours'].includes(a)) {
+    else if (['--cwd', '--file', '--session', '--format', '--mode', '--attempts', '--syntax-check', '--threshold', '--enabled', '--budget-seconds', '--retention-hours', '--rule', '--reason', '--hours'].includes(a)) {
       if (tail[i + 1] == null) throw new Error('Missing option value: ' + a);
       const key = { '--syntax-check': 'syntaxCheck', '--attempts': 'attempts', '--threshold': 'threshold', '--budget-seconds': 'budgetSeconds', '--retention-hours': 'retentionHours' }[a] || a.slice(2);
       opts[key] = tail[++i];
@@ -336,7 +336,9 @@ async function verifyNow(root, opts, config) {
     }
     next.files[file] = entry;
     outcomes.push({ filePath: file, scanState: entry.scanState, verificationState: entry.verificationState,
-      activeFindings: entry.active.length, verificationResults: entry.verificationResults || [] });
+      activeFindings: entry.active.length, verificationResults: entry.verificationResults || [],
+      acknowledgedRules: entry.active.filter(f => config.acknowledgements.some(a =>
+        a.expiresAt > Date.now() && a.filePath === file && a.ruleId === f.ruleId)).map(f => f.ruleId) });
   }
   next.updatedAt = Date.now();
   // Keep interactive session state untouched when an independent CLI verification is requested.
@@ -351,9 +353,29 @@ async function verifyNow(root, opts, config) {
 }
 export async function command(argv = process.argv.slice(2)) {
   const opts = argsOf(argv);
-  if (!['status', 'verify', 'config'].includes(opts.action)) throw new Error('Commands: status, verify --changed|--file PATH, config --mode MODE.');
+  if (!['status', 'verify', 'config', 'acknowledge'].includes(opts.action)) throw new Error('Commands: status, verify --changed|--file PATH, config --mode MODE, acknowledge --rule ID --file PATH --reason CODE --hours 24.');
   const root = await rootOf(opts.cwd);
   const config = await configFor(root);
+  if (opts.action === 'acknowledge') {
+    const rel = String(opts.file || '').replaceAll('\\', '/');
+    const hours = Number(opts.hours);
+    if (!opts.rule || !/^[a-z][a-z0-9_]{0,100}$/.test(opts.rule) ||
+      !rel || rel.startsWith('/') || rel.split('/').includes('..') ||
+      !['false-positive', 'accepted-risk', 'compensating-control'].includes(opts.reason) ||
+      !Number.isInteger(hours) || hours < 1 || hours > 168) {
+      throw new Error('acknowledge requires a rule ID, safe relative --file, reason code, and --hours 1..168.');
+    }
+    const next = { ...config, acknowledgements: config.acknowledgements.filter(x =>
+      x.expiresAt > Date.now() && !(x.filePath === rel && x.ruleId === opts.rule)) };
+    const entry = { filePath: rel, ruleId: opts.rule, reasonCode: opts.reason,
+      expiresAt: Date.now() + hours * 3600000 };
+    next.acknowledgements.push(entry);
+    await atomicJSON(userConfigFile(root), parseConfig(next));
+    printJSON({ status: 'acknowledged', entry,
+      suppressesScan: false, suppressesBlocking: false,
+      note: 'Acknowledgement is an auditable developer review marker; findings and gate severity remain unchanged.' });
+    return 0;
+  }
   if (opts.action === 'config') {
     if (opts.mode != null || opts.attempts != null || opts.syntaxCheck != null || opts.threshold != null || opts.enabled != null || opts.budgetSeconds != null || opts.retentionHours != null) {
       const candidate = { ...config };
