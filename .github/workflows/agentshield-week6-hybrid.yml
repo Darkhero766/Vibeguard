@@ -48,5 +48,7 @@ jobs:
         run: pnpm --filter @workspace/api-server run test:agentshield:week5
       - name: Opt-in local AI advisory safety and privacy tests
         run: pnpm --filter @workspace/api-server run test:agentshield:hybrid
+      - name: Experimental JS/TS AST SQL dataflow and filesystem safety tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:ast
       - name: Existing SUE regression
         run: pnpm --filter @workspace/api-server run test:sue
