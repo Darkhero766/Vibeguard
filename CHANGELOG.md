@@ -1,3 +1,11 @@
+## 2026-11-19 — AgentShield Week 2 (feature branch)
+
+- Added per-project AgentShield Monitor/Assist/Auto-fix configuration, optional parse-only verification, per-session repair state, safe Stop-hook continuation and explicit manual status/verify commands.
+- Kept repair requests bounded by attempts and elapsed time, using existing Claude Code permissions and the Week 1 scanner. No source files or secrets are persisted by the coordinator.
+- Added narrow independent JWT configuration regression verification and clearly marked unsupported dynamic security checks as unverified.
+- Extended reversible Claude Code setup with a Stop hook, added Week 2 security and hook test fixtures, documented rollback, and created read-only branch-only CI.
+- Baseline API-wide TypeScript errors remain separate from the passing AgentShield-specific and SUE regression suites. No default-branch change or deployment.
+
 ## 2026-11-19
 
 ### AgentShield Week 1 — local Claude Code integration (feature branch only)
