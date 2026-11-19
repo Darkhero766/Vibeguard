@@ -63,11 +63,10 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
       const authorizedValue = /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:requireAuth\s*\([^)]*\)|requireUser\s*\([^)]*\)|auth\.getUser\s*\([^)]*\)|getServerSession\s*\([^)]*\)|session\.user)\s*;/g;
       let protectedByGuard = false;
       for (const guard of activeBeforeWrite.matchAll(authorizedValue)) {
-        const variable = guard[1].replace(/[.*+?^${}()|[\]\\]/g, '\\      const protectedByGuard = /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+(?:requireAuth|requireUser)\s*\([^)]*\)\s*;[\s\S]{0,200}?\bif\s*\(\s*!\s*\1\s*\)/.test(activeBeforeWrite);
-      if (!protectedByGuard && !/auth\.getUser\s*\(|auth\.uid\s*\(|getServerSession\s*\(|session\.user\b/i.test(activeBeforeWrite)) {');
+        const variable = guard[1].replaceAll('$', '\\$');
         const denial = new RegExp('\\bif\\s*\\(\\s*!\\s*' + variable +
           '\\s*\\)\\s*(?:(?:return|throw)\\b|\\{[\\s\\S]{0,200}?\\b(?:return|throw)\\b)');
-        if (denial.test(activeBeforeWrite.slice((guard.index ?? 0)+guard[0].length))) {
+        if (denial.test(activeBeforeWrite.slice((guard.index ?? 0) + guard[0].length))) {
           protectedByGuard = true;
           break;
         }
