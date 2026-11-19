@@ -87,6 +87,13 @@ export function normalizeAdvisory(payload, request) {
       throw new Error('Local model returned invalid advisory fields.');
     }
     seen.add(x.index);
+    // Reject obvious unsafe model remediation. This is defense in depth, not
+    // a guarantee that all unsafe suggestions can be recognized.
+    const unsafe = /(?:disable|turn off|bypass|skip|remove)\s+(?:the\s+)?(?:rls|row.level.security|auth|authentication|authorization|security.checks?|logging)/i;
+    if (unsafe.test(x.suggestion)) {
+      return { findingIndex:x.index, explanation:'Local model suggestion requires manual security review.',
+        suggestion:'Use the deterministic scanner guidance instead.', status:'ai_advisory_rejected' };
+    }
     return { findingIndex:x.index, explanation:clean(x.explanation, 400),
       suggestion:clean(x.suggestion, 400), status:'ai_advisory_unverified' };
   });
