@@ -6,6 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { snapshot } from './agentshield-gate.mjs';
 const exec = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scanner = path.join(root, 'dist', 'agentshield.mjs');
@@ -18,11 +19,12 @@ function clean(value, max) {
 }
 export function parseHybridArgs(argv) {
   const args = { changed: false, file: null, cwd: process.cwd(), format: 'json',
-    model: 'qwen2.5-coder:7b', enableLocalAI: false };
+    model: 'qwen2.5-coder:7b', enableLocalAI: false, enableAst: false };
   for (let i = 0; i < argv.length; i++) {
     const item = argv[i];
     if (item === '--changed') args.changed = true;
     else if (item === '--enable-local-ai') args.enableLocalAI = true;
+    else if (item === '--enable-ast') args.enableAst = true;
     else if (['--cwd', '--file', '--format', '--model'].includes(item)) {
       if (!argv[i + 1]) throw new Error('Missing argument value: ' + item);
       args[item.slice(2)] = argv[++i];
@@ -30,6 +32,7 @@ export function parseHybridArgs(argv) {
   }
   if (Boolean(args.changed) === Boolean(args.file)) throw new Error('Specify exactly one of --changed or --file.');
   if (!['json','text'].includes(args.format)) throw new Error('Format must be json or text.');
+  if (args.enableAst && !args.changed) throw new Error('Experimental AST analysis currently requires --changed.');
   if (!SAFE_MODEL.test(args.model)) throw new Error('Model name contains unsafe characters.');
   const port = Number(process.env.VIBESANE_LOCAL_AI_PORT || '11434');
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid local-model port.');
@@ -118,16 +121,45 @@ export async function askLocalModel(findings, { model, port }) {
 }
 export async function hybrid(argv) {
   const options = parseHybridArgs(argv);
+  // An opt-in AST pass is bounded by the same Git worktree snapshots as the final gate.
+  // If files move during either scan, retain the static findings but mark AST incomplete.
+  const before = options.enableAst ? await snapshot(options.cwd) : null;
   const staticResult = await staticScan(options);
-  const result = { mode:'hybrid_preview', status:staticResult.status, static:staticResult,
+  let ast = { status:'disabled', findings:[], filesAnalyzed:0,
+    note:'Opt-in JS/TS AST analysis is experimental and not part of the normal Stop gate.' };
+  if (options.enableAst && staticResult.filesScanned) {
+    try {
+      const { analyzeRepositoryPaths } = await import('./agentshield-ast.mjs');
+      if (before.changedPaths.length !== staticResult.scannedPaths.length ||
+        before.changedPaths.some(p => !staticResult.scannedPaths.includes(p))) {
+        throw new Error('Git changed-file selection changed or includes unscanned paths.');
+      }
+      ast = await analyzeRepositoryPaths(options.cwd,staticResult.scannedPaths);
+      const after=await snapshot(options.cwd);
+      if (before.fingerprint !== after.fingerprint) {
+        throw new Error('Worktree changed during hybrid AST analysis.');
+      }
+    } catch {
+      ast = { status:'scan_incomplete', findings:[], filesAnalyzed:0,
+        note:'Experimental AST pass failed or worktree changed. No AST pass may be claimed.' };
+    }
+  } else if (options.enableAst) {
+    ast = { status:'no_changed_files', findings:[], filesAnalyzed:0,
+      note:'No supported changed files; no AST security verification performed.' };
+  }
+  const result = { mode:'hybrid_preview',
+    status:staticResult.filesScanned===0?'no_changed_files':
+      (ast.status==='scan_incomplete'?'scan_incomplete':staticResult.status),
+    static:staticResult, ast,
     ai:{ status:'disabled', advisory:[], note:'AI does not change, suppress, or independently verify any finding.' },
     privacy:{ sourceUploaded:false, sourceSentToModel:false, filenamesSentToModel:false,
       localService:'127.0.0.1', remoteAIUsed:false } };
-  if (options.enableLocalAI && staticResult.findings.length) {
+  const findings = [...staticResult.findings, ...(ast.findings || [])];
+  if (options.enableLocalAI && findings.length) {
     result.ai.status='unavailable';
     result.ai.model=options.model;
     try {
-      result.ai.advisory=await askLocalModel(staticResult.findings,{model:options.model,port:options.port});
+      result.ai.advisory=await askLocalModel(findings,{model:options.model,port:options.port});
       result.ai.status='advisory_only';
     } catch {
       result.ai.note='Local AI unavailable or returned invalid data; deterministic scanner verdict retained.';
@@ -136,12 +168,13 @@ export async function hybrid(argv) {
   if (options.format === 'json') process.stdout.write(JSON.stringify(result)+'\n');
   else {
     process.stdout.write('AgentShield hybrid preview: '+staticResult.filesScanned+
-      ' static files scanned; '+staticResult.findings.length+' findings; AI='+result.ai.status+'\n');
+      ' static files scanned; '+staticResult.findings.length+' static findings; AST='+ast.status+' ('+(ast.findings?.length || 0)+' findings); AI='+result.ai.status+'\n');
     for (const item of result.ai.advisory) process.stdout.write(
       'Advisory '+item.findingIndex+': '+item.explanation+' | '+item.suggestion+'\n');
     process.stdout.write('Static verdict retained. AI output does not prove security.\n');
   }
-  return staticResult.findings.some(x=>SEVERITY[x.severity] >= SEVERITY.High) ? 1 : 0;
+  if (result.status !== 'complete') return 2;
+  return findings.some(x=>SEVERITY[x.severity] >= SEVERITY.High) ? 1 : 0;
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   hybrid(process.argv.slice(2)).then(code=>{process.exitCode=code;}).catch(()=>{
