@@ -17,6 +17,11 @@ async function main() {
   const projectDir = path.resolve(project);
   const claudeDir = path.join(projectDir, '.claude');
   const settingsPath = path.join(claudeDir, 'settings.json');
+  // Refuse project-local configuration paths redirected through a directory symlink.
+  try {
+    const dir = await lstat(claudeDir);
+    if (!dir.isDirectory() || dir.isSymbolicLink()) throw new Error('Refusing unsafe or symlinked .claude directory.');
+  } catch (error) { if (error?.code !== 'ENOENT') throw error; }
   // Single-quoted POSIX shell argument. Only the fixed hook path is inserted.
   const command = "node '" + hookPath.replaceAll("'", "'\\''") + "'";
   const stopCommand = "node '" + stopPath.replaceAll("'", "'\\''") + "'";

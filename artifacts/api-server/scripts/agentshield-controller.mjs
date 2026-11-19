@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import { mkdir, lstat, readFile, writeFile, rename, rm, readdir, realpath } from 'node:fs/promises';
 import { DEFAULT_CONFIG, parseConfig, freshState, trackFile, guidanceFor, summarize } from './agentshield-policy.mjs';
 import { verifyResolvedFile } from './agentshield-verifier.mjs';
+import { finalGate } from './agentshield-gate.mjs';
 
 const run = promisify(execFile);
 const scripts = path.dirname(fileURLToPath(import.meta.url));
@@ -65,15 +66,67 @@ async function readState(file, config) {
   if (!config.privacy.retentionHours || Date.now() - Number(doc.updatedAt || 0) > config.privacy.retentionHours * 3600000) return freshState();
   return doc;
 }
+async function pruneExpiredSessions(root, config) {
+  const hours = config.privacy.retentionHours;
+  if (!hours) return;
+  const dir = projectStateDir(root);
+  let files;
+  try { files = (await readdir(dir)).filter(name => /^[a-f0-9]{28}\.json$/.test(name)); }
+  catch (e) { if (e?.code === 'ENOENT') return; throw e; }
+  const cutoff = Date.now() - hours * 3600000;
+  for (const name of files.slice(0, 300)) {
+    const file = path.join(dir, name);
+    try {
+      const info = await lstat(file);
+      if (!info.isFile() || info.isSymbolicLink() || info.mtimeMs >= cutoff) continue;
+      // Do not remove state owned by an active (or indeterminate) lock.
+      try { await lstat(file + '.lock'); continue; }
+      catch (e) { if (e?.code !== 'ENOENT') continue; }
+      await rm(file, { force: true });
+    } catch (e) { if (e?.code !== 'ENOENT') throw e; }
+  }
+}
+
 async function withLockedState(root, session, config, callback) {
   const file = sessionFile(root, session);
   if (!config.privacy.retentionHours) return callback(freshState(), false);
+  await pruneExpiredSessions(root, config);
   await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
   const lock = file + '.lock';
   let acquired = false;
   for (let n = 0; n < 40; n++) {
-    try { await mkdir(lock, { mode: 0o700 }); acquired = true; break; }
-    catch (e) { if (e?.code !== 'EEXIST') throw e; await pause(50); }
+    try {
+      await mkdir(lock, { mode: 0o700 });
+      acquired = true;
+      await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: process.pid, createdAt: Date.now() }),
+        { flag: 'wx', mode: 0o600 });
+      break;
+    } catch (e) {
+      if (acquired) { await rm(lock, { recursive: true, force: true }); throw e; }
+      if (e?.code !== 'EEXIST') throw e;
+      // Recover abandoned locks only after 60s, and never steal a live process's lock.
+      // Atomic directory rename ensures only one contender can reclaim it.
+      try {
+        const info = await lstat(lock);
+        if (info.isDirectory() && Date.now() - info.mtimeMs > 60_000) {
+          let owner = null;
+          try { owner = await safeJSON(path.join(lock, 'owner.json'), 1000); } catch {}
+          let live = false;
+          if (Number.isInteger(owner?.pid) && owner.pid > 0) {
+            try { process.kill(owner.pid, 0); live = true; }
+            catch (err) { live = err?.code !== 'ESRCH'; }
+          }
+          if (!live) {
+            const abandoned = lock + '.abandoned-' + randomUUID();
+            try {
+              await rename(lock, abandoned);
+              await rm(abandoned, { recursive: true, force: true });
+            } catch (err) { if (err?.code !== 'ENOENT') throw err; }
+          }
+        }
+      } catch (err) { if (err?.code !== 'ENOENT') throw err; }
+      await pause(50);
+    }
   }
   if (!acquired) throw new Error('AgentShield state is busy; result is unknown.');
   try {
@@ -171,22 +224,66 @@ async function postEdit(event, root, config) {
   return resultForHook('PostToolUse', contextLines(result.entry, config));
 }
 async function atStop(event, root, config) {
-  if (config.mode !== 'auto-fix' || event.stop_hook_active === true) return null;
+  if (event.stop_hook_active === true) return null; // avoid recursive Stop feedback
+  // Every Stop event performs a fresh worktree scan, catching Git-visible Bash edits,
+  // staging, and untracked files missed by per-tool PostToolUse notifications.
+  const gate = await finalGate(root, config, scan);
+  if (gate.status === 'scan_incomplete') {
+    return { systemMessage: 'VibeSane AgentShield: FINAL SCAN INCOMPLETE. Security status UNKNOWN; do not report a security pass.' };
+  }
+  if (gate.status === 'no_changed_files') {
+    return { systemMessage: 'VibeSane AgentShield: no supported changed files to scan. No security pass is implied.' };
+  }
   const session = event.session_id || 'session-unknown';
   const result = await withLockedState(root, session, config, async (state) => {
-    const files = Object.values(state.files || {}).filter((f) => f.active?.length);
-    const pending = files.find((f) =>
+    let next = state;
+    const repeatedGate = state.lastGateFingerprint === gate.fingerprint;
+    for (const file of gate.scannedPaths) {
+      const scoped = gate.findings.filter((f) => f.filePath === file);
+      next = trackFile(next, file, scoped, config, { edited: false }).state;
+    }
+    const unscanned = Object.values(next.files).filter(f => f.active?.length &&
+      !gate.scannedPaths.includes(f.filePath)).map(f => f.filePath);
+    next.lastGateFingerprint = gate.fingerprint;
+    next.lastGate = { at: Date.now(), status: unscanned.length || next.prunedEntries ? 'partial' : 'complete',
+      filesScanned: gate.filesScanned, blocking: gate.blocking, unscannedCount: unscanned.length };
+    const entries = Object.values(next.files).filter((f) => f.active?.length);
+    const pending = entries.find((f) =>
+      f.active.some(x => SEVERITY_ORDER[x.severity] >= SEVERITY_ORDER[config.blockingSeverity]) &&
       f.attempts < config.maxAttempts &&
       Date.now() - f.firstSeen < config.timeBudgetSeconds * 1000 &&
       f.lastStopSignature !== f.signature);
-    if (!pending) return { state, message: null };
-    pending.lastStopSignature = pending.signature;
-    pending.history.push({ event: 'repair_requested', at: Date.now() });
-    state.updatedAt = Date.now();
-    return { state, message: contextLines(pending, config) + '\nOne bounded continuation is requested before finishing. If approval is required, ask; do not override user permissions.' };
+    let message = null;
+    if (pending && gate.blocking > 0 && !unscanned.length && config.mode === 'auto-fix' && !event.stop_hook_active) {
+      pending.lastStopSignature = pending.signature;
+      pending.history.push({ event: 'repair_requested', at: Date.now() });
+      message = contextLines(pending, config) +
+        '\nOne bounded continuation is requested before finishing. If approval is required, ask; do not override user permissions.';
+    }
+    const alreadyRequested = entries.some(f => f.active?.length && f.lastStopSignature === f.signature);
+    next.updatedAt = Date.now();
+    return { state: next, message, unscannedCount: unscanned.length + Number(Boolean(next.prunedEntries)), repeatedGate, alreadyRequested };
   });
-  return resultForHook('Stop', result.message);
+  if (result.unscannedCount) {
+    return { systemMessage: 'VibeSane AgentShield: final scan did not cover previously flagged files; result PARTIAL, not verified.' };
+  }
+  if (result.message) {
+    // Claude Code Stop docs: decision:block and reason explicitly request continuation.
+    return { decision: 'block', reason: result.message,
+      hookSpecificOutput: { hookEventName: 'Stop', additionalContext: result.message } };
+  }
+  if (gate.blocking > 0) {
+    if (result.repeatedGate || (config.mode === 'auto-fix' && result.alreadyRequested)) return null;
+    return { systemMessage: 'VibeSane AgentShield: final static scan found ' + gate.blocking +
+      ' finding(s) at or above ' + config.blockingSeverity +
+      '. ' + (config.mode === 'auto-fix' ? 'Repair budget exhausted or continuation suppressed; request human review.' :
+        'Advisory mode; no completion block.') };
+  }
+  // Do not claim full-app security when the changed-file subset appears clean.
+  return null;
 }
+const SEVERITY_ORDER = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+
 export async function handleHook(kind) {
   try {
     const event = await readHookInput();
@@ -221,7 +318,8 @@ async function stateForReading(root, session, config) {
 }
 async function verifyNow(root, opts, config) {
   const state = await stateForReading(root, opts.session, config);
-  const report = await scan(root, opts.file ? ['--file', opts.file] : ['--changed']);
+  const report = opts.changed ? await finalGate(root, config, scan) : await scan(root, ['--file', opts.file]);
+  if (report.status !== 'complete') throw new Error('Final changed-file scan incomplete or unavailable.');
   if (!report.filesScanned) throw new Error('No source files scanned; no security verification is possible.');
   const session = opts.session || 'manual-verify';
   const next = structuredClone(state);
@@ -244,7 +342,7 @@ async function verifyNow(root, opts, config) {
   // Keep interactive session state untouched when an independent CLI verification is requested.
   await withLockedState(root, session, config, async () => ({ state: next }));
   const incomplete = Object.values(state.files).filter((x) => x.active?.length && !report.scannedPaths.includes(x.filePath)).map((x) => x.filePath);
-  const status = incomplete.length ? 'partial' : 'complete';
+  const status = incomplete.length || next.prunedEntries ? 'partial' : 'complete';
   const summary = summarize(next, config);
   const result = { tool: 'VibeSane AgentShield', status, mode: config.mode, filesScanned: report.filesScanned,
     ...summary, outcomes, unscannedPreviouslyFlagged: incomplete,
@@ -278,7 +376,8 @@ export async function command(argv = process.argv.slice(2)) {
     return 0;
   }
   if (opts.action === 'status') {
-    printJSON({ status: 'complete', configuration: config, summary: summarize(await stateForReading(root, opts.session, config), config) });
+    const state = await stateForReading(root, opts.session, config);
+    printJSON({ status: 'complete', configuration: config, summary: summarize(state, config), lastGate: state.lastGate || null });
     return 0;
   }
   if (opts.action === 'verify') {
