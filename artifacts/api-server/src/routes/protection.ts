@@ -34,7 +34,7 @@ async function currentSha(repoUrl: string, token?: string) {
 async function getBestGithubToken(userId: string, userJwt: string): Promise<string | undefined> {
   const installationId = await getInstallationIdForUser(userId);
   if (installationId) return getInstallationToken(installationId);
-  return getGithubTokenForUser(userId, userJwt) ?? undefined;
+  return (await getGithubTokenForUser(userId, userJwt)) ?? undefined;
 }
 
 router.get("/protection", requireAuth, async (req: AuthedRequest, res) => {
@@ -44,7 +44,9 @@ router.get("/protection", requireAuth, async (req: AuthedRequest, res) => {
 
 router.get("/protection/:repo/events", requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const repo = decodeURIComponent(req.params.repo);
+    const rawRepo = req.params.repo;
+    if (typeof rawRepo !== 'string') { res.status(400).json({ error: 'Invalid repository name' }); return; }
+    const repo = decodeURIComponent(rawRepo);
     const protectedRepo = await getProtectedRepository(repo);
     if (!protectedRepo || protectedRepo.owner !== req.userId) { res.status(404).json({ error: "Protected repository not found" }); return; }
     res.json({ repository: protectedRepo, events: await listProtectionEvents(repo) });
