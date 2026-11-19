@@ -1,0 +1,83 @@
+-- ISOLATED CI POSTGRES ONLY. Runs against a disposable postgres:17 container.
+-- NEVER point this script at a real Supabase database.
+\set ON_ERROR_STOP on
+CREATE ROLE anon NOLOGIN;
+CREATE ROLE authenticated NOLOGIN;
+CREATE SCHEMA auth;
+CREATE FUNCTION auth.uid() RETURNS uuid
+LANGUAGE SQL STABLE AS $f$
+  SELECT NULLIF(current_setting('request.jwt.claim.sub', true),'')::uuid;
+$f$;
+GRANT USAGE ON SCHEMA auth TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION auth.uid() TO anon, authenticated;
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+CREATE TABLE public.usage (
+ owner uuid PRIMARY KEY, plan text NOT NULL DEFAULT 'free',
+ scans_limit integer NOT NULL DEFAULT 1, scans_used integer NOT NULL DEFAULT 0,
+ pro_expires_at timestamptz
+);
+INSERT INTO public.usage(owner,plan,scans_limit)
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','free',1),
+       ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','free',1);
+ALTER TABLE public.usage ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view their own usage"
+ON public.usage FOR SELECT USING ((select auth.uid()) = owner);
+CREATE POLICY "Users can update their own usage"
+ON public.usage FOR UPDATE
+USING ((select auth.uid()) = owner) WITH CHECK ((select auth.uid()) = owner);
+CREATE POLICY "Users can insert their own usage"
+ON public.usage FOR INSERT WITH CHECK ((select auth.uid()) = owner);
+GRANT ALL PRIVILEGES ON public.usage TO anon, authenticated;
+-- Show the current dangerous pre-patch entitlement shape for our synthetic owner.
+SET ROLE authenticated;
+SET request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+UPDATE public.usage SET plan='pro', scans_limit=999 WHERE owner=auth.uid();
+DO $do$
+BEGIN
+ IF NOT EXISTS (
+  SELECT 1 FROM public.usage WHERE owner=auth.uid() AND plan='pro' AND scans_limit=999
+ ) THEN
+  RAISE EXCEPTION 'Pre-patch synthetic entitlement manipulation was not reproducible';
+ END IF;
+END
+$do$;
+RESET ROLE;
+-- Restore data to expected free values; only DDL/grants represent the patch.
+UPDATE public.usage SET plan='free',scans_limit=1
+WHERE owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+-- Run exact proposed reviewed fix in a disposable database, not Supabase.
+\ir PROPOSED_USAGE_ENTITLEMENT_LOCKDOWN.sql
+
+DO $do$
+BEGIN
+ IF has_table_privilege('anon','public.usage','UPDATE') OR
+    has_table_privilege('authenticated','public.usage','UPDATE') OR
+    has_table_privilege('authenticated','public.usage','INSERT') OR
+    has_table_privilege('authenticated','public.usage','TRUNCATE') OR
+    has_column_privilege('authenticated','public.usage','plan','UPDATE') OR
+    NOT has_table_privilege('authenticated','public.usage','SELECT') THEN
+  RAISE EXCEPTION 'Proposed entitlement privileges are not least-privilege';
+ END IF;
+ IF EXISTS (
+   SELECT 1 FROM pg_policies
+   WHERE schemaname='public' AND tablename='usage'
+     AND cmd IN ('UPDATE','INSERT','ALL')
+ ) THEN
+  RAISE EXCEPTION 'Overbroad usage policies remain after proposed fix';
+ END IF;
+END
+$do$;
+SET ROLE authenticated;
+SET request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+DO $do$
+DECLARE own_count integer;
+BEGIN
+ SELECT COUNT(*) INTO own_count FROM public.usage;
+ IF own_count <> 1 THEN
+  RAISE EXCEPTION 'Owner should see only one usage record, got %', own_count;
+ END IF;
+END
+$do$;
+RESET ROLE;
+SELECT 'CI_PRIVILEGE_TEST_PASSED' AS result;
