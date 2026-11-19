@@ -152,3 +152,31 @@ test('Knex query builder with scoped parameter is not treated as raw SQL',()=>{
 test('Static URL instances do not become untrusted SQL input',()=>{
   assert.equal(risk('const u=new URL("https://example.test");const id=u.searchParams.get("id");db.query("SELECT id FROM u WHERE id="+id);').findings.length,0);
 });
+
+test('does not drop receiver taint through trim, toLowerCase or normalize',()=>{
+  const samples=[
+    'const id=req.query.id;const normalized=id.trim();db.query(normalized);',
+    'const id=req.query.id;const normalized=id.toLowerCase();db.query("SELECT * FROM u WHERE name="+normalized);',
+    'const id=req.body.id;const normalized=id.normalize("NFC");db.query("SELECT * FROM u WHERE id="+normalized);',
+    'const raw=req.body.sql;db.query(raw.replaceAll(" ", ""));',
+  ];
+  for(const code of samples)
+    assert.equal(risk(code).findings.length,1,code);
+});
+test('PostgreSQL query config bound values are data, not injectable SQL text',()=>{
+  const samples=[
+    'db.query({text:"SELECT * FROM users WHERE id=$1",values:[req.query.id]});',
+    'const query={text:"SELECT * FROM users WHERE id=$1",values:[req.body.id]};db.query(query);',
+    'pool.query({text:"UPDATE users SET name=$1 WHERE id=$2",values:[req.body.name,req.params.id]});',
+  ];
+  for(const code of samples)
+    assert.equal(risk(code).findings.length,0,code);
+});
+test('PostgreSQL query-config unsafe dynamic SQL text is still detected',()=>{
+  const samples=[
+    'db.query({text:"SELECT * FROM users WHERE id="+req.query.id,values:[]});',
+    'const config={text:"SELECT * FROM users WHERE id="+req.params.id,values:[]};db.query(config);',
+  ];
+  for(const code of samples)
+    assert.equal(risk(code).findings.length,1,code);
+});
