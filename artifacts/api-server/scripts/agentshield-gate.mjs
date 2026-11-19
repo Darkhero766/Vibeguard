@@ -95,7 +95,7 @@ export async function finalGate(root, config, scan) {
     }));
     const blocking = findings.filter(f => SEVERITY[f.severity] >= SEVERITY[config.blockingSeverity]).length;
     return { status: 'complete', filesScanned: report.filesScanned, scannedPaths: report.scannedPaths,
-      findings, blocking, changedPaths: before.changedPaths,
+      findings, blocking, changedPaths: before.changedPaths, fingerprint: after.fingerprint,
       securityGuarantee: false, note: 'Static checks of changed files only. Passing does not certify application security.' };
   } catch {
     return { status: 'scan_incomplete', filesScanned: 0, findings: [], blocking: 0,
