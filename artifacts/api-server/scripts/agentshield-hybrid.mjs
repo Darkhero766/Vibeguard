@@ -46,7 +46,8 @@ async function staticScan(options) {
   try {
     ({ stdout } = await exec(process.execPath, [scanner, ...argv], {
       timeout: 25_000, maxBuffer: 2_000_000, windowsHide: true,
-      env: { ...process.env, NODE_OPTIONS: '' },
+      // The scanning subprocess does not need developer API keys or cloud tokens.
+      env: { PATH:process.env.PATH || '', LANG:'C.UTF-8', NODE_OPTIONS:'' },
     }));
   } catch (e) {
     if (e?.code !== 1 || typeof e.stdout !== 'string') {
