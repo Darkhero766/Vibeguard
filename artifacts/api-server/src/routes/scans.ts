@@ -41,7 +41,9 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
         return;
       }
     } catch (error) {
-      req.log.warn({ err: error }, "Could not load plan; continuing scan for compatibility");
+      req.log.error({ err: error }, "Could not verify account scan quota; refusing to scan.");
+      res.status(503).json({ error: "Unable to verify scan allowance. Please retry later." });
+      return;
     }
   }
 
@@ -114,16 +116,25 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
       findings,
       checksRun: extendedSucceeded ? TOTAL_SECURITY_CHECKS : CORE_SECURITY_CHECKS,
     };
+    // Validate output, then charge the authenticated account before returning or
+    // caching a result. A database failure or exhausted quota must not grant a free scan.
+    const response = CreateScanResponse.parse(finalReport);
+    if (req.userId) await consumePublicScan(req.userId);
     cacheScanResult(finalReport.repo, finalReport);
-    if (req.userId) {
-      try { await consumePublicScan(req.userId); } catch (error) { req.log.warn({ err: error }, "Could not record public scan usage"); }
-    }
-    res.json(CreateScanResponse.parse(finalReport));
+    res.json(response);
   } catch (error) {
     const status = errorStatus(error);
     const message = errorMessage(error);
     req.log.error({ err: error, repoUrl: parsed.data.repoUrl, status }, "Repository scan failed");
 
+    if (status === 429) {
+      res.status(429).json({ error: "Scan allowance exhausted. Please check your plan." });
+      return;
+    }
+    if (!status && /quota|allowance|account not found|database|connection/i.test(message)) {
+      res.status(503).json({ error: "Scan allowance could not be recorded; please retry." });
+      return;
+    }
     if (status === 409 || /repository is empty|empty repository/i.test(message)) {
       res.status(422).json({ error: "This GitHub repository is empty. Add at least one committed file before scanning." });
       return;
