@@ -1,0 +1,135 @@
+name: AgentShield Phase 1+2 — Security & Scanner Validation
+on:
+  push:
+    branches:
+      - feat/agentshield-phase1-phase2-security
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  full-regression:
+    name: Release builds, original suites and new phase tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Install exact locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build shared types
+        run: pnpm run typecheck:libs
+      - name: Frontend build
+        run: pnpm --filter @workspace/vibeguard run build
+      - name: Frontend strict typecheck
+        run: pnpm --filter @workspace/vibeguard run typecheck
+      - name: Backend build
+        run: pnpm --filter @workspace/api-server run build
+      - name: Backend strict typecheck
+        run: pnpm --filter @workspace/api-server run typecheck
+      - name: Build standalone security scanner
+        run: pnpm --filter @workspace/api-server run build:agentshield
+      - name: VibeSane PR findings diagnostic (fails on new Critical/High)
+        run: node artifacts/api-server/scripts/diagnose-vibesane-pr.mjs
+      - name: VibeSane GitHub check metadata and privacy tests
+        run: pnpm --filter @workspace/api-server run test:vibesane:check-output
+      - name: Week 1 tests
+        run: pnpm --filter @workspace/api-server run test:agentshield
+      - name: Week 2 tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week2
+      - name: Week 3 tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week3
+      - name: Week 4 packaging and regression tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week4
+      - name: Week 5 web integration tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week5
+      - name: Local AI safety tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:hybrid
+      - name: AST tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:ast
+      - name: Taint tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:taint
+      - name: Existing release security contracts
+        run: pnpm --filter @workspace/api-server run test:agentshield:release
+      - name: Phase 1+2 security and evaluation tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:phase12
+      - name: Existing SUE regression
+        run: pnpm --filter @workspace/api-server run test:sue
+      - name: Synthetic taint benchmark (tuned, not holdout)
+        run: pnpm --filter @workspace/api-server run benchmark:agentshield:taint
+      - name: Experimental AST benchmark (synthetic)
+        run: pnpm --filter @workspace/api-server run benchmark:agentshield:ast
+
+  usage-privilege-proof:
+    name: Rehearse usage entitlement lockdown in isolated PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: agentshield_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d agentshield_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test proposed billing entitlement grants using only synthetic data
+        env:
+          PGPASSWORD: disposable_ci_only
+        run: |
+          psql -h 127.0.0.1 -U postgres -d agentshield_test \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/review-only/test-usage-entitlement-lockdown.sql.fixture
+
+  token-privilege-proof:
+    name: Rehearse token and audit lockdown in isolated PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: token_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d token_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify proposed token and audit grants against simulated user roles
+        env:
+          PGPASSWORD: disposable_ci_only
+        run: |
+          psql -h 127.0.0.1 -U postgres -d token_test \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/review-only/test-token-audit-lockdown.sql.fixture
