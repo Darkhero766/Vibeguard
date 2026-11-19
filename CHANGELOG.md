@@ -1,3 +1,13 @@
+## 2026-11-19
+
+### AgentShield Week 3 — local final gate and reliability hardening (feature branch only)
+
+- Added a Stop-time, race-aware static security gate that rescans supported Git-visible changes, including staged/unstaged/untracked files and Bash-created sources.
+- Added explicit incomplete/no-changes results, final-report coverage checks, bounded Auto-fix continuations and nonblocking Monitor/Assist behavior.
+- Hardened session locks with conservative abandoned-lock recovery, retention-based local cleanup and a 200-file metadata cap that reports partial coverage.
+- Added a unified local developer command, diagnostics, idempotent installation checks, and new safety/acceptance tests.
+- Production source routes, secrets, deployments and the default branch were not changed. Live authenticated Claude Code operation still requires acceptance testing; API-wide pre-existing TypeScript errors remain.
+
 ## 2026-11-19 — AgentShield Week 2 (feature branch)
 
 - Added per-project AgentShield Monitor/Assist/Auto-fix configuration, optional parse-only verification, per-session repair state, safe Stop-hook continuation and explicit manual status/verify commands.
