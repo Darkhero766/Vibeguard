@@ -20,14 +20,14 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
 
   for (const file of files.filter((f) => /\.sql$/i.test(f.path))) {
     const sql = stripSqlComments(file.content);
-    for (const match of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)/gi)) {
+    for (const match of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:"?([A-Za-z_]\w*)"?\s*\.\s*)?"?([A-Za-z_]\w*)"?/gi)) {
       const schema = match[1];
       const table = match[2];
       const line = lineAt(file.content, match.index ?? 0);
       const qualifiedTable = schema ? `${schema}.${table}` : table;
       const escapedSchema = schema?.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const escapedTable = table.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const tableRef = escapedSchema ? `${escapedSchema}\\.${escapedTable}` : escapedTable;
+      const tableRef = escapedSchema ? `"?${escapedSchema}"?\\s*\\.\\s*"?${escapedTable}"?` : `"?${escapedTable}"?`;
       const enablePattern = new RegExp(`alter\\s+table\\s+(?:if\\s+exists\\s+)?${tableRef}\\s+enable\\s+row\\s+level\\s+security`, "i");
       if (!enablePattern.test(sql)) {
         findings.push(finding(`rls-${file.path}-${line}`, "Critical", `RLS is not enabled on "${qualifiedTable}"`, `Table ${qualifiedTable} has no Row-Level Security enabled.`, file.path, line, "rls"));
@@ -43,7 +43,7 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
   }
 
   for (const file of files.filter((f) => /\.(?:[cm]?[jt]sx?)$/i.test(f.path))) {
-    const serviceRoleUsage = /(?:process\.env\.[A-Z0-9_]*SERVICE_ROLE_KEY|import\.meta\.env\.[A-Z0-9_]*SERVICE_ROLE_KEY|Deno\.env\.get\(\s*["'][^"']*SERVICE_ROLE_KEY[^"']*["']\)|createClient\s*\([\s\S]{0,500}(?:service[_-]?role|SERVICE_ROLE_KEY))/gi;
+    const serviceRoleUsage = /(?:process\.env\.[A-Z0-9_]*SERVICE_ROLE_KEY|import\.meta\.env\.[A-Z0-9_]*SERVICE_ROLE_KEY|(?:window|globalThis)\.__ENV\.[A-Z0-9_]*SERVICE_ROLE_KEY|Deno\.env\.get\(\s*["'][^"']*SERVICE_ROLE_KEY[^"']*["']\)|createClient\s*\([\s\S]{0,500}(?:service[_-]?role|SERVICE_ROLE_KEY))/gi;
     for (const match of file.content.matchAll(serviceRoleUsage)) {
       const line = lineAt(file.content, match.index ?? 0);
       if (/(^|\/)api\/|(^|\/)server\/|(^|\/)middleware\.|\.server\./i.test(file.path)) continue;
@@ -64,7 +64,7 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
     }
   }
 
-  for (const file of files.filter((f) => /(^|\/)\.env(?:\.local|\.production|\.development)?$/i.test(f.path))) {
+  for (const file of files.filter((f) => /(^|\/)\.env(?:\.(?!(?:example|sample|template)$)[\w-]+)?$/i.test(f.path))) {
     findings.push(finding(`env-${file.path}`, "Critical", "A .env file is committed to the repository", "Environment files can expose API keys, database passwords, and service credentials.", file.path, 1, "committed_env_file"));
   }
 
