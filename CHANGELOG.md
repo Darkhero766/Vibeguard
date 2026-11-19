@@ -1,3 +1,12 @@
+## 2026-11-19
+
+### AgentShield Week 1 — local Claude Code integration (feature branch only)
+
+- Reused existing API and extended VibeSane security checks for local source-file analysis without changing the GitHub scanning routes.
+- Added an independent changed-file CLI with JSON findings, explicit error exit codes, source-file limits, and a local experimental interpolated-SQL warning.
+- Added a Claude Code PostToolUse hook, reversible project-local installation, tests for vulnerable and clean fixtures, and a branch-only test workflow.
+- No production deployment, merge, or credentials change; manual and CI validation are reported separately in the AgentShield Week 1 documentation.
+
 ## 2026-10-13
 
 ### Mobile SUE audit layout correction
