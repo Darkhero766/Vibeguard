@@ -129,12 +129,24 @@ export async function hybrid(argv) {
     note:'Opt-in JS/TS AST analysis is experimental and not part of the normal Stop gate.' };
   if (options.enableAst && staticResult.filesScanned) {
     try {
-      const { analyzeRepositoryPaths } = await import('./agentshield-ast.mjs');
       if (before.changedPaths.length !== staticResult.scannedPaths.length ||
         before.changedPaths.some(p => !staticResult.scannedPaths.includes(p))) {
         throw new Error('Git changed-file selection changed or includes unscanned paths.');
       }
-      ast = await analyzeRepositoryPaths(options.cwd,staticResult.scannedPaths);
+      // TypeScript's parser runs in an isolated, time-limited child with a bounded
+      // V8 heap. Do not forward credentials or NODE_OPTIONS from the CLI process.
+      const worker=path.join(root,'scripts/agentshield-ast-worker.mjs');
+      const { stdout }=await exec(process.execPath,[
+        '--max-old-space-size=256',worker,options.cwd,JSON.stringify(staticResult.scannedPaths),
+      ],{
+        timeout:10_000,maxBuffer:1_500_000,windowsHide:true,
+        env:{ PATH:process.env.PATH || '', LANG:'C.UTF-8', NODE_OPTIONS:'' },
+      });
+      ast=JSON.parse(stdout);
+      if (!ast || !['complete','scan_incomplete'].includes(ast.status) ||
+        !Array.isArray(ast.findings) || !Number.isInteger(ast.filesAnalyzed)) {
+        throw new Error('AST worker produced invalid output.');
+      }
       const after=await snapshot(options.cwd);
       if (before.fingerprint !== after.fingerprint) {
         throw new Error('Worktree changed during hybrid AST analysis.');
