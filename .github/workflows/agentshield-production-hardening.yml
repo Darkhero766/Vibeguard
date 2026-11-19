@@ -99,4 +99,4 @@ jobs:
         run: |
           psql -h 127.0.0.1 -U postgres -d agentshield_test \
             -v ON_ERROR_STOP=1 \
-            -f supabase/review-only/test-usage-entitlement-lockdown.sql
+            -f supabase/review-only/test-usage-entitlement-lockdown.sql.fixture
