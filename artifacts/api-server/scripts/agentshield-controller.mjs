@@ -66,9 +66,31 @@ async function readState(file, config) {
   if (!config.privacy.retentionHours || Date.now() - Number(doc.updatedAt || 0) > config.privacy.retentionHours * 3600000) return freshState();
   return doc;
 }
+async function pruneExpiredSessions(root, config) {
+  const hours = config.privacy.retentionHours;
+  if (!hours) return;
+  const dir = projectStateDir(root);
+  let files;
+  try { files = (await readdir(dir)).filter(name => /^[a-f0-9]{28}\.json$/.test(name)); }
+  catch (e) { if (e?.code === 'ENOENT') return; throw e; }
+  const cutoff = Date.now() - hours * 3600000;
+  for (const name of files.slice(0, 300)) {
+    const file = path.join(dir, name);
+    try {
+      const info = await lstat(file);
+      if (!info.isFile() || info.isSymbolicLink() || info.mtimeMs >= cutoff) continue;
+      // Do not remove state owned by an active (or indeterminate) lock.
+      try { await lstat(file + '.lock'); continue; }
+      catch (e) { if (e?.code !== 'ENOENT') continue; }
+      await rm(file, { force: true });
+    } catch (e) { if (e?.code !== 'ENOENT') throw e; }
+  }
+}
+
 async function withLockedState(root, session, config, callback) {
   const file = sessionFile(root, session);
   if (!config.privacy.retentionHours) return callback(freshState(), false);
+  await pruneExpiredSessions(root, config);
   await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
   const lock = file + '.lock';
   let acquired = false;
