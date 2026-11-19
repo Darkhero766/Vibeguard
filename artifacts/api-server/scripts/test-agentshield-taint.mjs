@@ -94,7 +94,8 @@ test('hybrid worker returns distinct taint findings and preserves static metadat
   t.after(async()=>rm(dir,{recursive:true,force:true}));
   await exec('git',['init','-q',dir],{timeout:5000});
   await mkdir(path.join(dir,'src'));
-  await writeFile(path.join(dir,'src/route.ts'),'const id=req.query.id;const sql="SELECT id FROM users WHERE id="+id;db.query(sql);\n');
+  const routeFixture='const id=req.query.id;const sql="SELECT id FROM users WHERE id="+id;db.query(sql);\n';
+  await writeFile(path.join(dir,'src/route.ts'),routeFixture);
   const entry=path.join(scripts,'vibesane.mjs');
   let stdout,exit=0;
   try {({stdout}=await exec(process.execPath,[entry,'hybrid','--changed','--cwd',dir,'--enable-ast','--format','json'],{timeout:25000,maxBuffer:700000}));}
@@ -108,7 +109,8 @@ test('taint report never prints unrelated literal private source',async t=>{
   const dir=await mkdtemp(path.join(tmpdir(),'agentshield-taint-private-'));
   t.after(async()=>rm(dir,{recursive:true,force:true}));
   await exec('git',['init','-q',dir]);
-  await writeFile(path.join(dir,'q.ts'),'const privateSecret="PRIVATE_ONLY_DO_NOT_UPLOAD_0123456789";const q="SELECT id FROM u WHERE id="+req.query.id;db.query(q);');
+  const privateFixture='const privateSecret="PRIVATE_ONLY_DO_NOT_UPLOAD_0123456789";const q="SELECT id FROM u WHERE id="+req.query.id;db.query(q);';
+  await writeFile(path.join(dir,'q.ts'),privateFixture);
   const entry=path.join(scripts,'vibesane.mjs');
   let stdout;try{({stdout}=await exec(process.execPath,[entry,'hybrid','--changed','--cwd',dir,'--enable-ast'],{timeout:22000}));}
   catch(e){if(typeof e.stdout!=='string')throw e;stdout=e.stdout;}
