@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 export const DEFAULT_CONFIG = Object.freeze({
   enabled: true, mode: 'monitor', maxAttempts: 2, timeBudgetSeconds: 120,
   blockingSeverity: 'High', verification: { syntaxCheck: false, approved: false },
-  privacy: { retentionHours: 24 },
+  privacy: { retentionHours: 24 }, acknowledgements: [],
 });
 export const SEVERITY = { Critical: 4, High: 3, Medium: 2, Low: 1 };
 const VALID_MODES = ['monitor', 'assist', 'auto-fix'];
@@ -28,6 +28,18 @@ export function parseConfig(raw = {}) {
     verification: { ...DEFAULT_CONFIG.verification, ...(raw.verification || {}) },
     privacy: { ...DEFAULT_CONFIG.privacy, ...(raw.privacy || {}) },
   };
+  if (!Array.isArray(config.acknowledgements) || config.acknowledgements.length > 100)
+    throw new Error('acknowledgements must contain at most 100 scoped entries.');
+  for (const item of config.acknowledgements) {
+    if (!item || typeof item !== 'object' || Array.isArray(item) ||
+      !/^[a-z][a-z0-9_]{0,100}$/.test(item.ruleId || '') ||
+      typeof item.filePath !== 'string' || item.filePath.length > 400 ||
+      item.filePath.startsWith('/') || item.filePath.split('/').includes('..') ||
+      !['false-positive', 'accepted-risk', 'compensating-control'].includes(item.reasonCode) ||
+      !Number.isSafeInteger(item.expiresAt) || item.expiresAt <= 0) {
+      throw new Error('Invalid scoped acknowledgement.');
+    }
+  }
   if (typeof config.enabled !== 'boolean') throw new Error('enabled must be a boolean.');
   if (!VALID_MODES.includes(config.mode)) throw new Error('mode must be monitor, assist, or auto-fix.');
   if (!Number.isInteger(config.maxAttempts) || config.maxAttempts < 1 || config.maxAttempts > 4) throw new Error('maxAttempts must be between 1 and 4.');
@@ -126,7 +138,12 @@ export function summarize(state, config) {
   const entries = Object.values(state.files || {});
   const active = entries.flatMap((e) => e.active || []);
   return {
-    filesTracked: entries.length, stateTruncated: Boolean(state.prunedEntries), activeFindings: active.reduce((n, f) => n + f.count, 0),
+    filesTracked: entries.length, stateTruncated: Boolean(state.prunedEntries),
+    severityBreakdown: { Critical: active.filter(f => f.severity === 'Critical').reduce((n, f) => n + f.count, 0),
+      High: active.filter(f => f.severity === 'High').reduce((n, f) => n + f.count, 0),
+      Medium: active.filter(f => f.severity === 'Medium').reduce((n, f) => n + f.count, 0),
+      Low: active.filter(f => f.severity === 'Low').reduce((n, f) => n + f.count, 0) },
+    activeFindings: active.reduce((n, f) => n + f.count, 0),
     blocking: active.filter((f) => severityBlocks(f.severity, config.blockingSeverity)).reduce((n, f) => n + f.count, 0),
     attempts: entries.reduce((n, e) => n + e.attempts, 0),
     files: entries.map((e) => ({ filePath: e.filePath, scanState: e.scanState, verificationState: e.verificationState,

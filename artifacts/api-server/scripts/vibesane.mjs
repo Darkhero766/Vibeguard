@@ -71,8 +71,8 @@ async function main(args) {
     if (!await isFile(dist)) throw new Error('AgentShield scanner is not built.');
     return child(dist, ['scan', ...tail]);
   }
-  if (['verify', 'status', 'config'].includes(command)) return child(controller, [command, ...tail]);
-  throw new Error('Commands: init, scan --changed, verify --changed, status, config, doctor, uninstall.');
+  if (['verify', 'status', 'config', 'acknowledge'].includes(command)) return child(controller, [command, ...tail]);
+  throw new Error('Commands: init, scan --changed, verify --changed, status, config, acknowledge, doctor, uninstall.');
 }
 main(process.argv.slice(2)).then(code => { process.exitCode = code; }).catch(() => {
   process.stdout.write(JSON.stringify({ status: 'error', message: 'AgentShield command failed; run doctor for local diagnostics.' }) + '\n');
