@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { analyzeSource, analyzeRepositoryPaths } from './agentshield-ast.mjs';
 import { parseHybridArgs } from './agentshield-hybrid.mjs';
+import { benchmarkAst } from './benchmark-agentshield-ast.mjs';
 
 const exec=promisify(execFile);
 const scripts=path.dirname(fileURLToPath(import.meta.url));
@@ -138,4 +139,14 @@ test('AST does not execute repository package scripts',async t=>{
   const {result}=await hybrid(root,['--enable-ast']);
   assert.equal(result.ast.status,'complete');
   assert.ok(result.ast.findings.length>0);
+});
+
+test('measured 24-case AST versus regex comparison preserves all labels and exposes misses',async()=>{
+  const result=await benchmarkAst();
+  assert.equal(result.cases,24);
+  assert.equal(result.regexOnly.tp+result.regexOnly.tn+result.regexOnly.fp+result.regexOnly.fn,24);
+  assert.equal(result.experimentalAst.tp+result.experimentalAst.tn+result.experimentalAst.fp+result.experimentalAst.fn,24);
+  assert.ok(result.experimentalAst.recall >= result.regexOnly.recall);
+  assert.equal(result.misses.ast.length,result.experimentalAst.fp+result.experimentalAst.fn);
+  console.log('OBSERVED_AGENTSIELD_AST_COMPARE='+JSON.stringify(result));
 });
