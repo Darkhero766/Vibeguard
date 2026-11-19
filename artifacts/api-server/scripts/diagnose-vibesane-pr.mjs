@@ -84,6 +84,11 @@ export async function diagnose(){
   }finally{await rm(temp,{recursive:true,force:true});}
 }
 if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  diagnose().then(r=>process.stdout.write('OBSERVED_VIBESANE_DELTA='+JSON.stringify(r)+'\n'))
+  diagnose().then(r=>{
+    process.stdout.write('OBSERVED_VIBESANE_DELTA='+JSON.stringify(r)+'\n');
+    // Match the deployed GitHub app's blocking policy: a new Critical or
+    // High finding must fail release-candidate CI, not just print a score.
+    if (r.critical>0 || r.high>0) process.exitCode=1;
+  })
     .catch(e=>{process.stderr.write('Delta diagnosis failed: '+e.message+'\n');process.exitCode=2;});
 }
