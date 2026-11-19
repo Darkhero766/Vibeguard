@@ -18,18 +18,18 @@ if (Number.isNaN(port) || port <= 0) {
 
 // IMPORTANT: start listening before any external dependency work.
 // Render expects the HTTP port to become reachable quickly during deploys.
-// Database initialization is deliberately performed in the background so a
+// Database schema verification is deliberately performed in the background so a
 // slow/unreachable Supabase connection cannot make the Render deployment
 // time out before the health check can reach "/".
 const server = app.listen(port, () => {
   logger.info({ port }, "Server listening");
 
   void ensureTables().then(() => {
-    logger.info("Database initialization completed");
+    logger.info("Database schema verified (read-only)");
   }).catch((error) => {
     // ensureTables is intentionally non-fatal. Individual API operations
     // will surface database errors if the database is unavailable.
-    logger.warn({ err: error }, "Database initialization failed");
+    logger.warn({ err: error }, "Database schema readiness check failed");
   });
 });
 
