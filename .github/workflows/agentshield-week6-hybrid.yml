@@ -30,6 +30,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build shared libraries and validate frontend
         run: pnpm run typecheck:libs && pnpm --filter @workspace/vibeguard run typecheck
+      - name: Build web frontend and verify generated AgentShield route
+        run: pnpm --filter @workspace/vibeguard run build
       - name: Validate backend TypeScript
         run: pnpm --filter @workspace/api-server run typecheck
       - name: Build standalone static scanner
