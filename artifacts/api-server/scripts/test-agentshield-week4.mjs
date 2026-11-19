@@ -246,3 +246,51 @@ test('human-readable verify shows scoped severity and action without revealing f
     assert.doesNotMatch(e.stdout, /K{30}/);
   }
 });
+
+test('staging env file is flagged while an example template remains safe', async (t) => {
+  const root = await fixture(t);
+  await writeFile(path.join(root, '.env.staging'), 'DEMO_FLAG=placeholder\n');
+  assert.ok((await scan(root, ['--file', '.env.staging'])).report.findings.some(f => f.ruleId === 'committed_env_file'));
+  await writeFile(path.join(root, '.env.example'), 'DEMO_FLAG=placeholder\n');
+  assert.ok(!(await scan(root, ['--file', '.env.example'])).report.findings.some(f => f.ruleId === 'committed_env_file'));
+});
+
+test('quoted SQL table names are recognized for missing and enabled RLS', async (t) => {
+  const root = await fixture(t);
+  const name = path.join(root, 'migrations/quoted.sql');
+  await mkdir(path.dirname(name), { recursive: true });
+  await writeFile(name, 'CREATE TABLE "public"."reports" (id uuid PRIMARY KEY);\n');
+  assert.ok((await scan(root)).report.findings.some(f => f.ruleId === 'rls'));
+  await writeFile(name, 'CREATE TABLE "public"."reports" (id uuid PRIMARY KEY); ALTER TABLE "public"."reports" ENABLE ROW LEVEL SECURITY;\n');
+  assert.ok(!(await scan(root)).report.findings.some(f => f.ruleId === 'rls'));
+});
+
+test('browser runtime service-role exposure is distinguished from anon key', async (t) => {
+  const root = await fixture(t);
+  const source = path.join(root, 'src/client.ts');
+  await mkdir(path.dirname(source), { recursive: true });
+  await writeFile(source, 'const key = window.__ENV.SUPABASE_SERVICE_ROLE_KEY;\n');
+  assert.ok((await scan(root)).report.findings.some(f => f.ruleId === 'service_role_client'));
+  await writeFile(source, 'const key = window.__ENV.SUPABASE_ANON_KEY;\n');
+  assert.ok(!(await scan(root)).report.findings.some(f => f.ruleId === 'service_role_client'));
+});
+
+test('direct SQL string concatenation is flagged while parameter binding is not', async (t) => {
+  const root = await fixture(t);
+  const source = path.join(root, 'src/db.ts');
+  await mkdir(path.dirname(source), { recursive: true });
+  await writeFile(source, "db.query('SELECT * FROM users WHERE id=' + userId);\n");
+  assert.ok((await scan(root)).report.findings.some(f => f.ruleId === 'unsafe_sql_template'));
+  await writeFile(source, 'db.query("SELECT * FROM users WHERE id=$1", [userId]);\n');
+  assert.ok(!(await scan(root)).report.findings.some(f => f.ruleId === 'unsafe_sql_template'));
+});
+
+test('readonly typed literal JWT secret is detected but environment source is not', async (t) => {
+  const root = await fixture(t);
+  const source = path.join(root, 'src/auth.ts');
+  await mkdir(path.dirname(source), { recursive: true });
+  await writeFile(source, 'const jwtSecret: Readonly<string> = "' + 'T'.repeat(36) + '";\n');
+  assert.ok((await scan(root)).report.findings.some(f => f.ruleId === 'hardcoded_jwt_secret'));
+  await writeFile(source, 'const jwtSecret: Readonly<string> = process.env.JWT_SECRET;\n');
+  assert.ok(!(await scan(root)).report.findings.some(f => f.ruleId === 'hardcoded_jwt_secret'));
+});
