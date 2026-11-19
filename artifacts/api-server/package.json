@@ -20,7 +20,8 @@
     "test:agentshield:week4": "node --test ./scripts/test-agentshield-week4.mjs",
     "benchmark:agentshield": "node ./scripts/benchmark-agentshield-accuracy.mjs",
     "package:agentshield:beta": "node ./scripts/package-agentshield-beta.mjs",
-    "test:agentshield:week5": "node --test ./scripts/test-agentshield-week5.mjs"
+    "test:agentshield:week5": "node --test ./scripts/test-agentshield-week5.mjs",
+    "test:agentshield:hybrid": "node --test ./scripts/test-agentshield-hybrid.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
