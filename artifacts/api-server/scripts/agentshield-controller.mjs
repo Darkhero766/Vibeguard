@@ -223,7 +223,7 @@ async function atStop(event, root, config) {
     const unscanned = Object.values(next.files).filter(f => f.active?.length &&
       !gate.scannedPaths.includes(f.filePath)).map(f => f.filePath);
     next.lastGateFingerprint = gate.fingerprint;
-    next.lastGate = { at: Date.now(), status: unscanned.length ? 'partial' : 'complete',
+    next.lastGate = { at: Date.now(), status: unscanned.length || next.prunedEntries ? 'partial' : 'complete',
       filesScanned: gate.filesScanned, blocking: gate.blocking, unscannedCount: unscanned.length };
     const entries = Object.values(next.files).filter((f) => f.active?.length);
     const pending = entries.find((f) =>
@@ -240,7 +240,7 @@ async function atStop(event, root, config) {
     }
     const alreadyRequested = entries.some(f => f.active?.length && f.lastStopSignature === f.signature);
     next.updatedAt = Date.now();
-    return { state: next, message, unscannedCount: unscanned.length, repeatedGate, alreadyRequested };
+    return { state: next, message, unscannedCount: unscanned.length + Number(Boolean(next.prunedEntries)), repeatedGate, alreadyRequested };
   });
   if (result.unscannedCount) {
     return { systemMessage: 'VibeSane AgentShield: final scan did not cover previously flagged files; result PARTIAL, not verified.' };
@@ -320,7 +320,7 @@ async function verifyNow(root, opts, config) {
   // Keep interactive session state untouched when an independent CLI verification is requested.
   await withLockedState(root, session, config, async () => ({ state: next }));
   const incomplete = Object.values(state.files).filter((x) => x.active?.length && !report.scannedPaths.includes(x.filePath)).map((x) => x.filePath);
-  const status = incomplete.length ? 'partial' : 'complete';
+  const status = incomplete.length || next.prunedEntries ? 'partial' : 'complete';
   const summary = summarize(next, config);
   const result = { tool: 'VibeSane AgentShield', status, mode: config.mode, filesScanned: report.filesScanned,
     ...summary, outcomes, unscannedPreviouslyFlagged: incomplete,
