@@ -62,5 +62,7 @@ jobs:
         run: pnpm --filter @workspace/api-server run test:agentshield:release
       - name: Existing SUE application regression
         run: pnpm --filter @workspace/api-server run test:sue
+      - name: New untouched taint challenge metrics (do not tune in CI)
+        run: pnpm --filter @workspace/api-server run benchmark:agentshield:taint
       - name: Independently reproducible AST benchmark
         run: pnpm --filter @workspace/api-server run benchmark:agentshield:ast
