@@ -1,57 +1,25 @@
 import { Router } from "express";
+import { pool } from "@workspace/db";
 import { encryptToken, decryptToken } from "../lib/crypto";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
-// Supabase REST API (PostgREST) — reachable via HTTPS from any environment,
-// unlike the direct Postgres connection which Replit's sandbox blocks.
-const supabaseUrl =
-  process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-const supabaseAnonKey =
-  process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? "";
-
-function supabaseHeaders(userJwt: string) {
-  return {
-    apikey: supabaseAnonKey,
-    Authorization: `Bearer ${userJwt}`,
-    "Content-Type": "application/json",
-  };
-}
-
-/** Fetch the encrypted token row for a user via Supabase REST (PostgREST). */
-async function fetchTokenRow(
-  userId: string,
-  userJwt: string,
-): Promise<{ encrypted_token: string } | null> {
-  const url = `${supabaseUrl}/rest/v1/github_tokens?owner=eq.${encodeURIComponent(userId)}&select=encrypted_token&limit=1`;
-  const res = await fetch(url, { headers: supabaseHeaders(userJwt) });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Supabase REST error ${res.status}: ${body}`);
-  }
-  const rows = (await res.json()) as { encrypted_token: string }[];
+// GitHub token encryption/storage is server-only. Supabase browser roles must
+// have NO SQL permissions on public.github_tokens after a reviewed migration.
+async function fetchTokenRow(userId: string): Promise<{ encrypted_token: string } | null> {
+  const { rows } = await pool.query<{ encrypted_token: string }>(
+    "SELECT encrypted_token FROM public.github_tokens WHERE owner = $1 LIMIT 1",
+    [userId],
+  );
   return rows[0] ?? null;
 }
-
-/** Upsert (insert or replace) a github token row via Supabase REST. */
-async function upsertTokenRow(
-  userId: string,
-  encryptedToken: string,
-  userJwt: string,
-): Promise<void> {
-  const url = `${supabaseUrl}/rest/v1/github_tokens?on_conflict=owner`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      ...supabaseHeaders(userJwt),
-      Prefer: "resolution=merge-duplicates,return=minimal",
-    },
-    body: JSON.stringify({ owner: userId, encrypted_token: encryptedToken }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Supabase REST upsert error ${res.status}: ${body}`);
-  }
+async function upsertTokenRow(userId: string, encryptedToken: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO public.github_tokens (owner, encrypted_token)
+     VALUES ($1, $2)
+     ON CONFLICT (owner) DO UPDATE SET encrypted_token = EXCLUDED.encrypted_token`,
+    [userId, encryptedToken],
+  );
 }
 
 // ─── In-memory repo cache ─────────────────────────────────────────────────────
@@ -78,14 +46,14 @@ const router = Router();
  */
 router.post("/github/token", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
   const { token } = req.body as { token?: unknown };
-  if (!token || typeof token !== "string") {
+  if (typeof token !== "string" || !token || token.length > 512) {
     res.status(400).json({ error: "token is required" });
     return;
   }
 
   try {
     const encrypted = encryptToken(token);
-    await upsertTokenRow(req.userId!, encrypted, req.userJwt!);
+    await upsertTokenRow(req.userId!, encrypted);
     // Invalidate any cached repo list so the next fetch is fresh.
     repoCache.delete(req.userId!);
     res.json({ ok: true });
@@ -101,20 +69,31 @@ router.post("/github/token", requireAuth, async (req: AuthedRequest, res): Promi
  */
 router.delete("/github/token", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
   try {
-    const url = `${supabaseUrl}/rest/v1/github_tokens?owner=eq.${encodeURIComponent(req.userId!)}`;
-    const deleteRes = await fetch(url, {
-      method: "DELETE",
-      headers: supabaseHeaders(req.userJwt!),
-    });
-    if (!deleteRes.ok) {
-      const body = await deleteRes.text();
-      throw new Error(`Supabase REST delete error ${deleteRes.status}: ${body}`);
-    }
+    await pool.query("DELETE FROM public.github_tokens WHERE owner = $1", [req.userId!]);
     repoCache.delete(req.userId!);
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, "Failed to disconnect GitHub token");
     res.status(500).json({ error: "Failed to disconnect GitHub account" });
+  }
+});
+
+/**
+ * GET /github/token/status
+ * Returns a boolean, NEVER the stored encrypted token. This is the only
+ * token-connection lookup the browser should perform.
+ */
+router.get("/github/token/status", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const { rowCount } = await pool.query(
+      "SELECT 1 FROM public.github_tokens WHERE owner = $1 LIMIT 1",
+      [req.userId!],
+    );
+    res.json({ connected: (rowCount ?? 0) > 0 });
+  } catch (error) {
+    logger.error({ err: error }, "GitHub connection status unavailable");
+    res.status(503).json({ error: "GitHub connection status temporarily unavailable" });
   }
 });
 
@@ -139,7 +118,7 @@ router.get("/github/repos", requireAuth, async (req: AuthedRequest, res): Promis
   };
 
   try {
-    const row = await fetchTokenRow(req.userId!, req.userJwt!);
+    const row = await fetchTokenRow(req.userId!);
 
     if (!row) {
       res.status(404).json(noConnection);
@@ -173,8 +152,7 @@ router.get("/github/repos", requireAuth, async (req: AuthedRequest, res): Promis
     );
 
     if (!response.ok) {
-      const body = await response.text();
-      logger.warn({ status: response.status, body }, "GitHub API error");
+      logger.warn({ status: response.status }, "GitHub API error");
       res.status(502).json({ error: "Failed to fetch repositories from GitHub" });
       return;
     }
