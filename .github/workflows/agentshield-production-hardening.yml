@@ -1,0 +1,66 @@
+name: AgentShield Production Hardening — Safe Candidate Checks
+on:
+  push:
+    branches:
+      - feat/agentshield-production-hardening-phase1
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  release-candidate:
+    name: Strict builds, quota guards, taint analysis and all regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify shared type declarations
+        run: pnpm run typecheck:libs
+      - name: Build web app and statically rendered AgentShield page
+        run: pnpm --filter @workspace/vibeguard run build
+      - name: Strict frontend types
+        run: pnpm --filter @workspace/vibeguard run typecheck
+      - name: Build backend
+        run: pnpm --filter @workspace/api-server run build
+      - name: Strict backend types
+        run: pnpm --filter @workspace/api-server run typecheck
+      - name: Build local scanner
+        run: pnpm --filter @workspace/api-server run build:agentshield
+      - name: Week 1 scanner regressions
+        run: pnpm --filter @workspace/api-server run test:agentshield
+      - name: Week 2 repair regressions
+        run: pnpm --filter @workspace/api-server run test:agentshield:week2
+      - name: Week 3 gate regressions
+        run: pnpm --filter @workspace/api-server run test:agentshield:week3
+      - name: Week 4 accuracy, offline beta package and privacy
+        run: pnpm --filter @workspace/api-server run test:agentshield:week4
+      - name: Week 5 web onboarding and release regressions
+        run: pnpm --filter @workspace/api-server run test:agentshield:week5
+      - name: Week 6 local AI privacy and output bounds
+        run: pnpm --filter @workspace/api-server run test:agentshield:hybrid
+      - name: AST SQL construction and filesystem safety
+        run: pnpm --filter @workspace/api-server run test:agentshield:ast
+      - name: Request-input SQL taint and safe query controls
+        run: pnpm --filter @workspace/api-server run test:agentshield:taint
+      - name: Release contracts and quota security assertions
+        run: pnpm --filter @workspace/api-server run test:agentshield:release
+      - name: Existing SUE application regression
+        run: pnpm --filter @workspace/api-server run test:sue
+      - name: Independently reproducible AST benchmark
+        run: pnpm --filter @workspace/api-server run benchmark:agentshield:ast
