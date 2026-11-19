@@ -28,7 +28,7 @@
     "test:agentshield:release": "node --test ./scripts/test-agentshield-release.mjs",
     "benchmark:agentshield:taint": "node ./scripts/benchmark-agentshield-taint.mjs",
     "test:vibesane:check-output": "node --test ./scripts/test-vibesane-checks.mjs",
-    "test:agentshield:phase12": "node --test ./scripts/test-agentshield-phase12.mjs ./scripts/test-agentshield-crossfile.mjs ./scripts/test-agentshield-route-auth.mjs ./scripts/test-agentshield-supabase-policy.mjs",
+    "test:agentshield:phase12": "node --test ./scripts/test-agentshield-phase12.mjs ./scripts/test-agentshield-crossfile.mjs ./scripts/test-agentshield-route-auth.mjs ./scripts/test-agentshield-supabase-policy.mjs ./scripts/test-agentshield-auth-regression.mjs",
     "benchmark:agentshield:phase2": "node ./scripts/benchmark-agentshield-phase2.mjs"
   },
   "dependencies": {
