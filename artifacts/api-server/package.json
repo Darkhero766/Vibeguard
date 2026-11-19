@@ -13,7 +13,8 @@
     "benchmark:sue:live": "node ./scripts/benchmark-sue-live.mjs",
     "benchmark:sue:policies": "node ./scripts/benchmark-sue-vibecoded.mjs",
     "build:agentshield": "node ./scripts/build-agentshield.mjs",
-    "test:agentshield": "node --test ./scripts/test-agentshield.mjs"
+    "test:agentshield": "node --test ./scripts/test-agentshield.mjs",
+    "test:agentshield:week2": "node --test ./scripts/test-agentshield-week2.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
