@@ -73,8 +73,38 @@ async function withLockedState(root, session, config, callback) {
   const lock = file + '.lock';
   let acquired = false;
   for (let n = 0; n < 40; n++) {
-    try { await mkdir(lock, { mode: 0o700 }); acquired = true; break; }
-    catch (e) { if (e?.code !== 'EEXIST') throw e; await pause(50); }
+    try {
+      await mkdir(lock, { mode: 0o700 });
+      acquired = true;
+      await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: process.pid, createdAt: Date.now() }),
+        { flag: 'wx', mode: 0o600 });
+      break;
+    } catch (e) {
+      if (acquired) { await rm(lock, { recursive: true, force: true }); throw e; }
+      if (e?.code !== 'EEXIST') throw e;
+      // Recover abandoned locks only after 60s, and never steal a live process's lock.
+      // Atomic directory rename ensures only one contender can reclaim it.
+      try {
+        const info = await lstat(lock);
+        if (info.isDirectory() && Date.now() - info.mtimeMs > 60_000) {
+          let owner = null;
+          try { owner = await safeJSON(path.join(lock, 'owner.json'), 1000); } catch {}
+          let live = false;
+          if (Number.isInteger(owner?.pid) && owner.pid > 0) {
+            try { process.kill(owner.pid, 0); live = true; }
+            catch (err) { live = err?.code !== 'ESRCH'; }
+          }
+          if (!live) {
+            const abandoned = lock + '.abandoned-' + randomUUID();
+            try {
+              await rename(lock, abandoned);
+              await rm(abandoned, { recursive: true, force: true });
+            } catch (err) { if (err?.code !== 'ENOENT') throw err; }
+          }
+        }
+      } catch (err) { if (err?.code !== 'ENOENT') throw err; }
+      await pause(50);
+    }
   }
   if (!acquired) throw new Error('AgentShield state is busy; result is unknown.');
   try {
