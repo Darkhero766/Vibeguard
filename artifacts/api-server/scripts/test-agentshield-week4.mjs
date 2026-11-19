@@ -95,7 +95,7 @@ test('unpublished local beta package contains no server runtime or source corpus
   // a checkout, TypeScript install or application package dependencies.
   await mkdir(path.join(root, 'src'), { recursive: true });
   await writeFile(path.join(root, 'src/taint.ts'),
-    'const id=req.query.id; const sql="SELECT * FROM users WHERE id="+id; db.query(sql);\\n');
+    'const id=req.query.id; const sql="SELECT * FROM users WHERE id="+id; db.query(sql);\n');
   let hybridOutput;
   try {
     hybridOutput = await exec(process.execPath, [main, 'hybrid', '--changed',
