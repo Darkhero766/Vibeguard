@@ -5,6 +5,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
+import { lstat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { snapshot } from './agentshield-gate.mjs';
 const exec = promisify(execFile);
@@ -136,7 +137,10 @@ export async function hybrid(argv) {
       }
       // TypeScript's parser runs in an isolated, time-limited child with a bounded
       // V8 heap. Do not forward credentials or NODE_OPTIONS from the CLI process.
-      const worker=path.join(root,'scripts/agentshield-ast-worker.mjs');
+      const portableWorker=path.join(root,'scripts/agentshield-ast-worker.cjs');
+      const portableStat=await lstat(portableWorker).catch(()=>null);
+      const worker=(portableStat?.isFile() && !portableStat.isSymbolicLink())
+        ? portableWorker : path.join(root,'scripts/agentshield-ast-worker.mjs');
       const { stdout }=await exec(process.execPath,[
         '--max-old-space-size=256',worker,options.cwd,JSON.stringify(staticResult.scannedPaths),
       ],{
