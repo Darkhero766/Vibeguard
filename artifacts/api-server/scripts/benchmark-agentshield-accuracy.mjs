@@ -1,0 +1,76 @@
+#!/usr/bin/env node
+// Deterministic labeled fixture benchmark. No arbitrary project code execution.
+import { BENCHMARK_CASES } from './agentshield-accuracy-corpus.mjs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { performance } from 'node:perf_hooks';
+
+const exec = promisify(execFile);
+const scanCLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist/agentshield.mjs');
+function rates(c) {
+  const total = c.tp + c.tn + c.fp + c.fn;
+  return { ...c, total,
+    precision: c.tp + c.fp ? c.tp / (c.tp + c.fp) : null,
+    recall: c.tp + c.fn ? c.tp / (c.tp + c.fn) : null,
+    falsePositiveRate: c.fp + c.tn ? c.fp / (c.fp + c.tn) : null,
+    accuracy: total ? (c.tp + c.tn) / total : null };
+}
+function fresh() { return { tp: 0, tn: 0, fp: 0, fn: 0 }; }
+export async function benchmark() {
+  const root = await mkdtemp(path.join(tmpdir(), 'vibesane-accuracy-'));
+  const start = performance.now();
+  const totals = fresh(), categories = {}, misses = [];
+  let offTargetFindings = 0;
+  try {
+    await exec('git', ['init', '-q', root], { timeout: 5000 });
+    for (const tc of BENCHMARK_CASES) {
+      const target = path.join(root, tc.path);
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, tc.content, { mode: 0o600 });
+      let result;
+      try {
+        result = await exec(process.execPath, [scanCLI, 'scan', '--file', target,
+          '--cwd', root, '--format', 'json'], { timeout: 12000, maxBuffer: 1_500_000,
+          windowsHide: true, env: { ...process.env, NODE_OPTIONS: '' } });
+      } catch (e) {
+        if (e?.code !== 1 || typeof e.stdout !== 'string') throw new Error('Scanner failed while evaluating case: ' + tc.id);
+        result = { stdout: e.stdout };
+      }
+      let report;
+      try { report = JSON.parse(result.stdout); }
+      catch { throw new Error('Scanner produced invalid JSON on ' + tc.id); }
+      if (report.status !== 'complete' || report.filesScanned !== 1) throw new Error('Incomplete scan: ' + tc.id);
+      const actual = report.findings.some(f => f.ruleId === tc.ruleId);
+      offTargetFindings += report.findings.filter(f => f.ruleId !== tc.ruleId).length;
+      const bucket = tc.expected ? (actual ? 'tp' : 'fn') : (actual ? 'fp' : 'tn');
+      totals[bucket] += 1;
+      const cat = categories[tc.category] ||= fresh();
+      cat[bucket] += 1;
+      if (bucket === 'fn' || bucket === 'fp') {
+        misses.push({ caseId: tc.id, category: tc.category, ruleId: tc.ruleId,
+          expected: tc.expected, detected: actual, errorType: bucket, rationale: tc.rationale });
+      }
+    }
+    if (BENCHMARK_CASES.length < 100) throw new Error('Corpus too small; 100+ cases required.');
+    const report = { tool: 'VibeSane AgentShield accuracy benchmark', schemaVersion: 1,
+      corpusVersion: '2026-11-19-1', benchmarkType: 'synthetic_labeled_target_rule',
+      labelLimitations: 'Curated heuristic expectations, not independent exploit validation. Each case evaluates only its named target rule.',
+      totalCases: BENCHMARK_CASES.length, categoryCount: Object.keys(categories).length,
+      results: rates(totals), categories: Object.fromEntries(
+        Object.entries(categories).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, rates(v)])),
+      offTargetFindings, misclassifications: misses, measuredElapsedMs: Math.round(performance.now() - start),
+      nodeVersion: process.version, platform: process.platform,
+      targets: { precision: 0.9, recall: 0.85 },
+      targetsMet: (rates(totals).precision ?? 0) >= 0.9 && (rates(totals).recall ?? 0) >= 0.85 };
+    return report;
+  } finally { await rm(root, { recursive: true, force: true }); }
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  benchmark().then(r => process.stdout.write(JSON.stringify(r, null, 2) + '\n'))
+    .catch(e => { process.stderr.write('Accuracy benchmark failed: ' + e.message + '\n'); process.exitCode = 2; });
+}
