@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { BENCHMARK_CASES } from './agentshield-accuracy-corpus.mjs';
+import { HOLDOUT_CASES } from './agentshield-holdout-corpus.mjs';
 import { benchmark } from './benchmark-agentshield-accuracy.mjs';
 import { finalGate } from './agentshield-gate.mjs';
 import { parseConfig } from './agentshield-policy.mjs';
@@ -215,4 +216,16 @@ test('acknowledgement rejects traversal and unlimited expiration', async (t) => 
       assert.fail('Expected invalid acknowledgement rejection.');
     } catch (e) { assert.equal(e.code, 2); }
   }
+});
+
+test('independent held-out challenge set discloses weak patterns without altering expectations', async () => {
+  assert.equal(HOLDOUT_CASES.length, 24);
+  assert.equal(HOLDOUT_CASES.filter(x => x.expected).length, 12);
+  const result = await benchmark({ cases: HOLDOUT_CASES, kind: 'holdout' });
+  assert.equal(result.totalCases, 24);
+  assert.equal(result.results.tp + result.results.tn + result.results.fp + result.results.fn, 24);
+  console.log('OBSERVED_AGENTSHIELD_HOLDOUT=' + JSON.stringify({
+    ...result.results, misses: result.misclassifications.map(x => x.caseId),
+    measuredElapsedMs: result.measuredElapsedMs,
+  }));
 });
