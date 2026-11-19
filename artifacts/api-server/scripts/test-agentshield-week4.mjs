@@ -177,3 +177,42 @@ test('commented auth.getUser does not suppress missing authorization finding', a
   const out = await scan(root);
   assert.ok(out.report.findings.some(f => f.ruleId === 'unauthenticated_write'));
 });
+
+test('scoped acknowledgement stays visible but never suppresses a blocking finding', async (t) => {
+  const root = await fixture(t);
+  await mkdir(path.join(root, 'src'), { recursive: true });
+  await writeFile(path.join(root, 'src/auth.js'), 'const JWT_SECRET = "' + 'Z'.repeat(36) + '";\n');
+  const controller = path.join(api, 'scripts/agentshield-controller.mjs');
+  const config = await mkdtemp(path.join(tmpdir(), 'agentshield-w4-ack-'));
+  t.after(async () => { await rm(config, { recursive: true, force: true }); });
+  const env = { ...process.env, VIBESANE_AGENTSHIELD_CONFIG_HOME: path.join(config, 'config'),
+    VIBESANE_AGENTSHIELD_STATE_HOME: path.join(config, 'state') };
+  const ack = await exec(process.execPath, [controller, 'acknowledge', '--cwd', root,
+    '--file', 'src/auth.js', '--rule', 'hardcoded_jwt_secret', '--reason', 'false-positive', '--hours', '24'],
+  { timeout: 10000, env });
+  const acknowledged = JSON.parse(ack.stdout);
+  assert.equal(acknowledged.suppressesBlocking, false);
+  assert.equal(acknowledged.suppressesScan, false);
+  try {
+    await exec(process.execPath, [controller, 'verify', '--changed', '--cwd', root], { timeout: 15000, env });
+    assert.fail('The blocking finding must cause a nonzero exit code.');
+  } catch (e) {
+    assert.equal(e.code, 1);
+    const report = JSON.parse(e.stdout);
+    assert.ok(report.blocking > 0);
+    assert.ok(report.outcomes.some(o => o.acknowledgedRules.includes('hardcoded_jwt_secret')));
+    assert.ok(report.severityBreakdown.Critical > 0);
+  }
+});
+
+test('acknowledgement rejects traversal and unlimited expiration', async (t) => {
+  const root = await fixture(t);
+  const controller = path.join(api, 'scripts/agentshield-controller.mjs');
+  for (const [file, hours] of [['../secret.ts', '24'], ['src/auth.js', '999']]) {
+    try {
+      await exec(process.execPath, [controller, 'acknowledge', '--cwd', root,
+        '--file', file, '--rule', 'hardcoded_jwt_secret', '--reason', 'false-positive', '--hours', hours], { timeout: 10000 });
+      assert.fail('Expected invalid acknowledgement rejection.');
+    } catch (e) { assert.equal(e.code, 2); }
+  }
+});
