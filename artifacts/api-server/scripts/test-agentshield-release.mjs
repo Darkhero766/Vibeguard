@@ -32,7 +32,8 @@ test('web frontend reads usage but does not create, update or insert billing/quo
   const src=await read('artifacts/vibeguard/src/contexts/AuthContext.tsx');
   assert.match(src,/\.from\('usage'\)\.select/);
   assert.doesNotMatch(src,/\.from\('usage'\)\.(?:insert|update|upsert|delete)/);
-  assert.match(src,/github_tokens'\)\.select\('owner'\)/);
+  assert.doesNotMatch(src,/\.from\('github_tokens'\)/);
+  assert.match(src,/\/api\/github\/token\/status/);
 });
 test('authenticated web scans fail closed if quota verification fails',async()=>{
   const src=await read('artifacts/api-server/src/routes/scans.ts');
@@ -94,4 +95,30 @@ test('Dodo billing and webhook request paths never self-migrate schema',async()=
   assert.doesNotMatch(billing,/(?:ALTER\s+TABLE|CREATE\s+TABLE|CREATE\s+INDEX)\s+(?:public\.)?(?:usage|dodo_webhook_events|hackathon_redemptions)/i);
   assert.match(billing,/information_schema\.columns/);
   assert.match(billing,/schema is incomplete/);
+});
+
+
+test('all GitHub token CRUD stays on privileged DB, not user JWT PostgREST',async()=>{
+  const route=await read('artifacts/api-server/src/routes/github.ts');
+  const lib=await read('artifacts/api-server/src/lib/github.ts');
+  const frontend=await read('artifacts/vibeguard/src/contexts/AuthContext.tsx');
+  assert.doesNotMatch(route+lib,/\/rest\/v1\/github_tokens/);
+  assert.doesNotMatch(frontend,/\.from\('github_tokens'\)/);
+  assert.match(route,/GET \/github\/token\/status/);
+  assert.match(route,/Cache-Control", "no-store"/);
+  assert.match(route,/res\.json\(\{ connected:/);
+  assert.doesNotMatch(route,/res\.json\(\{\s*encrypted_token/);
+  assert.match(lib,/SELECT encrypted_token FROM public\.github_tokens WHERE owner = \$1 LIMIT 1/);
+});
+test('token and audit lockdown is isolated as review-only SQL with fail-closed grants',async()=>{
+  const p=await read('supabase/review-only/PROPOSED_GITHUB_TOKEN_AUDIT_LOCKDOWN.sql');
+  assert.match(p,/REVOKE ALL PRIVILEGES ON TABLE public\.github_tokens FROM PUBLIC, anon, authenticated/);
+  assert.match(p,/DROP POLICY IF EXISTS "Users can manage their own github token"/);
+  assert.match(p,/GRANT SELECT ON TABLE public\.audit_runs TO authenticated/);
+  assert.match(p,/NOT a deployable migration/);
+});
+test('frontend does not falsely report successful GitHub disconnect after API failure',async()=>{
+  const src=await read('artifacts/vibeguard/src/contexts/AuthContext.tsx');
+  assert.match(src,/if \(!response\.ok\) throw new Error\('GitHub disconnection failed'\)/);
+  assert.match(src,/setHasGithubToken\(null\)/);
 });
