@@ -100,3 +100,13 @@ test('end-to-end opt-in Git scan includes changed-file cross-module warnings',as
  assert.equal(report.ai.status,'disabled');
  assert.equal(report.privacy.sourceSentToModel,false);
 });
+
+test('tracks destructured req.body through a changed-file import',()=>{
+ const r=analyzeCrossFileSqlFlows(files('import {unsafeLookup} from "./db";const {id}=req.body;unsafeLookup(id);'));
+ assert.equal(r.findings.length,1);
+});
+test('tracks a default-export local SQL helper with named caller alias',()=>{
+ const helper='export default function lookup(id){db.query("SELECT * FROM users WHERE id="+id);}';
+ const r=analyzeCrossFileSqlFlows(files('import lookup from "./db";lookup(req.query.id);',helper));
+ assert.equal(r.findings.length,1);
+});
