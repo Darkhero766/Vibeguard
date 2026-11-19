@@ -68,8 +68,15 @@ export function analyzeNextRouteAuth(filePath,content){
         }
       }
       if(ts.isCallExpression(n)&&ts.isIdentifier(n.expression)&&
-        ['requireAuth','requireUser'].includes(n.expression.text))
-        guards.push(n.getStart(sf));
+        ['requireAuth','requireUser'].includes(n.expression.text)) {
+        // A returned authentication object is not evidence of enforcement.
+        // Only treat a standalone guard statement as throwing/denying; when
+        // assigned to a variable, require an explicit checked denial branch.
+        const parent=n.parent;
+        const direct=ts.isExpressionStatement(parent) ||
+          (ts.isAwaitExpression(parent)&&ts.isExpressionStatement(parent.parent));
+        if(direct)guards.push(n.getStart(sf));
+      }
       if(ts.isIfStatement(n)){
         const cond=n.expression.getText(sf);
         const denial=guardReturn(n.thenStatement);
