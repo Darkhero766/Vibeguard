@@ -168,3 +168,12 @@ test('checked authorization guard and typed JWT literal are distinguished correc
   assert.ok(!findings.some(f => f.ruleId === 'unauthenticated_write'));
   assert.ok(findings.some(f => f.ruleId === 'hardcoded_jwt_secret'));
 });
+
+test('commented auth.getUser does not suppress missing authorization finding', async (t) => {
+  const root = await fixture(t);
+  const file = path.join(root, 'app/api/orders/route.ts');
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, "// auth.getUser();\nexport async function POST() { await supabase.from('orders').insert({total:1}); }\n");
+  const out = await scan(root);
+  assert.ok(out.report.findings.some(f => f.ruleId === 'unauthenticated_write'));
+});
