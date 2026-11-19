@@ -23,7 +23,11 @@
     "test:agentshield:week5": "node --test ./scripts/test-agentshield-week5.mjs",
     "test:agentshield:hybrid": "node --test ./scripts/test-agentshield-hybrid.mjs",
     "test:agentshield:ast": "node --test ./scripts/test-agentshield-ast.mjs",
-    "benchmark:agentshield:ast": "node ./scripts/benchmark-agentshield-ast.mjs"
+    "benchmark:agentshield:ast": "node ./scripts/benchmark-agentshield-ast.mjs",
+    "test:agentshield:taint": "node --test ./scripts/test-agentshield-taint.mjs",
+    "test:agentshield:release": "node --test ./scripts/test-agentshield-release.mjs",
+    "benchmark:agentshield:taint": "node ./scripts/benchmark-agentshield-taint.mjs",
+    "test:vibesane:check-output": "node --test ./scripts/test-vibesane-checks.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

@@ -17,17 +17,32 @@ function dodoBaseUrl() {
     : "https://live.dodopayments.com";
 }
 
+// Never run ALTER/CREATE against hosted Supabase from a payment request or webhook.
+// Database changes are reviewed, versioned migrations; requests fail closed.
+let dodoSchemaReady: Promise<void> | null = null;
 async function ensureDodoTables() {
-  await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS dodo_customer_id text`);
-  await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS dodo_subscription_id text`);
-  await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS dodo_subscription_status text`);
-  await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS pro_source text`);
-  await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS pro_started_at timestamptz`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS usage_dodo_subscription_idx ON usage(dodo_subscription_id)`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS dodo_webhook_events (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), webhook_id text UNIQUE NOT NULL, event_type text NOT NULL, payload jsonb NOT NULL, processed boolean NOT NULL DEFAULT false, attempts integer NOT NULL DEFAULT 0, error_message text, created_at timestamptz NOT NULL DEFAULT now(), processed_at timestamptz)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS dodo_webhook_events_created_idx ON dodo_webhook_events(created_at DESC)`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS hackathon_redemptions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), owner uuid NOT NULL UNIQUE, coupon_code text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS hackathon_redemptions_coupon_idx ON hackathon_redemptions(coupon_code)`);
+  if (!dodoSchemaReady) {
+    dodoSchemaReady = (async () => {
+      const required = new Map<string, Set<string>>([
+        ["usage", new Set(["dodo_customer_id", "dodo_subscription_id",
+          "dodo_subscription_status", "pro_source", "pro_started_at"])],
+        ["dodo_webhook_events", new Set(["webhook_id", "event_type", "payload",
+          "processed", "attempts", "error_message", "created_at", "processed_at"])],
+        ["hackathon_redemptions", new Set(["owner", "coupon_code"])],
+      ]);
+      const result = await pool.query(
+        "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('usage','dodo_webhook_events','hackathon_redemptions')",
+      );
+      for (const row of result.rows) required.get(String(row.table_name))?.delete(String(row.column_name));
+      if ([...required.values()].some((columns) => columns.size > 0)) {
+        throw new Error("Billing schema is incomplete; apply a reviewed database migration before accepting payments.");
+      }
+    })().catch((error) => {
+      dodoSchemaReady = null;
+      throw error;
+    });
+  }
+  await dodoSchemaReady;
 }
 
 async function dodoFetch(path: string, init: RequestInit = {}) {

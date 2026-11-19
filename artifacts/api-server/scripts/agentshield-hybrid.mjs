@@ -5,6 +5,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
+import { lstat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { snapshot } from './agentshield-gate.mjs';
 const exec = promisify(execFile);
@@ -127,7 +128,7 @@ export async function hybrid(argv) {
   const before = options.enableAst ? await snapshot(options.cwd) : null;
   const staticResult = await staticScan(options);
   let ast = { status:'disabled', findings:[], filesAnalyzed:0,
-    note:'Opt-in JS/TS AST analysis is experimental and not part of the normal Stop gate.' };
+    taintFindings:[], note:'Opt-in JS/TS AST and taint analysis are experimental; not part of the normal Stop gate.' };
   if (options.enableAst && staticResult.filesScanned) {
     try {
       if (before.changedPaths.length !== staticResult.scannedPaths.length ||
@@ -136,7 +137,10 @@ export async function hybrid(argv) {
       }
       // TypeScript's parser runs in an isolated, time-limited child with a bounded
       // V8 heap. Do not forward credentials or NODE_OPTIONS from the CLI process.
-      const worker=path.join(root,'scripts/agentshield-ast-worker.mjs');
+      const portableWorker=path.join(root,'scripts/agentshield-ast-worker.cjs');
+      const portableStat=await lstat(portableWorker).catch(()=>null);
+      const worker=(portableStat?.isFile() && !portableStat.isSymbolicLink())
+        ? portableWorker : path.join(root,'scripts/agentshield-ast-worker.mjs');
       const { stdout }=await exec(process.execPath,[
         '--max-old-space-size=256',worker,options.cwd,JSON.stringify(staticResult.scannedPaths),
       ],{
@@ -145,7 +149,8 @@ export async function hybrid(argv) {
       });
       ast=JSON.parse(stdout);
       if (!ast || !['complete','scan_incomplete'].includes(ast.status) ||
-        !Array.isArray(ast.findings) || !Number.isInteger(ast.filesAnalyzed)) {
+        !Array.isArray(ast.findings) || !Array.isArray(ast.taintFindings) ||
+        !Number.isInteger(ast.filesAnalyzed)) {
         throw new Error('AST worker produced invalid output.');
       }
       const after=await snapshot(options.cwd);
@@ -167,7 +172,7 @@ export async function hybrid(argv) {
     ai:{ status:'disabled', advisory:[], note:'AI does not change, suppress, or independently verify any finding.' },
     privacy:{ sourceUploaded:false, sourceSentToModel:false, filenamesSentToModel:false,
       localService:'127.0.0.1', remoteAIUsed:false } };
-  const findings = [...staticResult.findings, ...(ast.findings || [])];
+  const findings = [...staticResult.findings, ...(ast.findings || []), ...(ast.taintFindings || [])];
   if (options.enableLocalAI && findings.length) {
     result.ai.status='unavailable';
     result.ai.model=options.model;
@@ -182,6 +187,7 @@ export async function hybrid(argv) {
   else {
     process.stdout.write('AgentShield hybrid preview: '+staticResult.filesScanned+
       ' static files scanned; '+staticResult.findings.length+' static findings; AST='+ast.status+' ('+(ast.findings?.length || 0)+' findings); AI='+result.ai.status+'\n');
+    if (ast.taintFindings?.length) process.stdout.write('AST taint warnings: '+ast.taintFindings.length+' (unverified source-to-sink risk).\n');
     for (const item of result.ai.advisory) process.stdout.write(
       'Advisory '+item.findingIndex+': '+item.explanation+' | '+item.suggestion+'\n');
     process.stdout.write('Static verdict retained. AI output does not prove security.\n');

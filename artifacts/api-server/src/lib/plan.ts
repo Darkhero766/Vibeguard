@@ -37,16 +37,25 @@ export type PlanSnapshot = {
   monthlyResetAt: string | null;
 };
 
-// The usage table predates the split quota model. Keep the migration self-healing so
-// an existing production database gains the two counters without a manual SQL step.
+// Production APIs must never mutate schemas or backfill data during requests.
+// Required columns come from an explicitly approved migration; missing ones
+// must block quota/plan operations rather than silently apply runtime DDL.
 let quotaSchemaReady: Promise<void> | null = null;
 async function ensureQuotaSchema(): Promise<void> {
   if (!quotaSchemaReady) {
     quotaSchemaReady = (async () => {
-      await pool.query(`ALTER TABLE public.usage ADD COLUMN IF NOT EXISTS protected_scans_used integer NOT NULL DEFAULT 0`);
-      await pool.query(`ALTER TABLE public.usage ADD COLUMN IF NOT EXISTS public_scans_used integer NOT NULL DEFAULT 0`);
-      // Preserve historical usage in the public-scan bucket on first migration.
-      await pool.query(`UPDATE public.usage SET public_scans_used = GREATEST(COALESCE(public_scans_used, 0), COALESCE(monthly_scans_used, scans_used, 0)) WHERE COALESCE(monthly_scans_used, scans_used, 0) > 0 AND COALESCE(protected_scans_used, 0) = 0 AND COALESCE(public_scans_used, 0) = 0`);
+      const required = new Set([
+        "owner", "scans_used", "scans_limit", "plan", "pro_expires_at",
+        "monthly_scans_used", "monthly_scans_limit", "monthly_reset_at",
+        "protected_scans_used", "public_scans_used", "audit_scans_used",
+      ]);
+      const result = await pool.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'usage'",
+      );
+      for (const row of result.rows) required.delete(String(row.column_name));
+      if (required.size > 0) {
+        throw new Error("Usage schema is not ready; an approved database migration is required.");
+      }
     })().catch((error) => {
       quotaSchemaReady = null;
       throw error;

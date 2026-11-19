@@ -10,6 +10,7 @@ const scripts = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(scripts, '../dist/agentshield.mjs');
 const controller = path.resolve(scripts, 'agentshield-controller.mjs');
 const hybrid = path.resolve(scripts, 'agentshield-hybrid.mjs');
+const capabilities = path.resolve(scripts, 'agentshield-capabilities.mjs');
 const installer = path.resolve(scripts, 'agentshield-install.mjs');
 const exec = promisify(execFile);
 
@@ -63,6 +64,10 @@ async function child(program, args) {
 async function main(args) {
   const [command, ...tail] = args;
   if (command === 'doctor') return doctor(tail);
+  if (command === 'capabilities') {
+    if (tail.length > 2 || (tail.length === 2 && tail[0] !== '--format') || (tail.length === 1 && !['json','text'].includes(tail[0]))) throw Error('Use capabilities --format json|text');
+    return child(capabilities, [tail.length === 2 ? tail[1] : (tail[0] || 'json')]);
+  }
   if (command === 'init') {
     if (!await isFile(dist)) throw new Error('First run pnpm --filter @workspace/api-server run build:agentshield.');
     return child(installer, ['install', cwdFrom(tail)]);
@@ -77,7 +82,7 @@ async function main(args) {
     return child(dist, ['scan', ...tail]);
   }
   if (['verify', 'status', 'config', 'acknowledge'].includes(command)) return child(controller, [command, ...tail]);
-  throw new Error('Commands: init, scan --changed, hybrid --changed [--enable-ast] [--enable-local-ai], verify --changed, status, config, acknowledge, doctor, uninstall.');
+  throw new Error('Commands: capabilities, init, scan --changed, hybrid --changed [--enable-ast] [--enable-local-ai], verify --changed, status, config, acknowledge, doctor, uninstall.');
 }
 main(process.argv.slice(2)).then(code => { process.exitCode = code; }).catch(() => {
   process.stdout.write(JSON.stringify({ status: 'error', message: 'AgentShield command failed; run doctor for local diagnostics.' }) + '\n');

@@ -65,7 +65,7 @@ test('unpublished local beta package contains no server runtime or source corpus
   const pkg = JSON.parse(stdout);
   assert.equal(pkg.status, 'packaged_local_only');
   assert.equal(pkg.published, false);
-  assert.equal(pkg.fileCount, 11);
+  assert.equal(pkg.fileCount, 15);
   assert.equal(pkg.sha256.length, 64);
   assert.ok(pkg.contents.includes('dist/agentshield.mjs'));
   assert.ok(pkg.contents.includes('scripts/vibesane.mjs'));
@@ -91,6 +91,24 @@ test('unpublished local beta package contains no server runtime or source corpus
   let hooks = JSON.parse(await readFile(path.join(root, '.claude/settings.json'), 'utf8')).hooks;
   assert.equal(hooks.PostToolUse.length, 1);
   assert.equal(hooks.Stop.length, 1);
+  // The unpublished installed tarball must genuinely run the parser without
+  // a checkout, TypeScript install or application package dependencies.
+  await mkdir(path.join(root, 'src'), { recursive: true });
+  await writeFile(path.join(root, 'src/taint.ts'),
+    'const id=req.query.id; const sql="SELECT * FROM users WHERE id="+id; db.query(sql);\n');
+  let hybridOutput;
+  try {
+    hybridOutput = await exec(process.execPath, [main, 'hybrid', '--changed',
+      '--enable-ast', '--cwd', root, '--format', 'json'], { timeout: 30000, maxBuffer: 600000 });
+  } catch (error) {
+    if (error.code !== 1 || typeof error.stdout !== 'string') throw error;
+    hybridOutput = { stdout: error.stdout };
+  }
+  const hybridReport = JSON.parse(hybridOutput.stdout);
+  assert.equal(hybridReport.status, 'complete');
+  assert.equal(hybridReport.ast.status, 'complete');
+  assert.ok(hybridReport.ast.taintFindings.some(f => f.ruleId === 'tainted_sql_sink'));
+  assert.equal(hybridReport.ai.status, 'disabled');
   await exec(process.execPath, [main, 'uninstall', '--cwd', root], { timeout: 10000 });
   hooks = JSON.parse(await readFile(path.join(root, '.claude/settings.json'), 'utf8')).hooks || {};
   assert.equal(hooks.PostToolUse, undefined);
