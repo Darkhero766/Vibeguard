@@ -64,9 +64,40 @@ The historical Week 4 120-case and 24-case benchmarks were tuned during developm
 
 Week 6's 24-case AST comparison deliberately stressed SQL strings stored in aliases and demonstrated incremental coverage, but it was not independent of development priorities.
 
-Phase 1 adds 50 new, labeled source-to-SQL-sink challenge cases across Express, Next.js, ORM raw APIs, transformations and source aliases. Report exact TP, FP, TN, FN, category-level rates and failures as observed in CI, without changing labels to boost scores. A curated challenge corpus is not equivalent to independent external applications.
+Phase 1 adds 50 new, labeled source-to-SQL-sink challenge cases across Express, Next.js, ORM raw APIs, transformations and source aliases. The actual first-run results and after-tuning metrics are recorded below. Report exact TP, FP, TN, FN, category-level rates and failures as observed in CI, without changing labels to boost scores. A curated challenge corpus is not equivalent to independent external applications.
 
 Do not call a disappearing finding independently verified; semantic correctness still requires approved regression tests, DB policies and human review.
+
+## Measured results and precise completion status
+
+The authoritative full CI run on the hardened source and disposable PostgreSQL was:
+
+- https://github.com/Darkhero766/Vibeguard/actions/runs/44560838825
+- Head commit: 985ce8a3ef059120783e175ca61608d3a96a8c64
+- **160 / 160 AgentShield tests passed**, zero failed: Week1 9, Week2 21, Week3 32, Week4 19, Week5 11, local AI 8, AST 17, taint 31, release 12.
+- Existing SUE regression: PASS.
+- Web Vite build: PASS; web strict TypeScript: PASS.
+- API build: PASS; API strict TypeScript: PASS.
+- Portable hybrid npm tarball built offline, installed and scanned a synthetic Git project with bundled AST and taint worker. No npm publication.
+- Separate PostgreSQL 17 CI job: **CI_PRIVILEGE_TEST_PASSED**, demonstrating a synthetic authenticated user could alter their own plan under the former broad privileges, but cannot after applying the proposed lock-down inside CI. This is not a live production validation.
+
+### Source-to-SQL-sink benchmark, synthetic examples only
+
+| Evaluation stage | TP | TN | FP | FN | Precision | Recall |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| First evaluation of 50 new examples | 20 | 25 | 0 | 5 | 100% | 80% |
+| After deliberately improving missed Koa, Next URL, Knex, Sequelize patterns | 25 | 25 | 0 | 0 | 100% | 100% |
+
+**The second row is a tuned result, not a holdout.** The cases are chosen to exercise known risks; none establish real exploitability or expected performance on arbitrary repositories. A separate untouched application-level benchmark remains a release prerequisite. The AST/taint parser remains experimental and opt-in; the normal Claude gate is unchanged.
+
+### Remaining unexecuted acceptance
+
+- Interactive, authenticated Claude Code with real PostToolUse, Stop and Bash edits: **unexecuted** — no claude executable/authenticated agent available.
+- Local Ollama/Qwen model evaluation: **unexecuted** — no Ollama or model available; existing protocol uses a synthetic loopback service.
+- macOS installation, upgrade/recovery tests: **unexecuted** — no supported macOS runner available.
+- Actual live Supabase least-privilege migration: **not applied**; pending explicit owner approval, reviewed migration and staging rollout.
+- Production VibeSane website/webhook/payment testing: **not executed**; feature code is not deployed, and no credentials were used.
+- External multi-developer pilot: **not conducted**; no invitations sent.
 
 ## Reproduce development checks
 
