@@ -33,7 +33,7 @@ router.post("/github/app/complete", requireAuth, async (req: AuthedRequest, res)
   try {
     const installation = await getInstallation(installationId);
     const account = installation.account;
-    if (!account?.login || !Number.isSafeInteger(account.id)) {
+    if (!account?.login || typeof account.id !== "number" || !Number.isSafeInteger(account.id)) {
       res.status(502).json({ error: "GitHub installation did not include account information" });
       return;
     }

@@ -3,6 +3,12 @@ import path from 'node:path';
 
 const pages = [
   {
+    path: '/agentshield',
+    title: 'AgentShield for Claude Code | VibeSane',
+    description: 'Local security scanning, bounded repair guidance and final verification for Claude Code. Private-beta developer preview; public release pending.',
+    staticBody: `<main><article><h1>AgentShield for Claude Code: build with AI, check security as you code.</h1><p>VibeSane AgentShield is a developer-preview local security scanner for supported code patterns. It uses Claude Code hooks to provide actionable findings, bounded repair guidance, and a final changed-file scan.</p><h2>Monitor, Assist and Auto-fix</h2><p>Monitor reports supported risks; Assist provides repair guidance; Auto-fix can request bounded repairs within Claude Code permissions when explicitly enabled.</p><h2>Current release status</h2><p>External distribution is pending live authenticated Claude Code validation and human security review. No public installer is currently approved. Static findings and their disappearance are not proof of a vulnerability-free application.</p><p><a href="/scan-public">Use VibeSane's existing GitHub repository web scanner</a>. Web repository scanning and local AgentShield are separate workflows. Local source code is not automatically uploaded to the website.</p></article></main>`,
+  },
+  {
     path: '/github-security-scanner',
     title: 'GitHub Security Scanner | VibeSane',
     description: 'Scan GitHub repositories for vulnerabilities, secrets, and risky code before they ship with VibeSane.',

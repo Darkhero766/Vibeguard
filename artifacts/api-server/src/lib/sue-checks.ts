@@ -54,7 +54,7 @@ const E={
  B04:(c:AuditCorpus)=>combine(links(c,/cancel|cancellation/i,"cancellation_route",.9),text(policySurface(c),/cancel (?:your )?(?:subscription|plan|account)|cancellation instructions/i,"cancellation_flow",.94)),
  B05:(c:AuditCorpus)=>E.L04(c),
  B06:(c:AuditCorpus)=>text(policySurface(c),/payment provider|payment processor|payments? (?:are )?(?:processed|handled) by|(?:Stripe|PayPal|Razorpay|Adyen|Checkout\.com|Paddle|Lemon Squeezy|Shopify Payments).{0,60}(?:payment|checkout|billing)|(?:payment|checkout|billing).{0,60}(?:Stripe|PayPal|Razorpay|Adyen|Paddle|Lemon Squeezy|Shopify Payments)/i,"payment_provider_disclosure",.94),
- T01:(c:AuditCorpus)=>c.pages.some(p=>p.url.protocol==="https:")?[{type:"page",url:c.pages[0]?.url.toString(),location:"final URL",excerpt:"The audited URL was served over HTTPS.",signal:"https",confidence:.99}]:[],
+ T01:(c:AuditCorpus)=>c.pages.some(p=>p.url.protocol==="https:")?[{type:"page" as const,url:c.pages[0]?.url.toString(),location:"final URL",excerpt:"The audited URL was served over HTTPS.",signal:"https",confidence:.99}]:[],
  T02:(c:AuditCorpus)=>combine(
    // A product link containing the word "security" (for example, a security scanner
    // feature page) is not evidence of a security contact or disclosure process.
@@ -62,7 +62,7 @@ const E={
    links(c,/security[-_/ ]?(?:contact|report|disclosure)|responsible[-_/ ]?disclosure|vulnerabilit(?:y|ies)[-_/ ]?(?:report|disclosure)|report[-_/ ]?(?:a[-_/ ]?)?(?:security|vulnerabilit(?:y|ies))|bug[-_/ ]?bounty|security\.txt/i,"security_contact_link",.92)
  ),
  T03:(c:AuditCorpus)=>text(c,/accessibility|WCAG|screen reader|keyboard navigation|aria-/i,"accessibility_signal",.88),
- T04:(c:AuditCorpus)=>{const h=c.pages.find(p=>p.isHome)??c.pages[0];return h&&/footer/i.test(h.html)&&/terms/i.test(h.html)&&/privacy/i.test(h.html)?[{type:"page",url:h.url.toString(),location:"footer",excerpt:"Terms and Privacy links appear in the same footer surface.",signal:"legal_footer_group",confidence:.92}]:[];},
+ T04:(c:AuditCorpus)=>{const h=c.pages.find(p=>p.isHome)??c.pages[0];return h&&/footer/i.test(h.html)&&/terms/i.test(h.html)&&/privacy/i.test(h.html)?[{type:"page" as const,url:h.url.toString(),location:"footer",excerpt:"Terms and Privacy links appear in the same footer surface.",signal:"legal_footer_group",confidence:.92}]:[];},
  T05:(c:AuditCorpus)=>combine(links(c,/terms|privacy/i,"legal_page_link",.94),text(policySurface(c),/terms of service|terms\s*(?:&|and)\s*conditions|terms of use|privacy policy|privacy notice/i,"legal_page_content",.94)),
 };
 
@@ -166,7 +166,7 @@ D("B05","Business","Refund terms","medium",{anySignals:["payments","checkout","e
 D("B06","Business","Payment provider disclosure","low",{anySignals:["payments","checkout"]},E.B06,"Identify the payment provider or explain payment processing appropriately.","Payment/checkout technology was detected."),
 D("T01","Trust","HTTPS","high",{always:true},E.T01,"Serve the production product over HTTPS.","The public endpoint should use encrypted transport."),
 D("T02","Trust","Security contact","low",{productTypes:["saas","developer_tool","ai_product"],anySignals:["authentication","developerApi","persistentUserData"]},E.T02,"Publish a security contact or responsible-disclosure process.","The product has a meaningful security surface."),
-D("T03","Trust","Accessibility signal","low",{productTypes:["saas","developer_tool","ai_product","web_app","marketplace","service_business"],anySignals:["commercialActivity","authentication","ecommerce","community","marketplace"]},E.T03,"Publish accessibility information and test the UI with assistive technology.","Accessibility review is most useful for customer-facing products and interactive services; absence of a visible statement is not proof of legal non-compliance."),
+D("T03","Trust","Accessibility signal","low",{productTypes:["saas","developer_tool","ai_product","web_app","marketplace","service_business"],anySignals:["commercialActivity","authentication","ecommerce","marketplace"]},E.T03,"Publish accessibility information and test the UI with assistive technology.","Accessibility review is most useful for customer-facing products and interactive services; absence of a visible statement is not proof of legal non-compliance."),
 D("T04","Trust","Legal links grouped in footer","medium",{anySignals:["commercialActivity","personalDataCollection","authentication"],unknownIfLowCoverage:true},E.T04,"Group applicable Terms and Privacy links in the footer.","Applicable legal documents should be easy to discover."),
 D("T05","Trust","Legal pages reachable from same product origin","high",{productTypes:["saas","developer_tool","ai_product","marketplace","service_business"],anySignals:["commercialActivity","personalDataCollection","authentication"],unknownIfLowCoverage:true},E.T05,"Ensure applicable legal pages are reachable from the deployed product origin.","Applicable legal documents should be discoverable from the product."),
  ];

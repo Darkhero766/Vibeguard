@@ -84,7 +84,7 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
       }
     }
 
-    let extendedFindings = [];
+    let extendedFindings: Awaited<ReturnType<typeof runExtendedSecurityChecksV2>> = [];
     let extendedSucceeded = false;
     try {
       extendedFindings = await extendedPromise;

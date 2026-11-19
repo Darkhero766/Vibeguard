@@ -1,5 +1,4 @@
-import type { Finding } from "@workspace/api-zod";
-import { runExtendedSecurityChecks, scanExtendedFiles } from "./extendedScanner";
+import { runExtendedSecurityChecks, scanExtendedFiles, type ExtendedFinding } from "./extendedScanner";
 import { readRepositoryFiles } from "./githubRepoReader";
 import { SECURITY_CHECK_CATALOG } from "./securityCheckCatalog";
 
@@ -28,7 +27,7 @@ function lineAt(content: string, line: number): string {
  * local development URLs, and this scanner's own source. This prevents the
  * scanner from reporting its own regexes as vulnerabilities.
  */
-function shouldKeepFinding(finding: Finding, files: RepoFile[]): boolean {
+function shouldKeepFinding(finding: ExtendedFinding, files: RepoFile[]): boolean {
   if (SELF_SCAN_RULE_FILES.has(finding.filePath)) return false;
   const file = files.find((item) => item.path === finding.filePath);
   const sourceLine = file ? lineAt(file.content, finding.line) : "";
@@ -60,7 +59,7 @@ function shouldKeepFinding(finding: Finding, files: RepoFile[]): boolean {
   return true;
 }
 
-function deduplicate(findings: Finding[]): Finding[] {
+function deduplicate(findings: ExtendedFinding[]): ExtendedFinding[] {
   const seen = new Set<string>();
   return findings.filter((finding) => {
     const key = `${finding.filePath}:${finding.line}:${finding.check}:${finding.title}`;
@@ -71,7 +70,7 @@ function deduplicate(findings: Finding[]): Finding[] {
 }
 
 /** Apply the same filtering and de-duplication to local files without GitHub access. */
-export function scanExtendedFilesV2(files: RepoFile[]): Finding[] {
+export function scanExtendedFilesV2(files: RepoFile[]): ExtendedFinding[] {
   return deduplicate(scanExtendedFiles(files).filter((finding) => shouldKeepFinding(finding, files)));
 }
 
@@ -98,7 +97,7 @@ export async function runExtendedSecurityChecksV2(
   repoUrl: string,
   githubToken?: string,
   scanPaths?: string[],
-): Promise<Finding[]> {
+): Promise<ExtendedFinding[]> {
   const scopedUrl = scopedRepoUrl(repoUrl, scanPaths);
   const result = await readRepositoryFiles(scopedUrl, githubToken);
   const baseFindings = await runExtendedSecurityChecks(scopedUrl, githubToken);

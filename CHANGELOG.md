@@ -1,3 +1,11 @@
+## 2026-11-19 — AgentShield Week 5 launch readiness (feature branch, not deployed)
+
+- Added a dedicated AgentShield developer-preview page to the existing VibeSane web app, with desktop/mobile navigation, crawlable metadata, and explicit separation of local Claude Code integration from GitHub web scanning.
+- Fixed release-build and type-check errors in the API, including duplicated readiness routing, GitHub headers, scan types, SUE evidence typing, and proper modeling of Low static-scan severity at the API boundary.
+- Added strict frontend/backend build and TypeScript verification to Week 5 branch-only CI; existing SUE and Weeks 1–4 regressions remain mandatory.
+- Added 11 Week 5 tests and a new 48-case synthetic Next.js/Supabase evaluation, plus web-to-local demo and manual authenticated Claude Code acceptance instructions.
+- Production deployment, default-branch merge, npm publication, real Claude interaction and private beta recruitment remain unperformed and require explicit authorization.
+
 ## 2026-11-19
 
 ### AgentShield Week 4 — offline private-beta build and labeled accuracy assessment (feature branch)

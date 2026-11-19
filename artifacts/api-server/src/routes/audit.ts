@@ -200,7 +200,7 @@ function allowedByRobots(url:URL,rules:RobotsRule[]|null):boolean {
   return best?best.allow:true;
 }
 
-async function loadRobots(start:URL):Promise<RobotsRule[]> {
+async function loadRobots(start:URL):Promise<RobotsRule[]|null> {
   try{
     const resource=await fetchPublicResource(new URL("/robots.txt",start),512_000);
     if(resource.status>=400&&resource.status<500)return [];

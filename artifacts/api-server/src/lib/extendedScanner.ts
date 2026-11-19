@@ -3,6 +3,12 @@ import { readRepositoryFiles } from "./githubRepoReader";
 
 type RepositoryFile = { path: string; content: string };
 
+// Extended heuristics include Low findings. The generated web API Finding
+// schema currently exposes only Critical/High/Medium; normalize Low at API boundaries.
+export type ExtendedFinding = Omit<Finding, "severity"> & {
+  severity: Finding["severity"] | "Low";
+};
+
 function lineAt(content: string, index: number): number {
   return content.slice(0, index).split("\n").length;
 }
@@ -13,21 +19,21 @@ function stripComments(content: string): string {
 
 function makeFinding(
   id: string,
-  severity: Finding["severity"],
+  severity: ExtendedFinding["severity"],
   title: string,
   description: string,
   filePath: string,
   line: number,
   check: string,
-): Finding {
-  return { id, severity, title, description, filePath, line: Math.max(1, line), check } as Finding;
+): ExtendedFinding {
+  return { id, severity, title, description, filePath, line: Math.max(1, line), check } as ExtendedFinding;
 }
 
 function regexFindings(
   files: RepositoryFile[],
-  rule: { id: string; severity: Finding["severity"]; title: string; description: string; pattern: RegExp; extensions?: RegExp },
-): Finding[] {
-  const findings: Finding[] = [];
+  rule: { id: string; severity: ExtendedFinding["severity"]; title: string; description: string; pattern: RegExp; extensions?: RegExp },
+): ExtendedFinding[] {
+  const findings: ExtendedFinding[] = [];
   for (const file of files) {
     if (rule.extensions && !rule.extensions.test(file.path)) continue;
     for (const match of file.content.matchAll(rule.pattern)) {
@@ -48,8 +54,8 @@ async function readRepository(repoUrl: string, githubToken?: string): Promise<Re
   });
 }
 
-function sqlChecks(files: RepositoryFile[]): Finding[] {
-  const out: Finding[] = [];
+function sqlChecks(files: RepositoryFile[]): ExtendedFinding[] {
+  const out: ExtendedFinding[] = [];
   for (const file of files.filter((f) => /\.sql$/i.test(f.path))) {
     const sql = stripComments(file.content);
 
@@ -89,7 +95,7 @@ function sqlChecks(files: RepositoryFile[]): Finding[] {
   return out;
 }
 
-const rules: Array<{ id: string; severity: Finding["severity"]; title: string; description: string; pattern: RegExp; extensions?: RegExp }> = [
+const rules: Array<{ id: string; severity: ExtendedFinding["severity"]; title: string; description: string; pattern: RegExp; extensions?: RegExp }> = [
   { id: "hardcoded_jwt_secret", severity: "Critical", title: "JWT signing secret is hardcoded", description: "A JWT signing secret appears as a source literal. Keep signing keys server-side in secret storage and rotate exposed credentials.", pattern: /(?:JWT_SECRET|JWT_SIGNING_KEY|jwtSecret)(?:\s*:\s*(?:Readonly\s*<\s*)?(?:string|String)\s*>?)?\s*[:=]\s*["'][^"']{12,}["']/g, extensions: /\.(?:[cm]?[jt]sx?|py|rb|go|java|php)$/i },
   { id: "google_api_key", severity: "High", title: "Google API key appears in source", description: "A Google API key pattern was detected in repository source. Restrict, rotate, or move it to the correct server-side secret store as appropriate.", pattern: /AIza[0-9A-Za-z_-]{35}/g },
   { id: "github_token", severity: "Critical", title: "GitHub access token appears in source", description: "A GitHub personal or fine-grained access token appears in source control. Revoke it immediately and move credentials out of the repository.", pattern: /(?:ghp_|gho_|ghu_|ghs_|ghr_)[A-Za-z0-9_]{30,}/g },
@@ -127,7 +133,7 @@ const rules: Array<{ id: string; severity: Finding["severity"]; title: string; d
   { id: "command_injection", severity: "Critical", title: "Command execution uses request-controlled input", description: "An OS command API appears to receive request-derived data. Validate against an allowlist and prefer argument arrays over shell strings.", pattern: /\b(?:exec|execSync|spawn|spawnSync)\s*\([^\n]*(?:req\.(?:query|params|body)|searchParams\.get)/gi, extensions: /\.(?:[cm]?[jt]sx?|ts|js|py|rb|php)$/i },
 ];
 
-export function scanExtendedFiles(files: RepositoryFile[]): Finding[] {
+export function scanExtendedFiles(files: RepositoryFile[]): ExtendedFinding[] {
   const findings = [
     ...sqlChecks(files),
     ...rules.flatMap((rule) => regexFindings(files, rule)),
@@ -141,7 +147,7 @@ export function scanExtendedFiles(files: RepositoryFile[]): Finding[] {
   });
 }
 
-export async function runExtendedSecurityChecks(repoUrl: string, githubToken?: string): Promise<Finding[]> {
+export async function runExtendedSecurityChecks(repoUrl: string, githubToken?: string): Promise<ExtendedFinding[]> {
   const files = await readRepository(repoUrl, githubToken);
   return scanExtendedFiles(files);
 }
