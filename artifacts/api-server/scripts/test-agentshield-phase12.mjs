@@ -79,3 +79,19 @@ test('real deployment is not performed automatically by the phase workflow',asyn
  const flow=await read('.github/workflows/agentshield-phase1-phase2.yml');
  assert.doesNotMatch(flow,/supabase db push|npm publish|render deploy|apply_migration/);
 });
+
+test('startup database check is read-only and never grants entitlement backfills',async()=>{
+ const db=await read('lib/db/src/index.ts');
+ assert.match(db,/export async function checkRequiredSchema/);
+ assert.match(db,/information_schema\.columns/);
+ assert.doesNotMatch(db,/pool\.query\(\s*\x60(?:CREATE|ALTER|INSERT|UPDATE)\b/i);
+ assert.doesNotMatch(db,/ON CONFLICT \(owner\) DO UPDATE SET plan/);
+ const server=await read('artifacts/api-server/src/index.ts');
+ assert.match(server,/Database schema verified \(read-only\)/);
+});
+test('HTTP readiness fails when required database schema is incomplete',async()=>{
+ const health=await read('artifacts/api-server/src/routes/health.ts');
+ assert.match(health,/checkRequiredSchema\(\)/);
+ assert.match(health,/if \(!schema\.ready\)/);
+ assert.match(health,/status: "not_ready", database: "schema_incomplete"/);
+});
