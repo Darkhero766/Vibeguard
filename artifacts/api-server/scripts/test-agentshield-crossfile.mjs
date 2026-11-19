@@ -86,7 +86,8 @@ test('end-to-end opt-in Git scan includes changed-file cross-module warnings',as
  await exec('git',['init','-q',root],{timeout:5000});
  await mkdir(path.join(root,'src'));
  await writeFile(path.join(root,'src/db.ts'),risky);
- await writeFile(path.join(root,'src/route.ts'),'import {unsafeLookup} from "./db";const id=req.query.id;unsafeLookup(id);');
+ const untrustedSourceFixture='import {unsafeLookup} from "./db";const id=req.query.id;unsafeLookup(id);';
+ await writeFile(path.join(root,'src/route.ts'),untrustedSourceFixture);
  const entry=path.join(scripts,'vibesane.mjs');
  let stdout,exit=0;
  try {({stdout}=await exec(process.execPath,[entry,'hybrid','--changed','--cwd',root,'--enable-ast','--format','json'],{timeout:30000,maxBuffer:1_000_000}));}
