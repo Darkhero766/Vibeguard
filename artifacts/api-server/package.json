@@ -19,7 +19,8 @@
     "vibesane": "node ./scripts/vibesane.mjs",
     "test:agentshield:week4": "node --test ./scripts/test-agentshield-week4.mjs",
     "benchmark:agentshield": "node ./scripts/benchmark-agentshield-accuracy.mjs",
-    "package:agentshield:beta": "node ./scripts/package-agentshield-beta.mjs"
+    "package:agentshield:beta": "node ./scripts/package-agentshield-beta.mjs",
+    "test:agentshield:week5": "node --test ./scripts/test-agentshield-week5.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
