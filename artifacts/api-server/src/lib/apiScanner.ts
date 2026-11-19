@@ -15,7 +15,7 @@ function stripSqlComments(sql: string): string {
   return sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
-function scan(files: RepositoryFile[]): Finding[] {
+export function scanApiFiles(files: RepositoryFile[]): Finding[] {
   const findings: Finding[] = [];
 
   for (const file of files.filter((f) => /\.sql$/i.test(f.path))) {
@@ -86,6 +86,6 @@ function scan(files: RepositoryFile[]): Finding[] {
 
 export async function scanRepositoryViaApi(repoUrl: string, githubToken?: string): Promise<ScanReport> {
   const { owner, repo, files } = await readRepositoryFiles(repoUrl, githubToken);
-  const findings = scan(files);
+  const findings = scanApiFiles(files);
   return { repo: `${owner}/${repo}`, repoUrl, findings, filesScanned: files.length, scannedAt: new Date().toISOString() };
 }
