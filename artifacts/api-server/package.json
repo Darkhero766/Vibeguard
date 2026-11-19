@@ -25,7 +25,8 @@
     "test:agentshield:ast": "node --test ./scripts/test-agentshield-ast.mjs",
     "benchmark:agentshield:ast": "node ./scripts/benchmark-agentshield-ast.mjs",
     "test:agentshield:taint": "node --test ./scripts/test-agentshield-taint.mjs",
-    "test:agentshield:release": "node --test ./scripts/test-agentshield-release.mjs"
+    "test:agentshield:release": "node --test ./scripts/test-agentshield-release.mjs",
+    "benchmark:agentshield:taint": "node ./scripts/benchmark-agentshield-taint.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
