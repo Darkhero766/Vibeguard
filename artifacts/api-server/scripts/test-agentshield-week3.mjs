@@ -324,3 +324,13 @@ test('Git rename is scanned at its destination path without old path confusion',
   assert.equal(result.status, 'complete');
   assert.ok(result.findings.some(x => x.filePath === 'src/renamed auth.js'));
 });
+
+test('installer refuses symlinked Claude settings directory', async t => {
+  const f = await fixture(t, 'src/index.js', 'export const x = 1;\n');
+  const outside = await mkdtemp(path.join(tmpdir(), 'agentshield-outside-'));
+  t.after(async () => { await rm(outside, { recursive: true, force: true }); });
+  await symlink(outside, path.join(f.root, '.claude'), 'dir');
+  const result = await call(install, ['install', f.root], '', f.env);
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /symlinked/);
+});
