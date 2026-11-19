@@ -3,6 +3,11 @@ import path from 'node:path';
 
 const pages = [
   {
+    path: '/agentshield',
+    title: 'AgentShield for Claude Code | VibeSane',
+    description: 'Local security scanning, bounded repair guidance and final verification for Claude Code. Private-beta developer preview; public release pending.',
+  },
+  {
     path: '/github-security-scanner',
     title: 'GitHub Security Scanner | VibeSane',
     description: 'Scan GitHub repositories for vulnerabilities, secrets, and risky code before they ship with VibeSane.',
