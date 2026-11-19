@@ -36,7 +36,7 @@ function options(args) {
 
 async function git(cwd, args) {
   try {
-    const result = await run('git', ['-C', cwd, ...args], {
+    const result = await run('git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-C', cwd, ...args], {
       encoding: 'utf8', timeout: 7000, maxBuffer: 2_000_000, windowsHide: true,
     });
     return result.stdout;
@@ -75,6 +75,7 @@ async function loadFiles(opts) {
     ? [path.isAbsolute(opts.file) ? path.relative(rootReal, opts.file) : path.relative(rootReal, path.resolve(cwd, opts.file))]
     : changedPaths(await git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all']));
   const selected = targets.filter(validFile);
+  if (opts.file && selected.length === 0) throw new Error('The specified file is outside the repository or has an unsupported extension.');
   if (selected.length > MAX_FILES) throw new Error('File limit exceeded (100); narrow the scan.');
   const files = [];
   let bytes = 0;
@@ -96,6 +97,7 @@ async function loadFiles(opts) {
     if (bytes > MAX_TOTAL_BYTES) throw new Error('Source size limit exceeded.');
     files.push({ path: safeRelative.split(path.sep).join('/'), content });
   }
+  if (opts.file && files.length === 0) throw new Error('The selected file was not safely readable.');
   return { files, mode: opts.file ? 'file' : 'changed', selected: selected.length };
 }
 
