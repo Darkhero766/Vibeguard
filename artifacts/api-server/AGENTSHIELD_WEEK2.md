@@ -35,6 +35,8 @@ node artifacts/api-server/scripts/agentshield-controller.mjs config --cwd /path/
 node artifacts/api-server/scripts/agentshield-controller.mjs config --cwd /path/to/dev-project --mode assist
 node artifacts/api-server/scripts/agentshield-controller.mjs config --cwd /path/to/dev-project --mode auto-fix --attempts 2
 node artifacts/api-server/scripts/agentshield-controller.mjs config --cwd /path/to/dev-project --syntax-check true
+node artifacts/api-server/scripts/agentshield-controller.mjs config --cwd /path/to/dev-project --enabled false
+node artifacts/api-server/scripts/agentshield-controller.mjs config --cwd /path/to/dev-project --budget-seconds 90 --retention-hours 12 --threshold Medium
 ~~~
 
 The opt-in Auto-fix mode **only suggests that Claude attempt a repair**; VibeSane does not silently modify files, give Claude new permissions, dismiss approval dialogs, or guarantee the agent acts.
@@ -126,7 +128,7 @@ CI runs the existing Week 1 suite, Week 2 suite and SUE regression on the featur
 ## Rollback
 
 ~~~bash
-node artifacts/api-server/scripts/agentshield-controller.mjs config --cwd /path/to/dev-project --mode monitor
+node artifacts/api-server/scripts/agentshield-controller.mjs config --cwd /path/to/dev-project --enabled false
 node artifacts/api-server/scripts/agentshield-install.mjs uninstall /path/to/dev-project
 ~~~
 
