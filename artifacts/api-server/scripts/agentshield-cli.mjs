@@ -173,7 +173,7 @@ export async function main(argv = process.argv.slice(2)) {
     const findings = analyze(files);
     const report = {
       schemaVersion: 1, tool: 'VibeSane AgentShield', status: 'complete', mode,
-      filesSelected: selected, filesScanned: files.length, findings,
+      filesSelected: selected, filesScanned: files.length, scannedPaths: files.map((f) => f.path), findings,
       coverage: 'Static heuristic analysis of selected files only; untested vulnerabilities may remain.',
       scannedAt: new Date().toISOString(),
     };
