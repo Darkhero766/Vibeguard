@@ -57,7 +57,7 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
       // comments, unguarded calls, or an unrelated middleware filename.
       const activeBeforeWrite = before.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|\s)\/\/[^\n]*/g, '$1');
       const protectedByGuard = /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+(?:requireAuth|requireUser)\s*\([^)]*\)\s*;[\s\S]{0,200}?\bif\s*\(\s*!\s*\1\s*\)/.test(activeBeforeWrite);
-      if (!protectedByGuard && !/auth\.getUser\s*\(|auth\.uid\s*\(|getServerSession\s*\(|session\.user\b/i.test(before)) {
+      if (!protectedByGuard && !/auth\.getUser\s*\(|auth\.uid\s*\(|getServerSession\s*\(|session\.user\b/i.test(activeBeforeWrite)) {
         const line = lineAt(file.content, write);
         findings.push(finding(`write-${file.path}-${line}`, "High", "Database write is missing an auth check", "This API route writes to the database without a detected authentication check before the write.", file.path, line, "unauthenticated_write"));
       }
