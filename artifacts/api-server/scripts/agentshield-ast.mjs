@@ -2,6 +2,7 @@
 // Pure syntax/data-flow checks; no project imports, scripts, typechecking, or code execution.
 // Inputs are already selected by the AgentShield scanner and revalidated here.
 import ts from 'typescript';
+import { analyzeTaintedSql } from './agentshield-taint.mjs';
 import { lstat, realpath, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -128,7 +129,7 @@ export async function analyzeRepositoryPaths(root, selectedPaths) {
   if (!Array.isArray(selectedPaths) || selectedPaths.length > 100) throw new Error('AST file count exceeds budget.');
   const rootReal=await realpath(root);
   let total=0, analyzed=0, nodes=0, ignored=0;
-  const findings=[], incomplete=[];
+  const findings=[], taintFindings=[], incomplete=[];
   const unique=[...new Set(selectedPaths)];
   if (unique.length !== selectedPaths.length) throw new Error('Duplicate scanner coverage paths.');
   for (const rel of unique) {
@@ -149,14 +150,21 @@ export async function analyzeRepositoryPaths(root, selectedPaths) {
     if (buf.length>MAX_FILE || total>MAX_TOTAL) throw new Error('AST source budget exceeded.');
     const result=analyzeSource(rel,buf.toString('utf8'));
     if (result.status==='parse_incomplete') incomplete.push(rel);
-    else { analyzed++; nodes+=result.visitedNodes; findings.push(...result.findings); }
-    if (findings.length>MAX_FINDINGS) throw new Error('AST findings count exceeded.');
+    else {
+      const taint = analyzeTaintedSql(rel, buf.toString('utf8'));
+      if (taint.status !== 'complete') throw new Error('Taint parser was incomplete.');
+      analyzed++; nodes+=result.visitedNodes + taint.visitedNodes;
+      findings.push(...result.findings);
+      taintFindings.push(...taint.findings);
+    }
+    if (findings.length>MAX_FINDINGS || taintFindings.length>MAX_FINDINGS)
+      throw new Error('AST or taint findings count exceeded.');
   }
   return {
     status:incomplete.length?'scan_incomplete':'complete',
     filesAnalyzed:analyzed, codeFilesExpected:analyzed+incomplete.length,
-    unsupportedFilesSkipped:ignored, visitedNodes:nodes, findings,
+    unsupportedFilesSkipped:ignored, visitedNodes:nodes, findings, taintFindings,
     incompletePaths:incomplete.slice(0,20),
-    note:'Intra-file syntactic SQL data flow only; no execution, type checking, inter-file path tracing, or exploit proof.',
+    note:'Intra-file syntax and selected request-to-SQL taint checks only; no execution, type checking, inter-file tracing or exploit proof.',
   };
 }
