@@ -105,6 +105,7 @@ async function loadFiles(opts) {
 function unsafeSqlTemplate(files) {
   const findings = [];
   const dynamicSql = /\.(?:query|execute)\s*\(\s*`\s*(?:SELECT|INSERT|UPDATE|DELETE)\b[\s\S]{0,300}?\$\{[^}]+\}[\s\S]{0,300}?`/gi;
+  const dynamicConcat = /\.(?:query|execute)\s*\(\s*["']\s*(?:SELECT|INSERT|UPDATE|DELETE)\b[^"'\n]{0,280}["']\s*\+\s*[A-Za-z_$][\w$]*/gi;
   for (const file of files) {
     if (!/\.(?:[cm]?[jt]sx?)$/i.test(file.path)) continue;
     for (const match of file.content.matchAll(dynamicSql)) {
@@ -114,6 +115,16 @@ function unsafeSqlTemplate(files) {
         check: 'unsafe_sql_template', severity: 'High',
         title: 'Potential unsafe dynamic SQL template',
         description: 'A SQL query template contains expression interpolation. This may permit SQL injection if the interpolated value is untrusted.',
+        filePath: file.path, line,
+      });
+    }
+    for (const match of file.content.matchAll(dynamicConcat)) {
+      const line = file.content.slice(0, match.index || 0).split('\n').length;
+      findings.push({
+        id: 'unsafe-sql-concat-' + file.path + '-' + line,
+        check: 'unsafe_sql_template', severity: 'High',
+        title: 'Potential unsafe SQL string concatenation',
+        description: 'A SQL query appears to concatenate a dynamic expression. If untrusted, this may permit SQL injection.',
         filePath: file.path, line,
       });
     }
