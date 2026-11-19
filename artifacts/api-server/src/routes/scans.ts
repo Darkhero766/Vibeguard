@@ -119,7 +119,19 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
     // Validate output, then charge the authenticated account before returning or
     // caching a result. A database failure or exhausted quota must not grant a free scan.
     const response = CreateScanResponse.parse(finalReport);
-    if (req.userId) await consumePublicScan(req.userId);
+    if (req.userId) {
+      try {
+        await consumePublicScan(req.userId);
+      } catch (error) {
+        const status = errorStatus(error);
+        req.log.error({ err: error }, "Scan quota could not be recorded; refusing to deliver result.");
+        res.status(status === 429 ? 429 : 503).json({
+          error: status === 429 ? "Scan allowance exhausted. Please check your plan."
+            : "Unable to record scan usage. Please retry later.",
+        });
+        return;
+      }
+    }
     cacheScanResult(finalReport.repo, finalReport);
     res.json(response);
   } catch (error) {
