@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 const scripts = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(scripts, '../dist/agentshield.mjs');
 const controller = path.resolve(scripts, 'agentshield-controller.mjs');
+const hybrid = path.resolve(scripts, 'agentshield-hybrid.mjs');
 const installer = path.resolve(scripts, 'agentshield-install.mjs');
 const exec = promisify(execFile);
 
@@ -67,12 +68,16 @@ async function main(args) {
     return child(installer, ['install', cwdFrom(tail)]);
   }
   if (command === 'uninstall') return child(installer, ['uninstall', cwdFrom(tail)]);
+  if (command === 'hybrid') {
+    if (!await isFile(dist) || !await isFile(hybrid)) throw new Error('Build scanner and use a checkout with the hybrid preview module.');
+    return child(hybrid, tail);
+  }
   if (command === 'scan') {
     if (!await isFile(dist)) throw new Error('AgentShield scanner is not built.');
     return child(dist, ['scan', ...tail]);
   }
   if (['verify', 'status', 'config', 'acknowledge'].includes(command)) return child(controller, [command, ...tail]);
-  throw new Error('Commands: init, scan --changed, verify --changed, status, config, acknowledge, doctor, uninstall.');
+  throw new Error('Commands: init, scan --changed, hybrid --changed [--enable-local-ai], verify --changed, status, config, acknowledge, doctor, uninstall.');
 }
 main(process.argv.slice(2)).then(code => { process.exitCode = code; }).catch(() => {
   process.stdout.write(JSON.stringify({ status: 'error', message: 'AgentShield command failed; run doctor for local diagnostics.' }) + '\n');
