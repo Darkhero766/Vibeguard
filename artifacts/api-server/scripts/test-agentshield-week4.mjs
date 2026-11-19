@@ -65,7 +65,7 @@ test('unpublished local beta package contains no server runtime or source corpus
   const pkg = JSON.parse(stdout);
   assert.equal(pkg.status, 'packaged_local_only');
   assert.equal(pkg.published, false);
-  assert.equal(pkg.fileCount, 11);
+  assert.equal(pkg.fileCount, 12);
   assert.equal(pkg.sha256.length, 64);
   assert.ok(pkg.contents.includes('dist/agentshield.mjs'));
   assert.ok(pkg.contents.includes('scripts/vibesane.mjs'));
