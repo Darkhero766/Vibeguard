@@ -54,6 +54,7 @@ test('hybrid exposes bounded cross-file and route-auth analyses only via opt-in 
  assert.match(hybrid,/ast\.routeAuthFindings/);
  assert.match(ast,/analyzeCrossFileSqlFlows/);
  assert.match(ast,/analyzeNextRouteAuth/);
+ assert.match(ast,/analyzeSupabasePolicies/);
  assert.match(ast,/changed_files_only/);
 });
 test('scanner runs AST only within separate time-limited worker',async()=>{
