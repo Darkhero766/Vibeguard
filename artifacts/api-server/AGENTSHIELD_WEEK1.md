@@ -93,6 +93,12 @@ Run uninstall from the same VibeSane checkout used during installation. Moving t
 
 A branch-restricted, read-only GitHub Actions workflow also runs these checks without deploying.
 
+## CI verification status (November 19, 2026)
+
+- Branch CI successfully built AgentShield and passed 9 isolated CLI, hook, installer and security-fixture tests; the existing SUE applicability regression suite also passed.
+- The **existing repository-wide API TypeScript check still fails** on unrelated source/type errors (including duplicate `pool` imports in `routes/health.ts`, missing `HeadersInit` types, and existing rules/route type mismatches). The type-check is informational in the new branch-only workflow so it does not mask the AgentShield-specific test outcome. **A green AgentShield job does not mean production API TypeScript is clean.**
+- No production build/deployment, default-branch merge, or customer installation was performed.
+
 ## Week 2: automatic fix-and-rescan
 
 Give Claude a bounded set of actionable findings, let it propose changes under human review, rescan edited files, run approved regression tests in isolation, and report `verified`, `unresolved` or `unverified` states separately. Do not claim a vanished regex warning proves the fix secure.
