@@ -1,0 +1,50 @@
+name: AgentShield Week 6 Hybrid Preview
+on:
+  push:
+    branches:
+      - feat/agentshield-week6-hybrid-security
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  hybrid-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Install pinned workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build shared libraries and validate frontend
+        run: pnpm run typecheck:libs && pnpm --filter @workspace/vibeguard run typecheck
+      - name: Validate backend TypeScript
+        run: pnpm --filter @workspace/api-server run typecheck
+      - name: Build standalone static scanner
+        run: pnpm --filter @workspace/api-server run build:agentshield
+      - name: Week 1 scanner regressions
+        run: pnpm --filter @workspace/api-server run test:agentshield
+      - name: Week 2 repair regressions
+        run: pnpm --filter @workspace/api-server run test:agentshield:week2
+      - name: Week 3 gate regressions
+        run: pnpm --filter @workspace/api-server run test:agentshield:week3
+      - name: Week 4 private-beta regressions
+        run: pnpm --filter @workspace/api-server run test:agentshield:week4
+      - name: Week 5 web integration regressions
+        run: pnpm --filter @workspace/api-server run test:agentshield:week5
+      - name: Opt-in local AI advisory safety and privacy tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:hybrid
+      - name: Existing SUE regression
+        run: pnpm --filter @workspace/api-server run test:sue
