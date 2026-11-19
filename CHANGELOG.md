@@ -1,5 +1,16 @@
 ## 2026-11-19
 
+### AgentShield Week 4 — offline private-beta build and labeled accuracy assessment (feature branch)
+
+- Added 120 curated and 24 challenge synthetic labeled scanner cases with transparent confusion matrices, category-level precision, recall, and false-positive reporting.
+- Strengthened existing scanner checks for typed JWT signing keys, explicitly checked authorization guards (ignoring commented-out guards), staging environment files, browser-global privileged-key use, and quoted SQL table references; extended local SQL interpolation heuristics to string concatenation.
+- Added a versioned, locally packable npm tarball with a strict 11-file manifest, no install scripts, private-only metadata and offline installation/regression testing; no publication or distribution.
+- Added local expiring file/rule acknowledgements without suppressing findings or security gates, plus human-readable verification reporting and synthetic performance measurements.
+- Added private-beta demo fixtures, first-run instructions, feedback/bug-report templates and a fail-closed release checklist.
+- All changes remain on an isolated feature branch; no production deploy, npm publish, external pilot invitation or default-branch merge. Live authenticated Claude Code validation and pre-existing API-wide TypeScript errors remain release blockers.
+
+## 2026-11-19
+
 ### AgentShield Week 3 — local final gate and reliability hardening (feature branch only)
 
 - Added a Stop-time, race-aware static security gate that rescans supported Git-visible changes, including staged/unstaged/untracked files and Bash-created sources.
