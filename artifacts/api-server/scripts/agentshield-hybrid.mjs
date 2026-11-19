@@ -151,6 +151,7 @@ export async function hybrid(argv) {
       if (!ast || !['complete','scan_incomplete'].includes(ast.status) ||
         !Array.isArray(ast.findings) || !Array.isArray(ast.taintFindings) ||
         !Array.isArray(ast.crossFileFindings) || !Array.isArray(ast.routeAuthFindings) ||
+        !Array.isArray(ast.sqlPolicyFindings) ||
         !Number.isInteger(ast.filesAnalyzed)) {
         throw new Error('AST worker produced invalid output.');
       }
@@ -173,7 +174,7 @@ export async function hybrid(argv) {
     ai:{ status:'disabled', advisory:[], note:'AI does not change, suppress, or independently verify any finding.' },
     privacy:{ sourceUploaded:false, sourceSentToModel:false, filenamesSentToModel:false,
       localService:'127.0.0.1', remoteAIUsed:false } };
-  const findings = [...staticResult.findings, ...(ast.findings || []), ...(ast.taintFindings || []), ...(ast.crossFileFindings || []), ...(ast.routeAuthFindings || [])];
+  const findings = [...staticResult.findings, ...(ast.findings || []), ...(ast.taintFindings || []), ...(ast.crossFileFindings || []), ...(ast.routeAuthFindings || []), ...(ast.sqlPolicyFindings || [])];
   if (options.enableLocalAI && findings.length) {
     result.ai.status='unavailable';
     result.ai.model=options.model;
