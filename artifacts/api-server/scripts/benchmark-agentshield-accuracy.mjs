@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Deterministic labeled fixture benchmark. No arbitrary project code execution.
 import { BENCHMARK_CASES } from './agentshield-accuracy-corpus.mjs';
+import { HOLDOUT_CASES } from './agentshield-holdout-corpus.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
@@ -20,14 +21,14 @@ function rates(c) {
     accuracy: total ? (c.tp + c.tn) / total : null };
 }
 function fresh() { return { tp: 0, tn: 0, fp: 0, fn: 0 }; }
-export async function benchmark() {
+export async function benchmark({ cases = BENCHMARK_CASES, kind = 'curated' } = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'vibesane-accuracy-'));
   const start = performance.now();
   const totals = fresh(), categories = {}, misses = [];
   let offTargetFindings = 0;
   try {
     await exec('git', ['init', '-q', root], { timeout: 5000 });
-    for (const tc of BENCHMARK_CASES) {
+    for (const tc of cases) {
       const target = path.join(root, tc.path);
       await mkdir(path.dirname(target), { recursive: true });
       await writeFile(target, tc.content, { mode: 0o600 });
@@ -55,11 +56,11 @@ export async function benchmark() {
           expected: tc.expected, detected: actual, errorType: bucket, rationale: tc.rationale });
       }
     }
-    if (BENCHMARK_CASES.length < 100) throw new Error('Corpus too small; 100+ cases required.');
+    if (kind === 'curated' && cases.length < 100) throw new Error('Corpus too small; 100+ cases required.');
     const report = { tool: 'VibeSane AgentShield accuracy benchmark', schemaVersion: 1,
-      corpusVersion: '2026-11-19-1', benchmarkType: 'synthetic_labeled_target_rule',
+      corpusVersion: kind === 'holdout' ? '2026-11-19-holdout-1' : '2026-11-19-1', benchmarkType: 'synthetic_labeled_target_rule_' + kind,
       labelLimitations: 'Curated heuristic expectations, not independent exploit validation. Each case evaluates only its named target rule.',
-      totalCases: BENCHMARK_CASES.length, categoryCount: Object.keys(categories).length,
+      totalCases: cases.length, categoryCount: Object.keys(categories).length,
       results: rates(totals), categories: Object.fromEntries(
         Object.entries(categories).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, rates(v)])),
       offTargetFindings, misclassifications: misses, measuredElapsedMs: Math.round(performance.now() - start),
@@ -71,6 +72,7 @@ export async function benchmark() {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  benchmark().then(r => process.stdout.write(JSON.stringify(r, null, 2) + '\n'))
+  benchmark(process.argv.includes('--holdout') ? { cases: HOLDOUT_CASES, kind: 'holdout' } : {})
+    .then(r => process.stdout.write(JSON.stringify(r, null, 2) + '\n'))
     .catch(e => { process.stderr.write('Accuracy benchmark failed: ' + e.message + '\n'); process.exitCode = 2; });
 }
