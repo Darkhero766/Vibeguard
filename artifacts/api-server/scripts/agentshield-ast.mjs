@@ -3,6 +3,7 @@
 // Inputs are already selected by the AgentShield scanner and revalidated here.
 import ts from 'typescript';
 import { analyzeTaintedSql } from './agentshield-taint.mjs';
+import { analyzeCrossFileSqlFlows } from './agentshield-crossfile.mjs';
 import { lstat, realpath, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -129,7 +130,7 @@ export async function analyzeRepositoryPaths(root, selectedPaths) {
   if (!Array.isArray(selectedPaths) || selectedPaths.length > 100) throw new Error('AST file count exceeds budget.');
   const rootReal=await realpath(root);
   let total=0, analyzed=0, nodes=0, ignored=0;
-  const findings=[], taintFindings=[], incomplete=[];
+  const findings=[], taintFindings=[], incomplete=[], codeInputs=[];
   const unique=[...new Set(selectedPaths)];
   if (unique.length !== selectedPaths.length) throw new Error('Duplicate scanner coverage paths.');
   for (const rel of unique) {
@@ -148,23 +149,29 @@ export async function analyzeRepositoryPaths(root, selectedPaths) {
     const buf=await readFile(full);
     total+=buf.length;
     if (buf.length>MAX_FILE || total>MAX_TOTAL) throw new Error('AST source budget exceeded.');
-    const result=analyzeSource(rel,buf.toString('utf8'));
+    const source=buf.toString('utf8');
+    const result=analyzeSource(rel,source);
     if (result.status==='parse_incomplete') incomplete.push(rel);
     else {
       const taint = analyzeTaintedSql(rel, buf.toString('utf8'));
       if (taint.status !== 'complete') throw new Error('Taint parser was incomplete.');
       analyzed++; nodes+=result.visitedNodes + taint.visitedNodes;
+      codeInputs.push({path:rel,content:source});
       findings.push(...result.findings);
       taintFindings.push(...taint.findings);
     }
     if (findings.length>MAX_FINDINGS || taintFindings.length>MAX_FINDINGS)
       throw new Error('AST or taint findings count exceeded.');
   }
+  const crossFile=analyzeCrossFileSqlFlows(codeInputs);
+  if(crossFile.status!=='complete') throw Error('Cross-file analysis failed safely.');
   return {
     status:incomplete.length?'scan_incomplete':'complete',
     filesAnalyzed:analyzed, codeFilesExpected:analyzed+incomplete.length,
-    unsupportedFilesSkipped:ignored, visitedNodes:nodes, findings, taintFindings,
+    unsupportedFilesSkipped:ignored, visitedNodes:nodes+crossFile.visitedNodes,
+    findings, taintFindings, crossFileFindings:crossFile.findings,
+    crossFileCoverage:'changed_files_only',
     incompletePaths:incomplete.slice(0,20),
-    note:'Intra-file syntax and selected request-to-SQL taint checks only; no execution, type checking, inter-file tracing or exploit proof.',
+    note:'Local SQL AST/taint plus one-hop named imports among changed files; no execution, npm resolution, complete interprocedural flow or exploit proof.',
   };
 }
