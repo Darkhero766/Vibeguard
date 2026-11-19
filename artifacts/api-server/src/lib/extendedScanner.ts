@@ -5,9 +5,8 @@ type RepositoryFile = { path: string; content: string };
 
 // Extended heuristics include Low findings. The generated web API Finding
 // schema currently exposes only Critical/High/Medium; normalize Low at API boundaries.
-export type ExtendedFinding = Omit<Finding, "severity" | "check"> & {
+export type ExtendedFinding = Omit<Finding, "severity"> & {
   severity: Finding["severity"] | "Low";
-  check: string;
 };
 
 function lineAt(content: string, index: number): number {
@@ -27,7 +26,7 @@ function makeFinding(
   line: number,
   check: string,
 ): ExtendedFinding {
-  return { id, severity, title, description, filePath, line: Math.max(1, line), check };
+  return { id, severity, title, description, filePath, line: Math.max(1, line), check } as ExtendedFinding;
 }
 
 function regexFindings(
