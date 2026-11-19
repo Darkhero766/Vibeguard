@@ -203,13 +203,13 @@ export async function handleHook(kind) {
 
 function argsOf(argv) {
   const [action, ...tail] = argv;
-  const opts = { action, cwd: process.cwd(), file: null, changed: false, session: null, format: 'json', mode: null, attempts: null, syntaxCheck: null, threshold: null };
+  const opts = { action, cwd: process.cwd(), file: null, changed: false, session: null, format: 'json', mode: null, attempts: null, syntaxCheck: null, threshold: null, enabled: null, budgetSeconds: null, retentionHours: null };
   for (let i = 0; i < tail.length; i++) {
     const a = tail[i];
     if (a === '--changed') opts.changed = true;
-    else if (['--cwd', '--file', '--session', '--format', '--mode', '--attempts', '--syntax-check', '--threshold'].includes(a)) {
+    else if (['--cwd', '--file', '--session', '--format', '--mode', '--attempts', '--syntax-check', '--threshold', '--enabled', '--budget-seconds', '--retention-hours'].includes(a)) {
       if (tail[i + 1] == null) throw new Error('Missing option value: ' + a);
-      const key = { '--syntax-check': 'syntaxCheck', '--attempts': 'attempts', '--threshold': 'threshold' }[a] || a.slice(2);
+      const key = { '--syntax-check': 'syntaxCheck', '--attempts': 'attempts', '--threshold': 'threshold', '--budget-seconds': 'budgetSeconds', '--retention-hours': 'retentionHours' }[a] || a.slice(2);
       opts[key] = tail[++i];
     } else throw new Error('Unsupported option: ' + a);
   }
@@ -257,11 +257,17 @@ export async function command(argv = process.argv.slice(2)) {
   const root = await rootOf(opts.cwd);
   const config = await configFor(root);
   if (opts.action === 'config') {
-    if (opts.mode != null || opts.attempts != null || opts.syntaxCheck != null || opts.threshold != null) {
+    if (opts.mode != null || opts.attempts != null || opts.syntaxCheck != null || opts.threshold != null || opts.enabled != null || opts.budgetSeconds != null || opts.retentionHours != null) {
       const candidate = { ...config };
       if (opts.mode != null) candidate.mode = opts.mode;
       if (opts.attempts != null) candidate.maxAttempts = Number(opts.attempts);
       if (opts.threshold != null) candidate.blockingSeverity = opts.threshold;
+      if (opts.enabled != null) {
+        if (!['true', 'false'].includes(opts.enabled)) throw new Error('--enabled must be true or false.');
+        candidate.enabled = opts.enabled === 'true';
+      }
+      if (opts.budgetSeconds != null) candidate.timeBudgetSeconds = Number(opts.budgetSeconds);
+      if (opts.retentionHours != null) candidate.privacy = { ...candidate.privacy, retentionHours: Number(opts.retentionHours) };
       if (opts.syntaxCheck != null) {
         if (!['true', 'false'].includes(opts.syntaxCheck)) throw new Error('--syntax-check must be true or false.');
         candidate.verification = { syntaxCheck: opts.syntaxCheck === 'true', approved: opts.syntaxCheck === 'true' };
