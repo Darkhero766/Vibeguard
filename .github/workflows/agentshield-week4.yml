@@ -1,0 +1,50 @@
+name: AgentShield Week 4 Private Beta Checks
+on:
+  push:
+    branches:
+      - feat/agentshield-week4-private-beta
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  week4-beta:
+    name: Accuracy, offline packaging and end-to-end regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Locked dependency installation
+        run: pnpm install --frozen-lockfile
+      - name: Existing backend typecheck (known baseline errors; informational)
+        continue-on-error: true
+        run: pnpm run typecheck:libs && pnpm --filter @workspace/api-server run typecheck
+      - name: Existing SUE regression
+        run: pnpm --filter @workspace/api-server run test:sue
+      - name: Build self-contained scanner
+        run: pnpm --filter @workspace/api-server run build:agentshield
+      - name: Week 1 AgentShield suite
+        run: pnpm --filter @workspace/api-server run test:agentshield
+      - name: Week 2 repair suite
+        run: pnpm --filter @workspace/api-server run test:agentshield:week2
+      - name: Week 3 final-gate suite
+        run: pnpm --filter @workspace/api-server run test:agentshield:week3
+      - name: Week 4 accuracy and private package integration tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week4
+      - name: Reproducible labeled accuracy report
+        run: pnpm --filter @workspace/api-server run benchmark:agentshield
