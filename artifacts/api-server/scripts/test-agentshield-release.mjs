@@ -82,3 +82,16 @@ test('production planning never silently replays the legacy Supabase migration s
   assert.match(plan,/explicit approval/);
   assert.match(plan,/test new registration/i);
 });
+
+test('authenticated plan code has no request-triggered schema DDL',async()=>{
+  const plan=await read('artifacts/api-server/src/lib/plan.ts');
+  assert.doesNotMatch(plan,/(?:ALTER\s+TABLE|CREATE\s+TABLE|CREATE\s+INDEX)\s+public\.usage/i);
+  assert.match(plan,/information_schema\.columns/);
+  assert.match(plan,/approved database migration is required/);
+});
+test('Dodo billing and webhook request paths never self-migrate schema',async()=>{
+  const billing=await read('artifacts/api-server/src/routes/dodo.ts');
+  assert.doesNotMatch(billing,/(?:ALTER\s+TABLE|CREATE\s+TABLE|CREATE\s+INDEX)\s+(?:public\.)?(?:usage|dodo_webhook_events|hackathon_redemptions)/i);
+  assert.match(billing,/information_schema\.columns/);
+  assert.match(billing,/schema is incomplete/);
+});
