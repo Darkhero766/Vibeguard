@@ -27,6 +27,7 @@ test('public staging API fails closed unless it has correct access secret',async
   process.env.VIBESANE_STAGING_ACCESS_KEY=key;
   assert.equal(call('GET','/').nextCalls,1);
   assert.equal(call('GET','/api/healthz').nextCalls,1);
+  assert.equal(call('OPTIONS','/api/github/token').nextCalls,1);
   assert.equal(call('GET','/api/readyz').nextCalls,1);
   assert.equal(call('GET','/api/github/token/status').res.code,403);
   // Sandbox webhook must reach the separate HMAC verifier.
