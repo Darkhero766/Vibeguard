@@ -14,6 +14,12 @@ export const stagingAccess: RequestHandler = (req, res, next) => {
     return;
   }
   const path = req.path;
+  // Browser preflight is safe to answer, while the eventual actual API
+  // operation still requires its private staging access header.
+  if (req.method === "OPTIONS") {
+    next();
+    return;
+  }
   if ((req.method === "GET" &&
         (path === "/" || path === "/api/healthz" || path === "/api/readyz")) ||
       // Dodo sandbox cannot supply our staging access header. The webhook
