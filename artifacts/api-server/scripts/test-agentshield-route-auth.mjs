@@ -112,3 +112,8 @@ test('destructured Supabase data early denial protects mutation',()=>{
  const r=scan('export async function POST(){const {data}=await auth.getUser();if(!data.user)throw Error("deny");db.from("orders").insert({});}');
  assert.equal(r.findings.length,0);
 });
+
+test('an unawaited async requireAuth call cannot authorize a write',()=>{
+ const r=scan('export async function POST(){requireAuth();db.from("orders").insert({});}');
+ assert.equal(r.findings.length,1);
+});
