@@ -99,7 +99,7 @@ async function activateProByEmail(email: string, values: {
   status?: string;
   expiresAt?: string | null;
   source?: string;
-}, executor: Pick<Awaited<ReturnType<typeof pool.connect>>, "query"> | typeof pool = pool) {
+}, executor: Pick<typeof pool, "query"> = pool) {
   const user = await executor.query(`SELECT id FROM auth.users WHERE lower(email) = lower($1) LIMIT 1`, [email]);
   const userId = user.rows[0]?.id as string | undefined;
   if (!userId) return false;
@@ -153,7 +153,7 @@ async function activateProByUserId(userId: string, values: {
 }
 
 async function deactivatePro(subscriptionId: string | null, email: string | null, status: string,
-  executor: Pick<Awaited<ReturnType<typeof pool.connect>>, "query"> | typeof pool = pool,
+  executor: Pick<typeof pool, "query"> = pool,
 ) {
   const clauses: string[] = [];
   const params: unknown[] = [];
@@ -336,7 +336,7 @@ router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise
     return;
   }
 
-  let client: Awaited<ReturnType<typeof pool.connect>> | undefined;
+  let client: Pick<typeof pool, "query"> & { release(): void } | undefined;
   try {
     assertDodoEnvironmentSafe();
     await ensureDodoTables();
