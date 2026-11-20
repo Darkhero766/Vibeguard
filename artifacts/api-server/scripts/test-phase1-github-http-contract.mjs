@@ -74,9 +74,9 @@ test('Phase 1 GitHub HTTP token lifecycle is owner-scoped and never reveals ciph
      packages:'external',logLevel:'silent',plugins:[{
        name:'phase1-dependency-stubs',
        setup(buildContext){
-         buildContext.onResolve({filter:/^@workspace\\/db$/},
+         buildContext.onResolve({filter:/^@workspace\/db$/},
            ()=>({path:'database',namespace:'phase1-test'}));
-         buildContext.onResolve({filter:/^\\.\\.\\/lib\\/logger$/},
+         buildContext.onResolve({filter:/^\.\.\/lib\/logger$/},
            ()=>({path:'logger',namespace:'phase1-test'}));
          buildContext.onLoad({filter:/.*/,namespace:'phase1-test'},(arg)=>({
            loader:'js',contents:arg.path==='database'?
