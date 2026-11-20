@@ -95,3 +95,20 @@ test('nested optional auth guard does not hide findings',()=>{
  const r=scan('export async function POST(){if(true){await requireUser();}await db.from("orders").insert({});}');
  assert.equal(r.findings.length,1);
 });
+
+test('Supabase getUser wrapper truthiness is not a valid user check',()=>{
+ const r=scan('export async function POST(){const r=await auth.getUser();if(!r)return;db.from("orders").insert({});}');
+ assert.equal(r.findings.length,1);
+});
+test('Supabase response data.user denial protects mutation',()=>{
+ const r=scan('export async function POST(){const r=await auth.getUser();if(!r.data.user) return;db.from("orders").insert({});}');
+ assert.equal(r.findings.length,0);
+});
+test('destructured Supabase data.user early denial protects mutation',()=>{
+ const r=scan('export async function POST(){const {data:{user}}=await auth.getUser();if(!user)return;db.from("orders").insert({});}');
+ assert.equal(r.findings.length,0);
+});
+test('destructured Supabase data early denial protects mutation',()=>{
+ const r=scan('export async function POST(){const {data}=await auth.getUser();if(!data.user)throw Error("deny");db.from("orders").insert({});}');
+ assert.equal(r.findings.length,0);
+});
