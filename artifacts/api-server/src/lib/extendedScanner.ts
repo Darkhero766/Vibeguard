@@ -75,10 +75,10 @@ function sqlChecks(files: RepositoryFile[]): ExtendedFinding[] {
     for (const m of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?([\w.]+)/gi)) {
       const table = m[1];
       const name = table.split(".").pop()!;
-      const rls = new RegExp(String.raw`alter\\s+table\\s+(?:public\\.)?${name}\\s+enable\\s+row\\s+level\\s+security`, "i").test(sql);
-      const policy = new RegExp(String.raw`create\\s+policy[\\s\\S]{0,1000}on\\s+(?:public\\.)?${name}\\b`, "i").test(sql);
+      const rls = new RegExp(String.raw`alter\s+table\s+(?:public\.)?${name}\s+enable\s+row\s+level\s+security`, "i").test(sql);
+      const policy = new RegExp(String.raw`create\s+policy[\s\S]{0,1000}on\s+(?:public\.)?${name}\b`, "i").test(sql);
       const tableClientRegrant = new RegExp(
-        String.raw`\\bgrant\\s+[^;]{0,200}\\bon\\s+(?:table\\s+)?(?:public\\.)?${name}\\s+to\\s+(?:public|anon|authenticated)\\b`, "i",
+        String.raw`\bgrant\s+[^;]{0,200}\bon\s+(?:table\s+)?(?:public\.)?${name}\s+to\s+(?:public|anon|authenticated)\b`, "i",
       ).test(sql);
       const intentionallyDenied = globalRevoke && !globalClientRegrant && !tableClientRegrant;
       if (rls && !policy && !intentionallyDenied) {
