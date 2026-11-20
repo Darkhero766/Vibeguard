@@ -149,12 +149,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const hasGithubIdentity = s?.user?.identities?.some((id: { provider: string }) => id.provider === 'github');
-      const githubOauthPending = window.sessionStorage.getItem('vs_github_oauth_pending') === 'github';
+      let githubOauthPending = false;
+      try { githubOauthPending = window.sessionStorage.getItem('vs_github_oauth_pending') === 'github'; } catch { /* Fail closed if tab storage is blocked. */ }
       if ((_event === 'SIGNED_IN' || _event === 'INITIAL_SESSION') &&
           githubOauthPending && s?.provider_token && s.access_token && hasGithubIdentity) {
         // Intent is single-use: even if a linked account later signs in with
         // another provider, its provider_token must not be stored as GitHub.
-        window.sessionStorage.removeItem('vs_github_oauth_pending');
+        try { window.sessionStorage.removeItem('vs_github_oauth_pending'); } catch { /* Token still only exists in this callback. */ }
         const githubProviderToken = s.provider_token;
         const userAccessToken = s.access_token;
         const accountId = s.user.id;
