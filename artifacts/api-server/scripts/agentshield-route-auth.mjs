@@ -96,10 +96,9 @@ export function analyzeNextRouteAuth(filePath,content){
         // Only treat a standalone guard statement as throwing/denying; when
         // assigned to a variable, require an explicit checked denial branch.
         const parent=n.parent;
-        const direct=ts.isExpressionStatement(parent) ||
-          (ts.isAwaitExpression(parent)&&ts.isExpressionStatement(parent.parent));
-        const stmt=ts.isExpressionStatement(parent)?parent:
-          (ts.isAwaitExpression(parent)&&ts.isExpressionStatement(parent.parent)?parent.parent:null);
+        // An un-awaited async auth function can reject after the DB write.
+        const direct=ts.isAwaitExpression(parent)&&ts.isExpressionStatement(parent.parent);
+        const stmt=direct?parent.parent:null;
         if(direct&&isTopLevelStatement(stmt,c.body))guards.push(n.getStart(sf));
       }
       if(ts.isIfStatement(n)){
