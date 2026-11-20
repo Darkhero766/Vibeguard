@@ -15,13 +15,13 @@ const commit='c5cb68a7084e4ae7dcc60e6a98768720a81841e8';
 const files=[
  {path:'app/routes/contributions.js',rule:'eval_usage',category:'supported'},
  {path:'app/routes/index.js',rule:'open_redirect',category:'supported'},
- {path:'app/data/user-dao.js',rule:'plaintext_password_storage',category:'known_unsupported'},
+ {path:'app/data/user-dao.js',rule:'plaintext_password_storage',category:'supported'},
  {path:'app/routes/profile.js',rule:'redos',category:'known_unsupported'},
 ];
 const result={status:'incomplete',source:repo,commit,license:'Apache-2.0',
  evaluation:'External, deliberately vulnerable educational repository; sampled static rules only',
  humanValidated:false,actualExploitVerified:false,fullyIndependentHoldout:false,
- samples:[],supportedHits:0,supportedExpected:2,knownUnsupported:2,fullCoverageClaim:false};
+ samples:[],supportedHits:0,supportedExpected:3,knownUnsupported:1,fullCoverageClaim:false};
 const tmp=await mkdtemp(path.join(tmpdir(),'vibesane-public-static-'));
 try{
  const outfile=path.join(tmp,'scanner.mjs');
@@ -50,7 +50,7 @@ try{
      findingRules:rules,reportedFindings:all.length});
  }
  result.status='measured';
- result.note='2 supported target rules plus 2 known-unsupported vulnerability classes; '
+ result.note='3 supported target rules plus 1 known-unsupported vulnerability class; '
    +'no precision/recall is reported because this is neither an exhaustive review '
    +'nor a human-adjudicated labeled dataset. No external source was executed.';
  if(result.supportedHits!==result.supportedExpected)
