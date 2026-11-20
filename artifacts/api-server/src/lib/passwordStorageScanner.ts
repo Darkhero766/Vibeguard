@@ -41,7 +41,7 @@ export function scanPotentialPlaintextPasswords(files: SourceFile[]): PasswordSt
       const body = source.slice(start, end + 1);
       const hasRawPassword = RAW_SHORTHAND.test(body) || RAW_REQUEST_FIELD.test(body);
       if (!hasRawPassword) continue;
-      const after = source.slice(end + 2, end + 1800);
+      const after = source.slice(end + 2, end + 1200);
       const write = new RegExp(
         "[.]\\s*(?:insert|insertOne|insertMany|create)\\s*\\(\\s*" +
         name.replace(/\$/g, "\\$") + "\\s*[,)]",
