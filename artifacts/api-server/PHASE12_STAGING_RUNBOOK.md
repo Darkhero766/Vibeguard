@@ -57,3 +57,28 @@ Status: **isolated Supabase staging project created, schema installed, permissio
 - Dedicated staging Supabase/Render, real E2E, independent real-repo labels and security review: **pending**.
 
 This document is a staging safety plan, not certification or authorization to deploy.
+
+
+### Additional executed staging and CI evidence — 20 November 2026
+
+**Hosted staging-only tests (executed, not merely planned):**
+- `supabase/staging/PHASE12_TRANSACTIONAL_ROLE_PROOF.sql`: created two synthetic Auth identities inside a transaction, checked owner read isolation, no client plan UPDATE/INSERT, no access to GitHub ciphertext, no client audit INSERT, tightly scoped coupon ownership, and service-role token access; **passed and ROLLBACK**.
+- `supabase/staging/PHASE12_TRANSACTIONAL_LEGACY_LOCKDOWN_REHEARSAL.sql.fixture`: temporarily simulated legacy permissive grants/RLS, executed the **existing proposed revocation bodies** and verified all 11 post-migration gates; **passed and ROLLBACK**. This does NOT reconcile production's historical schema migration ledger or verify deployment compatibility.
+- `supabase/staging/PHASE12_TRANSACTIONAL_BILLING_AUDIT_PROOF.sql.fixture`: staged server-owned Pro entitlement update, duplicate Dodo webhook ID rejection, 90-day audit retention trigger, and owner-only audit/plan reads; **passed and ROLLBACK**. No Dodo API key or real payment/webhook used.
+- Final read-only hosted staging audit: **11/11 permission gates passed**; `auth.users`, `public.usage`, `public.github_tokens`, `public.audit_runs`, `public.dodo_webhook_events`, `public.hackathon_redemptions` all contained **zero** test rows.
+
+**Expanded application-level automated tests:**
+- `test-phase1-github-http-contract.mjs`: real Express routes, real auth middleware behavior with **mocked** Supabase Auth HTTP, real AES-GCM token encryption, simulated DB/GitHub responses. Tests connection lifecycle, user isolation, private repo listing, errors and no ciphertext response.
+- `test-phase1-crypto.mjs`: requires strict 64-digit key hex, GCM random IVs, integrity failure for tampering and wrong keys.
+- `test-phase1-dodo-environment.mjs`: staging billing refuses unset/live Dodo mode; production's existing default remains unchanged.
+- `test-phase1-dodo-signature.mjs`: HMAC signature, malformed base64 secrets, missing signatures, wrong body, wrong event ID, timestamp and version rejection.
+- Successful [CI run 44682663676](https://github.com/Darkhero766/Vibeguard/actions/runs/44682663676): **271/271 automated tests**, all three CI jobs successful, no new Critical/High scanner warnings. Newer documentation commits require a final exact-head CI check.
+
+**Phase 2 external-source smoke:** `benchmark-agentshield-public-repo-smoke.mjs` fetched four files at pinned `OWASP/NodeGoat@c5cb68a7...` without executing external code. Existing detector identified `eval_usage` and `open_redirect`, and did not detect plaintext password storage or ReDoS patterns. This was not a human-labeled representative benchmark; zero general precision/recall claims.
+
+**Deployment safety / unresolved blocking prerequisites:**
+1. No Render staging web API yet: obtain/store an isolated **staging-only Postgres connection password** and unique token encryption key using a trusted secrets manager; use dedicated OAuth test app and Dodo sandbox credentials. Never paste secrets into GitHub commits or this report.
+2. For any staging API startup, set `VIBESANE_DEPLOYMENT_ENV=staging`, `DODO_PAYMENTS_ENVIRONMENT=test_mode`, and a staging-only app URL. Dodo production operations cannot be exercised without an actual sandbox setup. Authenticate and restrict access to any public staging URL before deployment.
+3. Full HTTP browser/API OAuth, verified webhooks/checkout, quota resets, recovery/rollback, authenticated Claude Code app pilot and real-repo benchmark with independently **human-reviewed** ground truth have not been run. The mocked-HTTP tests are not a substitute.
+4. Hosted production still has previously observed 8/11 failed permission gates and Auth leaked-password protection disabled. No live production changes, billing activity, publication, merge or rollback occurred.
+5. Independent qualified security signoff and distinct production release authorization are mandatory. **Phase 1 and Phase 2 are not yet release-complete.**
