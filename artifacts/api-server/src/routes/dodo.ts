@@ -152,27 +152,20 @@ async function activateProByUserId(userId: string, values: {
   `, [userId, PRO_SCAN_LIMIT, values.expiresAt ?? null, values.customerId ?? null, values.subscriptionId ?? null, values.status ?? "active", values.source ?? "dodo"]);
 }
 
-async function deactivatePro(subscriptionId: string | null, email: string | null, status: string,
+// A cancellation for an older subscription MUST NOT revoke a newer
+// subscription belonging to the same email. Never match on email alone.
+async function deactivatePro(
+  subscriptionId: string | null,
+  status: string,
   executor: Pick<typeof pool, "query"> = pool,
 ) {
-  const clauses: string[] = [];
-  const params: unknown[] = [];
-  if (subscriptionId) {
-    params.push(subscriptionId);
-    clauses.push(`dodo_subscription_id = $${params.length}`);
-  }
-  if (email) {
-    params.push(email);
-    clauses.push(`owner IN (SELECT id FROM auth.users WHERE lower(email) = lower($${params.length}))`);
-  }
-  if (!clauses.length) return;
-
+  if (!subscriptionId) return;
   await executor.query(`
     UPDATE public.usage
        SET plan = 'free', scans_limit = 1, monthly_scans_limit = 1,
-           pro_expires_at = NULL, dodo_subscription_status = $${params.length + 1}
-     WHERE ${clauses.join(" OR ")}
-  `, [...params, status]);
+           pro_expires_at = NULL, dodo_subscription_status = $2
+     WHERE dodo_subscription_id = $1
+  `, [subscriptionId, status]);
 }
 
 router.post("/checkout", rateLimit({ name: "checkout", windowMs: 60_000, max: 6 }), requireAuth, async (req: AuthedRequest, res: Response): Promise<void> => {
@@ -399,7 +392,7 @@ router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise
         }, client);
       }
     } else if (["subscription.on_hold", "subscription.cancelled", "subscription.failed", "subscription.expired"].includes(eventType)) {
-      await deactivatePro(subscriptionId, customer.email, eventType.replace("subscription.", ""), client);
+      await deactivatePro(subscriptionId, eventType.replace("subscription.", ""), client);
     }
 
     await client.query(`UPDATE public.dodo_webhook_events
