@@ -1,6 +1,18 @@
 # VibeSane Phase 1+2 — isolated staging and release runbook
 
-Status: **prepared only; staging infrastructure not yet created**. Draft PR #61 must remain unmerged until the gates below pass.
+Status: **isolated Supabase staging project created, schema installed, permission gates validated** (20 Nov 2026). Dedicated Render staging deployment and external integrations remain pending. Draft PR #61 must remain unmerged until the gates below pass.
+
+### Verified staging environment — 20 Nov 2026
+- Supabase organization: `darkhero766's projects` (Free). New project: **VibeSane-staging**, ref `aojmjxxmsgnipbbrtvlz`, region `ap-northeast-1`. Creation quote: **$0/month**; project reported `ACTIVE_HEALTHY`.
+- Production project remains **separate**: `oxtwuylzxyleesfvsvtx`; no production database, Auth or Render changes.
+- Schema-only bootstrap versioned at `supabase/staging/20261120_staging_bootstrap_hardened.sql`, applied to staging with migration name `vibesane_staging_bootstrap_hardened`, Supabase ledger version `20261120033524`.
+- Nine application tables installed, all with RLS. No production rows or secrets copied. Intentional no-access tables show 6 informational `rls_enabled_no_policy` notices: zero client policies is a deny-by-default choice.
+- The existing `PHASE1_READ_ONLY_PRIVILEGE_GATES.sql.check` returned **11/11 true** in staging. Hosted production had **3/11** at the earlier read-only audit; do not confuse results.
+- Staging's `service_role` has SELECT/INSERT/UPDATE/DELETE on all nine tables; authenticated has usage/audit owner-scoped SELECT and tightly scoped hackathon permissions. GitHub tokens and billing events have no direct client permissions.
+- Disposable synthetic `auth.users` record triggered creation of free `public.usage` row with expected plan and quotas, then was deleted. Confirmed no remaining staging Auth users, usage rows or token rows.
+- **This is fresh-schema validation, NOT proof of a compatible migration from the legacy production grant state.** The original production migration ledger is still unreconciled.
+- **No public Render staging service created**; secure staging DB URL/password, unique encryption key, OAuth app and Dodo sandbox secrets have not yet been configured or verified. No end-to-end external integration or billing test claimed.
+
 
 ## Isolation and budget rules
 - Use a **new dedicated Supabase project**; never modify the existing Vibeguard project to simulate staging.
