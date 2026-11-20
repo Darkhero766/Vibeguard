@@ -60,12 +60,15 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
       // Require a checked, explicitly denying branch before the mutation.
       // This is intentionally conservative: custom middleware may still need
       // human review, and absence of this finding is not proof of auth.
+      // Only a direct immediate rejection (or one in a simple braced block)
+      // counts as proof of denial. A return hidden in a nested conditional or
+      // callback must NOT clear an unauthenticated-write finding.
       const authorizedValue = /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:requireAuth\s*\([^)]*\)|requireUser\s*\([^)]*\)|auth\.getUser\s*\([^)]*\)|getServerSession\s*\([^)]*\)|session\.user)\s*;/g;
       let protectedByGuard = false;
       for (const guard of activeBeforeWrite.matchAll(authorizedValue)) {
         const variable = guard[1].replaceAll('$', '\\$');
         const denial = new RegExp('\\bif\\s*\\(\\s*!\\s*' + variable +
-          '\\s*\\)\\s*(?:(?:return|throw)\\b|\\{[\\s\\S]{0,200}?\\b(?:return|throw)\\b)');
+          '\\s*\\)\\s*(?:\\{\\s*)?(?:return|throw)\\b');
         if (denial.test(activeBeforeWrite.slice((guard.index ?? 0) + guard[0].length))) {
           protectedByGuard = true;
           break;
