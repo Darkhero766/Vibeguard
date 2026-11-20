@@ -74,6 +74,43 @@ try{
   assert.equal(preflight.status,204,'Staging browser preflight must work');
   results.push({check:'cors_preflight',status:'pass'});
 
+  // Staging frontend is separate from production. This does not perform
+  // an interactive OAuth login or create a user.
+  const website='https://vibesane-phase12-staging-web.onrender.com';
+  const getWebsite=async(pathname)=>{
+    const response=await fetch(website+pathname,{
+      redirect:'follow',signal:AbortSignal.timeout(25_000),
+    });
+    return {response,body:await response.text()};
+  };
+  const home=await getWebsite('/');
+  assert.equal(home.response.status,200,'Staging frontend root must serve HTTP 200');
+  assert.match(home.body,/name=["']robots["']\s+content=["']noindex/i);
+  results.push({check:'staging_frontend_root',status:'pass'});
+
+  const auth=await getWebsite('/auth?mode=signin');
+  assert.equal(auth.response.status,200,'Direct staging login link must serve HTTP 200');
+  assert.match(auth.body,/<html/i);
+  assert.match(auth.body,/name=["']robots["']\s+content=["']noindex/i);
+  results.push({check:'staging_frontend_auth_route',status:'pass'});
+
+  const robots=await getWebsite('/robots.txt');
+  assert.equal(robots.response.status,200,'Staging robots rules must be reachable');
+  assert.match(robots.body,/Disallow:\s*\//i);
+  results.push({check:'staging_frontend_noindex',status:'pass'});
+
+  const asset=home.body.match(/<script[^>]+\bsrc=["'](\/assets\/[^"']+\.js)["']/i)?.[1];
+  assert.ok(asset,'Staging frontend must reference a compiled JavaScript asset');
+  const js=await getWebsite(asset);
+  assert.equal(js.response.status,200,'Compiled frontend asset must be downloadable');
+  assert.ok(js.body.includes('aojmjxxmsgnipbbrtvlz.supabase.co'),
+    'Frontend bundle must point at staging Supabase');
+  assert.ok(js.body.includes('vibesane-phase12-staging-api.onrender.com'),
+    'Frontend bundle must point at staging API');
+  assert.ok(!js.body.includes('VIBESANE_STAGING_ACCESS_KEY'),
+    'Private staging API access secret identifier must not be in public code');
+  results.push({check:'staging_frontend_isolation',status:'pass'});
+
   console.log('HOSTED_STAGING_SMOKE='+JSON.stringify({status:'passed',results,
     note:'Anonymous external HTTP checks only, NOT E2E OAuth/checkout/auth or independent security review'}));
 }catch(error){
