@@ -16,6 +16,7 @@ const { stagingAccess } = await import(moduleUrl);
 
 const key = 'a'.repeat(64);
 const allowlistedGitHubId = '176193211';
+const allowlistedUserId = 'e673ed60-9831-4ea8-aafe-993b1cbdcd6c';
 
 const run = async ({ path: route = '/api/scans', method = 'GET',
   access = '', authorization = '', user, responseOk = true,
@@ -54,12 +55,14 @@ const run = async ({ path: route = '/api/scans', method = 'GET',
 
 test('staging gate blocks anonymous visitors and preserves machine access and HMAC webhook flow', async () => {
   const keys = ['VIBESANE_DEPLOYMENT_ENV', 'VIBESANE_STAGING_ACCESS_KEY',
-    'VIBESANE_STAGING_ALLOWED_GITHUB_IDS', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+    'VIBESANE_STAGING_ALLOWED_GITHUB_IDS', 'VIBESANE_STAGING_ALLOWED_USER_IDS',
+    'SUPABASE_URL', 'SUPABASE_ANON_KEY'];
   const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
   try {
     process.env.VIBESANE_DEPLOYMENT_ENV = 'staging';
     process.env.VIBESANE_STAGING_ACCESS_KEY = key;
     process.env.VIBESANE_STAGING_ALLOWED_GITHUB_IDS = allowlistedGitHubId;
+    process.env.VIBESANE_STAGING_ALLOWED_USER_IDS = '';
     process.env.SUPABASE_URL = 'https://isolated-test.supabase.co';
     process.env.SUPABASE_ANON_KEY = 'staging-publishable-test-key';
 
@@ -89,7 +92,8 @@ test('staging gate blocks anonymous visitors and preserves machine access and HM
 
 test('staging browser sessions require server-verified GitHub identity on tester allowlist', async () => {
   const keys = ['VIBESANE_DEPLOYMENT_ENV', 'VIBESANE_STAGING_ACCESS_KEY',
-    'VIBESANE_STAGING_ALLOWED_GITHUB_IDS', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+    'VIBESANE_STAGING_ALLOWED_GITHUB_IDS', 'VIBESANE_STAGING_ALLOWED_USER_IDS',
+    'SUPABASE_URL', 'SUPABASE_ANON_KEY'];
   const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
   try {
     process.env.VIBESANE_DEPLOYMENT_ENV = 'staging';
@@ -103,6 +107,19 @@ test('staging browser sessions require server-verified GitHub identity on tester
       identities: [{ provider: 'github', provider_id: allowlistedGitHubId }],
     };
     assert.equal((await run({ authorization: 'valid.test.jwt', user: valid })).nextCalls, 1);
+    // A precisely allowlisted Auth UID is enough when /auth/v1/user returns
+    // no identities array. The Auth server, not the browser, supplies this UID.
+    process.env.VIBESANE_STAGING_ALLOWED_USER_IDS = allowlistedUserId;
+    const uidOnly = { id: allowlistedUserId };
+    assert.equal((await run({ authorization: 'uuid-only.test.jwt', user: uidOnly })).nextCalls, 1);
+    assert.equal((await run({
+      authorization: 'different-user.test.jwt',
+      user: { id: '00000000-0000-4000-8000-000000000000', user_metadata: { id: allowlistedUserId } },
+    })).res.code, 403);
+    assert.equal((await run({ authorization: 'expired-uuid.test.jwt', user: uidOnly, responseOk: false })).res.code, 403);
+    assert.equal((await run({ authorization: 'outage-uuid.test.jwt', user: uidOnly, outage: true })).res.code, 403);
+    process.env.VIBESANE_STAGING_ALLOWED_USER_IDS = '';
+
 
     // Supabase identities only: user-editable metadata is never accepted.
     assert.equal((await run({
