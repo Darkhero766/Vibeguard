@@ -55,7 +55,13 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
       const before = file.content.slice(0, write);
       // Recognize a locally checked, awaited authorization guard without trusting
       // comments, unguarded calls, or an unrelated middleware filename.
-      const activeBeforeWrite = before.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+      // Exclude quoted source from the heuristic: a string containing
+      // 'if (!session) return' must not be mistaken for an auth check.
+      const activeBeforeWrite = before
+        .replace(/(["'])(?:\\.|(?!\1)[^\\])*\1/g, ' ')
+        .replace(/\x60(?:\\.|[^\x60])*\x60/g, ' ')
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(/\/\/[^\n]*/g, ' ');
       // A call to getUser/getServerSession is NOT authorization by itself.
       // Require a checked, explicitly denying branch before the mutation.
       // This is intentionally conservative: custom middleware may still need
