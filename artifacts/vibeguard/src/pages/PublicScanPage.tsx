@@ -16,8 +16,8 @@ function isPublicScanAllowance(data: unknown): data is PublicScanAllowance {
   if (!data || typeof data !== 'object') return false;
   const x = data as Partial<PublicScanAllowance>;
   return (x.plan === 'free' || x.plan === 'pro') &&
-    Number.isSafeInteger(x.publicScansUsed) && Number(x.publicScansUsed) >= 0 &&
-    Number.isSafeInteger(x.publicScansLimit) && Number(x.publicScansLimit) >= 0 &&
+    typeof x.publicScansUsed === 'number' && Number.isSafeInteger(x.publicScansUsed) && x.publicScansUsed >= 0 &&
+    typeof x.publicScansLimit === 'number' && Number.isSafeInteger(x.publicScansLimit) && x.publicScansLimit >= 0 &&
     typeof x.unlimited === 'boolean';
 }
 
