@@ -79,6 +79,8 @@ jobs:
 
       - name: Bounded Phase 2 AST throughput (synthetic, informational)
         run: pnpm --filter @workspace/api-server run benchmark:agentshield:phase2:performance
+      - name: Hosted staging HTTP readiness + isolation smoke (public surface, no secrets)
+        run: node artifacts/api-server/scripts/test-hosted-staging-smoke.mjs
       - name: Existing SUE regression
         run: pnpm --filter @workspace/api-server run test:sue
       - name: Synthetic taint benchmark (tuned, not holdout)
