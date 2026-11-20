@@ -14,8 +14,11 @@ export const stagingAccess: RequestHandler = (req, res, next) => {
     return;
   }
   const path = req.path;
-  if (req.method === "GET" &&
-      (path === "/" || path === "/api/healthz" || path === "/api/readyz")) {
+  if ((req.method === "GET" &&
+        (path === "/" || path === "/api/healthz" || path === "/api/readyz")) ||
+      // Dodo sandbox cannot supply our staging access header. The webhook
+      // route itself MUST verify its HMAC signature and test-mode isolation.
+      (req.method === "POST" && path === "/api/webhooks/dodo")) {
     next();
     return;
   }
