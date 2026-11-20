@@ -36,8 +36,9 @@ export function scanPotentialPlaintextPasswords(files: SourceFile[]): PasswordSt
     for (const match of source.matchAll(DECLARATION)) {
       const name = match[1];
       const start = (match.index ?? 0) + match[0].length;
-      const end = source.indexOf("};", start);
-      if (end < 0 || end - start > 900) continue;
+      const relativeEnd = source.slice(start, start + 901).indexOf("};");
+      if (relativeEnd < 0) continue;
+      const end = start + relativeEnd;
       const body = source.slice(start, end + 1);
       const hasRawPassword = RAW_SHORTHAND.test(body) || RAW_REQUEST_FIELD.test(body);
       if (!hasRawPassword) continue;
