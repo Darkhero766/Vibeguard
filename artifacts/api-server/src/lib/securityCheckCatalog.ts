@@ -19,6 +19,7 @@ export const SECURITY_CHECK_CATALOG = [
   { id: "github_token", name: "GitHub access token", engine: "extended" },
   { id: "private_key", name: "Committed private key", engine: "extended" },
   { id: "database_url", name: "Credential-bearing database URL", engine: "extended" },
+  { id: "plaintext_password_storage", name: "Possible plaintext password persistence", engine: "extended" },
   { id: "hardcoded_password", name: "Hardcoded password", engine: "extended" },
   { id: "hardcoded_bearer", name: "Hardcoded bearer token", engine: "extended" },
   { id: "sendgrid_key", name: "SendGrid API key", engine: "extended" },
