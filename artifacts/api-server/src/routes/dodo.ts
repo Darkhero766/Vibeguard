@@ -378,19 +378,10 @@ router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise
         }, client);
       }
     } else if (eventType === "payment.succeeded") {
-      // Never upgrade on a payment for an unrelated product.
-      if (productId && productId !== PRODUCT_ID) {
-        throw new Error("Payment product does not match VibeSane Pro");
-      }
-      if (customer.email) {
-        await activateProByEmail(customer.email, {
-          customerId: customer.id,
-          subscriptionId,
-          status: "active",
-          expiresAt: nextBilling || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          source: "dodo",
-        }, client);
-      }
+      // Dodo payment.succeeded also covers one-time purchases and renewals.
+      // Never grant a recurring Pro subscription from a generic payment.
+      // The signed subscription.active / renewed events (or authenticated
+      // verified billing/sync) are the authoritative entitlement source.
     } else if (["subscription.on_hold", "subscription.cancelled", "subscription.failed", "subscription.expired"].includes(eventType)) {
       await deactivatePro(subscriptionId, eventType.replace("subscription.", ""), client);
     }
