@@ -70,3 +70,28 @@ test('unchecked requireUser result is not evidence of access denial',()=>{
  const r=scan('export async function POST(){const u=await requireUser();if(!other)return;db.from("orders").insert({});}');
  assert.equal(r.findings.length,1);
 });
+
+test('conditional requireAuth cannot authorize every write path',()=>{
+ const r=scan('export async function POST(){if(Math.random()>0.5) await requireAuth();await db.from("orders").insert({});}');
+ assert.equal(r.findings.length,1);
+});
+test('try/catch that swallows an auth error cannot authorize a mutation',()=>{
+ const r=scan('export async function POST(){try{await requireAuth()}catch(err){console.warn(err)}await prisma.order.create({data:{}})}');
+ assert.equal(r.findings.length,1);
+});
+test('conditional denial return is not proof of rejection',()=>{
+ const r=scan('export async function POST(){const s=await getServerSession();if(!s){if(Math.random()>0.5)return;}await db.from("orders").insert({});}');
+ assert.equal(r.findings.length,1);
+});
+test('nested callback return is not an auth denial',()=>{
+ const r=scan('export async function POST(){const s=await getServerSession();if(!s){[1].forEach(()=>{return;});}await db.from("orders").insert({});}');
+ assert.equal(r.findings.length,1);
+});
+test('an unconditional throw at the end of denial branch is recognized',()=>{
+ const r=scan('export async function POST(){const s=await getServerSession();if(!s){console.warn("deny");throw Error("Unauthorized");}await db.from("orders").insert({});}');
+ assert.equal(r.findings.length,0);
+});
+test('nested optional auth guard does not hide findings',()=>{
+ const r=scan('export async function POST(){if(true){await requireUser();}await db.from("orders").insert({});}');
+ assert.equal(r.findings.length,1);
+});
