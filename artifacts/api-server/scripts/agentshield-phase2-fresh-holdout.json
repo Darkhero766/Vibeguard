@@ -3,9 +3,18 @@
     "name": "Phase 2 independently new adversarial synthetic cases",
     "created": "2026-11-20",
     "labelOrigin": "AI-authored before first execution; not independent human validation",
-    "scope": "One-hop selected JS/TS imports and Next.js route syntactic checks only",
-    "claim": "Synthetic frozen-on-first-run stress benchmark only; not representative real-project or exploit data",
-    "neverUseForTuning": true
+    "scope": "20 selected cross-file and 20 Next.js scenarios; 21 positive and 19 negative after documented getUser label correction",
+    "claim": "AI-authored synthetic regression stress dataset, label-corrected after initial commit; NOT an untouched holdout or representative real-project accuracy evidence",
+    "neverUseForTuning": true,
+    "labelCorrections": [
+      {
+        "id": "nx-getuser-check",
+        "previousLabel": "negative",
+        "correctedLabel": "positive",
+        "date": "2026-11-20",
+        "basis": "Supabase JavaScript getUser SDK response shape ({data:{user},error}); factual erratum, not independent human adjudication"
+      }
+    ]
   },
   "cases": [
     {
@@ -443,10 +452,10 @@
     {
       "id": "nx-getuser-check",
       "category": "nextjs_auth",
-      "expected": false,
+      "expected": true,
       "path": "app/api/getuser-check/route.ts",
       "content": "export async function PATCH() { const user=await auth.getUser(); if(!user) return; await db.from('tasks').update({done:true}); }",
-      "labelRationale": "No unsupported unguarded database mutation in the analyzed route"
+      "labelRationale": "Supabase auth.getUser returns a response wrapper; checking only the wrapper does not establish data.user before database mutation"
     },
     {
       "id": "nx-return-401",
