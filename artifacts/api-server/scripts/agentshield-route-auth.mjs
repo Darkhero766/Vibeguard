@@ -107,8 +107,8 @@ export function analyzeNextRouteAuth(filePath,content){
         const denial=guardReturn(n.thenStatement);
         // Known auth result must be CHECKED and a deny path must return/throw.
         if(isTopLevelStatement(n,c.body)&&denial&&[...sourceVars].some(v=>
-          new RegExp('!\\s*'+v.replaceAll('.', String.fromCharCode(92)+'.')+'\\b|'+
-            v.replaceAll('.', String.fromCharCode(92)+'.')+'\\s*===?\\s*(?:null|undefined|false)').test(cond))){
+          new RegExp('!\\s*'+v.split('.').join(String.raw`\.`)+'\\b|'+
+            v.split('.').join(String.raw`\.`)+'\\s*===?\\s*(?:null|undefined|false)').test(cond))){
           guards.push(n.getStart(sf));
         }
       }
