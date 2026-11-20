@@ -68,7 +68,7 @@ export function analyzeNextRouteAuth(filePath,content){
         if(AUTH_SOURCE.test(value)){
           // Supabase auth.getUser() returns {data:{user},error}; checking
           // the response object's truthiness never establishes a user.
-          const wrapped=/\\bauth\\.getUser\\s*\\(/.test(value);
+          const wrapped=/\bauth\.getUser\s*\(/.test(value);
           if(ts.isIdentifier(n.name))
             sourceVars.add(wrapped?n.name.text+'.data.user':n.name.text);
           else if(ts.isObjectBindingPattern(n.name)){
@@ -107,8 +107,8 @@ export function analyzeNextRouteAuth(filePath,content){
         const denial=guardReturn(n.thenStatement);
         // Known auth result must be CHECKED and a deny path must return/throw.
         if(isTopLevelStatement(n,c.body)&&denial&&[...sourceVars].some(v=>
-          new RegExp('!\\s*'+v.replaceAll('.', '\\\\.')+'\\b|'+
-            v.replaceAll('.', '\\\\.')+'\\s*===?\\s*(?:null|undefined|false)').test(cond))){
+          new RegExp('!\\s*'+v.replaceAll('.', String.fromCharCode(92)+'.')+'\\b|'+
+            v.replaceAll('.', String.fromCharCode(92)+'.')+'\\s*===?\\s*(?:null|undefined|false)').test(cond))){
           guards.push(n.getStart(sf));
         }
       }
