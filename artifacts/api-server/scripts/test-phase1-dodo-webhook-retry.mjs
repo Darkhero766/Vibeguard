@@ -207,6 +207,19 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
     assert.equal(usage.get(userId)?.plan,'free',
       'A successful unrelated one-time payment must not create a Pro subscription');
 
+    const missingProduct={
+      ...payload,type:'subscription.active',
+      data:{...payload.data,product_id:undefined,
+        subscription_id:'some-other-product'},
+    };
+    const invalidEvent=await send('missing-subscription-product',true,missingProduct);
+    assert.equal(invalidEvent.status,500);
+    assert.equal(events.has('missing-subscription-product'),false,
+      'An invalid subscription event must rollback its idempotency entry');
+    assert.equal(usage.get(userId)?.plan,'free',
+      'An unverified product must not reactivate Pro');
+
+
 
   }finally{
     if(server)await new Promise(resolve=>server.close(resolve));
