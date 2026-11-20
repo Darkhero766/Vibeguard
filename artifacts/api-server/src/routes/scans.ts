@@ -4,7 +4,7 @@ import { scanPublicRepository } from "../lib/scanner";
 import { scanRepositoryViaApi } from "../lib/apiScanner";
 import { runExtendedSecurityChecksV2 } from "../lib/extendedScannerV2";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
-import { optionalAuth, type AuthedRequest } from "../middlewares/auth";
+import { optionalAuth, requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
 import { cacheScanResult } from "../lib/scanCache";
 import { ensurePlanForUser, consumePublicScan } from "../lib/plan";
@@ -24,6 +24,29 @@ function errorStatus(error: unknown): number | null {
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown repository scan error.";
 }
+
+/**
+ * Server-authoritative allowance for the public-scanner UI.
+ *
+ * The persisted usage table has counters, not a public_scans_limit column.
+ * Both plan limits and private admin/tester exceptions are evaluated in
+ * ensurePlanForUser. Never infer entitlements from user-editable browser data.
+ */
+router.get("/scans/allowance", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const plan = await ensurePlanForUser(req.userId!);
+    res.json({
+      plan: plan.plan,
+      publicScansUsed: plan.publicScansUsed,
+      publicScansLimit: plan.publicScansLimit,
+      unlimited: plan.unlimited,
+    });
+  } catch (error) {
+    req.log.error({ err: error }, "Public scan allowance verification failed");
+    res.status(503).json({ error: "Unable to verify scan allowance. Please retry." });
+  }
+});
 
 router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), optionalAuth, async (req: AuthedRequest, res): Promise<void> => {
   const parsed = CreateScanBody.safeParse(req.body);
