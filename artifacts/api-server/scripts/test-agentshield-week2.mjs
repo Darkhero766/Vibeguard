@@ -156,10 +156,17 @@ test('SQL repair statically disappears but independent security verification sta
   assert.equal(state.output.summary.files[0].verificationState, 'unverified');
 });
 
-test('missing API authorization remains detectable until a guard is introduced', async (t) => {
+test('missing API authorization remains detectable until actual user identity is checked', async (t) => {
   const f = await fixture(t, 'app/api/orders/route.ts', "export async function POST() { return supabase.from('orders').insert({ total: 1 }); }\n");
   assert.match(jsonContext(await f.hook()), /unauthenticated_write/);
+  // A successful auth.getUser() call returns a response object even when
+  // data.user is null. This old fixture was incorrectly considered repaired.
   await writeFile(f.target, "export async function POST() { const session = await auth.getUser(); if (!session) return; return supabase.from('orders').insert({ total: 1 }); }\n");
+  await f.hook();
+  const failed = await f.cmd('status', '--session', 'test-session');
+  assert.equal(failed.output.summary.files[0].scanState, 'rescan_failed');
+  // Deny based on the actual user value, not the always-truthy wrapper.
+  await writeFile(f.target, "export async function POST() { const session = await auth.getUser(); if (!session.data.user) return; return supabase.from('orders').insert({ total: 1 }); }\n");
   assert.match(jsonContext(await f.hook()), /unverified/);
 });
 
