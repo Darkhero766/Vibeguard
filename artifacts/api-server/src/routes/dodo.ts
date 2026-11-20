@@ -1,10 +1,10 @@
 import { Router, type Response } from "express";
 import { rateLimit } from "../middlewares/rateLimit";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { PRO_SCAN_LIMIT } from "../lib/plan";
 import { dodoBaseUrl, assertDodoEnvironmentSafe } from "../lib/dodoEnvironment";
+import { verifyDodoSignature } from "../lib/dodoWebhookSignature";
 
 const router = Router();
 
@@ -74,26 +74,12 @@ async function dodoFetch(path: string, init: RequestInit = {}) {
 }
 
 function verifyDodoWebhook(rawBody: string, req: AuthedRequest): boolean {
-  const secret = process.env.DODO_WEBHOOK_SECRET;
-  const id = req.header("webhook-id");
-  const timestamp = req.header("webhook-timestamp");
-  const signatureHeader = req.header("webhook-signature");
-  if (!secret || !id || !timestamp || !signatureHeader) return false;
-
-  const timestampNumber = Number(timestamp);
-  if (!Number.isFinite(timestampNumber) || Math.abs(Date.now() / 1000 - timestampNumber) > 300) return false;
-
-  const encodedSecret = secret.startsWith("whsec_") ? secret.slice(6) : secret;
-  const key = Buffer.from(encodedSecret, "base64");
-  const signed = `${id}.${timestamp}.${rawBody}`;
-  const expected = createHmac("sha256", key).update(signed).digest("base64");
-  const expectedBytes = Buffer.from(expected);
-
-  return signatureHeader.split(" ").some((candidate) => {
-    const [version, value] = candidate.split(",", 2);
-    if (version !== "v1" || !value) return false;
-    const candidateBytes = Buffer.from(value);
-    return candidateBytes.length === expectedBytes.length && timingSafeEqual(candidateBytes, expectedBytes);
+  return verifyDodoSignature({
+    rawBody,
+    webhookId: req.header("webhook-id"),
+    timestamp: req.header("webhook-timestamp"),
+    signatureHeader: req.header("webhook-signature"),
+    secret: process.env.DODO_WEBHOOK_SECRET,
   });
 }
 
