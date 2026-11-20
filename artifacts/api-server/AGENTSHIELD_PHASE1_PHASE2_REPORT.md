@@ -94,3 +94,11 @@ Changes added after the original 19 November report:
 **Phase 2 remains experimental.** Requires independently reviewed real-project accuracy, false-positive analysis, realistic large-repo performance, and up-to-date CI evidence. No exploit proof or security guarantee is implied.
 
 **Merge/rollout:** Keep PR #61 draft. Do not merge/deploy/publish or change live settings without a separate release approval. This is engineering-only continuation.
+
+
+### Continuation verification update — 20 November
+- Extended tests from 9 to **17 additional regression cases** since the first continuation checkpoint, covering optional/suppressed/unawaited authentication guards, nested denial returns, Supabase `auth.getUser()` result handling and fake quoted/commented auth checks. These test cases are committed and wired through the existing Phase 1+2 CI command; **their current-commit execution result is not verified**.
+- Supabase JS `auth.getUser()` returns a wrapper with `data.user`, not a bare user: the scanner no longer accepts `if (!response)` as proof of authenticated identity, while recognizing `if (!response.data.user) return` and `const {data:{user}}=...` guards. See https://supabase.com/docs/reference/javascript/auth-getuser.
+- One synthetic case was corrected from safe to risk, with explicit label provenance. The supplemental challenge is 21 positive / 19 negative cases; **not independently labeled, and not an untouched holdout**.
+- Latest code commit for this report: `f6a87a76773b907c701f2ef9aeaedf4dec1ee913`. Neither this nor prior continuation commits have current-commit CI independently verified here.
+- All Phase 1 hosted permission problems and the staging/independent-review blockers remain open. Do not interpret a local test as production authorization.
