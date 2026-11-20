@@ -59,15 +59,31 @@ function sqlChecks(files: RepositoryFile[]): ExtendedFinding[] {
   for (const file of files.filter((f) => /\.sql$/i.test(f.path))) {
     const sql = stripComments(file.content);
 
+    // With RLS, a table without a policy is inaccessible to every client
+    // even when table grants exist. Distinguish intentional deny-by-default
+    // (explicit revoke for PUBLIC/anon/authenticated, no subsequent grant)
+    // from accidental missing policies.
+    const globalRevoke = [...sql.matchAll(
+      /revoke\s+all\s+privileges\s+on\s+all\s+tables\s+in\s+schema\s+public\s+from\s+([^;]+);/gi,
+    )].some((m) => {
+      const roles = m[1].split(",").map((role) => role.trim().toLowerCase());
+      return ["public", "anon", "authenticated"].every((role) => roles.includes(role));
+    });
+    const globalClientRegrant =
+      /\bgrant\s+[^;]{0,200}\bon\s+all\s+tables\s+in\s+schema\s+public\s+to\s+(?:public|anon|authenticated)\b/i.test(sql);
+
     for (const m of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?([\w.]+)/gi)) {
       const table = m[1];
-      const after = sql.slice(m.index ?? 0, (m.index ?? 0) + 12000);
-      const rls = new RegExp(`alter\\s+table\\s+(?:public\\.)?${table.split(".").pop()}\\s+enable\\s+row\\s+level\\s+security`, "i").test(sql);
-      const policy = new RegExp(`create\\s+policy[\\s\\S]{0,1000}on\\s+(?:public\\.)?${table.split(".").pop()}`, "i").test(sql);
-      if (rls && !policy) {
+      const name = table.split(".").pop()!;
+      const rls = new RegExp(String.raw`alter\\s+table\\s+(?:public\\.)?${name}\\s+enable\\s+row\\s+level\\s+security`, "i").test(sql);
+      const policy = new RegExp(String.raw`create\\s+policy[\\s\\S]{0,1000}on\\s+(?:public\\.)?${name}\\b`, "i").test(sql);
+      const tableClientRegrant = new RegExp(
+        String.raw`\\bgrant\\s+[^;]{0,200}\\bon\\s+(?:table\\s+)?(?:public\\.)?${name}\\s+to\\s+(?:public|anon|authenticated)\\b`, "i",
+      ).test(sql);
+      const intentionallyDenied = globalRevoke && !globalClientRegrant && !tableClientRegrant;
+      if (rls && !policy && !intentionallyDenied) {
         out.push(makeFinding(`rls-policy-${file.path}-${lineAt(file.content, m.index ?? 0)}`, "High", `RLS is enabled but "${table}" has no visible policy`, `Row-Level Security is enabled on ${table}, but no CREATE POLICY statement for the table was found. RLS without policies can unintentionally make every operation fail or tempt developers to bypass RLS.`, file.path, lineAt(file.content, m.index ?? 0), "rls_policy_missing"));
       }
-      void after;
     }
 
     for (const m of sql.matchAll(/grant\s+(?:all|select|insert|update|delete|usage|references|trigger)\b[\s\S]{0,300}?\bto\s+public\b/gi)) {
@@ -87,7 +103,11 @@ function sqlChecks(files: RepositoryFile[]): ExtendedFinding[] {
     }
     for (const m of sql.matchAll(/create\s+(?:or\s+replace\s+)?function[\s\S]{0,2500}?security\s+definer/gi)) {
       const block = m[0];
-      if (!/set\s+search_path\s*=|set_config\s*\(\s*['"]search_path/i.test(block)) {
+      // CREATE FUNCTION may declare SET search_path *after* SECURITY DEFINER.
+      // Check the remaining option header, but never trust text in AS $ body.
+      const optionsAfterDefiner = sql.slice((m.index ?? 0) + block.length,
+        (m.index ?? 0) + block.length + 300).split(/\bas\s+\$[A-Za-z0-9_]*\$/i)[0];
+      if (!/set\s+search_path\s*(?:=|to)\s*|set_config\s*\(\s*['"]search_path/i.test(block + optionsAfterDefiner)) {
         out.push(makeFinding(`definer-path-${file.path}-${lineAt(file.content, m.index ?? 0)}`, "High", "SECURITY DEFINER function does not pin search_path", "A SECURITY DEFINER function without a controlled search_path can be exposed to search-path hijacking and object shadowing. Set an explicit trusted search_path.", file.path, lineAt(file.content, m.index ?? 0), "security_definer_search_path"));
       }
     }
