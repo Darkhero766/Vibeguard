@@ -149,8 +149,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const hasGithubIdentity = s?.user?.identities?.some((id: { provider: string }) => id.provider === 'github');
+      const githubOauthPending = window.sessionStorage.getItem('vs_github_oauth_pending') === 'github';
       if ((_event === 'SIGNED_IN' || _event === 'INITIAL_SESSION') &&
-          s?.provider_token && s.access_token && hasGithubIdentity) {
+          githubOauthPending && s?.provider_token && s.access_token && hasGithubIdentity) {
+        // Intent is single-use: even if a linked account later signs in with
+        // another provider, its provider_token must not be stored as GitHub.
+        window.sessionStorage.removeItem('vs_github_oauth_pending');
         const githubProviderToken = s.provider_token;
         const userAccessToken = s.access_token;
         const accountId = s.user.id;
