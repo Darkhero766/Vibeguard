@@ -1,5 +1,6 @@
 import type { Finding } from "@workspace/api-zod";
 import { readRepositoryFiles } from "./githubRepoReader";
+import { scanPotentialPlaintextPasswords } from "./passwordStorageScanner";
 
 type RepositoryFile = { path: string; content: string };
 
@@ -156,6 +157,7 @@ const rules: Array<{ id: string; severity: ExtendedFinding["severity"]; title: s
 export function scanExtendedFiles(files: RepositoryFile[]): ExtendedFinding[] {
   const findings = [
     ...sqlChecks(files),
+    ...scanPotentialPlaintextPasswords(files),
     ...rules.flatMap((rule) => regexFindings(files, rule)),
   ];
   const seen = new Set<string>();
