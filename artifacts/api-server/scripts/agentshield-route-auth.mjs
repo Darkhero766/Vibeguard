@@ -25,14 +25,20 @@ function isWriteCall(node){
   return /\b(?:supabase|db|database|client|prisma|knex|pool)\b/.test(call) ||
     /\.from\s*\(/.test(call);
 }
+// Nested or conditional exits cannot establish a guaranteed denial path.
 function guardReturn(node){
-  let found=false;
-  function visit(n){
-    if(ts.isReturnStatement(n)||ts.isThrowStatement(n))found=true;
-    if(ts.isFunctionLike(n))return;
-    ts.forEachChild(n,visit);
+  if(ts.isReturnStatement(node)||ts.isThrowStatement(node))return true;
+  if(ts.isBlock(node)){
+    const statements=node.statements;
+    return statements.length>0 && guardReturn(statements[statements.length-1]);
   }
-  visit(node);return found;
+  if(ts.isIfStatement(node)&&node.elseStatement)
+    return guardReturn(node.thenStatement)&&guardReturn(node.elseStatement);
+  return false;
+}
+// A guard inside an optional branch, loop or swallowed try/catch is not enough.
+function isTopLevelStatement(statement,body){
+  return ts.isBlock(body) && statement?.parent===body;
 }
 export function analyzeNextRouteAuth(filePath,content){
   if(!CODE.test(filePath))return {status:'unsupported',findings:[],handlers:0};
@@ -75,13 +81,15 @@ export function analyzeNextRouteAuth(filePath,content){
         const parent=n.parent;
         const direct=ts.isExpressionStatement(parent) ||
           (ts.isAwaitExpression(parent)&&ts.isExpressionStatement(parent.parent));
-        if(direct)guards.push(n.getStart(sf));
+        const stmt=ts.isExpressionStatement(parent)?parent:
+          (ts.isAwaitExpression(parent)&&ts.isExpressionStatement(parent.parent)?parent.parent:null);
+        if(direct&&isTopLevelStatement(stmt,c.body))guards.push(n.getStart(sf));
       }
       if(ts.isIfStatement(n)){
         const cond=n.expression.getText(sf);
         const denial=guardReturn(n.thenStatement);
         // Known auth result must be CHECKED and a deny path must return/throw.
-        if(denial&&[...sourceVars].some(v=>
+        if(isTopLevelStatement(n,c.body)&&denial&&[...sourceVars].some(v=>
           new RegExp('!\\s*'+v+'\\b|'+v+'\\s*===?\\s*(?:null|undefined|false)').test(cond))){
           guards.push(n.getStart(sf));
         }
