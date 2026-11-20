@@ -5,7 +5,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
 
-const githubUrlPattern = /^https:\/\/github\.com\/[-A-Za-z0-9_.]+\/[-A-Za-z0-9_.]+\/?$/;
+const githubUrlPattern = /^https:\/\/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9_.-]*[A-Za-z0-9_-]\/?$/;
+
+// A copied link may include the period ending a sentence (NodeGoat.).
+// Correct that single punctuation mark only when submitting, not during
+// typing (so users can still type meaningful dots inside repository names).
+function normalizeGithubRepoInput(raw: string): string {
+  return raw.trim().replace(/\/$/, '').replace(/([A-Za-z0-9_-])\.$/, '$1');
+}
 
 type FindingSeverity = 'Critical' | 'High' | 'Medium';
 type Finding = { id: string; severity: FindingSeverity; title: string; description: string; filePath: string; line: number; check: string };
@@ -35,7 +42,7 @@ export default function PublicScanPage() {
   const [scanning, setScanning] = useState(false);
   const startedQueryScan = useRef(false);
   const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ?? '';
-  const canScan = useMemo(() => githubUrlPattern.test(repoUrl.trim()), [repoUrl]);
+  const canScan = useMemo(() => githubUrlPattern.test(normalizeGithubRepoInput(repoUrl)), [repoUrl]);
   const [allowance, setAllowance] = useState<PublicScanAllowance | null>(null);
   const [allowanceLoading, setAllowanceLoading] = useState(true);
   const [allowanceError, setAllowanceError] = useState('');
@@ -87,7 +94,7 @@ export default function PublicScanPage() {
 
   const runScan = async (event?: FormEvent, repoOverride?: string) => {
     event?.preventDefault();
-    const normalizedUrl = (repoOverride ?? repoUrl).trim().replace(/\/$/, '');
+    const normalizedUrl = normalizeGithubRepoInput(repoOverride ?? repoUrl);
     if (!githubUrlPattern.test(normalizedUrl)) { setError('Enter a valid public GitHub repository URL.'); return; }
     if (!session?.access_token) { setError('Your session expired. Sign in again and retry.'); return; }
     if (!allowance || (!allowance.unlimited && publicRemaining <= 0)) {
@@ -129,7 +136,7 @@ export default function PublicScanPage() {
   useEffect(() => {
     if (startedQueryScan.current) return;
     const params = new URLSearchParams(window.location.search);
-    const queryRepo = params.get('repo')?.trim().replace(/\/$/, '');
+    const queryRepo = normalizeGithubRepoInput(params.get('repo') ?? '');
     if (!queryRepo || !githubUrlPattern.test(queryRepo)) return;
     if (!session?.access_token || !allowance || (!allowance.unlimited && publicRemaining <= 0)) return;
 
