@@ -36,8 +36,8 @@ test('non-denying if branch is not authentication enforcement',async()=>{
 test('checked session with early return is recognized',async()=>{
  assert.equal(await scanCode('export async function POST(){const s=await getServerSession();if(!s)return;db.from("orders").insert({});}'),false);
 });
-test('checked auth result with explicit throw is recognized',async()=>{
- assert.equal(await scanCode('export async function POST(){const u=await auth.getUser();if(!u)throw Error("deny");db.from("orders").insert({});}'),false);
+test('Supabase getUser wrapper truthiness cannot establish a user',async()=>{
+ assert.equal(await scanCode('export async function POST(){const u=await auth.getUser();if(!u)throw Error("deny");db.from("orders").insert({});}'),true);
 });
 test('checked session.user with explicit throw is recognized',async()=>{
  assert.equal(await scanCode('export async function PATCH(){const u=session.user;if(!u)throw Error("deny");db.from("orders").update({});}'),false);
@@ -60,4 +60,8 @@ test('a nested callback return does not satisfy baseline authorization',async()=
 });
 test('a direct braced throw remains an accepted denial guard',async()=>{
  assert.equal(await scanCode('export async function POST(){const s=await getServerSession();if(!s){throw Error("no");}db.from("orders").insert({});}'),false);
+});
+
+test('baseline scanner recognizes actual Supabase data.user denial',async()=>{
+ assert.equal(await scanCode('export async function POST(){const u=await auth.getUser();if(!u.data.user)return;db.from("orders").insert({});}'),false);
 });
