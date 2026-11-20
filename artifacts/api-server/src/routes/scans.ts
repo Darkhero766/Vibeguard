@@ -11,7 +11,6 @@ import { ensurePlanForUser, consumePublicScan } from "../lib/plan";
 import { rateLimit } from "../middlewares/rateLimit";
 
 const router: IRouter = Router();
-const CORE_SECURITY_CHECKS = 8;
 
 function errorStatus(error: unknown): number | null {
   if (typeof error === "object" && error !== null && "status" in error) {
@@ -83,7 +82,14 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
     let report;
     let tokenUsed = Boolean(githubToken);
 
-    const extendedPromise = runExtendedSecurityChecksV2(parsed.data.repoUrl, githubToken);
+    // Attach the rejection handler immediately. GitHub rate limits can make
+    // the extended scan reject before the core scan finishes its fallback;
+    // an unhandled rejection would otherwise terminate the Node process.
+    const extendedPromise = runExtendedSecurityChecksV2(parsed.data.repoUrl, githubToken)
+      .then(
+        (findings) => ({ ok: true as const, findings }),
+        (error: unknown) => ({ ok: false as const, error }),
+      );
 
     try {
       report = await scanRepositoryViaApi(parsed.data.repoUrl, githubToken);
@@ -109,14 +115,18 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
       }
     }
 
-    let extendedFindings: Awaited<ReturnType<typeof runExtendedSecurityChecksV2>> = [];
-    let extendedSucceeded = false;
-    try {
-      extendedFindings = await extendedPromise;
-      extendedSucceeded = true;
-    } catch (extendedError) {
-      req.log.warn({ err: extendedError }, "Extended security checks failed; returning core findings");
+    const extendedResult = await extendedPromise;
+    if (!extendedResult.ok) {
+      // A partial scan must never be presented as all security checks having
+      // passed or consume the customer's limited scan allowance.
+      req.log.warn({ err: extendedResult.error, status: errorStatus(extendedResult.error) },
+        "Extended checks unavailable; withholding incomplete repository report");
+      res.status(503).json({
+        error: "Full security scan could not finish because GitHub access is temporarily unavailable. Check your GitHub connection or retry later. No scan credit was used.",
+      });
+      return;
     }
+    const extendedFindings = extendedResult.findings;
 
     const normalizedExtended = extendedFindings.map((item) => ({
       ...item,
@@ -137,7 +147,7 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
     const finalReport = {
       ...report,
       findings,
-      checksRun: extendedSucceeded ? TOTAL_SECURITY_CHECKS : CORE_SECURITY_CHECKS,
+      checksRun: TOTAL_SECURITY_CHECKS,
     };
     // Validate output, then charge the authenticated account before returning or
     // caching a result. A database failure or exhausted quota must not grant a free scan.
