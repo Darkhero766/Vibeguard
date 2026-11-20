@@ -1,4 +1,4 @@
-import { runExtendedSecurityChecks, scanExtendedFiles, type ExtendedFinding } from "./extendedScanner";
+import { scanExtendedFiles, type ExtendedFinding } from "./extendedScanner";
 import { readRepositoryFiles } from "./githubRepoReader";
 import { SECURITY_CHECK_CATALOG } from "./securityCheckCatalog";
 
@@ -101,8 +101,9 @@ export async function runExtendedSecurityChecksV2(
   scanPaths?: string[],
 ): Promise<ExtendedFinding[]> {
   const scopedUrl = scopedRepoUrl(repoUrl, scanPaths);
+  // Reuse the same downloaded files for analysis and finding filtering.
+  // The previous implementation fetched the entire GitHub tree/blobs TWICE
+  // per extended scan, rapidly exhausting the shared anonymous rate limit.
   const result = await readRepositoryFiles(scopedUrl, githubToken);
-  const baseFindings = await runExtendedSecurityChecks(scopedUrl, githubToken);
-  const findings = baseFindings.filter((finding) => shouldKeepFinding(finding, result.files));
-  return deduplicate(findings);
+  return scanExtendedFilesV2(result.files);
 }
