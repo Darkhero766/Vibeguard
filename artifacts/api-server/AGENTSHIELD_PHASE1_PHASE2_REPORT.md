@@ -121,3 +121,20 @@ Changes added after the original 19 November report:
 - Test inserted a synthetic Auth user, confirmed signup trigger created the correct `free` entitlement with default scan limits, then deleted the user. Post-cleanup `auth.users`, `usage`, `github_tokens` counts all zero.
 - **Limitations:** this greenfield staged bootstrap is not a rehearsal of upgrades of the legacy production migration ledger, nor end-to-end API/Render/GitHub OAuth/Dodo integration. It does **not** fix live 8/11 failed permission checks. Render staging environment is deliberately not deployed until its staging-only connection credentials and payment/OAuth sandbox separation can be established.
 - Independent real-project accuracy assessment and security release approval remain pending. No production deployment, billing, DNS, users, OAuth tokens or settings changed.
+
+
+### Final continuation checkpoint — 20 November 2026
+
+**Completed and verified at this checkpoint**
+- The second isolated Supabase project `aojmjxxmsgnipbbrtvlz` has a hardened nine-table schema, **35/35 required columns**, correct server-side signup/free-plan initialization, and **11/11 read-only privilege checks passing**. Production project `oxtwuylzxyleesfvsvtx` remains separate/unmodified.
+- Executed three staging-only, rollback-only SQL proofs: real `authenticated`/`anon`/`service_role` SQL permission & cross-owner behavior, recreated legacy permissions followed by the exact review-only proposed lockdown scripts (11/11 post-checks), and service-side billing/coupon/webhook idempotency/audit-retention contracts. After verification all six checked fixture-data tables had zero rows.
+- New authentic Express HTTP token-route tests (external Auth/GitHub/DB mocked), strict AES-GCM key/IV/ciphertext tests, explicit staging Dodo test-mode guard, and canonical signed-webhook signature validations. No actual paid subscription or OAuth connection was performed.
+- The new external-source smoke pass scanned four pinned OWASP NodeGoat files. `eval_usage` and `open_redirect` detected; plaintext password storage and regex ReDoS not covered. Neither an independent human-labeled evaluation nor full repository coverage.
+- [CI run 44682663676](https://github.com/Darkhero766/Vibeguard/actions/runs/44682663676) passed **271/271 Node regression tests**, strict app/backend builds and typechecks, two isolated PostgreSQL 17 upgrade simulations, and zero new PR-delta Critical/High security scanner warnings. Final exact PR head may have documentation-only commits afterward and must be checked separately.
+
+**Remaining release blockers — do not overstate readiness**
+1. No separate Render staging backend has been deployed. We do not have a safely provided staging-only database password/connection string, protected staging access, dedicated GitHub OAuth test app credentials or Dodo sandbox webhook/API secrets. Do not reuse or expose production credentials.
+2. No real end-to-end browser/API signups and GitHub connect/scan/disconnect, quota and billing checkout/cancel/webhook/replay tests against deployed staging. SQL transactions and local mocked HTTP are not substitutes.
+3. No independent human-reviewed real-project exploit/false-positive labels, measured language support matrix expansion or independent penetration/security review. The scanner is intentionally bounded and experimental, with known missing classes.
+4. Production still has 8/11 previously failing grants/policies; leaked-password protection warning still active as of 20 Nov. Production privilege rollout, backup, migration-ledger reconciliation, deployment approval and rollback exercise remain.
+5. **Keep draft PR #61 unmerged. Phases 1/2 cannot be certified production-ready by AI-driven tests alone.** The owner has authorized isolated staging only; no production data, secret, billing, deployment, Auth setting or user was changed.
