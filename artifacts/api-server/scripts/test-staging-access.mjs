@@ -32,6 +32,8 @@ test('public staging API fails closed unless it has correct access secret',async
   assert.equal(call('GET','/api/github/token/status').res.code,403);
   // Sandbox webhook must reach the separate HMAC verifier.
   assert.equal(call('POST','/api/webhooks/dodo').nextCalls,1);
+  assert.equal(call('POST','/api/github/webhook').nextCalls,1);
+  assert.equal(call('GET','/api/github/webhook').res.code,403);
   assert.equal(call('POST','/api/github/token','a'.repeat(63)).res.code,403);
   assert.equal(call('POST','/api/github/token','b'.repeat(64)).res.code,403);
   assert.equal(call('POST','/api/github/token',key).nextCalls,1);
