@@ -11,7 +11,9 @@ const forbidden = (res: Parameters<RequestHandler>[1]): void => {
  * Access is granted by either:
  * 1. The existing private staging access header for trusted machine tests; or
  * 2. A freshly validated staging Supabase session whose server-verified GitHub
- *    provider_id appears in the explicitly configured tester allowlist.
+ *    provider_id or verified user UUID appears in a tester-only allowlist.
+ *    The UUID allowlist is provisioned from a GitHub identity lookup by an
+ *    operator; it remains server-only and works when Auth omits identities.
  *
  * The private access key NEVER goes in a VITE_* browser variable. GitHub IDs
  * are not secrets, but they are checked against the Auth server response, not
@@ -53,13 +55,19 @@ export const stagingAccess: RequestHandler = async (req, res, next) => {
   const header = req.header("authorization") ?? "";
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_ANON_KEY;
-  const allowed = (process.env.VIBESANE_STAGING_ALLOWED_GITHUB_IDS ?? "")
+  const allowedGitHubIds = (process.env.VIBESANE_STAGING_ALLOWED_GITHUB_IDS ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter((s) => /^[1-9][0-9]*$/.test(s) && Number.isSafeInteger(Number(s)));
+  const allowedUserIds = (process.env.VIBESANE_STAGING_ALLOWED_USER_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s));
   const jwt = header.startsWith("Bearer ") ? header.slice(7) : "";
-  if (!supabaseUrl || !supabaseKey || allowed.length === 0 ||
+  if (!supabaseUrl || !supabaseKey ||
+      (allowedGitHubIds.length === 0 && allowedUserIds.length === 0) ||
       jwt.length === 0 || jwt.length > 8192) {
+    req.log?.warn?.({ reason: "staging_missing_credentials_or_allowlist" }, "Staging access denied");
     forbidden(res);
     return;
   }
@@ -70,6 +78,7 @@ export const stagingAccess: RequestHandler = async (req, res, next) => {
       signal: AbortSignal.timeout(6000),
     });
     if (!response.ok) {
+      req.log?.warn?.({ reason: "staging_auth_verification_failed", authStatus: response.status }, "Staging access denied");
       forbidden(res);
       return;
     }
@@ -77,21 +86,31 @@ export const stagingAccess: RequestHandler = async (req, res, next) => {
       id?: unknown;
       identities?: Array<{ provider?: unknown; provider_id?: unknown }>;
     };
-    if (typeof user.id !== "string" || user.id.length === 0 ||
-        !Array.isArray(user.identities)) {
+    if (typeof user.id !== "string" || user.id.length === 0) {
+      req.log?.warn?.({ reason: "staging_auth_missing_user_id" }, "Staging access denied");
       forbidden(res);
       return;
     }
-    const githubProviderId = user.identities
-      .find((identity) => identity.provider === "github")?.provider_id;
-    const id = typeof githubProviderId === "string" ? githubProviderId : "";
-    if (!allowed.includes(id)) {
+    // An explicit per-account UUID, verified via the remote Auth server, is
+    // sufficient for restricted staging access. This handles Auth responses
+    // with omitted or differently shaped social-provider identities.
+    const knownAccount = allowedUserIds.includes(user.id.toLowerCase());
+    const githubIdentity = Array.isArray(user.identities)
+      ? user.identities.find((identity) => identity?.provider === "github")
+      : undefined;
+    const providerId = githubIdentity?.provider_id;
+    const githubId = typeof providerId === "string"
+      ? providerId : typeof providerId === "number" && Number.isSafeInteger(providerId)
+        ? String(providerId) : "";
+    if (!knownAccount && !allowedGitHubIds.includes(githubId)) {
+      req.log?.warn?.({ reason: "staging_auth_identity_not_allowlisted" }, "Staging access denied");
       forbidden(res);
       return;
     }
     next();
   } catch {
-    // A transient Supabase error must never turn into an anonymous bypass.
+    // Transient Supabase errors fail closed, without leaking JWTs or UUIDs.
+    req.log?.warn?.({ reason: "staging_auth_lookup_error" }, "Staging access denied");
     forbidden(res);
   }
 };
