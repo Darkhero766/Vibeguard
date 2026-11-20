@@ -50,8 +50,8 @@ test('Phase 1 GitHub HTTP token lifecycle is owner-scoped and never reveals ciph
      const url=String(input);
      if(url==='https://supabase-staging-test.invalid/auth/v1/user'){
        const token=init?.headers?.Authorization;
-       const user=token==='Bearer synthetic-user-jwt-A'?userA:
-         token==='Bearer synthetic-user-jwt-B'?userB:null;
+       const user=token===['Bearer','synthetic-user-jwt-A'].join(' ')?userA:
+         token===['Bearer','synthetic-user-jwt-B'].join(' ')?userB:null;
        return new Response(user?JSON.stringify({id:user}):'Unauthorized',{
          status:user?200:401,headers:{'Content-Type':'application/json'},
        });
