@@ -76,3 +76,21 @@ https://docs.semgrep.dev/writing-rules/data-flow/taint-mode/overview
 https://asvs.owasp.org/
 
 CI pass does not authorize public distribution or prove an application is secure.
+
+
+## Continuation — 20 November 2026
+
+Changes added after the original 19 November report:
+- Added a second, fixed 40-case synthetic challenge (20 cross-file, 20 Next.js; positive/negative cases balanced) and an informational GitHub Actions benchmark. Its labels were AI-authored, **not independently human-reviewed**. It is not a real-project evaluation. No new benchmark pass is claimed until CI output is inspected.
+- Hardened experimental Next.js AST auth checks: a branch must be top-level and its denial path guaranteed; optional conditional auth, swallowed try/catch auth, nested callback returns do not qualify.
+- Hardened the baseline GitHub API scanner so nested conditional/callback returns do not suppress missing-auth warnings.
+- Added nine focused regression cases (six AST and three baseline). The latest commit CI has **not yet been verified**.
+- Added `supabase/review-only/PHASE1_READ_ONLY_PRIVILEGE_GATES.sql.check`, which is read-only, not a migration.
+- Ran this SQL against live Supabase on 20 Nov 2026 without mutating data or access controls: **3 of 11 security gates passed, 8 failed**. Failing: authenticated usage INSERT/UPDATE, authenticated token read/write, anonymous token access, authenticated audit writes, old usage write RLS policies, old token client RLS policy.
+- Leaked-password protection remains disabled per Supabase Auth advisor.
+
+**Phase 1 remains blocked for production release.** No confirmed isolated staging project, approved migration, security review, privilege lockdown, or end-to-end staging tests. Deploy compatible API/browser before any approved grant revocations. Do not automatically apply proposed review-only SQL patches.
+
+**Phase 2 remains experimental.** Requires independently reviewed real-project accuracy, false-positive analysis, realistic large-repo performance, and up-to-date CI evidence. No exploit proof or security guarantee is implied.
+
+**Merge/rollout:** Keep PR #61 draft. Do not merge/deploy/publish or change live settings without a separate release approval. This is engineering-only continuation.
