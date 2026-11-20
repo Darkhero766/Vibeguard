@@ -30,7 +30,7 @@ export function verifyDodoSignature(input: Input): boolean {
 
   const signed = webhookId + "." + timestamp + "." + rawBody;
   const expected = createHmac("sha256", key).update(signed).digest();
-  return signatureHeader.trim().split(/\\s+/).some((candidate) => {
+  return signatureHeader.trim().split(/\s+/).some((candidate) => {
     const match = /^v1,([A-Za-z0-9+/]+={0,2})$/.exec(candidate);
     if (!match) return false;
     const signature = Buffer.from(match[1], "base64");
