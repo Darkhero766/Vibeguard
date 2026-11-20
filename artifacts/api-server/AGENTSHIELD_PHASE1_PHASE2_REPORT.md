@@ -112,3 +112,12 @@ Changes added after the original 19 November report:
 - All CI runs use disposable/synthetic test data and **do not** change the hosted database, billing, OAuth, or deployment.
 - Remaining **blocking** release gates: isolated owner-approved staging Supabase database with migration reconciliation/backup; staged end-to-end auth/signup, GitHub OAuth, Dodo payments/webhooks, usage/quota and audits; actual live privilege lockdown after separate approval; human-reviewed representative repo benchmark and accuracy analysis; human security review; Auth leaked-password protection setting review.
 - A green build **does not authorize merging PR #61 or removing the draft state** while hosted/independent gates remain unsatisfied.
+
+
+### Supabase staging now created — 20 November 2026
+- Created an isolated, **$0/month quoted**, Free-plan Supabase project `VibeSane-staging` (`aojmjxxmsgnipbbrtvlz`, `ap-northeast-1`) in the user-confirmed organization. The production project `oxtwuylzxyleesfvsvtx` was not modified.
+- Versioned `supabase/staging/20261120_staging_bootstrap_hardened.sql`; applied **to staging only** with migration ledger version `20261120033524` (`vibesane_staging_bootstrap_hardened`). Created nine public application tables with owner-only client SELECT where intended and no client access to tokens, quotas writes, audits writes or internal service tables.
+- Staging read-only privilege gate **11/11 checks passed**. All nine tables RLS-enabled. Six Supabase advisor INFO notices for no-policy internal tables are expected deny-all configurations, not newly discovered exposures. `service_role` has all four CRUD privileges on staged tables.
+- Test inserted a synthetic Auth user, confirmed signup trigger created the correct `free` entitlement with default scan limits, then deleted the user. Post-cleanup `auth.users`, `usage`, `github_tokens` counts all zero.
+- **Limitations:** this greenfield staged bootstrap is not a rehearsal of upgrades of the legacy production migration ledger, nor end-to-end API/Render/GitHub OAuth/Dodo integration. It does **not** fix live 8/11 failed permission checks. Render staging environment is deliberately not deployed until its staging-only connection credentials and payment/OAuth sandbox separation can be established.
+- Independent real-project accuracy assessment and security release approval remain pending. No production deployment, billing, DNS, users, OAuth tokens or settings changed.
