@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { PRO_SCAN_LIMIT } from "../lib/plan";
+import { dodoBaseUrl, assertDodoEnvironmentSafe } from "../lib/dodoEnvironment";
 
 const router = Router();
 
@@ -11,11 +12,7 @@ const PRODUCT_ID = process.env.DODO_PRO_PRODUCT_ID || "pdt_0NmsVBNuntowIFXXZKqKS
 const HACKATHON_COUPON = "HACKATHON60";
 const HACKATHON_LIMIT = 60;
 
-function dodoBaseUrl() {
-  return (process.env.DODO_PAYMENTS_ENVIRONMENT || "live_mode") === "test_mode"
-    ? "https://test.dodopayments.com"
-    : "https://live.dodopayments.com";
-}
+
 
 // Never run ALTER/CREATE against hosted Supabase from a payment request or webhook.
 // Database changes are reviewed, versioned migrations; requests fail closed.
@@ -346,6 +343,7 @@ router.post("/billing/sync", rateLimit({ name: "billing-sync", windowMs: 60_000,
 router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise<void> => {
   const rawBody = (req as AuthedRequest & { rawBody?: Buffer }).rawBody?.toString("utf8") ?? "";
   try {
+    assertDodoEnvironmentSafe();
     await ensureDodoTables();
     if (!verifyDodoWebhook(rawBody, req)) {
       res.status(401).json({ error: "Invalid webhook signature" });
