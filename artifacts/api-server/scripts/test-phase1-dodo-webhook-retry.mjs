@@ -74,6 +74,18 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
             txUsage.set(params[0],{plan:'pro',subscription:params[4]});
             return {rowCount:1,rows:[]};
           }
+          if(normalized.includes('UPDATE public.usage') &&
+              normalized.includes('dodo_subscription_status')){
+            const [subId,status]=params;
+            let rows=0;
+            for(const [id,row] of txUsage){
+              if(row.subscription===subId){
+                txUsage.set(id,{...row,plan:'free',status});
+                rows++;
+              }
+            }
+            return {rowCount:rows,rows:[]};
+          }
           if(normalized.includes('UPDATE public.dodo_webhook_events')&&normalized.includes('processed = true')){
             const existing=txEvents.get(params[0]);
             if(!existing)throw Error('Missing pending event');
@@ -137,17 +149,19 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
       },
     };
     const raw=JSON.stringify(payload);
-    const sign=(id)=>'v1,'+createHmac('sha256',key).update(id+'.'+now+'.'+raw).digest('base64');
-    const send=(id,signed=true)=>fetch(base+'/webhooks/dodo',{
+    const sign=(id,body)=>'v1,'+createHmac('sha256',key).update(id+'.'+now+'.'+body).digest('base64');
+    const send=(id,signed=true,body=payload)=>{
+      const requestBody=JSON.stringify(body);
+      return fetch(base+'/webhooks/dodo',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
         'webhook-id':id,
         'webhook-timestamp':String(now),
-        ...(signed?{'webhook-signature':sign(id)}:{}),
+        ...(signed?{'webhook-signature':sign(id,requestBody)}:{}),
       },
-      body:raw,
-    });
+      body:requestBody,
+    });};
     assert.equal((await send(eventId,false)).status,401);
     assert.equal(events.size,0,'Unsigned payload must not touch database');
     const first=await send(eventId);
@@ -170,6 +184,19 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
     assert.equal(recovered.status,200);
     assert.equal(events.get('old-incomplete')?.processed,true);
     assert.equal(events.get('old-incomplete')?.attempts,3);
+    const cancelled=(subscriptionId)=>({
+      ...payload,type:'subscription.cancelled',
+      data:{...payload.data,subscription_id:subscriptionId},
+    });
+    const oldCancel=await send('cancel-older',true,cancelled('synthetic-old-subscription'));
+    assert.equal(oldCancel.status,200);
+    assert.equal(usage.get(userId)?.plan,'pro',
+      'Old cancellation by the same email must not revoke the active subscription');
+    const currentCancel=await send('cancel-current',true,cancelled('synthetic-subscription-1'));
+    assert.equal(currentCancel.status,200);
+    assert.equal(usage.get(userId)?.plan,'free',
+      'Cancellation of matching subscription must revoke Pro');
+
   }finally{
     if(server)await new Promise(resolve=>server.close(resolve));
     delete globalThis.__VIBESANE_DODO_RETRY_DB__;
