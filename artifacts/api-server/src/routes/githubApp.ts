@@ -1,10 +1,15 @@
 import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
-import { createInstallState, getAppSlug, getInstallation, getInstallationIdForUser, listInstallationRepos, saveInstallation, verifyInstallState } from "../lib/githubApp";
+import { createInstallState, getAppSlug, getInstallation, getLinkedInstallationForUser, listInstallationRepos, saveInstallation, verifyInstallState } from "../lib/githubApp";
+import { canClaimGitHubInstallation } from "../lib/githubAppOwnership";
 
 const router = Router();
 
 router.get("/github/app/install-url", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
+  if (!req.githubProviderId) {
+    res.status(403).json({ error: "Connect your GitHub identity before installing the App" });
+    return;
+  }
   try {
     const slug = await getAppSlug();
     const state = createInstallState(req.userId!);
@@ -37,7 +42,13 @@ router.post("/github/app/complete", requireAuth, async (req: AuthedRequest, res)
       res.status(502).json({ error: "GitHub installation did not include account information" });
       return;
     }
-    await saveInstallation(req.userId!, installationId, account.login, account.id, account.type ?? "User");
+    if (!account.type || !(await canClaimGitHubInstallation(req.userId!, req.githubProviderId, {
+      id: account.id, login: account.login, type: account.type,
+    }))) {
+      res.status(403).json({ error: "GitHub installation account ownership could not be verified" });
+      return;
+    }
+    await saveInstallation(req.userId!, installationId, account.login, account.id, account.type);
     const repositories = await listInstallationRepos(installationId, true);
     res.json({ ok: true, account: { login: account.login, type: account.type ?? "User" }, repositories });
   } catch (error) {
@@ -48,13 +59,17 @@ router.post("/github/app/complete", requireAuth, async (req: AuthedRequest, res)
 
 router.get("/github/app/repos", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
   try {
-    const installationId = await getInstallationIdForUser(req.userId!);
-    if (!installationId) {
+    const linked = await getLinkedInstallationForUser(req.userId!);
+    if (!linked) {
       res.status(404).json({ error: "No GitHub App installation found" });
       return;
     }
+    if (!(await canClaimGitHubInstallation(req.userId!, req.githubProviderId, linked.account))) {
+      res.status(403).json({ error: "GitHub account ownership must be reverified" });
+      return;
+    }
     const forceRefresh = String(req.query.refresh ?? "").toLowerCase() === "true";
-    const repositories = await listInstallationRepos(installationId, forceRefresh);
+    const repositories = await listInstallationRepos(linked.installationId, forceRefresh);
     res.setHeader("Cache-Control", forceRefresh ? "no-store" : "private, max-age=30, stale-while-revalidate=120");
     res.json(repositories);
   } catch (error) {
