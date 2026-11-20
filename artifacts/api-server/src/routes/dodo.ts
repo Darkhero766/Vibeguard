@@ -365,8 +365,10 @@ router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise
     const productId = typeof data.product_id === "string" ? data.product_id : null;
 
     if (["subscription.active", "subscription.renewed", "subscription.plan_changed"].includes(eventType)) {
-      if (productId && productId !== PRODUCT_ID) {
-        throw new Error("Webhook product does not match VibeSane Pro");
+      // Dodo subscription events require product_id and subscription_id.
+      // An absent product ID must not accidentally authorize another SKU.
+      if (!subscriptionId || productId !== PRODUCT_ID) {
+        throw new Error("Webhook lacks a valid VibeSane Pro subscription/product");
       }
       if (customer.email) {
         await activateProByEmail(customer.email, {
