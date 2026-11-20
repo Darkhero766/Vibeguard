@@ -158,3 +158,24 @@ export async function getInstallationIdForUser(owner: string): Promise<number | 
   const rows = await db.select({ installationId: githubAppInstallations.installationId }).from(githubAppInstallations).where(eq(githubAppInstallations.owner, owner));
   return rows[0]?.installationId ?? null;
 }
+
+export async function getLinkedInstallationForUser(owner: string): Promise<{
+  installationId: number;
+  account: { id: number; login: string; type: string };
+} | null> {
+  const rows = await db.select({
+    installationId: githubAppInstallations.installationId,
+    accountId: githubAppInstallations.accountId,
+    accountLogin: githubAppInstallations.accountLogin,
+    accountType: githubAppInstallations.accountType,
+  }).from(githubAppInstallations).where(eq(githubAppInstallations.owner, owner));
+  const row = rows[0];
+  return row ? {
+    installationId: Number(row.installationId),
+    account: {
+      id: Number(row.accountId),
+      login: row.accountLogin,
+      type: row.accountType,
+    },
+  } : null;
+}
