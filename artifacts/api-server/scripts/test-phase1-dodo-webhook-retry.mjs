@@ -197,6 +197,17 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
     assert.equal(usage.get(userId)?.plan,'free',
       'Cancellation of matching subscription must revoke Pro');
 
+    const genericPayment={
+      ...payload,type:'payment.succeeded',
+      data:{...payload.data,product_id:'unrelated-one-time-product',
+        subscription_id:null},
+    };
+    const paymentResult=await send('one-time-paid-event',true,genericPayment);
+    assert.equal(paymentResult.status,200);
+    assert.equal(usage.get(userId)?.plan,'free',
+      'A successful unrelated one-time payment must not create a Pro subscription');
+
+
   }finally{
     if(server)await new Promise(resolve=>server.close(resolve));
     delete globalThis.__VIBESANE_DODO_RETRY_DB__;
