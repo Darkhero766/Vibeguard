@@ -65,3 +65,10 @@ test('a direct braced throw remains an accepted denial guard',async()=>{
 test('baseline scanner recognizes actual Supabase data.user denial',async()=>{
  assert.equal(await scanCode('export async function POST(){const u=await auth.getUser();if(!u.data.user)return;db.from("orders").insert({});}'),false);
 });
+
+test('a fake authorization denial inside a quoted string is not accepted',async()=>{
+ assert.equal(await scanCode('export async function POST(){const s=await getServerSession();const note="if(!s) return";db.from("orders").insert({});}'),true);
+});
+test('an inline comment cannot supply an authorization denial',async()=>{
+ assert.equal(await scanCode('export async function POST(){const s=await getServerSession();//if(!s)return\ndb.from("orders").insert({});}'),true);
+});
