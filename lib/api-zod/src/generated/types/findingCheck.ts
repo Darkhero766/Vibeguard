@@ -29,6 +29,7 @@ export const FindingCheck = {
   github_token: 'github_token',
   private_key: 'private_key',
   database_url: 'database_url',
+  plaintext_password_storage: 'plaintext_password_storage',
   hardcoded_password: 'hardcoded_password',
   hardcoded_bearer: 'hardcoded_bearer',
   sendgrid_key: 'sendgrid_key',
