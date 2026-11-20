@@ -66,10 +66,27 @@ export function analyzeNextRouteAuth(filePath,content){
       if(ts.isVariableDeclaration(n)&&n.initializer){
         const value=n.initializer.getText(sf);
         if(AUTH_SOURCE.test(value)){
-          if(ts.isIdentifier(n.name))sourceVars.add(n.name.text);
+          // Supabase auth.getUser() returns {data:{user},error}; checking
+          // the response object's truthiness never establishes a user.
+          const wrapped=/\\bauth\\.getUser\\s*\\(/.test(value);
+          if(ts.isIdentifier(n.name))
+            sourceVars.add(wrapped?n.name.text+'.data.user':n.name.text);
           else if(ts.isObjectBindingPattern(n.name)){
-            for(const entry of n.name.elements)
-              if(ts.isIdentifier(entry.name))sourceVars.add(entry.name.text);
+            for(const entry of n.name.elements){
+              if(!wrapped){
+                if(ts.isIdentifier(entry.name))sourceVars.add(entry.name.text);
+                continue;
+              }
+              const field=entry.propertyName?.getText(sf)||
+                (ts.isIdentifier(entry.name)?entry.name.text:'');
+              if(field!=='data')continue;
+              if(ts.isIdentifier(entry.name))sourceVars.add(entry.name.text+'.user');
+              else if(ts.isObjectBindingPattern(entry.name))
+                for(const inner of entry.name.elements)
+                  if(ts.isIdentifier(inner.name)&&
+                     (inner.propertyName?.getText(sf)||inner.name.text)==='user')
+                    sourceVars.add(inner.name.text);
+            }
           }
         }
       }
@@ -90,7 +107,8 @@ export function analyzeNextRouteAuth(filePath,content){
         const denial=guardReturn(n.thenStatement);
         // Known auth result must be CHECKED and a deny path must return/throw.
         if(isTopLevelStatement(n,c.body)&&denial&&[...sourceVars].some(v=>
-          new RegExp('!\\s*'+v+'\\b|'+v+'\\s*===?\\s*(?:null|undefined|false)').test(cond))){
+          new RegExp('!\\s*'+v.replaceAll('.', '\\\\.')+'\\b|'+
+            v.replaceAll('.', '\\\\.')+'\\s*===?\\s*(?:null|undefined|false)').test(cond))){
           guards.push(n.getStart(sf));
         }
       }
