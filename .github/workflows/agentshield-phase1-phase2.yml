@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - feat/agentshield-phase1-phase2-security
+  pull_request:
+    branches:
+      - feat/agentshield-week5-launch-readiness
   workflow_dispatch:
 permissions:
   contents: read
