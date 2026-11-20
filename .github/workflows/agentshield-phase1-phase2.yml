@@ -75,7 +75,6 @@ jobs:
       - name: New adversarial synthetic holdout (untuned, informational)
         run: node artifacts/api-server/scripts/benchmark-agentshield-phase2-fresh-holdout.mjs
       - name: Pinned external NodeGoat source smoke (read-only, informational)
-        continue-on-error: true
         run: node artifacts/api-server/scripts/benchmark-agentshield-public-repo-smoke.mjs
 
       - name: Bounded Phase 2 AST throughput (synthetic, informational)
