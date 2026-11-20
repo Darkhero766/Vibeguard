@@ -59,6 +59,14 @@ try{
   assert.equal(unsignedWebhook.status,401,'Unsigned Dodo webhook must fail');
   results.push({check:'unsigned_webhook',status:'pass'});
 
+  const unsignedGitHub=await request('/api/github/webhook',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-GitHub-Event':'ping'},
+    body:JSON.stringify({zen:'untrusted-unsigned-fixture'}),
+  });
+  assert.equal(unsignedGitHub.status,401,'Unsigned GitHub App webhook must fail HMAC verification');
+  results.push({check:'unsigned_github_webhook',status:'pass'});
+
   const preflight=await request('/api/github/token/status',{
     method:'OPTIONS',
     headers:{Origin:'https://staging.vibesane.invalid','Access-Control-Request-Method':'GET'},
