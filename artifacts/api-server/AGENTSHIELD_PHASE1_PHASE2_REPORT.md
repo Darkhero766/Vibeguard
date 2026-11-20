@@ -102,3 +102,13 @@ Changes added after the original 19 November report:
 - One synthetic case was corrected from safe to risk, with explicit label provenance. The supplemental challenge is 21 positive / 19 negative cases; **not independently labeled, and not an untouched holdout**.
 - Latest code commit for this report: `f6a87a76773b907c701f2ef9aeaedf4dec1ee913`. Neither this nor prior continuation commits have current-commit CI independently verified here.
 - All Phase 1 hosted permission problems and the staging/independent-review blockers remain open. Do not interpret a local test as production authorization.
+
+
+### Verified continuation CI — 20 November 2026
+- Failed initial PR validation [run 44666487779](https://github.com/Darkhero766/Vibeguard/actions/runs/44666487779) exposed an outdated Week 2 test treating a truthy `auth.getUser()` wrapper as successful authorization. Scanner rejection was correct. Updated the test to keep the warning until `session.data.user` is denied when absent.
+- Fresh PR validation for code commit `0992d46a5bdea7d9531de1aa3a591635d4b46e5d` **PASSED** [run 44666690654](https://github.com/Darkhero766/Vibeguard/actions/runs/44666690654): all **three jobs passed**, including two disposable PostgreSQL 17 privilege rehearsals. Frontend/backend builds, strict type checks, Week 1–5, optional hybrid/AST/taint, Phase 1+2, release contracts, SUE and benchmark commands completed.
+- Exact automated `node --test` counts across 11 test groups: **259 passed, 0 failed**. This includes 6 VibeSane GitHub check-output tests; the rest are AgentShield regressions. Counts are from the successful CI log; no human production signoff.
+- Supplemental synthetic 40-case evaluation: TP 21, TN 19, FP 0, FN 0, incomplete 0; after the documented Supabase wrapper-label correction. This dataset was AI-authored, label-corrected, and is **NOT an independently labeled real-project holdout**. No production accuracy claims.
+- All CI runs use disposable/synthetic test data and **do not** change the hosted database, billing, OAuth, or deployment.
+- Remaining **blocking** release gates: isolated owner-approved staging Supabase database with migration reconciliation/backup; staged end-to-end auth/signup, GitHub OAuth, Dodo payments/webhooks, usage/quota and audits; actual live privilege lockdown after separate approval; human-reviewed representative repo benchmark and accuracy analysis; human security review; Auth leaked-password protection setting review.
+- A green build **does not authorize merging PR #61 or removing the draft state** while hosted/independent gates remain unsatisfied.
