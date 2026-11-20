@@ -18,6 +18,9 @@ const supabaseUserUrl = new URL("/auth/v1/user", supabaseUrl).toString();
 export interface AuthedRequest extends Request {
   userId?: string;
   userJwt?: string;
+  // This comes exclusively from Supabase Auth's server-validated OAuth
+  // identity, never from mutable user_metadata or a request parameter.
+  githubProviderId?: number;
 }
 
 async function resolveUser(jwt: string) {
@@ -30,9 +33,17 @@ async function resolveUser(jwt: string) {
 
   if (!response.ok) return null;
 
-  const user = (await response.json()) as { id?: unknown };
+  const user = (await response.json()) as {
+    id?: unknown;
+    identities?: Array<{ provider?: string; provider_id?: string }>;
+  };
   if (typeof user.id !== "string") return null;
-  return { id: user.id };
+  const id = user.identities?.find((entry) => entry.provider === "github")?.provider_id;
+  const githubId = typeof id === "string" && /^[0-9]+$/.test(id) ? Number(id) : NaN;
+  return {
+    id: user.id,
+    githubProviderId: Number.isSafeInteger(githubId) && githubId > 0 ? githubId : undefined,
+  };
 }
 
 /**
@@ -57,6 +68,7 @@ export async function requireAuth(
   }
   req.userId = user.id;
   req.userJwt = jwt;
+  req.githubProviderId = user.githubProviderId;
   next();
 }
 
@@ -79,6 +91,7 @@ export async function optionalAuth(
   if (user) {
     req.userId = user.id;
     req.userJwt = jwt;
+    req.githubProviderId = user.githubProviderId;
   }
   next();
 }
