@@ -51,3 +51,13 @@ test('guard after the write is not protection before it',async()=>{
 test('checked user with braced rejection is recognized',async()=>{
  assert.equal(await scanCode('export async function POST(){const u=await requireUser();if(!u){return new Response("deny",{status:401})}db.from("orders").insert({});}'),false);
 });
+
+test('nested conditional return does not satisfy baseline authorization',async()=>{
+ assert.equal(await scanCode('export async function POST(){const s=await getServerSession();if(!s){if(Math.random()>0.5)return;}db.from("orders").insert({});}'),true);
+});
+test('a nested callback return does not satisfy baseline authorization',async()=>{
+ assert.equal(await scanCode('export async function POST(){const s=await getServerSession();if(!s){[1].forEach(()=>{return;});}db.from("orders").insert({});}'),true);
+});
+test('a direct braced throw remains an accepted denial guard',async()=>{
+ assert.equal(await scanCode('export async function POST(){const s=await getServerSession();if(!s){throw Error("no");}db.from("orders").insert({});}'),false);
+});
