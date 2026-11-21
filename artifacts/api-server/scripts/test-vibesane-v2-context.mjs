@@ -96,3 +96,48 @@ test('cookie test fixtures are demoted but not silently hidden', () => {
   assert.equal(testCase?.severity, 'Low');
   assert.equal(prodCase?.severity, 'Medium');
 });
+
+
+test('same-handler req.body taint reaches named child_process.exec alias', () => {
+  const source = [
+    "var exec = require('child_process').exec;",
+    "exports.create = function (req, res) {",
+    "  var item = req.body.content;",
+    "  var imgRegex = /image-url/;",
+    "  var url = item.match(imgRegex)[1];",
+    "  exec('identify ' + url, function () {});",
+    "};",
+  ].join('\n');
+  const findings = scan(source, 'routes/index.js')
+    .filter(f => f.check === 'command_injection');
+  assert.deepEqual(findings.map(f => f.line), [6]);
+});
+
+test('shell alias rule does not flag static values or taint from another handler', () => {
+  const source = [
+    "var exec = require('child_process').exec;",
+    "exports.first = function (req, res) {",
+    "  var url = req.body.content;",
+    "};",
+    "exports.second = function (req, res) {",
+    "  var url = 'safe-file.png';",
+    "  exec('identify ' + url, () => {});",
+    "  exec('identify fixed-file.png', () => {});",
+    "};",
+  ].join('\n');
+  const findings = scan(source, 'routes/index.js')
+    .filter(f => f.check === 'command_injection');
+  assert.equal(findings.length, 0);
+});
+
+test('admin object password and moving GitHub tarball are detected on in-scope source', () => {
+  const source = "var users = [{name: 'admin', password: Math.random().toString(32)}];";
+  const findings = scan(source, 'routes/index.js').filter(f => f.check === 'weak_random');
+  assert.deepEqual(findings.map(f => f.line), [1]);
+  const manifest = JSON.stringify({ dependencies: {
+    "grunt-if": "https://github.com/binarymist/grunt-if/tarball/master",
+    "pinned": "https://github.com/binarymist/grunt-if/tarball/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  } }, null, 2);
+  const depFindings = scan(manifest, 'package.json').filter(f => f.check === 'git_dependency');
+  assert.deepEqual(depFindings.map(f => f.line), [3]);
+});
