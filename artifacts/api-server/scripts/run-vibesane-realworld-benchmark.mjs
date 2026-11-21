@@ -43,6 +43,7 @@ export function parseBenchmarkArgs(argv) {
 
 export function scanFileName(project) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(project.repo) ||
+      project.repo.split('/').some(part => part === '.' || part === '..') ||
       !SHA.test(project.commit)) throw new Error('Unsafe or unpinned repository identity');
   return project.repo.replace('/', '__') + '--' + project.commit.toLowerCase() + '.json';
 }
