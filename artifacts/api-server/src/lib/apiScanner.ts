@@ -131,7 +131,10 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
           // embed in a bounded RegExp. Owner == auth.uid() is not vulnerable.
           const directBinding = new RegExp("\\b" + target + "\\s*(?:=|is\\s+not\\s+distinct\\s+from)\\s*auth\\.uid\\s*\\(", "i").test(body) ||
             new RegExp("\\bauth\\.uid\\s*\\(\\s*\\)\\s*=\\s*" + target + "\\b", "i").test(body);
-          return !directBinding && !explicitAdminGuard;
+          const rejectedCrossAccount = new RegExp(
+            "\\bif\\s+" + target + "\\s*(?:<>|!=)\\s*auth\\.uid\\s*\\(\\s*\\)\\s+then[\\s\\S]{0,220}\\braise\\s+exception\\b",
+            "i").test(body);
+          return !directBinding && !rejectedCrossAccount && !explicitAdminGuard;
         });
       if (suspiciousEntitlementUpdate) {
         findings.push(finding(
