@@ -30,7 +30,7 @@ test('public scanner allowance is authenticated, server-derived and fail-closed'
       '@workspace/api-zod': 'export const CreateScanBody={safeParse:()=>({success:false})};export const CreateScanResponse={parse:x=>x};',
       '../lib/scanner': 'export const scanPublicRepository=async()=>({});',
       '../lib/apiScanner': 'export const scanRepositoryViaApi=async()=>({});',
-      '../lib/extendedScannerV2': 'export const runExtendedSecurityChecksV2=async()=>[];',
+      '../lib/extendedScannerV2': 'export const runExtendedSecurityChecksV2WithStats=async()=>({findings:[],filesScanned:0});',
       '../lib/securityCheckCatalog': 'export const TOTAL_SECURITY_CHECKS=51;',
       '../middlewares/auth': [
         "export const requireAuth=(req,res,next)=>{",
