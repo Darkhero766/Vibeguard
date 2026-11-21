@@ -209,3 +209,15 @@ test('cookie options with spreads or mutation are never assumed HttpOnly-protect
     .filter(f => f.check === 'cookie_missing_httponly');
   assert.deepEqual(flagged.map(f => f.line), [2, 5]);
 });
+
+
+test('weak Math.random CSRF-token value is detected without flagging strong token generation', () => {
+  const source = [
+    "app.use(attachCsrfToken('/', 'csrfToken', (Math.random() * 100000000000000000).toString()));",
+    "app.use(attachCsrfToken('/', 'csrfToken', crypto.randomBytes(32).toString('hex')));",
+    'const nonSecurityRandom = Math.random() * 100;',
+  ].join('\n');
+  const results = scanExtendedFiles([{ path: 'auth-sessions/app.js', content: source }])
+    .filter(f => f.check === 'weak_random');
+  assert.deepEqual(results.map(f => f.line), [1]);
+});
