@@ -121,6 +121,65 @@ First complete opt-in GitHub Actions run: [source collection #44861632644](https
 
 **Data-leak and holdout rules:** Only finding metadata was retained; no downloaded source or token values were committed. These 30 selected sources were inspected during rule refinement and therefore constitute a *development calibration set*, **not an untouched independent final holdout**. The final Phase 2 release gate still requires a separate frozen holdout, manual source inspection and adjudications, false-negative target curation, severity-context review, and an independently replicated scoring report. The opt-in collector does not run on normal CI pushes.
 
+
+## External AI review triage and scoring contract (21 November)
+
+A preliminary single-model review claimed 13 TP, 98 FP and 1 uncertain among 112 scanner alerts. **These are unverified AI-proposed labels, not independent security reviewer verdicts, not publishable precision and not a sealed holdout.** The actual per-finding Claude review JSON was not available to the connected engineering workspace, so no bulk import or human attribution was performed.
+
+The review identified test fixture and URL-string noise, a deliberately readable CSRF double-submit cookie, a possible authenticated `/admin` route false positive, plaintext-password location drift, and candidate false negatives potentially **outside** the declared scan scope. Prioritize exact pinned-line and data-flow review; do not auto-label unscanned files as false negatives. Starting with the next source capture, the collector includes `scannedFiles` (a sorted list of exact analyzed paths), and the scorer **requires that list** before it can score curated expected targets as detected or missed. Legacy scans without `scannedFiles` may still support reviewed-alert counts but **not** curated recall.
+
+### Reviewer verdict policy
+
+- **True positive:** the rule identifies a genuine, actionable security weakness in the actual supported execution/deployment context; merely matching a regex or a deliberately inert example is insufficient. A working exploit is not mandatory, but substantive code-path evidence is.
+- **False positive:** the reported sink is demonstrably inert, safe under its actual context, or not a genuine violation of the check's security contract. Document the reason, such as a regression-test string or intentionally JavaScript-readable CSRF token.
+- **Uncertain:** insufficient code, runtime context, trust-boundary evidence, or authorization policy. An `isLoggedIn` middleware does **not** by itself establish that an `/admin` route is administrator-authorized.
+- **Duplicate:** the same underlying reported sink is redundantly emitted. Multiple distinct `eval(req.body.*)` statements may have one root cause but are **separate sink alerts**, not automatic duplicates. Report alert-level and root-cause-level tallies separately; the current scorer's `precision` is strictly alert-level.
+- **Severity:** independently decide whether an actionable TP is appropriately rated, understated, overstated, or uncertain using contextual impact. Predictable password reset tokens can enable account takeover, so a generic hash-warning severity may understate the real harm. A checked-in training key is not automatically a leaked production key.
+
+### Example review data contract (illustrative; do NOT count as real labels)
+
+The review scorer expects the following **structure**, with identities, lines, verdicts and evidence replaced by actual human-adjudicated values. For example only, `owner/repo` and fake hashes below are placeholders and **must never be imported** as findings:
+
+```json
+{
+  "schemaVersion": 1,
+  "projects": [
+    {
+      "repo": "owner/repo",
+      "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "adjudications": [
+        {
+          "ruleId": "eval_usage",
+          "filePath": "src/handler.js",
+          "line": 25,
+          "verdict": "true_positive",
+          "reviewer": "human-reviewer-id",
+          "evidence": "The request-controlled argument reaches eval without any validation.",
+          "severityAssessment": "understated",
+          "severityEvidence": "A reachable network handler executes attacker-controlled JavaScript."
+        }
+      ],
+      "expectedTargets": [
+        {
+          "ruleId": "command_injection",
+          "filePath": "src/another-handler.js",
+          "startLine": 44,
+          "endLine": 48,
+          "reviewer": "independent-human-id",
+          "evidence": "A separately inspected, supported input-to-shell path is in scannedFiles."
+        }
+      ]
+    }
+  ]
+}
+```
+
+The labels above are synthetic schema illustrations, not confirmed project vulnerabilities. Store AI proposals separately from human reviews; never substitute model names for human reviewer IDs. Keep the raw immutable source/scanner pins, source-path list, line and actual security reasoning. False-negative targets must be discovered independently of scanner alerts, must lie inside `scannedFiles`, and must use supported checks. If the proposed target file was not analyzed, document it as a **coverage gap**, not an FN. Continue to require independent qualified human review and an untouched, separately frozen external holdout before reporting accuracy.
+
+### Conservative calibration boundaries
+
+The `http_url` V2 heuristic now reports directly supplied literal `http://` URLs in recognizable network-client calls rather than every plaintext URL string. Its deliberate limitation is that variables, aliases and multiline calls can be missed; this is a false-positive reduction, not proof of full insecure-transport detection. A named `attachCsrfToken` cookie is filtered only when a matching JavaScript-side cookie read is visible. The authenticated `/admin` example remains reviewable because logging in does not establish administrator privileges. Keep the previous raw 112-alert evidence separate and compare only exact pinned source/scanner pairs; changing rules on this corpus destroys its suitability as an untouched holdout.
+
 ## Milestones and release protections
 
 Validate the original five-source pilot first, then collect and adjudicate the 30 pinned candidate sources. Investigate runtime, GitHub rate limits and partial coverage. A 30-source selection is available, but independent security adjudication and evidence from real scans are not yet complete. Resolve reviewer disagreements, keep final holdout cases genuinely untouched, then compare results by rule and severity with denominator counts, duplicates, abstentions, scoped recall and p50/p95 times.
