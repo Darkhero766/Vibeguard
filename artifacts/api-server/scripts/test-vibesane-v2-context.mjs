@@ -183,3 +183,20 @@ test('untrusted HTML is still High; customer ids are not auth tokens',()=>{
   const secret='const resetToken = Math.random().toString(36);';
   assert.equal(scan(secret,'src/auth/reset.ts').filter(f=>f.check==='weak_random').length,1);
 });
+
+test('Math.random customer ids are not turned into tokens by keystone storage names',()=>{
+  const tick=String.fromCharCode(96);
+  const actual='else{cid='+tick+'cus-1795261879636-l2czg'+tick+
+    ';const c={id:cid,name:customerName.trim(),phone};writeStore("keystone-customers",[c]);}';
+  assert.equal(scan(actual,'src/pages/sales-checkout.tsx').filter(f=>f.check==='weak_random').length,0);
+  const syntheticPatch='replaceRegex(checkout, /old/, "else{cid='+tick+
+    'cus-1795261879636-iwn1s'+tick+
+    ';writeStore(\\'keystone-customers\\',next)}");';
+  assert.equal(scan(syntheticPatch,'scripts/fix-production-flow.mjs').filter(f=>f.check==='weak_random').length,0);
+  const realToken='const passwordResetToken = Math.random().toString(36);';
+  assert.equal(scan(realToken,'src/auth/reset.ts').filter(f=>f.check==='weak_random').length,1);
+  const nested="const users = [{name:'admin', password: Math.random().toString(32)}];";
+  assert.equal(scan(nested,'src/admin/index.ts').filter(f=>f.check==='weak_random').length,1);
+  const independent='const receiptId = Math.random();const keyStore="keystone";';
+  assert.equal(scan(independent,'src/billing/receipts.ts').filter(f=>f.check==='weak_random').length,0);
+});

@@ -80,8 +80,31 @@ function shouldKeepFinding(finding: ExtendedFinding, files: RepoFile[]): boolean
         /\b(?:res|response)\.cookie\s*\(\s*cookie\s*,\s*value\s*\)/.test(sourceLine)) return false;
   }
 
-  if (finding.check === "weak_random" && !/(token|secret|password|nonce|otp|session|reset|csrf|key|credential|auth)/i.test(sourceLine)) {
-    return false;
+  if (finding.check === "weak_random") {
+    // Match the target being assigned a predictable value, rather than
+    // unrelated security-like words elsewhere on a long/minified line. A
+    // storage key named "keystone-customers" is not a reset token.
+    const randomCalls = [...sourceLine.matchAll(/\bMath\.random\s*\(/g)];
+    const securityValue = randomCalls.some(call => {
+      const pos = call.index ?? 0;
+      let quote = "";
+      for (let i = 0; i < pos; i++) {
+        const ch = sourceLine[i];
+        if (ch === "\\") { i++; continue; }
+        if (quote) {
+          if (ch === quote) quote = "";
+        } else if (ch === "'" || ch === '"') {
+          quote = ch;
+        }
+      }
+      if (quote) return false; // Quoted patch content is not executable JS.
+      const prefix = sourceLine.slice(Math.max(0, pos - 500), pos);
+      if (/\battachCsrfToken\s*\([^;\n]*$/i.test(prefix)) return true;
+      const assignments = [...prefix.matchAll(/\b([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:=(?!=|>)|:(?!:))\s*/g)];
+      const target = assignments.at(-1)?.[1] ?? "";
+      return /(?:token|secret|password|passwd|passphrase|nonce|otp|session|reset|csrf|credential|authorization|(?:api|auth|signing|encryption)key$|^key$)/i.test(target);
+    });
+    if (!securityValue) return false;
   }
 
   if (finding.check === "database_url" && /(your_|example|placeholder|changeme|localhost|127\.0\.0\.1)/i.test(sourceLine)) {
