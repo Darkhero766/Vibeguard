@@ -46,6 +46,18 @@ function shouldKeepFinding(finding: ExtendedFinding, files: RepoFile[]): boolean
     if (/\.(?:md|mdx|txt)$/i.test(finding.filePath)) return false;
   }
 
+  if (finding.check === "cookie_missing_httponly") {
+    // Some CSRF double-submit cookies must be readable by JS. Do NOT infer
+    // safety from the cookie name alone: require a matching client-side read
+    // plus a clearly named CSRF issuer and its literal cookie-name call.
+    const src = file?.content ?? "";
+    const csrfIssuer = /\bfunction\s+attachCsrfToken\s*\(\s*url\s*,\s*cookie\s*,\s*value\s*\)/.test(src) &&
+      /\battachCsrfToken\s*\([^;\n]{0,140}['"\x60]csrfToken['"\x60]/.test(src);
+    const csrfReader = files.some(f => /\bgetCookie\s*\(\s*['"\x60]csrfToken['"\x60]\s*\)/.test(f.content));
+    if (csrfIssuer && csrfReader &&
+        /\b(?:res|response)\.cookie\s*\(\s*cookie\s*,\s*value\s*\)/.test(sourceLine)) return false;
+  }
+
   if (finding.check === "weak_random" && !/(token|secret|password|nonce|otp|session|reset|csrf|key|credential|auth)/i.test(sourceLine)) {
     return false;
   }
