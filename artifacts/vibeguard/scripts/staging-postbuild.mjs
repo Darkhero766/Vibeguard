@@ -5,7 +5,7 @@
  * still have the standard SPA rewrite (/* -> /index.html) configured for all
  * remaining client-side routes.
  */
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 
 if (process.env.VITE_DEPLOYMENT_ENV !== 'staging') {
@@ -52,6 +52,14 @@ for (const route of [
   'agentshield', 'accessibility',
 ]) {
   const target = join(out, route, 'index.html');
+  // Preserve prerendered route-specific SEO metadata and crawlable public
+  // content. Fallback shells are only for routes without an HTML entry point.
+  try {
+    await access(target);
+    continue;
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
   await mkdir(dirname(target), { recursive: true });
   await writeFile(target, routeShell, 'utf8');
 }
