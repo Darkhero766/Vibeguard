@@ -150,3 +150,62 @@ test('cookie rule ignores block-commented code and explicit HttpOnly cookies', (
     .filter((f) => f.check === 'cookie_missing_httponly');
   assert.deepEqual(results.map((f) => f.line), [6]);
 });
+
+
+test('lexically quoted adversarial XSS fixtures are not executable eval/innerHTML', () => {
+  const src = [
+    'var xss = \'javascript:eval(document.body.innerHTML=\x60<p>XSS</p>\x60);\';',
+    'var encodedXss = \'javascript:eval(document.body.innerHTML=%60%3C%3E);\';',
+    'eval(untrustedRequest);',
+    'document.body.innerHTML = userValue;',
+    'const snippet = "eval(shouldStayText)";',
+  ].join('\n');
+  const flagged = scanExtendedFiles([{ path: 'test/res.redirect.js', content: src }])
+    .filter(f => ['eval_usage', 'innerhtml_assignment'].includes(f.check));
+  assert.deepEqual(flagged.map(f => [f.check, f.line]).sort(),
+    [['eval_usage', 3], ['innerhtml_assignment', 4]]);
+});
+
+test('simple literal filter keeps executable eval beside a closed string', () => {
+  const src = [
+    'const label = "harmless"; eval(untrustedRequest);',
+    'const text = "not executable"; eval(again);',
+    "let sample = 'javascript:eval(fake)'; eval(real);",
+  ].join('\n');
+  const matches = scanExtendedFiles([{ path: 'src/handler.js', content: src }])
+    .filter(f => f.check === 'eval_usage');
+  assert.deepEqual(matches.map(f => f.line), [1, 2, 3]);
+});
+
+test('directly adjacent verified constant cookie options resolve HttpOnly safely', () => {
+  const src = [
+    'function handler(req, res, sessionCookie) {',
+    '  const opts = { maxAge: 100, httpOnly: true, secure: false /* local only */ };',
+    "  res.cookie('session', sessionCookie, opts);",
+    '  const missing = { secure: true };',
+    "  res.cookie('missing', sessionCookie, missing);",
+    '  const disabled = { httpOnly: false };',
+    "  res.cookie('disabled', sessionCookie, disabled);",
+    '  const mutated = { httpOnly: true };',
+    '  mutated.httpOnly = false;',
+    "  res.cookie('mutated', sessionCookie, mutated);",
+    '}',
+  ].join('\n');
+  const all = scanExtendedFiles([{ path: 'auth-sessions/app.js', content: src }]);
+  assert.deepEqual(all.filter(f => f.check === 'cookie_missing_httponly').map(f => f.line),
+    [5, 7, 10]);
+  assert.equal(all.some(f => f.check === 'cookie_insecure' && f.line === 2), true);
+});
+
+test('cookie options with spreads or mutation are never assumed HttpOnly-protected', () => {
+  const src = [
+    'const options = { ...config, httpOnly: true };',
+    "res.cookie('maybe', session, options);",
+    'const fromDynamic = { httpOnly: true };',
+    'fromDynamic.httpOnly = false;',
+    "res.cookie('unsafe', session, fromDynamic);",
+  ].join('\n');
+  const flagged = scanExtendedFiles([{ path: 'src/auth.js', content: src }])
+    .filter(f => f.check === 'cookie_missing_httponly');
+  assert.deepEqual(flagged.map(f => f.line), [2, 5]);
+});
