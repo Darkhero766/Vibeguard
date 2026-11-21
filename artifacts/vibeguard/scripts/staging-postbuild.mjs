@@ -45,11 +45,16 @@ const routeShell = appShell.replace(
   '</head>',
   '<script>if(location.pathname.length>1 && location.pathname.endsWith("/")) history.replaceState(null,"",location.pathname.slice(0,-1)+location.search+location.hash)</script>\n</head>',
 );
-for (const route of ['auth', 'scan-public', 'dashboard']) {
+for (const route of [
+  'auth', 'scan-public', 'dashboard', 'pricing', 'checkout',
+  'settings', 'audit', 'audit/report', 'admin', 'refer',
+  'terms', 'privacy', 'contact', 'security-disclosure',
+  'agentshield', 'accessibility',
+]) {
   const target = join(out, route, 'index.html');
   await mkdir(dirname(target), { recursive: true });
   await writeFile(target, routeShell, 'utf8');
 }
 
 await writeFile(join(out, 'robots.txt'), 'User-agent: *\nDisallow: /\n', 'utf8');
-console.log('Staging build: noindex metadata, robots denial, and auth/scanner route entry points ready');
+console.log('Staging build: noindex metadata, robots denial, and direct-link route entry points ready');

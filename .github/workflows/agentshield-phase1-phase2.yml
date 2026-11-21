@@ -38,6 +38,20 @@ jobs:
         run: pnpm run typecheck:libs
       - name: Frontend build
         run: pnpm --filter @workspace/vibeguard run build
+      - name: Staging static checkout and direct-link route contracts
+        env:
+          VITE_DEPLOYMENT_ENV: staging
+        run: |
+          node artifacts/vibeguard/scripts/staging-postbuild.mjs
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import {readFileSync} from "node:fs";
+            for (const route of ["checkout","pricing","auth","scan-public","dashboard","audit/report"]) {
+              const page=readFileSync("artifacts/vibeguard/dist/public/"+route+"/index.html","utf8");
+              assert.match(page,/name="robots" content="noindex, nofollow, noarchive"/);
+              assert.match(page,/<div id="root"/);
+            }
+          '
       - name: Frontend strict typecheck
         run: pnpm --filter @workspace/vibeguard run typecheck
       - name: Backend build
