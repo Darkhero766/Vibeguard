@@ -41,7 +41,7 @@ function argsMap(argv) {
   return values;
 }
 
-async function loadScanner() {
+export async function loadScanner() {
   const entryPoints = [
     path.join(dirname, '../src/lib/extendedScannerV2.ts'),
     path.join(dirname, '../src/lib/githubRepoReader.ts'),
@@ -56,7 +56,7 @@ async function loadScanner() {
       Buffer.from(built.outputFiles[0].contents).toString('base64');
     return import(url);
   }));
-  return { ...modules[0], ...modules[1] };
+  return { ...modules[0], ...modules[1], ...modules[2] };
 }
 
 async function requirePublicRepository(project) {
