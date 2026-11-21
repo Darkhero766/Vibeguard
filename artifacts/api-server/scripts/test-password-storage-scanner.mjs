@@ -112,3 +112,41 @@ test('extended scanner detects PEM private-key files in eligible source', () => 
   const findings = scanExtendedFiles([{ path: 'artifacts/cert/server.key', content: sample }]);
   assert.equal(findings.filter((f) => f.check === 'private_key').length, 1);
 });
+
+test('credential URL rule rejects database hosts without embedded credentials and README placeholders', () => {
+  const cases = [
+    { path: 'docker-compose.yml', content: 'MONGODB_URI: mongodb://mongo:27017/nodegoat' },
+    { path: 'README.md', content: 'mongodb://<username>:<password>@<cluster>/<dbname>?ssl=true' },
+    { path: 'README.md', content: 'postgresql://<user>:<password>@<hostname>/db' },
+  ];
+  for (const input of cases) {
+    assert.equal(scanExtendedFiles([input]).filter((f) => f.check === 'database_url').length, 0, input.content);
+  }
+});
+
+test('credential URL rule still detects literal user:password database URLs', () => {
+  const cases = [
+    'const db = "postgresql://alice:p%40ss@db.example.com:5432/main";',
+    'const db = "mongodb://alice:secret@db.example.com/nodegoat";',
+    'const db = "mysql://alice:secret@db.example.com/app";',
+  ];
+  for (const content of cases) {
+    const matches = scanExtendedFiles([{ path: 'src/db.ts', content }]).filter((f) => f.check === 'database_url');
+    assert.equal(matches.length, 1, content);
+    assert.equal(matches[0].severity, 'Critical');
+  }
+});
+
+test('cookie rule ignores block-commented code and explicit HttpOnly cookies', () => {
+  const source = [
+    '/* earlier session implementation:',
+    '   res.cookie("session", sessionId);',
+    '   req.session.userId = user._id;',
+    '*/',
+    'res.cookie("safe", token, { httpOnly: true, secure: true });',
+    'res.cookie("unsafe", token, { secure: true });',
+  ].join('\n');
+  const results = scanExtendedFiles([{ path: 'app/routes/session.js', content: source }])
+    .filter((f) => f.check === 'cookie_missing_httponly');
+  assert.deepEqual(results.map((f) => f.line), [6]);
+});
