@@ -148,6 +148,7 @@ async function main() {
       status: coverage.complete ? 'complete' : 'incomplete',
       engine: 'extended_v2_only',
       filesScanned: source.files.length,
+      scannedFiles: source.files.map(f => f.path).sort(),
       sourceLinesScanned: source.files.reduce((sum, f) => sum + f.content.split('\n').length, 0),
       durationMs: Math.round(performance.now() - start),
       coverage, findings,
