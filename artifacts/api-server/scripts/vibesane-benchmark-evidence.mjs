@@ -146,6 +146,23 @@ export function scoreEvidence(manifest, scanData, reviewData) {
     }
 
     ensure(scan.coverage?.complete !== false, 'Complete scan has incomplete coverage: ' + id);
+    // Legacy scan metadata without a path list may be scored for alert reviews,
+    // but cannot establish that a curated false-negative target was actually scanned.
+    let scannedPaths = null;
+    if (scan.scannedFiles !== undefined) {
+      ensure(Array.isArray(scan.scannedFiles) &&
+        scan.scannedFiles.length === scan.filesScanned &&
+        scan.scannedFiles.every(validPath) &&
+        new Set(scan.scannedFiles).size === scan.scannedFiles.length,
+        'Invalid or duplicate scannedFiles metadata: ' + id);
+      scannedPaths = new Set(scan.scannedFiles);
+      if (manifestProject.coverageMode === 'bounded_subset') {
+        ensure(scan.scannedFiles.every(p => manifestProject.paths.includes(p)),
+          'Scanned path outside declared subset: ' + id);
+        ensure(manifestProject.paths.every(p => scannedPaths.has(p)),
+          'Complete scan missing declared subset path: ' + id);
+      }
+    }
     if (activeRuleset !== null) ensure(activeRuleset === scan.rulesetCommit.toLowerCase(), 'Cannot aggregate different scanner ruleset commits');
     if (activeEngine !== null) ensure(activeEngine === scan.engine, 'Cannot aggregate different scanner engines');
     activeRuleset = scan.rulesetCommit.toLowerCase();
@@ -158,6 +175,9 @@ export function scoreEvidence(manifest, scanData, reviewData) {
       ensure(!found.has(key), 'Duplicate raw finding key; deduplicate before scoring: ' + id);
       if (manifestProject.coverageMode === 'bounded_subset') {
         ensure(manifestProject.paths.includes(finding.filePath), 'Finding outside declared path subset: ' + id);
+      }
+      if (scannedPaths !== null) {
+        ensure(scannedPaths.has(finding.filePath), 'Finding outside actual scannedFiles: ' + id);
       }
       found.set(key, finding);
       add(finding, 'alerts');
@@ -210,6 +230,8 @@ export function scoreEvidence(manifest, scanData, reviewData) {
       if (manifestProject.coverageMode === 'bounded_subset') {
         ensure(manifestProject.paths.includes(target.filePath), 'Target outside declared path subset');
       }
+      ensure(scannedPaths !== null && scannedPaths.has(target.filePath),
+        'Curated recall target requires proof of an actually scanned file: ' + id);
       const key = JSON.stringify([target.ruleId, target.filePath, target.startLine, target.endLine]);
       ensure(!targetKeys.has(key), 'Duplicate curated target');
       targetKeys.add(key);
@@ -241,6 +263,7 @@ export function scoreEvidence(manifest, scanData, reviewData) {
     projects,
     warnings: [
       'Precision counts only explicitly adjudicated true/false alerts; uncertain, duplicate and unreviewed alerts are excluded.',
+      'Recall requires an exact scannedFiles list and separately curated targets confirmed inside the analyzed file scope.',
       'Recall is limited to separately curated expected targets; unlabeled code cannot be assumed secure or counted as true negative.',
       'The scorer cannot establish exploitation, reviewer independence, source coverage, dataset representativeness, or comparative superiority.',
       'Severity reviews are counted only on true positives with explicit context evidence; missing reviews do not establish correct severity.',
