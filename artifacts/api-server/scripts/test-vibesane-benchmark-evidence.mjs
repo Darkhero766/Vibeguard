@@ -278,3 +278,34 @@ test('malformed or duplicate scannedFiles metadata fails closed', () => {
   assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews),
     /Invalid or duplicate scannedFiles/);
 });
+
+
+test('curated recall does not credit uncertain, duplicate or unreviewed lexical alerts', () => {
+  for (const verdictName of ['uncertain', 'duplicate', null]) {
+    const f = fixture();
+    const matched = f.scans.projects[0].findings[2];
+    f.reviews.projects[0].expectedTargets.push(target(matched));
+    if (verdictName === null) {
+      f.reviews.projects[0].adjudications =
+        f.reviews.projects[0].adjudications.filter(l => findingKey(l) !== findingKey(matched));
+    } else {
+      const label = f.reviews.projects[0].adjudications.find(l => findingKey(l) === findingKey(matched));
+      label.verdict = verdictName;
+    }
+    assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews),
+      /without a verified true-positive verdict/,
+      'A ' + (verdictName || 'missing') + ' review cannot prove recall');
+  }
+});
+
+test('curated recall credits a matching alert only after explicit TP adjudication', () => {
+  const f = fixture();
+  const matched = f.scans.projects[0].findings[2];
+  f.reviews.projects[0].adjudications.find(l => findingKey(l) === findingKey(matched)).verdict =
+    'true_positive';
+  f.reviews.projects[0].expectedTargets.push(target(matched));
+  const result = scoreEvidence(f.manifest, f.scans, f.reviews);
+  assert.equal(result.overall.detectedTargets, 2);
+  assert.equal(result.overall.missedTargets, 1);
+  assert.equal(result.overall.recallOnCuratedTargets, 2 / 3);
+});
