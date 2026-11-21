@@ -265,8 +265,28 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
         }
       }
       if (!protectedByGuard) {
+        // A verified source comparison (pinned ArnasDon/wacrm) exposed routes
+        // that await requireRole from a server-side account-auth module.
+        // Treat that as a contextual review lead, NOT as a proved missing
+        // login check, and do not entirely suppress a possible vulnerability.
+        // Calls to unrelated helpers or in another route must remain High.
+        const importedAccountRole = /\bimport\s*\{[^}]*\brequireRole\b[^}]*\}\s*from\s*['"]@\/lib\/auth\/account['"]/m.test(file.content);
+        const handlers = [...activeBeforeWrite.matchAll(/\bexport\s+async\s+function\s+(?:GET|POST|PUT|PATCH|DELETE)\s*\(/g)];
+        const lastHandler = handlers.at(-1)?.index ?? -1;
+        const beforeInHandler = lastHandler >= 0 ? activeBeforeWrite.slice(lastHandler) : "";
+        const awaitedRoleHelper = importedAccountRole && /\bawait\s+requireRole\s*\(/.test(beforeInHandler);
         const line = lineAt(file.content, write);
-        findings.push(finding(`write-${file.path}-${line}`, "High", "Database write is missing an auth check", "This API route writes to the database without a detected authentication check before the write.", file.path, line, "unauthenticated_write"));
+        findings.push(finding(
+          "write-" + file.path + "-" + line,
+          awaitedRoleHelper ? "Medium" : "High",
+          awaitedRoleHelper
+            ? "Database write follows an imported role guard; verify its implementation"
+            : "Database write is missing an auth check",
+          awaitedRoleHelper
+            ? "The handler awaits requireRole imported from an account-auth module before the write. Inspect the imported helper, throw/deny behavior, route boundaries and database RLS before claiming an unauthenticated mutation. This warning is retained for manual review."
+            : "This API route writes to the database without a detected authentication check before the write.",
+          file.path, line, "unauthenticated_write",
+        ));
       }
     }
   }

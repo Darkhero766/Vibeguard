@@ -225,3 +225,52 @@ test('owner-bound and admin-guarded Pro changes are not fabricated vulnerabiliti
       .filter(f=>f.check==='privileged_entitlement_write').length,0);
   }
 });
+
+test('pinned source-style Next.js role guard is a Medium review lead, not proven missing auth',()=>{
+  const files=[
+    file('src/app/api/account/api-keys/[id]/route.ts',[
+      "import { requireRole, toErrorResponse } from '@/lib/auth/account';",
+      'export async function DELETE(_request: Request, { params }: any) {',
+      "  const ctx = await requireRole('admin');",
+      "  return ctx.supabase.from('api_keys').update({revoked_at:new Date().toISOString()}).eq('account_id',ctx.accountId);",
+      '}',
+    ].join('\n')),
+    file('src/app/api/ai/autoreply/[conversationId]/route.ts',[
+      "import { requireRole } from '@/lib/auth/account';",
+      'export async function POST(request: Request) {',
+      "  const { supabase, accountId } = await requireRole('agent');",
+      "  return supabase.from('conversations').update({ai_autoreply_disabled:true}).eq('account_id',accountId);",
+      '}',
+    ].join('\n')),
+  ];
+  for(const target of files){
+    const findings=api([target]).filter(f=>f.check==='unauthenticated_write');
+    assert.equal(findings.length,1);
+    assert.equal(findings[0].severity,'Medium');
+    assert.match(findings[0].description,/manual review/);
+  }
+});
+
+test('unrelated, unawaited and cross-handler role helpers do not mask unguarded writes',()=>{
+  const examples=[
+    [
+      "import { requireRole } from './fake-auth';",
+      'export async function POST(){await requireRole("admin");await db.from("customers").insert({});}',
+    ],
+    [
+      "import { requireRole } from '@/lib/auth/account';",
+      'export async function POST(){requireRole("admin");await db.from("customers").insert({});}',
+    ],
+    [
+      "import { requireRole } from '@/lib/auth/account';",
+      'export async function GET(){await requireRole("admin");return new Response("ok");}',
+      'export async function POST(){await db.from("customers").insert({});}',
+    ],
+  ];
+  for(const pieces of examples){
+    const findings=api([file('app/api/test/route.ts',pieces.join('\n'))])
+      .filter(f=>f.check==='unauthenticated_write');
+    assert.equal(findings.length,1);
+    assert.equal(findings[0].severity,'High');
+  }
+});
