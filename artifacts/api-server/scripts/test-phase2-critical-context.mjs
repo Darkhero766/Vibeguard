@@ -342,3 +342,34 @@ test('unsigned or late-verified Stripe webhook writes remain High',()=>{
     assert.equal(findings[0].severity,'High');
   }
 });
+
+test('comments with apostrophes and quoted URL slashes cannot erase real role authorization',()=>{
+  const src=[
+    "// This account's endpoint can't skip authorization.",
+    "import { requireRole } from '@/lib/auth/account';",
+    "const docs = 'https://example.invalid/a//b';",
+    'export async function POST(){',
+    "  const ctx = await requireRole('admin');",
+    "  return ctx.supabase.from('records').insert({owner:ctx.accountId});",
+    '}',
+  ].join('\n');
+  const got=api([file('app/api/roles/route.ts',src)])
+    .filter(f=>f.check==='unauthenticated_write');
+  assert.equal(got.length,1);
+  assert.equal(got[0].severity,'Medium');
+});
+
+test('comment-only and quoted role guards remain untrusted despite import',()=>{
+  const src=[
+    "import { requireRole } from '@/lib/auth/account';",
+    "// we can't rely on: await requireRole('admin')",
+    'export async function POST(){',
+    "  const docs = 'await requireRole(\\'admin\\')';",
+    "  return db.from('records').insert({});",
+    '}',
+  ].join('\n');
+  const got=api([file('app/api/roles/route.ts',src)])
+    .filter(f=>f.check==='unauthenticated_write');
+  assert.equal(got.length,1);
+  assert.equal(got[0].severity,'High');
+});

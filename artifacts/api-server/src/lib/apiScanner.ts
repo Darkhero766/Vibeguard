@@ -17,6 +17,53 @@ function stripSqlComments(sql: string): string {
   return sql.replace(/\/\*[\s\S]*?\*\//g, blank).replace(/--[^\n]*/g, blank);
 }
 
+/**
+ * Mask comments and string/template literal contents without changing source
+ * offsets or line numbers. Regex-only stripping can be led astray by ordinary
+ * apostrophes in comments ("can't") and `//` within quoted URLs.
+ * A masked fake role guard must never count as real authorization.
+ */
+function maskJsNonExecutable(source: string): string {
+  let mode: "code" | "line" | "block" | "single" | "double" | "template" = "code";
+  let out = "";
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i];
+    const next = source[i + 1];
+    if (mode === "code") {
+      if (char === "/" && next === "/") { mode = "line"; out += "  "; i++; continue; }
+      if (char === "/" && next === "*") { mode = "block"; out += "  "; i++; continue; }
+      if (char === "'") { mode = "single"; out += " "; continue; }
+      if (char === '"') { mode = "double"; out += " "; continue; }
+      if (char === String.fromCharCode(96)) { mode = "template"; out += " "; continue; }
+      out += char;
+      continue;
+    }
+    if (mode === "line") {
+      if (char === "\n") { mode = "code"; out += "\n"; }
+      else out += " ";
+      continue;
+    }
+    if (mode === "block") {
+      if (char === "*" && next === "/") { mode = "code"; out += "  "; i++; }
+      else out += char === "\n" ? "\n" : " ";
+      continue;
+    }
+    if (char === "\\") {
+      out += " ";
+      if (i + 1 < source.length) { i++; out += source[i] === "\n" ? "\n" : " "; }
+      continue;
+    }
+    if ((mode === "single" && char === "'") ||
+        (mode === "double" && char === '"') ||
+        (mode === "template" && char === String.fromCharCode(96))) {
+      mode = "code"; out += " "; continue;
+    }
+    if (char === "\n" && mode !== "template") { mode = "code"; out += "\n"; continue; }
+    out += char === "\n" ? "\n" : " ";
+  }
+  return out;
+}
+
 export function scanApiFiles(files: RepositoryFile[]): Finding[] {
   const findings: Finding[] = [];
 
@@ -251,11 +298,7 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
       // comments, unguarded calls, or an unrelated middleware filename.
       // Exclude quoted source from the heuristic: a string containing
       // 'if (!session) return' must not be mistaken for an auth check.
-      const activeBeforeWrite = before
-        .replace(/(["'])(?:\\.|(?!\1)[^\\])*\1/g, ' ')
-        .replace(/\x60(?:\\.|[^\x60])*\x60/g, ' ')
-        .replace(/\/\*[\s\S]*?\*\//g, ' ')
-        .replace(/\/\/[^\n]*/g, ' ');
+      const activeBeforeWrite = maskJsNonExecutable(before);
       // A call to getUser/getServerSession is NOT authorization by itself.
       // Require a checked, explicitly denying branch before the mutation.
       // This is intentionally conservative: custom middleware may still need
