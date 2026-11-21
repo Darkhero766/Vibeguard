@@ -54,6 +54,22 @@ async function loadScanner() {
   return { ...modules[0], ...modules[1] };
 }
 
+async function requirePublicRepository(project) {
+  const [owner, name] = project.repo.split('/');
+  // Deliberately unauthenticated: a private repository must be rejected
+  // even if the optional token could otherwise access it.
+  const response = await fetch('https://api.github.com/repos/' +
+    encodeURIComponent(owner) + '/' + encodeURIComponent(name), {
+    signal: AbortSignal.timeout(30_000),
+    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'VibeSane-public-benchmark' },
+  });
+  if (!response.ok) throw new Error('Benchmark source is not publicly verifiable (HTTP ' + response.status + ')');
+  const metadata = await response.json();
+  if (metadata.private !== false || metadata.full_name?.toLowerCase() !== project.repo.toLowerCase()) {
+    throw new Error('Only verified public GitHub repositories are allowed');
+  }
+}
+
 async function githubTree(project, token) {
   const [owner, repo] = project.repo.split('/');
   const url = 'https://api.github.com/repos/' + encodeURIComponent(owner) + '/' +
@@ -107,6 +123,7 @@ async function main() {
   validateManifest(manifest);
   const project = manifest.projects.find(p => p.repo === cli.get('--repo'));
   if (!project) throw new Error('Repo not in the pinned public benchmark manifest');
+  await requirePublicRepository(project);
   const token = process.env.GITHUB_TOKEN || undefined;
   const start = performance.now();
   const scanner = await loadScanner();
