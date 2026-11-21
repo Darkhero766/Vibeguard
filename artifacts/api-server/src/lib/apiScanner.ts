@@ -90,10 +90,34 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
       // A trigger-returning function is not an ordinary callable PostgREST RPC.
       if (/\breturns\s+trigger\b/i.test(header)) continue;
       const body = declaration.slice(startBody, endBody);
+      // PL/pgSQL commonly binds auth.uid() into a local UUID and refuses a
+      // null user before doing privileged work. Recognize that guard without
+      // claiming that it authorizes arbitrary cross-tenant operations.
+      const uidBinding = /\b([A-Za-z_]\w*)\s+(?:uuid|text)\s*:=\s*auth\.uid\s*\(\s*\)/i.exec(body);
+      const rejectsMissingUid = Boolean(uidBinding &&
+        new RegExp("\\bif\\s+" + uidBinding[1] +
+          "\\s+is\\s+null\\s+then\\s+raise\\s+exception\\b", "i").test(body));
       const guarded = /\b(?:where|if|and|or|using|with\s+check)\b[\s\S]{0,240}\bauth\.(?:uid|jwt)\s*\(/i.test(body) ||
-        /\bif\s+(?:not\s+)?(?:public\.)?is_[A-Za-z_]*(?:admin|owner|member|authorized)\s*\([^)]*\)\s+then[\s\S]{0,300}\braise\s+exception\b/i.test(body);
-      if (guarded) continue;
+        /\bif\s+(?:not\s+)?(?:public\.)?is_[A-Za-z_]*(?:admin|owner|member|authorized)\s*\([^)]*\)\s+then[\s\S]{0,300}\braise\s+exception\b/i.test(body) ||
+        rejectsMissingUid;
       const line = lineAt(file.content, match.index ?? 0);
+      // Authenticated does not mean authorized to move someone else's rows.
+      // Keep sensitive data-recovery code visible without falsely saying it
+      // lacks an authentication guard.
+      const transfersOwners =
+        /\bupdate\s+(?:public\.)?[A-Za-z_]\w*\s+set\s+owner_id\s*=\s*[A-Za-z_]\w*\s+where\s+owner_id\s*=\s*[A-Za-z_]\w*/i.test(body) &&
+        /\bfrom\s+(?:public\.)?profiles\b/i.test(body) &&
+        /\bauth\.uid\s*\(/i.test(body);
+      if (transfersOwners && guarded) {
+        findings.push(finding(
+          "tenant-recovery-" + file.path + "-" + line, "High",
+          "Privileged account recovery transfers ownership between users",
+          "A SECURITY DEFINER function checks authentication but transfers existing data to a different owner using profile records. Review verified-email trust, profile editability, effective EXECUTE grants and concurrent recovery before treating this as safe; this is not proof of exploitability.",
+          file.path, line, "privileged_account_recovery",
+        ));
+        continue;
+      }
+      if (guarded) continue;
       const funcName = match[1].split(".").at(-1)?.replaceAll('"', "") ?? match[1];
       findings.push(finding(
         "rpc-" + file.path + "-" + line, "High",

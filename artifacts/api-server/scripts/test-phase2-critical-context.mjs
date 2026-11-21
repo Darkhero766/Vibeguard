@@ -157,3 +157,36 @@ test('different projects cannot combine migration evidence into an escalation',(
   ]);
   assert.equal(f.length,0);
 });
+
+test('auth.uid bound to a local UUID and rejected when null is an authentication guard',()=>{
+  const sql=[
+    'CREATE FUNCTION public.uid_guarded() RETURNS jsonb',
+    'LANGUAGE plpgsql SECURITY DEFINER AS $$',
+    'DECLARE current_id uuid := auth.uid();',
+    'BEGIN',
+    "IF current_id IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;",
+    "RETURN '{}'::jsonb;",
+    'END; $$;',
+  ].join('\n');
+  assert.equal(rpc([file('supabase/migrations/014.sql',sql)]).length,0);
+});
+
+test('cross-owner recovery produces a precise security review, not a false missing-auth finding',()=>{
+  const sql=[
+    'CREATE FUNCTION public.recover_same_email_tenant() RETURNS jsonb',
+    'LANGUAGE plpgsql SECURITY DEFINER AS $$',
+    'DECLARE current_id uuid := auth.uid(); source_id uuid;',
+    'BEGIN',
+    "IF current_id IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;",
+    "SELECT p.id INTO source_id FROM public.profiles p WHERE lower(p.email) = 'example.invalid' LIMIT 1;",
+    'UPDATE public.sales SET owner_id=current_id WHERE owner_id=source_id;',
+    "RETURN '{}'::jsonb;",
+    'END; $$;',
+  ].join('\n');
+  const findings=api([file('supabase/migrations/014.sql',sql)]);
+  assert.equal(findings.filter(f=>f.check==='unprotected_rpc').length,0);
+  const recovery=findings.filter(f=>f.check==='privileged_account_recovery');
+  assert.equal(recovery.length,1);
+  assert.equal(recovery[0].severity,'High');
+  assert.match(recovery[0].description,/not proof of exploitability/);
+});
