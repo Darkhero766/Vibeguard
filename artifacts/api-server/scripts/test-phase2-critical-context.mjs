@@ -275,6 +275,24 @@ test('unrelated, unawaited and cross-handler role helpers do not mask unguarded 
   }
 });
 
+
+test('higher-order Stripe webhook route wrapper retains signature context before DB write',()=>{
+  const src=[
+    "const checkoutSessionMap = new Map<string, unknown>();",
+    'export const POST=withCors(async function POST(request:NextRequest){',
+    "const sig=request.headers.get('stripe-signature');",
+    "const event=stripe.webhooks.constructEvent(await request.text(),sig,webhookSecret);",
+    "checkoutSessionMap.delete(event.id);",
+    "await supabase.from('subscriptions').update({status:'active'}).eq('id',event.id);",
+    '});',
+  ].join('\n');
+  const findings=api([file('app/api/stripe/webhook/route.ts',src)])
+    .filter(f=>f.check==='unauthenticated_write');
+  assert.equal(findings.length,1);
+  assert.equal(findings[0].line,6,'Map.delete must not be treated as first database write');
+  assert.equal(findings[0].severity,'Medium');
+});
+
 test('in-memory Map.delete in Stripe webhook is not an unguarded database write',()=>{
   const src=[
     "const checkoutSessionMap = new Map<string, unknown>();",

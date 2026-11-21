@@ -283,7 +283,7 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
         // login check, and do not entirely suppress a possible vulnerability.
         // Calls to unrelated helpers or in another route must remain High.
         const importedAccountRole = /\bimport\s*\{[^}]*\brequireRole\b[^}]*\}\s*from\s*['"]@\/lib\/auth\/account['"]/m.test(file.content);
-        const handlers = [...activeBeforeWrite.matchAll(/\bexport\s+async\s+function\s+(?:GET|POST|PUT|PATCH|DELETE)\s*\(/g)];
+        const handlers = [...activeBeforeWrite.matchAll(/\bexport\s+(?:async\s+function\s+(?:GET|POST|PUT|PATCH|DELETE)\s*\(|const\s+(?:GET|POST|PUT|PATCH|DELETE)\s*=)/g)];
         const lastHandler = handlers.at(-1)?.index ?? -1;
         const beforeInHandler = lastHandler >= 0 ? activeBeforeWrite.slice(lastHandler) : "";
         const awaitedRoleHelper = importedAccountRole && /\bawait\s+requireRole\s*\(/.test(beforeInHandler);
