@@ -40,7 +40,8 @@ function regexFindings(
     for (const match of file.content.matchAll(rule.pattern)) {
       const line = lineAt(file.content, match.index ?? 0);
       const source = file.content.split("\n")[line - 1] ?? "";
-      if (/^\s*(?:\/\/|\/\*|\*|#|--)/.test(source)) continue;
+      // PEM key delimiters begin with dashes; they are not SQL comments.
+      if (rule.id !== "private_key" && /^\s*(?:\/\/|\/\*|\*|#|--)/.test(source)) continue;
       findings.push(makeFinding(`${rule.id}-${file.path}-${line}`, rule.severity, rule.title, rule.description, file.path, line, rule.id));
     }
   }
