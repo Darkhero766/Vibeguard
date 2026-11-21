@@ -50,7 +50,7 @@ test('early extended GitHub failure cannot crash scan service or consume quota',
     ].join(''),
     '../lib/scanner': 'export const scanPublicRepository=(...a)=>globalThis.__SCAN_FAILURE_FIXTURE__.clone(...a);',
     '../lib/apiScanner': 'export const scanRepositoryViaApi=(...a)=>globalThis.__SCAN_FAILURE_FIXTURE__.core(...a);',
-    '../lib/extendedScannerV2': 'export const runExtendedSecurityChecksV2=(...a)=>globalThis.__SCAN_FAILURE_FIXTURE__.extended(...a);',
+    '../lib/extendedScannerV2': 'export const runExtendedSecurityChecksV2WithStats=async(...a)=>({findings:await globalThis.__SCAN_FAILURE_FIXTURE__.extended(...a),filesScanned:7});',
     '../lib/securityCheckCatalog': 'export const TOTAL_SECURITY_CHECKS=51;',
     '../middlewares/auth': [
       'export const requireAuth=(req,res,next)=>{req.userId="test-user";req.userJwt="test-jwt";next();};',
@@ -125,6 +125,7 @@ test('early extended GitHub failure cannot crash scan service or consume quota',
     response = await scan();
     assert.equal(response.status, 200);
     assert.equal(response.body.checksRun, 51, 'full successful scan reports actual catalog coverage');
+    assert.equal(response.body.filesScanned, 7, 'report includes extended file coverage, not just core count');
     assert.equal(used, 1, 'only a complete scan consumes a credit');
   } finally {
     if (server) await new Promise((resolve) => server.close(resolve));
