@@ -11,12 +11,13 @@ permissions:
 jobs:
   frozen-realvuln:
     name: Compare 8 pinned third-party manual labels (no remote app execution)
-    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[run-realvuln-baseline]')
+    if: github.event_name == 'push' && (contains(github.event.head_commit.message, '[run-realvuln-baseline]') || contains(github.event.head_commit.message, '[run-realvuln-after-fix]'))
     runs-on: ubuntu-latest
     timeout-minutes: 18
     env:
       GITHUB_TOKEN: ${{ github.token }}
       VIBESANE_RULESET_SHA: ${{ github.sha }}
+      VIBESANE_EVALUATION_MODE: ${{ contains(github.event.head_commit.message, '[run-realvuln-after-fix]') && 'post_tuning_diagnostic' || 'initial_frozen_baseline' }}
       CI: "true"
     steps:
       - uses: actions/checkout@v4
