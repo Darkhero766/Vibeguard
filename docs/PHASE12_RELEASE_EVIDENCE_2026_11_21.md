@@ -66,3 +66,10 @@ The first opt-in [collection run #44866781794](https://github.com/Darkhero766/Vi
 3. Production still lacks owner-approved compatibility-checked privilege migrations, live grant lock-down and 11/11 post-state security proof; its historical migration ledger must be reconciled; a real backup/rollback rehearsal and change window must be approved.
 4. Supabase leaked-password protection is disabled in both production and staging per current security advisors; enabling changes Auth behavior and requires owner's explicit approval and separate verification.
 5. PR #61 remains draft and unmerged; no production settings, SQL, secrets, OAuth, payments, Render production services, users, or deployment were modified during this work.
+
+
+## Hosted staging revision check — not commit-matched (read-only Render metadata)
+
+Render's latest **live** deployment for `vibesane-phase12-staging-api` is commit `095fb04dabfc49569986f8513e715c3bda4f1d85`, completed 2026-11-21 02:58 UTC. The staging web's latest **live** deployment is commit `4acede330c7e75b6bed7030240e6f4cf5cab7f74`, completed 2026-11-20 18:25 UTC. Both are **older than the latest development branch/PR head**. The anonymous hosted staging HTTP smoke in CI therefore checks the existing hosted stage build; it is **NOT** proof that the newest Phase 1+2 code has been deployed or exercised end-to-end. Neither service was deployed or modified in this review. The two services continue to have `autoDeploy=no`, and the production Render services are separate.
+
+Before Phase 1 release signoff, separately verify staging-only DB/OAuth/Dodo secrets and protection, deploy a **commit-matched** approved build to staging, then perform protected user-integrations and scan/checkout tests with a recorded deployed commit and rollback path. Never mistake an anonymous smoke test of an older build for a production-release gate.
