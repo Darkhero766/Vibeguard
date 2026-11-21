@@ -205,3 +205,43 @@ test('aggregated score refuses mixed engines or ruleset commits', () => {
   f.scans.projects[1].rulesetCommit = 'c'.repeat(40);
   assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews), /different scanner ruleset commits/);
 });
+
+
+test('review sampling coverage is explicit and unlabeled severity is not automatically correct', () => {
+  const f = fixture();
+  const out = scoreEvidence(f.manifest, f.scans, f.reviews);
+  assert.equal(out.overall.reviewedAlerts, 4);
+  assert.equal(out.overall.reviewCoverage, 4 / 5);
+  assert.equal(out.overall.precisionLabelCoverage, 2 / 5);
+  assert.equal(out.overall.severityNotReviewed, 1);
+  assert.equal(out.overall.severityAppropriate, 0);
+  assert.equal(out.overall.severityOverstated, 0);
+});
+
+test('severity appropriateness can be measured only for explicitly justified true positives', () => {
+  const f = fixture();
+  const tp = f.reviews.projects[0].adjudications[0];
+  tp.severityAssessment = 'overstated';
+  tp.severityEvidence = 'Authentication already prevents this route from being called externally.';
+  const out = scoreEvidence(f.manifest, f.scans, f.reviews);
+  assert.equal(out.overall.severityOverstated, 1);
+  assert.equal(out.overall.severityNotReviewed, 0);
+  assert.equal(out.bySeverity.High.severityOverstated, 1);
+  tp.severityEvidence = 'too short';
+  assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews), /specific evidence/);
+  tp.severityEvidence = 'Authentication already prevents this route from being called externally.';
+  tp.severityAssessment = 'unrecognized';
+  assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews), /Invalid severity assessment/);
+});
+
+test('false positives cannot be credited with severity review or curated true-positive recall', () => {
+  const f = fixture();
+  const fp = f.reviews.projects[0].adjudications[1];
+  fp.severityAssessment = 'appropriate';
+  fp.severityEvidence = 'The risk was clearly supported by the actual request path.';
+  assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews), /only applies to verified true positives/);
+  delete fp.severityAssessment;
+  delete fp.severityEvidence;
+  f.reviews.projects[0].expectedTargets.push(target(f.scans.projects[0].findings[1]));
+  assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews), /contradicts a false-positive adjudication/);
+});
