@@ -40,8 +40,8 @@ export function scanPotentialPlaintextPasswords(files: SourceFile[]): PasswordSt
       if (relativeEnd < 0) continue;
       const end = start + relativeEnd;
       const body = source.slice(start, end + 1);
-      const hasRawPassword = RAW_SHORTHAND.test(body) || RAW_REQUEST_FIELD.test(body);
-      if (!hasRawPassword) continue;
+      const rawMatch = RAW_SHORTHAND.exec(body) || RAW_REQUEST_FIELD.exec(body);
+      if (!rawMatch) continue;
       const after = source.slice(end + 2, end + 1200);
       const write = new RegExp(
         "[.]\\s*(?:insert|insertOne|insertMany|create)\\s*\\(\\s*" +
@@ -54,7 +54,11 @@ export function scanPotentialPlaintextPasswords(files: SourceFile[]): PasswordSt
           /\b(?:password|[A-Za-z_$][\w$]*\.password)\s*=\s*(?:await\s+)?(?:bcrypt\.|argon2\.|hashPassword\s*\()/i.test(beforeWrite)) {
         continue;
       }
-      const line = lineAt(file.content, match.index ?? 0);
+      // Anchor evidence on the untransformed password property, not on the
+      // opening line of the containing object literal.
+      const propertyOffset = rawMatch[0].search(/\\bpassword\\b/i);
+      const propertyStart = start + rawMatch.index + Math.max(0, propertyOffset);
+      const line = lineAt(file.content, propertyStart);
       findings.push({
         id: "plaintext-password-storage-" + file.path + "-" + line,
         severity: "High",
