@@ -27,7 +27,7 @@ export function assertStagingIsolation(env: StagingIsolationEnv = process.env): 
     api = new URL(env.SUPABASE_URL || "");
     database = new URL(env.SUPABASE_DB_URL || env.DATABASE_URL || "");
   } catch {
-    fail("staging Supabase URLs are required and must be valid");
+    return fail("staging Supabase URLs are required and must be valid");
   }
 
   if (api.protocol !== "https:" || api.hostname.toLowerCase() !== expected + ".supabase.co" ||
