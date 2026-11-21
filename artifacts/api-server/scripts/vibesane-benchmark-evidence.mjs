@@ -104,6 +104,8 @@ export function scoreEvidence(manifest, scanData, reviewData) {
   const byRule = new Map();
   const bySeverity = new Map();
   const projects = [];
+  let activeRuleset = null;
+  let activeEngine = null;
 
   const add = (finding, property) => {
     total[property]++;
@@ -138,6 +140,12 @@ export function scoreEvidence(manifest, scanData, reviewData) {
       projects.push({ id, status: 'incomplete', filesScanned: scan.filesScanned });
       continue;
     }
+
+    ensure(scan.coverage?.complete !== false, 'Complete scan has incomplete coverage: ' + id);
+    if (activeRuleset !== null) ensure(activeRuleset === scan.rulesetCommit.toLowerCase(), 'Cannot aggregate different scanner ruleset commits');
+    if (activeEngine !== null) ensure(activeEngine === scan.engine, 'Cannot aggregate different scanner engines');
+    activeRuleset = scan.rulesetCommit.toLowerCase();
+    activeEngine = scan.engine;
 
     const found = new Map();
     for (const finding of scan.findings) {
