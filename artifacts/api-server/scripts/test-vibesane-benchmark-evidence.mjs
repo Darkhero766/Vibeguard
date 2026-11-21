@@ -186,3 +186,22 @@ test('collector CLI rejects missing and unsupported switches before network work
     [['--manifest', 'm.json'], ['--repo', 'OWASP/NodeGoat'], ['--output', 'result.json']],
   );
 });
+
+test('scorer refuses to treat incomplete coverage as a complete scan', () => {
+  const f = fixture();
+  f.scans.projects[0].coverage = { complete: false };
+  assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews), /Complete scan has incomplete coverage/);
+});
+
+test('aggregated score refuses mixed engines or ruleset commits', () => {
+  const f = fixture();
+  f.manifest.projects.push({ ...baseProject, repo: 'example/another' });
+  f.scans.projects.push({
+    ...f.scans.projects[0], repo: 'example/another',
+    findings: [], engine: 'other_scanner',
+  });
+  assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews), /different scanner engines/);
+  f.scans.projects[1].engine = f.scans.projects[0].engine;
+  f.scans.projects[1].rulesetCommit = 'c'.repeat(40);
+  assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews), /different scanner ruleset commits/);
+});
