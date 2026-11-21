@@ -285,7 +285,7 @@ function scopedQuerySinks(files: RepositoryFile[]): ExtendedFinding[] {
       if (assigned) {
         const rhs=assigned[2];
         if (/\bsearchParams\.get\s*\(/.test(rhs) ||
-            (/\bparsed\.data\.[A-Za-z_$][\w$]*/.test(rhs) &&
+            (/^\s*parsed\.data\.[A-Za-z_$][\w$]*/.test(rhs) &&
              /\bparseQuery\s*\(\s*searchParams\b/.test(cleaned))) {
           queryTainted.add(assigned[1]);
         } else {
