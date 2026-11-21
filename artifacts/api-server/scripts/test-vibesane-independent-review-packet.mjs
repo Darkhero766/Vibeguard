@@ -1,6 +1,10 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {buildIndependentReviewPacket} from './prepare-vibesane-independent-review-packet.mjs';
+import {buildIndependentReviewPacket,loadPinnedScanDirectory} from './prepare-vibesane-independent-review-packet.mjs';
+import {scanFileName} from './run-vibesane-realworld-benchmark.mjs';
+import {mkdtempSync,writeFileSync,rmSync,symlinkSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
 
 const commit='a'.repeat(40);
 const rulePin='b'.repeat(40);
@@ -56,4 +60,18 @@ test('incomplete, mixed or unfrozen source metadata cannot produce reviewer pack
   assert.throws(()=>buildIndependentReviewPacket(manifest,wrong,'adjudication'),
     /subset|outside|missing/i);
   assert.throws(()=>buildIndependentReviewPacket(manifest,scans,'draft'),/mode/);
+});
+
+test('pinned public scan directory merges only expected JSON and rejects symlinks',()=>{
+  const dir=mkdtempSync(path.join(tmpdir(),'review-packet-'));
+  try{
+    const json=path.join(dir,scanFileName(manifest.projects[0]));
+    writeFileSync(json,JSON.stringify({schemaVersion:1,projects:scans.projects}));
+    const scanData=loadPinnedScanDirectory(manifest,dir);
+    assert.deepEqual(scanData.projects,scans.projects);
+    assert.equal(buildIndependentReviewPacket(manifest,scanData,'blind').projects.length,1);
+    rmSync(json);
+    symlinkSync(path.join(dir,'fake-source-file'),json);
+    assert.throws(()=>loadPinnedScanDirectory(manifest,dir));
+  }finally{rmSync(dir,{recursive:true,force:true});}
 });

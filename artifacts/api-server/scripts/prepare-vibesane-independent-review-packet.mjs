@@ -6,9 +6,11 @@
  * scanner candidate list, then separately supply signed human decisions.
  */
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, lstatSync } from 'node:fs';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { scoreEvidence, validateManifest, findingKey } from './vibesane-benchmark-evidence.mjs';
+import { scanFileName } from './run-vibesane-realworld-benchmark.mjs';
 
 const ensure=(ok,message)=>{if(!ok)throw new Error(message);};
 const MODES=new Set(['blind','adjudication']);
@@ -61,18 +63,47 @@ export function buildIndependentReviewPacket(manifest, scans, mode) {
   };
 }
 
+/**
+ * Build a complete scan-data document from immutable per-repository outputs
+ * produced by the read-only public-source collector. Never reads arbitrary
+ * directory entries, symlinks, or source files.
+ */
+export function loadPinnedScanDirectory(manifest, directory) {
+  validateManifest(manifest);
+  const root=path.resolve(directory);
+  if(!lstatSync(root).isDirectory()||lstatSync(root).isSymbolicLink()){
+    throw new Error('Review scan directory must be a real directory');
+  }
+  const projects=manifest.projects.map(project=>{
+    const file=path.join(root,scanFileName(project));
+    if(!lstatSync(file).isFile()||lstatSync(file).isSymbolicLink()){
+      throw new Error('Review source scan must be an ordinary JSON file');
+    }
+    const item=JSON.parse(readFileSync(file,'utf8'));
+    ensure(item?.schemaVersion===1&&Array.isArray(item.projects)&&item.projects.length===1,
+      'Each pinned scan JSON must contain exactly one project');
+    return item.projects[0];
+  });
+  return {schemaVersion:1,projects};
+}
+
 function main(argv){
-  ensure(argv.length===8,'Usage: --manifest FILE --scans FILE --mode blind|adjudication --output FILE');
+  ensure(argv.length===8,'Usage: --manifest FILE (--scans FILE | --scan-dir DIR) --mode blind|adjudication --output FILE');
   const opts=new Map();
   for(let i=0;i<argv.length;i+=2){
-    ensure(['--manifest','--scans','--mode','--output'].includes(argv[i])&&
+    ensure(['--manifest','--scans','--scan-dir','--mode','--output'].includes(argv[i])&&
       !opts.has(argv[i])&&argv[i+1],'Invalid or duplicated review packet argument');
     opts.set(argv[i],argv[i+1]);
   }
-  for(const k of ['--manifest','--scans','--mode','--output'])
+  for(const k of ['--manifest','--mode','--output'])
     ensure(opts.has(k),'Missing required '+k);
+  ensure(opts.has('--scans')!==opts.has('--scan-dir'),
+    'Exactly one of --scans or --scan-dir is required');
   const parse=k=>JSON.parse(readFileSync(opts.get(k),'utf8'));
-  const packet=buildIndependentReviewPacket(parse('--manifest'),parse('--scans'),opts.get('--mode'));
+  const manifest=parse('--manifest');
+  const scans=opts.has('--scan-dir')
+    ? loadPinnedScanDirectory(manifest,opts.get('--scan-dir')) : parse('--scans');
+  const packet=buildIndependentReviewPacket(manifest,scans,opts.get('--mode'));
   writeFileSync(opts.get('--output'),JSON.stringify(packet,null,2)+'\n',
     {flag:'wx',mode:0o600});
   process.stdout.write(JSON.stringify({mode:packet.mode,projects:packet.projects.length,

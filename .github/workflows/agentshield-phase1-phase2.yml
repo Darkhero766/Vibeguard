@@ -213,6 +213,29 @@ jobs:
           node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs \
             --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json \
             --output-dir /tmp/vibesane-phase2-public-source-evidence --all
+      - name: Generate separate blinded and candidate review packets (metadata only)
+        run: |
+          mkdir -p /tmp/vibesane-phase2-review-packets
+          node artifacts/api-server/scripts/prepare-vibesane-independent-review-packet.mjs \
+            --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json \
+            --scan-dir /tmp/vibesane-phase2-public-source-evidence --mode blind \
+            --output /tmp/vibesane-phase2-review-packets/blind-source-scope.json
+          node artifacts/api-server/scripts/prepare-vibesane-independent-review-packet.mjs \
+            --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json \
+            --scan-dir /tmp/vibesane-phase2-public-source-evidence --mode adjudication \
+            --output /tmp/vibesane-phase2-review-packets/adjudication-candidates.json
+      - name: Upload blind source-review packet only
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-30-blind-source-scope
+          path: /tmp/vibesane-phase2-review-packets/blind-source-scope.json
+          retention-days: 14
+      - name: Upload separately held scanner-adjudication packet
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-30-adjudication-after-blind
+          path: /tmp/vibesane-phase2-review-packets/adjudication-candidates.json
+          retention-days: 14
       - name: Upload only source-free unreviewed scan metadata (even when partial)
         if: always()
         uses: actions/upload-artifact@v4
