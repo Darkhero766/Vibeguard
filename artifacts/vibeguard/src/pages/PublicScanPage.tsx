@@ -5,11 +5,28 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
 
-const githubUrlPattern = /^https:\/\/github\.com\/[-A-Za-z0-9_.]+\/[-A-Za-z0-9_.]+\/?$/;
+const githubUrlPattern = /^https:\/\/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9_.-]*[A-Za-z0-9_-]\/?$/;
+
+// A copied link may include the period ending a sentence (NodeGoat.).
+// Correct that single punctuation mark only when submitting, not during
+// typing (so users can still type meaningful dots inside repository names).
+function normalizeGithubRepoInput(raw: string): string {
+  return raw.trim().replace(/\/$/, '').replace(/([A-Za-z0-9_-])\.$/, '$1');
+}
 
 type FindingSeverity = 'Critical' | 'High' | 'Medium';
 type Finding = { id: string; severity: FindingSeverity; title: string; description: string; filePath: string; line: number; check: string };
 type ScanReport = { repo: string; repoUrl: string; findings: Finding[]; filesScanned: number; scannedAt: string };
+type PublicScanAllowance = { plan: 'free' | 'pro'; publicScansUsed: number; publicScansLimit: number; unlimited: boolean };
+
+function isPublicScanAllowance(data: unknown): data is PublicScanAllowance {
+  if (!data || typeof data !== 'object') return false;
+  const x = data as Partial<PublicScanAllowance>;
+  return (x.plan === 'free' || x.plan === 'pro') &&
+    typeof x.publicScansUsed === 'number' && Number.isSafeInteger(x.publicScansUsed) && x.publicScansUsed >= 0 &&
+    typeof x.publicScansLimit === 'number' && Number.isSafeInteger(x.publicScansLimit) && x.publicScansLimit >= 0 &&
+    typeof x.unlimited === 'boolean';
+}
 
 function severityClass(severity: FindingSeverity) {
   if (severity === 'Critical') return 'border-[#e5c8c1] bg-[#f6e9e5] text-[#963f34]';
@@ -18,23 +35,72 @@ function severityClass(severity: FindingSeverity) {
 }
 
 export default function PublicScanPage() {
-  const { session, usage, usageLoading, refreshUsage } = useAuth();
+  const { session, refreshUsage } = useAuth();
   const [repoUrl, setRepoUrl] = useState('');
   const [report, setReport] = useState<ScanReport | null>(null);
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
   const startedQueryScan = useRef(false);
   const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ?? '';
-  const canScan = useMemo(() => githubUrlPattern.test(repoUrl.trim()), [repoUrl]);
-  const publicUsed = Number(usage?.public_scans_used ?? 0);
-  const publicLimit = Number(usage?.public_scans_limit ?? (usage?.plan === 'pro' ? 5 : 0));
-  const publicRemaining = Math.max(0, publicLimit - publicUsed);
+  const canScan = useMemo(() => githubUrlPattern.test(normalizeGithubRepoInput(repoUrl)), [repoUrl]);
+  const [allowance, setAllowance] = useState<PublicScanAllowance | null>(null);
+  const [allowanceLoading, setAllowanceLoading] = useState(true);
+  const [allowanceError, setAllowanceError] = useState('');
+  const [allowanceRefresh, setAllowanceRefresh] = useState(0);
+
+  // Only the server can calculate entitlement: the usage table stores counters,
+  // not public_scans_limit, and privileged test accounts have separate limits.
+  useEffect(() => {
+    const jwt = session?.access_token;
+    setAllowance(null);
+    if (!jwt) {
+      setAllowanceLoading(false);
+      setAllowanceError('Sign in to check your public scanning allowance.');
+      return;
+    }
+
+    const controller = new AbortController();
+    setAllowanceLoading(true);
+    setAllowanceError('');
+
+    const loadAllowance = async () => {
+      try {
+        const response = await fetch(apiBase + '/api/scans/allowance', {
+          headers: { Authorization: 'Bearer ' + jwt },
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Scan allowance could not be checked.');
+        const data: unknown = await response.json();
+        if (!isPublicScanAllowance(data)) throw new Error('Invalid scan allowance response.');
+        if (!controller.signal.aborted) setAllowance(data);
+      } catch {
+        if (!controller.signal.aborted) {
+          setAllowance(null);
+          setAllowanceError('Could not verify your scan allowance. Try again.');
+        }
+      } finally {
+        if (!controller.signal.aborted) setAllowanceLoading(false);
+      }
+    };
+
+    void loadAllowance();
+    return () => controller.abort();
+  }, [session?.access_token, apiBase, allowanceRefresh]);
+
+  const publicRemaining = allowance ? Math.max(0, allowance.publicScansLimit - allowance.publicScansUsed) : 0;
+  const canSubmit = canScan && !scanning && !allowanceLoading && !!allowance &&
+    (allowance.unlimited || publicRemaining > 0);
 
   const runScan = async (event?: FormEvent, repoOverride?: string) => {
     event?.preventDefault();
-    const normalizedUrl = (repoOverride ?? repoUrl).trim().replace(/\/$/, '');
+    const normalizedUrl = normalizeGithubRepoInput(repoOverride ?? repoUrl);
     if (!githubUrlPattern.test(normalizedUrl)) { setError('Enter a valid public GitHub repository URL.'); return; }
     if (!session?.access_token) { setError('Your session expired. Sign in again and retry.'); return; }
+    if (!allowance || (!allowance.unlimited && publicRemaining <= 0)) {
+      setError('Your scan allowance is unavailable or exhausted. Refresh the allowance and retry.');
+      return;
+    }
 
     setError('');
     setReport(null);
@@ -47,12 +113,16 @@ export default function PublicScanPage() {
         body: JSON.stringify({ repoUrl: normalizedUrl }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || 'The public repository scan could not be completed.');
+      if (!response.ok) {
+        if (response.status === 429) setAllowanceRefresh((previous) => previous + 1);
+        throw new Error(payload?.error || 'The public repository scan could not be completed.');
+      }
       setReport(payload as ScanReport);
       // The server consumes the public bucket only after a successful scan.
       // Refresh the authoritative Supabase usage row so the remaining-credit UI
       // changes immediately instead of waiting for a page refresh/navigation.
       await refreshUsage();
+      setAllowanceRefresh((previous) => previous + 1);
     } catch (scanError) {
       setError(scanError instanceof Error ? scanError.message : 'The public repository scan could not be completed.');
     } finally {
@@ -66,15 +136,15 @@ export default function PublicScanPage() {
   useEffect(() => {
     if (startedQueryScan.current) return;
     const params = new URLSearchParams(window.location.search);
-    const queryRepo = params.get('repo')?.trim().replace(/\/$/, '');
+    const queryRepo = normalizeGithubRepoInput(params.get('repo') ?? '');
     if (!queryRepo || !githubUrlPattern.test(queryRepo)) return;
-    if (!session?.access_token) return;
+    if (!session?.access_token || !allowance || (!allowance.unlimited && publicRemaining <= 0)) return;
 
     startedQueryScan.current = true;
     window.history.replaceState(null, '', '/scan-public');
     setRepoUrl(queryRepo);
     void runScan(undefined, queryRepo);
-  }, [session?.access_token]);
+  }, [session?.access_token, allowance, publicRemaining]);
 
   const findings = report?.findings ?? [];
   const critical = findings.filter((f) => f.severity === 'Critical').length;
@@ -100,7 +170,8 @@ export default function PublicScanPage() {
           <div className="flex flex-wrap items-end justify-between gap-5">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">One-time public scan</p>
-              <p className="mt-2 text-[14px] text-muted-foreground">{usageLoading ? 'Checking your scan allowance…' : `${publicRemaining} of ${publicLimit} public scans remaining this month`}</p>
+              <p className="mt-2 text-[14px] text-muted-foreground">{allowanceLoading ? 'Checking your scan allowance…' : allowance ? (allowance.unlimited ? 'Public scanning enabled for this test account' : `${publicRemaining} of ${allowance.publicScansLimit} public scans remaining this month`) : 'Scan allowance unavailable'}</p>
+              {allowanceError && <div className="mt-2 flex flex-wrap items-center gap-3"><p role="alert" className="text-[12px] text-[#963f34]">{allowanceError}</p><button type="button" onClick={() => setAllowanceRefresh((previous) => previous + 1)} className="text-[12px] font-semibold underline underline-offset-4">Retry allowance check</button></div>}
             </div>
             <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Protected repos are unaffected</div>
           </div>
@@ -110,7 +181,7 @@ export default function PublicScanPage() {
               <Github className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} />
               <input value={repoUrl} onChange={(e) => { setRepoUrl(e.target.value); setError(''); }} placeholder="https://github.com/owner/repository" disabled={scanning} className="vg-focus h-14 w-full border-2 border-foreground bg-background pl-11 pr-4 text-[14px] outline-none focus:border-primary disabled:opacity-60" />
             </div>
-            <button type="submit" disabled={!canScan || scanning || (!usageLoading && publicRemaining <= 0)} className="vg-button vg-focus inline-flex h-14 items-center justify-center gap-2 border-2 border-foreground bg-primary px-6 text-[13px] font-bold text-primary-foreground shadow-[3px_3px_0_hsl(var(--foreground))] disabled:cursor-not-allowed disabled:opacity-45">
+            <button type="submit" disabled={!canSubmit} className="vg-button vg-focus inline-flex h-14 items-center justify-center gap-2 border-2 border-foreground bg-primary px-6 text-[13px] font-bold text-primary-foreground shadow-[3px_3px_0_hsl(var(--foreground))] disabled:cursor-not-allowed disabled:opacity-45">
               {scanning ? <><Loader2 size={15} className="animate-spin" /> Scanning…</> : <>Scan public repository <ArrowRight size={15} /></>}
             </button>
           </form>

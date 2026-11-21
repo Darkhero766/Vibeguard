@@ -1,0 +1,44 @@
+-- STAGING ONLY. Validate the actual webhook conflict/retry SQL on PostgreSQL.
+-- Entire proof runs inside ROLLBACK; no customers/payments or production access.
+BEGIN;
+INSERT INTO public.dodo_webhook_events
+  (webhook_id,event_type,payload,processed)
+VALUES
+  ('vibesane-transaction-processed','subscription.active','{"example":"synthetic"}',true),
+  ('vibesane-transaction-pending','subscription.active','{"example":"synthetic"}',false);
+DO $$
+DECLARE returned_id uuid;
+DECLARE pending_attempts integer;
+BEGIN
+  returned_id := NULL;
+  INSERT INTO public.dodo_webhook_events(webhook_id,event_type,payload)
+  VALUES('vibesane-transaction-processed','subscription.active','{"example":"synthetic"}')
+  ON CONFLICT(webhook_id) DO UPDATE
+    SET attempts=public.dodo_webhook_events.attempts+1,error_message=NULL
+  WHERE public.dodo_webhook_events.processed=false
+  RETURNING id INTO returned_id;
+  IF returned_id IS NOT NULL THEN
+    RAISE EXCEPTION 'A completed event was accepted again';
+  END IF;
+  IF (SELECT attempts FROM public.dodo_webhook_events
+        WHERE webhook_id='vibesane-transaction-processed') <> 0 THEN
+    RAISE EXCEPTION 'Completed event attempts mutated';
+  END IF;
+  returned_id := NULL;
+  INSERT INTO public.dodo_webhook_events(webhook_id,event_type,payload)
+  VALUES('vibesane-transaction-pending','subscription.active','{"example":"synthetic"}')
+  ON CONFLICT(webhook_id) DO UPDATE
+    SET attempts=public.dodo_webhook_events.attempts+1,error_message=NULL
+  WHERE public.dodo_webhook_events.processed=false
+  RETURNING id INTO returned_id;
+  IF returned_id IS NULL THEN
+    RAISE EXCEPTION 'Unprocessed event cannot be retried';
+  END IF;
+  SELECT attempts INTO pending_attempts FROM public.dodo_webhook_events
+    WHERE webhook_id='vibesane-transaction-pending';
+  IF pending_attempts<>1 THEN
+    RAISE EXCEPTION 'Retry attempt count wrong: %', pending_attempts;
+  END IF;
+END $$;
+SELECT 'transactional_webhook_retry_passed' AS staging_result;
+ROLLBACK;

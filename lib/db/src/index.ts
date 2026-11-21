@@ -27,34 +27,48 @@ export const pool = new Pool({
 });
 export const db = drizzle(pool, { schema });
 
-export async function ensureTables(): Promise<void> {
-  try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS github_tokens (owner uuid PRIMARY KEY, encrypted_token text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS github_app_installations (owner uuid PRIMARY KEY, installation_id bigint NOT NULL UNIQUE, account_login text NOT NULL, account_id bigint NOT NULL, account_type text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS github_app_installations_account_idx ON github_app_installations(account_login)`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS protected_repositories (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), owner uuid NOT NULL, repo text NOT NULL UNIQUE, repo_url text NOT NULL, baseline_sha text NOT NULL, last_sha text NOT NULL, status text NOT NULL DEFAULT 'protected', last_score integer NOT NULL DEFAULT 100, critical_count integer NOT NULL DEFAULT 0, high_count integer NOT NULL DEFAULT 0, medium_count integer NOT NULL DEFAULT 0, last_event text, last_event_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS protected_repositories_owner_idx ON protected_repositories(owner)`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS protection_events (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), repo text NOT NULL, event text NOT NULL, sha text NOT NULL, status text NOT NULL, findings_count integer NOT NULL DEFAULT 0, critical_count integer NOT NULL DEFAULT 0, high_count integer NOT NULL DEFAULT 0, medium_count integer NOT NULL DEFAULT 0, created_at timestamptz NOT NULL DEFAULT now())`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS protection_events_repo_created_idx ON protection_events(repo, created_at DESC)`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS usage (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), owner uuid NOT NULL UNIQUE, scans_used integer NOT NULL DEFAULT 0, scans_limit integer NOT NULL DEFAULT 1, reset_at timestamptz, created_at timestamptz NOT NULL DEFAULT now())`);
-    await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS plan text NOT NULL DEFAULT 'free'`);
-    await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS pro_expires_at timestamptz`);
-    await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS monthly_scans_used integer NOT NULL DEFAULT 0`);
-    await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS monthly_scans_limit integer NOT NULL DEFAULT 1`);
-    await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS monthly_reset_at timestamptz`);
-    await pool.query(`ALTER TABLE usage ADD COLUMN IF NOT EXISTS audit_scans_used integer NOT NULL DEFAULT 0`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS usage_plan_idx ON usage(plan)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS usage_pro_expires_idx ON usage(pro_expires_at)`);
-    await pool.query(`
-      INSERT INTO public.usage (owner, scans_used, scans_limit, plan, pro_expires_at, monthly_scans_used, monthly_scans_limit, monthly_reset_at)
-      SELECT id, 0, 10, 'pro', NULL, 0, 10, now() + interval '30 days'
-      FROM auth.users
-      WHERE lower(email) = lower('nightowlclub72@gmail.com')
-      ON CONFLICT (owner) DO UPDATE SET plan = 'pro', scans_limit = 10, monthly_scans_limit = 10, pro_expires_at = NULL
-    `);
-  } catch (err) {
-    console.warn("[db] ensureTables() could not reach the database — skipping migration.", (err as Error).message);
+/** Required production tables/columns. Read-only readiness checks replace
+ * historical request/startup CREATE, ALTER and admin entitlement backfills.
+ * Schema changes must be explicit, versioned and approved migrations. */
+const REQUIRED_SCHEMA: Readonly<Record<string, readonly string[]>> = {
+  github_tokens: ["owner", "encrypted_token"],
+  github_app_installations: ["owner", "installation_id", "account_login"],
+  protected_repositories: ["id", "owner", "repo"],
+  protection_events: ["id", "repo", "event"],
+  usage: ["owner", "plan", "scans_used", "scans_limit", "monthly_scans_used",
+    "monthly_scans_limit", "protected_scans_used", "public_scans_used", "audit_scans_used",
+    "pro_expires_at", "dodo_customer_id", "dodo_subscription_id"],
+  audit_runs: ["id", "owner", "checks", "score"],
+  api_rate_limits: ["bucket_key", "window_started_at", "request_count"],
+  dodo_webhook_events: ["webhook_id", "event_type", "processed"],
+  hackathon_redemptions: ["owner", "coupon_code"],
+};
+
+export async function checkRequiredSchema(): Promise<{
+  ready: boolean;
+  missing: string[];
+}> {
+  const query = await pool.query<{ table_name: string; column_name: string }>(
+    "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'",
+  );
+  const tables = new Map<string, Set<string>>();
+  for (const row of query.rows) {
+    const columns = tables.get(row.table_name) ?? new Set<string>();
+    columns.add(row.column_name);
+    tables.set(row.table_name, columns);
   }
+  const missing: string[] = [];
+  for (const [table, columns] of Object.entries(REQUIRED_SCHEMA)) {
+    const existing = tables.get(table);
+    for (const col of columns) if (!existing?.has(col)) missing.push(table + "." + col);
+  }
+  return { ready: missing.length === 0, missing };
+}
+
+export async function ensureTables(): Promise<void> {
+  // Historical public name retained to avoid breaking callers; no DDL occurs.
+  const schema = await checkRequiredSchema();
+  if (!schema.ready) throw new Error("Database schema requires reviewed migrations: " + schema.missing.join(", "));
 }
 
 export * from "./schema";

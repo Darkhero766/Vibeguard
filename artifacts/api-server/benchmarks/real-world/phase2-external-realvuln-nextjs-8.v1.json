@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "documentType": "REALVULN3_FROZEN_EXTERNAL_LABEL_SUBSET",
+  "benchmarkVersion": "3.0.0",
+  "benchmarkRepository": "kolega-ai/Real-Vuln-Benchmark",
+  "benchmarkCommit": "015244597a86d107f86f9574f9eda6d20928f156",
+  "groundTruthPath": "ground-truth/realvuln-oss-oopssec-store/ground-truth.json",
+  "sourceRepository": "kolega-ai-dev/realvuln-oss-oopssec-store",
+  "sourceCommit": "0373cf43a9cc35ec835f79b562eb47f9fd1b1649",
+  "groundTruthLicense": "Apache-2.0",
+  "sourceLicense": "MIT",
+  "selectionRationale": "Eight externally annotated Next.js source vulnerabilities in existing VibeSane rule families, frozen before running VibeSane on this repository. Not full app or unbiased random sample. No external false-positive traps are available for this TS/JS corpus.",
+  "targets": [
+    {
+      "id": "oss-oopssec-store-001",
+      "filePath": ".env.local",
+      "expectedRules": [
+        "committed_env_file"
+      ]
+    },
+    {
+      "id": "oss-oopssec-store-002",
+      "filePath": "app/admin/analytics/AnalyticsClient.tsx",
+      "expectedRules": [
+        "dangerous_html",
+        "innerhtml_assignment"
+      ]
+    },
+    {
+      "id": "oss-oopssec-store-003",
+      "filePath": "app/api/admin/diag/route.ts",
+      "expectedRules": [
+        "hardcoded_secret",
+        "hardcoded_password",
+        "hardcoded_bearer"
+      ]
+    },
+    {
+      "id": "oss-oopssec-store-019",
+      "filePath": "app/api/files/route.ts",
+      "expectedRules": [
+        "path_traversal"
+      ]
+    },
+    {
+      "id": "oss-oopssec-store-020",
+      "filePath": "app/api/files/route.ts",
+      "expectedRules": [
+        "path_traversal"
+      ]
+    },
+    {
+      "id": "oss-oopssec-store-024",
+      "filePath": "app/api/monitoring/auth/route.ts",
+      "expectedRules": [
+        "hardcoded_secret",
+        "hardcoded_password",
+        "hardcoded_bearer"
+      ]
+    },
+    {
+      "id": "oss-oopssec-store-037",
+      "filePath": "app/login/LoginForm.tsx",
+      "expectedRules": [
+        "open_redirect"
+      ]
+    },
+    {
+      "id": "oss-oopssec-store-039",
+      "filePath": "app/products/[id]/ProductDetailClient.tsx",
+      "expectedRules": [
+        "innerhtml_assignment",
+        "dangerous_html"
+      ]
+    }
+  ],
+  "verification": "Each target ID/path/location must match the pinned upstream ground-truth JSON. Scans source text only. No source execution, npm install in target, or CVE verification."
+}

@@ -150,6 +150,8 @@ export async function hybrid(argv) {
       ast=JSON.parse(stdout);
       if (!ast || !['complete','scan_incomplete'].includes(ast.status) ||
         !Array.isArray(ast.findings) || !Array.isArray(ast.taintFindings) ||
+        !Array.isArray(ast.crossFileFindings) || !Array.isArray(ast.routeAuthFindings) ||
+        !Array.isArray(ast.sqlPolicyFindings) ||
         !Number.isInteger(ast.filesAnalyzed)) {
         throw new Error('AST worker produced invalid output.');
       }
@@ -172,7 +174,7 @@ export async function hybrid(argv) {
     ai:{ status:'disabled', advisory:[], note:'AI does not change, suppress, or independently verify any finding.' },
     privacy:{ sourceUploaded:false, sourceSentToModel:false, filenamesSentToModel:false,
       localService:'127.0.0.1', remoteAIUsed:false } };
-  const findings = [...staticResult.findings, ...(ast.findings || []), ...(ast.taintFindings || [])];
+  const findings = [...staticResult.findings, ...(ast.findings || []), ...(ast.taintFindings || []), ...(ast.crossFileFindings || []), ...(ast.routeAuthFindings || []), ...(ast.sqlPolicyFindings || [])];
   if (options.enableLocalAI && findings.length) {
     result.ai.status='unavailable';
     result.ai.model=options.model;
@@ -188,6 +190,7 @@ export async function hybrid(argv) {
     process.stdout.write('AgentShield hybrid preview: '+staticResult.filesScanned+
       ' static files scanned; '+staticResult.findings.length+' static findings; AST='+ast.status+' ('+(ast.findings?.length || 0)+' findings); AI='+result.ai.status+'\n');
     if (ast.taintFindings?.length) process.stdout.write('AST taint warnings: '+ast.taintFindings.length+' (unverified source-to-sink risk).\n');
+    if (ast.crossFileFindings?.length) process.stdout.write('Changed-file cross-module warnings: '+ast.crossFileFindings.length+' (unverified).\n');
     for (const item of result.ai.advisory) process.stdout.write(
       'Advisory '+item.findingIndex+': '+item.explanation+' | '+item.suggestion+'\n');
     process.stdout.write('Static verdict retained. AI output does not prove security.\n');

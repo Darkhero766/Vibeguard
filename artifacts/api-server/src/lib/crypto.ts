@@ -10,12 +10,12 @@ function getKey(): Buffer {
       `${KEY_ENV} is not set. Generate a 64-character hex string and add it as a Replit Secret.`,
     );
   }
-  const buf = Buffer.from(raw, "hex");
-  if (buf.length !== 32) {
-    throw new Error(
-      `${KEY_ENV} must be exactly 64 hex characters (32 bytes). Got ${buf.length} bytes.`,
-    );
+  // Buffer.from(input, "hex") silently truncates at malformed characters.
+  // Refuse any non-hex character or extra data instead of accepting a prefix.
+  if (!/^[0-9a-fA-F]{64}$/.test(raw)) {
+    throw new Error(`${KEY_ENV} must be exactly 64 hex characters (32 bytes).`);
   }
+  const buf = Buffer.from(raw, "hex");
   return buf;
 }
 
@@ -43,6 +43,11 @@ export function decryptToken(stored: string): string {
   const parts = stored.split(":");
   if (parts.length !== 3) throw new Error("Invalid encrypted token format");
   const [ivHex, tagHex, ctHex] = parts;
+  if (!/^[0-9a-fA-F]{24}$/.test(ivHex) ||
+      !/^[0-9a-fA-F]{32}$/.test(tagHex) ||
+      ctHex.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(ctHex)) {
+    throw new Error("Invalid encrypted token format");
+  }
   const iv = Buffer.from(ivHex, "hex");
   const tag = Buffer.from(tagHex, "hex");
   const ct = Buffer.from(ctHex, "hex");

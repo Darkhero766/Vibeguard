@@ -1,9 +1,10 @@
 import { Router, type Response } from "express";
 import { rateLimit } from "../middlewares/rateLimit";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { PRO_SCAN_LIMIT } from "../lib/plan";
+import { dodoBaseUrl, assertDodoEnvironmentSafe, dodoCheckoutReturnOrigin, dodoSubscriptionBelongsToAccount, requireDodoApiKey, requireFutureProExpiry } from "../lib/dodoEnvironment";
+import { verifyDodoSignature } from "../lib/dodoWebhookSignature";
 
 const router = Router();
 
@@ -11,11 +12,7 @@ const PRODUCT_ID = process.env.DODO_PRO_PRODUCT_ID || "pdt_0NmsVBNuntowIFXXZKqKS
 const HACKATHON_COUPON = "HACKATHON60";
 const HACKATHON_LIMIT = 60;
 
-function dodoBaseUrl() {
-  return (process.env.DODO_PAYMENTS_ENVIRONMENT || "live_mode") === "test_mode"
-    ? "https://test.dodopayments.com"
-    : "https://live.dodopayments.com";
-}
+
 
 // Never run ALTER/CREATE against hosted Supabase from a payment request or webhook.
 // Database changes are reviewed, versioned migrations; requests fail closed.
@@ -46,8 +43,7 @@ async function ensureDodoTables() {
 }
 
 async function dodoFetch(path: string, init: RequestInit = {}) {
-  const apiKey = process.env.DODO_PAYMENTS_API_KEY;
-  if (!apiKey) throw new Error("DODO_PAYMENTS_API_KEY is not configured");
+  const apiKey = requireDodoApiKey();
 
   const response = await fetch(`${dodoBaseUrl()}${path}`, {
     ...init,
@@ -67,36 +63,22 @@ async function dodoFetch(path: string, init: RequestInit = {}) {
   }
 
   if (!response.ok) {
-    const message = typeof body === "object" && body && "message" in body
-      ? String((body as { message?: unknown }).message)
-      : `Dodo API returned ${response.status}`;
-    throw new Error(message);
+    // Provider error bodies are untrusted and may contain secrets or PII.
+    // Only expose a fixed message; do not log response bodies or credentials.
+    console.error("[dodo] provider request failed", { status: response.status });
+    throw new Error("Dodo provider request failed");
   }
 
   return body as Record<string, unknown>;
 }
 
 function verifyDodoWebhook(rawBody: string, req: AuthedRequest): boolean {
-  const secret = process.env.DODO_WEBHOOK_SECRET;
-  const id = req.header("webhook-id");
-  const timestamp = req.header("webhook-timestamp");
-  const signatureHeader = req.header("webhook-signature");
-  if (!secret || !id || !timestamp || !signatureHeader) return false;
-
-  const timestampNumber = Number(timestamp);
-  if (!Number.isFinite(timestampNumber) || Math.abs(Date.now() / 1000 - timestampNumber) > 300) return false;
-
-  const encodedSecret = secret.startsWith("whsec_") ? secret.slice(6) : secret;
-  const key = Buffer.from(encodedSecret, "base64");
-  const signed = `${id}.${timestamp}.${rawBody}`;
-  const expected = createHmac("sha256", key).update(signed).digest("base64");
-  const expectedBytes = Buffer.from(expected);
-
-  return signatureHeader.split(" ").some((candidate) => {
-    const [version, value] = candidate.split(",", 2);
-    if (version !== "v1" || !value) return false;
-    const candidateBytes = Buffer.from(value);
-    return candidateBytes.length === expectedBytes.length && timingSafeEqual(candidateBytes, expectedBytes);
+  return verifyDodoSignature({
+    rawBody,
+    webhookId: req.header("webhook-id"),
+    timestamp: req.header("webhook-timestamp"),
+    signatureHeader: req.header("webhook-signature"),
+    secret: process.env.DODO_WEBHOOK_SECRET,
   });
 }
 
@@ -116,12 +98,27 @@ async function activateProByEmail(email: string, values: {
   status?: string;
   expiresAt?: string | null;
   source?: string;
-}) {
-  const user = await pool.query(`SELECT id FROM auth.users WHERE lower(email) = lower($1) LIMIT 1`, [email]);
+  metadataUserId?: string | null;
+}, executor: Pick<typeof pool, "query"> = pool) {
+  // The signed Dodo payload includes our server-created user_id metadata.
+  // Staging must never grant Pro to an account found only by email; the
+  // subscriber UUID and customer email must identify the SAME Auth user.
+  // Legacy production events can retain email lookup until separately
+  // reviewed/backfilled in the production migration.
+  const metadataUserId = values.metadataUserId?.trim() ?? "";
+  if (!metadataUserId && process.env.VIBESANE_DEPLOYMENT_ENV === "staging") {
+    throw new Error("Staging subscription event lacks an authenticated account binding");
+  }
+  if (metadataUserId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(metadataUserId)) {
+    throw new Error("Subscription account binding is malformed");
+  }
+  const user = metadataUserId
+    ? await executor.query(`SELECT id FROM auth.users WHERE id = $1 AND lower(email) = lower($2) LIMIT 1`, [metadataUserId, email])
+    : await executor.query(`SELECT id FROM auth.users WHERE lower(email) = lower($1) LIMIT 1`, [email]);
   const userId = user.rows[0]?.id as string | undefined;
   if (!userId) return false;
 
-  await pool.query(`
+  await executor.query(`
     INSERT INTO public.usage (
       owner, scans_used, scans_limit, plan, pro_expires_at,
       monthly_scans_used, monthly_scans_limit, monthly_reset_at,
@@ -169,25 +166,21 @@ async function activateProByUserId(userId: string, values: {
   `, [userId, PRO_SCAN_LIMIT, values.expiresAt ?? null, values.customerId ?? null, values.subscriptionId ?? null, values.status ?? "active", values.source ?? "dodo"]);
 }
 
-async function deactivatePro(subscriptionId: string | null, email: string | null, status: string) {
-  const clauses: string[] = [];
-  const params: unknown[] = [];
-  if (subscriptionId) {
-    params.push(subscriptionId);
-    clauses.push(`dodo_subscription_id = $${params.length}`);
-  }
-  if (email) {
-    params.push(email);
-    clauses.push(`owner IN (SELECT id FROM auth.users WHERE lower(email) = lower($${params.length}))`);
-  }
-  if (!clauses.length) return;
-
-  await pool.query(`
+// A cancellation for an older subscription MUST NOT revoke a newer
+// subscription belonging to the same email. Never match on email alone.
+async function deactivatePro(
+  subscriptionId: string | null,
+  status: string,
+  executor: Pick<typeof pool, "query"> = pool,
+) {
+  if (!subscriptionId) return;
+  await executor.query(`
     UPDATE public.usage
        SET plan = 'free', scans_limit = 1, monthly_scans_limit = 1,
-           pro_expires_at = NULL, dodo_subscription_status = $${params.length + 1}
-     WHERE ${clauses.join(" OR ")}
-  `, [...params, status]);
+           pro_expires_at = NULL, dodo_subscription_status = $2
+     WHERE dodo_subscription_id = $1
+       AND pro_source IN ('dodo', 'dodo_return_sync')
+  `, [subscriptionId, status]);
 }
 
 router.post("/checkout", rateLimit({ name: "checkout", windowMs: 60_000, max: 6 }), requireAuth, async (req: AuthedRequest, res: Response): Promise<void> => {
@@ -246,7 +239,7 @@ router.post("/checkout", rateLimit({ name: "checkout", windowMs: 60_000, max: 6 
       return;
     }
 
-    const origin = process.env.VITE_APP_URL || "https://vibesane.app";
+    const origin = dodoCheckoutReturnOrigin();
     const session = await dodoFetch("/checkouts", {
       method: "POST",
       body: JSON.stringify({
@@ -266,8 +259,10 @@ router.post("/checkout", rateLimit({ name: "checkout", windowMs: 60_000, max: 6 
       session_id: typeof session.session_id === "string" ? session.session_id : null,
     });
   } catch (error) {
-    console.error("[dodo] checkout failed", error);
-    res.status(500).json({ error: error instanceof Error ? error.message : "Unable to start checkout" });
+    // Some runtime errors embed Authorization headers in their messages.
+    // NEVER forward or log the raw error object or its message.
+    console.error("[dodo] checkout failed (redacted)");
+    res.status(503).json({ error: "Checkout is temporarily unavailable. No payment has been confirmed." });
   }
 });
 
@@ -316,7 +311,9 @@ router.post("/billing/sync", rateLimit({ name: "billing-sync", windowMs: 60_000,
       res.status(409).json({ error: "Subscription product does not match VibeSane Pro" });
       return;
     }
-    if (metadataUserId !== userId && customerEmail !== accountEmail) {
+    if (!dodoSubscriptionBelongsToAccount({
+      metadataUserId, customerEmail, userId, accountEmail,
+    })) {
       res.status(403).json({ error: "Subscription does not belong to this account" });
       return;
     }
@@ -325,11 +322,14 @@ router.post("/billing/sync", rateLimit({ name: "billing-sync", windowMs: 60_000,
       const nextBilling = typeof subscription.next_billing_date === "string"
         ? subscription.next_billing_date
         : (typeof subscription.expires_at === "string" ? subscription.expires_at : null);
+      // Never make a paid entitlement indefinite when the provider omitted
+      // or returned a stale next-billing date.
+      const verifiedExpiry = requireFutureProExpiry(nextBilling);
       await activateProByUserId(userId, {
         customerId,
         subscriptionId,
         status,
-        expiresAt: nextBilling,
+        expiresAt: verifiedExpiry,
         source: "dodo_return_sync",
       });
       res.json({ activated: true, plan: "pro", status, subscription_id: subscriptionId });
@@ -338,32 +338,45 @@ router.post("/billing/sync", rateLimit({ name: "billing-sync", windowMs: 60_000,
 
     res.status(409).json({ activated: false, plan: "free", status, message: `Subscription is ${status || "not active"}.` });
   } catch (error) {
-    console.error("[dodo] return sync failed", error);
-    res.status(500).json({ error: error instanceof Error ? error.message : "Unable to sync subscription" });
+    // Sync errors may contain provider response details or credentials.
+    console.error("[dodo] return sync failed (redacted)");
+    res.status(503).json({ error: "Subscription status is temporarily unavailable. Please retry later." });
   }
 });
 
 router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise<void> => {
   const rawBody = (req as AuthedRequest & { rawBody?: Buffer }).rawBody?.toString("utf8") ?? "";
+  // Authentication first: unsigned requests must never hit the database.
+  if (!verifyDodoWebhook(rawBody, req)) {
+    res.status(401).json({ error: "Invalid webhook signature" });
+    return;
+  }
+
+  let client: Pick<typeof pool, "query"> & { release(): void } | undefined;
   try {
+    assertDodoEnvironmentSafe();
     await ensureDodoTables();
-    if (!verifyDodoWebhook(rawBody, req)) {
-      res.status(401).json({ error: "Invalid webhook signature" });
-      return;
-    }
+    client = await pool.connect();
+    await client.query("BEGIN");
 
     const eventId = req.header("webhook-id")!;
     const payload = req.body as Record<string, unknown>;
     const eventType = typeof payload.type === "string" ? payload.type : "";
-
-    const inserted = await pool.query(`
+    // Lock this event for the entire entitlement transaction. A concurrent
+    // delivery waits; on success it sees processed=true and returns duplicate.
+    // Incomplete records left by older releases are safely retried.
+    const pending = await client.query(`
       INSERT INTO public.dodo_webhook_events (webhook_id, event_type, payload)
       VALUES ($1, $2, $3::jsonb)
-      ON CONFLICT (webhook_id) DO NOTHING
+      ON CONFLICT (webhook_id) DO UPDATE
+        SET attempts = public.dodo_webhook_events.attempts + 1,
+            error_message = NULL
+      WHERE public.dodo_webhook_events.processed = false
       RETURNING id
     `, [eventId, eventType, rawBody]);
 
-    if (!inserted.rowCount) {
+    if (!pending.rowCount) {
+      await client.query("COMMIT");
       res.status(200).json({ received: true, duplicate: true });
       return;
     }
@@ -371,47 +384,54 @@ router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise
     const data = payload.data && typeof payload.data === "object" ? payload.data as Record<string, unknown> : {};
     const customer = customerFrom(data);
     const subscriptionId = typeof data.subscription_id === "string" ? data.subscription_id : null;
-    const nextBilling = typeof data.next_billing_date === "string" ? data.next_billing_date : null;
+    const nextBilling = typeof data.next_billing_date === "string"
+      ? data.next_billing_date
+      : (typeof data.expires_at === "string" ? data.expires_at : null);
     const productId = typeof data.product_id === "string" ? data.product_id : null;
+    const dataMetadata = data.metadata && typeof data.metadata === "object"
+      ? data.metadata as Record<string, unknown> : {};
+    const metadataUserId = typeof dataMetadata.user_id === "string" ? dataMetadata.user_id : null;
 
     if (["subscription.active", "subscription.renewed", "subscription.plan_changed"].includes(eventType)) {
-      if (productId && productId !== PRODUCT_ID) {
-        throw new Error("Webhook product does not match VibeSane Pro");
+      // Dodo subscription events require product_id and subscription_id.
+      // An absent product ID must not accidentally authorize another SKU.
+      if (!subscriptionId || productId !== PRODUCT_ID) {
+        throw new Error("Webhook lacks a valid VibeSane Pro subscription/product");
       }
+      // Fail and retry rather than grant a non-expiring plan to an account
+      // for an event without a trustworthy, future paid-through date.
+      const verifiedExpiry = requireFutureProExpiry(nextBilling);
       if (customer.email) {
         await activateProByEmail(customer.email, {
           customerId: customer.id,
           subscriptionId,
           status: "active",
-          expiresAt: nextBilling,
+          expiresAt: verifiedExpiry,
           source: "dodo",
-        });
+          metadataUserId,
+        }, client);
       }
     } else if (eventType === "payment.succeeded") {
-      if (customer.email) {
-        await activateProByEmail(customer.email, {
-          customerId: customer.id,
-          subscriptionId,
-          status: "active",
-          expiresAt: nextBilling || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          source: "dodo",
-        });
-      }
+      // Dodo payment.succeeded also covers one-time purchases and renewals.
+      // Never grant a recurring Pro subscription from a generic payment.
+      // The signed subscription.active / renewed events (or authenticated
+      // verified billing/sync) are the authoritative entitlement source.
     } else if (["subscription.on_hold", "subscription.cancelled", "subscription.failed", "subscription.expired"].includes(eventType)) {
-      await deactivatePro(subscriptionId, customer.email, eventType.replace("subscription.", ""));
+      await deactivatePro(subscriptionId, eventType.replace("subscription.", ""), client);
     }
 
-    await pool.query(`UPDATE public.dodo_webhook_events SET processed = true, processed_at = now() WHERE webhook_id = $1`, [eventId]);
+    await client.query(`UPDATE public.dodo_webhook_events
+      SET processed = true, processed_at = now()
+      WHERE webhook_id = $1`, [eventId]);
+    await client.query("COMMIT");
     res.status(200).json({ received: true });
   } catch (error) {
-    console.error("[dodo] webhook processing failed", error);
-    try {
-      const eventId = req.header("webhook-id");
-      if (eventId) await pool.query(`UPDATE public.dodo_webhook_events SET attempts = attempts + 1, error_message = $2 WHERE webhook_id = $1`, [eventId, error instanceof Error ? error.message : "Unknown error"]);
-    } catch {
-      // Preserve the original webhook error response.
-    }
+    if (client) await client.query("ROLLBACK").catch(() => {});
+    // Do not reveal provider secrets or raw payment data to clients.
+    console.error("[dodo] webhook processing failed (redacted)");
     res.status(500).json({ error: "Webhook processing failed" });
+  } finally {
+    client?.release();
   }
 });
 

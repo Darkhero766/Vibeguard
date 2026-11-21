@@ -64,8 +64,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const lastUserId = useRef<string | null>(null);
 
   const refreshUsage = async () => { if (!user) return; setUsageLoading(true); try { setUsage(await ensureUsageRow(user.id)); } finally { setUsageLoading(false); } };
-  const refreshGithubConnection = async (userId: string, active = true) => { const { data, error } = await supabase.from('github_tokens').select('owner').eq('owner', userId).maybeSingle(); if (active && !error) setHasGithubToken(!!data); return !!data; };
-  const disconnectGithub = async () => { const currentSession = (await supabase.auth.getSession()).data.session; if (!currentSession?.access_token) return; await fetch(apiUrl('/api/github/token'), { method: 'DELETE', headers: { Authorization: `Bearer ${currentSession.access_token}` } }); setHasGithubToken(false); setGithubTokenVersion((v) => v + 1); };
+  const refreshGithubConnection = async (accessToken: string | undefined, active = true) => {
+    if (!accessToken) { if (active) setHasGithubToken(null); return false; }
+    try {
+      const response = await fetch(apiUrl('/api/github/token/status'), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error('Connection status unavailable');
+      const data: { connected?: unknown } = await response.json();
+      if (typeof data.connected !== 'boolean') throw new Error('Invalid connection status');
+      if (active) setHasGithubToken(data.connected);
+      return data.connected;
+    } catch {
+      if (active) setHasGithubToken(null);
+      return false;
+    }
+  };
+  const disconnectGithub = async () => { const currentSession = (await supabase.auth.getSession()).data.session; if (!currentSession?.access_token) return; const response = await fetch(apiUrl('/api/github/token'), { method: 'DELETE', headers: { Authorization: `Bearer ${currentSession.access_token}` } }); if (!response.ok) throw new Error('GitHub disconnection failed'); setHasGithubToken(false); setGithubTokenVersion((v) => v + 1); };
 
   useEffect(() => {
     let active = true;
@@ -86,29 +102,92 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (active) setUsage(refreshed);
           }
         } finally { if (active) setUsageLoading(false); }
-        await refreshGithubConnection(u.id, active);
+        await refreshGithubConnection(s?.access_token, active);
       } else setHasGithubToken(null);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
+    // Supabase's Auth callback must remain synchronous. Awaiting queries or
+    // auth operations inside it can deadlock the client after OAuth redirect.
+    // Capture the provider token immediately, then do network work in a timer
+    // after Supabase releases its internal auth lock. Never persist the raw
+    // GitHub token in localStorage, React state, or logs.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       if (!active) return;
-      setSession(s); const u = s?.user ?? null; setUser(u); setVibeSaneIdentity(u); setAuthLoading(false);
-      if (u && u.id !== lastUserId.current) {
+      setSession(s);
+      const u = s?.user ?? null;
+      setUser(u);
+      setVibeSaneIdentity(u);
+      setAuthLoading(false);
+
+      if (!u) {
+        lastUserId.current = null;
+        setUsage(null);
+        setHasGithubToken(null);
+      } else if (u.id !== lastUserId.current) {
         lastUserId.current = u.id;
         setUsageLoading(true);
-        try {
-          const didSync = s ? await syncDodoReturn(s, u.id) : false;
-          const row = await ensureUsageRow(u.id);
-          if (active) setUsage(row);
-          if (didSync) {
-            const refreshed = await ensureUsageRow(u.id);
-            if (active) setUsage(refreshed);
-          }
-        } finally { if (active) setUsageLoading(false); }
-        await refreshGithubConnection(u.id, active);
-      } else if (!u) { lastUserId.current = null; setUsage(null); setHasGithubToken(null); }
+        const accountId = u.id;
+        const currentSession = s;
+        setTimeout(() => {
+          if (!active) return;
+          void (async () => {
+            try {
+              const didSync = currentSession ? await syncDodoReturn(currentSession, accountId) : false;
+              const row = await ensureUsageRow(accountId);
+              if (active && lastUserId.current === accountId) setUsage(row);
+              if (didSync) {
+                const refreshed = await ensureUsageRow(accountId);
+                if (active && lastUserId.current === accountId) setUsage(refreshed);
+              }
+              await refreshGithubConnection(currentSession?.access_token, active && lastUserId.current === accountId);
+            } catch {
+              if (active && lastUserId.current === accountId) setHasGithubToken(null);
+            } finally {
+              if (active && lastUserId.current === accountId) setUsageLoading(false);
+            }
+          })();
+        }, 0);
+      }
+
       const hasGithubIdentity = s?.user?.identities?.some((id: { provider: string }) => id.provider === 'github');
-      if (_event === 'SIGNED_IN' && s?.provider_token && s.access_token && hasGithubIdentity) {
-        try { const response = await fetch(apiUrl('/api/github/token'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.access_token}` }, body: JSON.stringify({ token: s.provider_token }) }); if (!response.ok) throw new Error('GitHub token persistence failed'); if (active) { setGithubTokenVersion((v) => v + 1); setHasGithubToken(true); } } catch { /* public URL scanning remains available */ }
+      let githubOauthPending = false;
+      try { githubOauthPending = window.sessionStorage.getItem('vs_github_oauth_pending') === 'github'; } catch { /* Fail closed if tab storage is blocked. */ }
+      if ((_event === 'SIGNED_IN' || _event === 'INITIAL_SESSION') &&
+          githubOauthPending && s?.provider_token && s.access_token && hasGithubIdentity) {
+        // Intent is single-use: even if a linked account later signs in with
+        // another provider, its provider_token must not be stored as GitHub.
+        try { window.sessionStorage.removeItem('vs_github_oauth_pending'); } catch { /* Token still only exists in this callback. */ }
+        const githubProviderToken = s.provider_token;
+        const userAccessToken = s.access_token;
+        const accountId = s.user.id;
+        setTimeout(() => {
+          if (!active || lastUserId.current !== accountId) return;
+          void (async () => {
+            try {
+              const response = await fetch(apiUrl('/api/github/token'), {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${userAccessToken}`,
+                },
+                body: JSON.stringify({ token: githubProviderToken }),
+              });
+              if (!response.ok) {
+                // Log status only; OAuth credentials and response body must
+                // not be surfaced to analytics or browser console output.
+                console.warn('GitHub connection was not saved (HTTP status):', response.status);
+                if (active) setHasGithubToken(null);
+                return;
+              }
+              if (active && lastUserId.current === accountId) {
+                setGithubTokenVersion((v) => v + 1);
+                setHasGithubToken(true);
+              }
+            } catch {
+              console.warn('GitHub connection could not reach the API');
+              if (active) setHasGithubToken(null);
+            }
+          })();
+        }, 0);
       }
     });
     return () => { active = false; subscription.unsubscribe(); document.documentElement.dataset.vgAdmin = 'false'; document.documentElement.dataset.vgSignedIn = 'false'; };

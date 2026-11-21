@@ -26,8 +26,8 @@ export const CAPABILITIES = Object.freeze({
   experimentalAst:{
     status:'opt_in_beta_package_supported',
     languages:['JavaScript','TypeScript','JSX','TSX'],
-    analyses:['intra-file constructed SQL string detection','selected request-input-to-SQL-sink taint'],
-    excludes:['interprocedural or cross-file flow','complete sanitizer modeling','full authorization verification','proof of exploitability'],
+    analyses:['intra-file constructed SQL string detection','selected request-input-to-SQL-sink taint','one-hop named relative imports among selected changed files','Next.js mutation route checked-auth heuristics','SQL RLS disablement and unrestricted mutation policy heuristics'],
+    excludes:['arbitrary cross-file or interprocedural flow','complete sanitizer modeling','full authorization verification','proof of exploitability'],
     shippingNote:'Bundled in unpublished 0.7.0-beta.1 hybrid beta; opt-in only, not in default Claude Code Stop gate.',
   },
   ai:{

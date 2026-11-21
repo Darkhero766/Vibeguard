@@ -1,43 +1,27 @@
+import { pool } from "@workspace/db";
 import { decryptToken } from "./crypto";
 
-// Use Supabase REST (HTTPS) instead of a direct Postgres connection.
-// The direct db connection is blocked from Replit's sandbox network.
-const supabaseUrl =
-  process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-const supabaseAnonKey =
-  process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? "";
-
 /**
- * Fetch and decrypt a user's stored GitHub OAuth token via Supabase REST.
- * Returns null if the user has no stored token.
- *
- * @param userId   Supabase user ID
- * @param userJwt  Supabase access token for row-level security
+ * GitHub OAuth token ciphertext is server-owned. Never use an end user's
+ * Supabase JWT or PostgREST Data API to select encrypted_token: revoking
+ * client table privileges is required before production launch.
  */
 export async function getGithubTokenForUser(
   userId: string,
-  userJwt: string,
+  _userJwt?: string,
 ): Promise<string | null> {
-  const url = `${supabaseUrl}/rest/v1/github_tokens?owner=eq.${encodeURIComponent(userId)}&select=encrypted_token&limit=1`;
-  const res = await fetch(url, {
-    headers: {
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${userJwt}`,
-    },
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Supabase REST error ${res.status}: ${body}`);
+  if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(userId)) {
+    throw new Error("Invalid authenticated user ID");
   }
-
-  const rows = (await res.json()) as { encrypted_token: string }[];
-  const row = rows[0];
-  if (!row) return null;
-
+  const { rows } = await pool.query<{ encrypted_token: string }>(
+    "SELECT encrypted_token FROM public.github_tokens WHERE owner = $1 LIMIT 1",
+    [userId],
+  );
+  if (!rows.length) return null;
   try {
-    return decryptToken(row.encrypted_token);
+    return decryptToken(rows[0].encrypted_token);
   } catch {
+    // Do not leak decryption failures or ciphertext to users.
     return null;
   }
 }
