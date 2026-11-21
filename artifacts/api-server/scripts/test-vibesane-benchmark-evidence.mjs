@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findingKey, validateManifest, scoreEvidence } from './vibesane-benchmark-evidence.mjs';
+import { argsMap, evaluateCoverage } from './collect-vibesane-public-evidence.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const pin = 'a'.repeat(40);
@@ -159,4 +160,29 @@ test('unrecognized data and unverifiable target ranges fail closed', () => {
   f.scans.projects[0].rulesetCommit = rulePin;
   f.scans.projects[0].status = 'incomplete';
   assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews), /Incomplete scan cannot be scored/);
+});
+
+test('collector fails closed on partial files, missing subsets or truncated GitHub trees', () => {
+  const src = { ...baseProject, coverageMode: 'bounded_subset', paths: ['src/a.js', 'src/b.js'] };
+  const tree = { truncated: false, tree: [
+    { type: 'blob', path: 'src/a.js', size: 20 },
+    { type: 'blob', path: 'src/b.js', size: 30 },
+  ] };
+  const eligible = () => true;
+  const all = [{ path: 'src/a.js', content: 'const a=1' }, { path: 'src/b.js', content: 'const b=1' }];
+  assert.equal(evaluateCoverage(src, tree, eligible, all).complete, true);
+  const missing = evaluateCoverage(src, tree, eligible, all.slice(0, 1));
+  assert.equal(missing.complete, false);
+  assert.deepEqual(missing.missingDeclaredPaths, ['src/b.js']);
+  assert.equal(evaluateCoverage(src, { ...tree, truncated: true }, eligible, all).complete, false);
+  assert.equal(evaluateCoverage(src, { ...tree, tree: [{ type: 'blob', path: 'src/a.js', size: 2_000_000 }] }, eligible, all).complete, false);
+});
+
+test('collector CLI rejects missing and unsupported switches before network work', () => {
+  assert.throws(() => argsMap(['--repo', 'OWASP/NodeGoat']), /Usage/);
+  assert.throws(() => argsMap(['--repo', 'a/b', '--repo', 'c/d', '--output', 'file']), /Only/);
+  assert.deepEqual(
+    [...argsMap(['--manifest', 'm.json', '--repo', 'OWASP/NodeGoat', '--output', 'result.json']).entries()],
+    [['--manifest', 'm.json'], ['--repo', 'OWASP/NodeGoat'], ['--output', 'result.json']],
+  );
 });
