@@ -75,3 +75,14 @@ test('logged-in admin route stays a contextual security warning, not an automati
   const findings = scan(source).filter(f => f.check === 'debug_endpoint');
   assert.deepEqual(findings.map(f => f.line), [1]);
 });
+
+test('predictable reset tokens are Critical but unrelated MD5 calls stay High', () => {
+  const source = [
+    'if (req.query.token == md5(req.query.login)) { resetPassword(); }',
+    'const digest = md5(nonSecurityCacheKey);',
+    'if (req.body.token === md5(req.body.login)) { saveNewPassword(); }',
+  ].join('\n');
+  const found = scan(source, 'core/authHandler.js').filter(f => f.check === 'weak_hash');
+  assert.deepEqual(found.map(f => f.severity), ['Critical', 'High', 'Critical']);
+  assert.match(found[0].title, /account takeover/i);
+});
