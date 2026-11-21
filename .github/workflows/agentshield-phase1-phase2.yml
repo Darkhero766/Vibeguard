@@ -76,7 +76,7 @@ jobs:
           node --test artifacts/api-server/scripts/test-vibesane-benchmark-evidence.mjs
           node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --validate artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json
           node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --validate artifacts/api-server/benchmarks/real-world/phase2-app-holdout-22.v1.json
-          node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs --manifest artifacts/api-server/benchmarks/real-world/phase2-app-holdout-22.v1.json --output-dir /tmp/vibesane-app-holdout-dry-run --all --dry-run > /dev/null
+          node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs --manifest artifacts/api-server/benchmarks/real-world/phase2-app-holdout-22.v1.json --output-dir /tmp/vibesane-app-holdout-dry-run --all --engine api_core_plus_extended_v2 --dry-run > /dev/null
           node --test artifacts/api-server/scripts/test-vibesane-realworld-runner.mjs
           node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json --output-dir /tmp/vibesane-benchmark-dry-run --all --dry-run > /dev/null
           node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --score artifacts/api-server/benchmarks/real-world/pilot-manifest.v1.json artifacts/api-server/benchmarks/real-world/scans.empty.v1.json artifacts/api-server/benchmarks/real-world/reviews.empty.v1.json > /dev/null
@@ -230,7 +230,7 @@ jobs:
         run: |
           node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs \
             --manifest artifacts/api-server/benchmarks/real-world/phase2-app-holdout-22.v1.json \
-            --output-dir /tmp/vibesane-app-holdout-evidence --all
+            --output-dir /tmp/vibesane-app-holdout-evidence --all --engine api_core_plus_extended_v2
       - name: Upload only source-free metadata (even if incomplete)
         if: always()
         uses: actions/upload-artifact@v4
