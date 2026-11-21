@@ -83,3 +83,19 @@ test('server-only API route does not become client-exposure alert',()=>{
   const got=service([file('pages/api/manage-subscription.ts','const k=process.env.'+KEY)]);
   assert.equal(got.length,0);
 });
+
+test('separate monorepo migration roots cannot hide another app missing RLS',()=>{
+  const rows=rlss([
+    file('apps/alpha/supabase/migrations/001.sql','CREATE TABLE public.orders(id uuid);'),
+    file('apps/beta/supabase/migrations/002.sql','ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;'),
+  ]);
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].filePath,'apps/alpha/supabase/migrations/001.sql');
+});
+
+test('multi-line SQL comments preserve original finding line positions',()=>{
+  const rows=rlss([file('supabase/migrations/001.sql',
+    '/* comment\nCREATE TABLE public.fake(id uuid);\n*/\nCREATE TABLE public.orders(id uuid);')]);
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].line,4);
+});
