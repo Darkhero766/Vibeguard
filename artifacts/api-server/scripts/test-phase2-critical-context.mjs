@@ -99,3 +99,61 @@ test('multi-line SQL comments preserve original finding line positions',()=>{
   assert.equal(rows.length,1);
   assert.equal(rows[0].line,4);
 });
+
+const rpc=files=>api(files).filter(x=>x.check==='unprotected_rpc');
+const privilege=files=>api(files).filter(x=>x.check==='role_self_promotion');
+
+test('schema-qualified unguarded definer reports actual function name',()=>{
+  const f=rpc([file('supabase/migrations/001.sql',
+    'CREATE FUNCTION public.open_private_data() RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN null; END; $$;')]);
+  assert.equal(f.length,1);
+  assert.match(f[0].title,/open_private_data/);
+  assert.doesNotMatch(f[0].title,/function "public"/);
+});
+
+test('admin guards do not leak from one function into its neighbor',()=>{
+  const sql=[
+    "CREATE FUNCTION public.is_platform_admin() RETURNS boolean LANGUAGE sql SECURITY DEFINER AS $$ SELECT EXISTS(SELECT 1 FROM public.profiles WHERE id=auth.uid() AND role='admin'); $$;",
+    "CREATE FUNCTION public.platform_admin_overview() RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN IF NOT public.is_platform_admin() THEN RAISE EXCEPTION 'Forbidden'; END IF; RETURN null; END; $$;",
+    "CREATE FUNCTION public.open_private_data() RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN null; END; $$;",
+  ].join('\n');
+  const f=rpc([file('supabase/migrations/001.sql',sql)]);
+  assert.equal(f.length,1);
+  assert.match(f[0].title,/open_private_data/);
+});
+
+test('trigger-only SECURITY DEFINER is not called an exposed RPC',()=>{
+  const sql='CREATE FUNCTION public.on_auth_user() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN new; END; $$;';
+  assert.equal(rpc([file('supabase/migrations/001.sql',sql)]).length,0);
+});
+
+test('role self-promotion is detected when source evidence aligns',()=>{
+  const sql=[
+    'CREATE POLICY profiles_self_update ON public.profiles FOR UPDATE USING (id=auth.uid()) WITH CHECK (id=auth.uid());',
+    'GRANT UPDATE ON public.profiles TO authenticated;',
+    "CREATE FUNCTION public.is_platform_admin() RETURNS boolean LANGUAGE sql SECURITY DEFINER AS $$ SELECT EXISTS(SELECT 1 FROM public.profiles WHERE id=auth.uid() AND role='admin'); $$;",
+  ].join('\n');
+  const f=privilege([file('supabase/migrations/001.sql',sql)]);
+  assert.equal(f.length,1);
+  assert.equal(f[0].line,2);
+  assert.equal(f[0].severity,'High');
+});
+
+test('column-only grants and effective role check or revoke are not incorrectly escalated',()=>{
+  const policy='CREATE POLICY profiles_self_update ON public.profiles FOR UPDATE USING (id=auth.uid()) WITH CHECK (id=auth.uid());';
+  const safe='CREATE POLICY profiles_self_update ON public.profiles FOR UPDATE USING (id=auth.uid()) WITH CHECK (id=auth.uid() AND role <> \'admin\');';
+  const helper="CREATE FUNCTION public.is_platform_admin() RETURNS boolean LANGUAGE sql SECURITY DEFINER AS $$ SELECT role='admin' FROM public.profiles WHERE id=auth.uid(); $$;";
+  for(const sql of [
+    [policy,'GRANT UPDATE (name,email) ON public.profiles TO authenticated;',helper].join('\n'),
+    [safe,'GRANT UPDATE ON public.profiles TO authenticated;',helper].join('\n'),
+    [policy,'GRANT UPDATE ON public.profiles TO authenticated;','REVOKE UPDATE ON public.profiles FROM authenticated;',helper].join('\n'),
+  ]) assert.equal(privilege([file('supabase/migrations/001.sql',sql)]).length,0);
+});
+
+test('different projects cannot combine migration evidence into an escalation',()=>{
+  const f=privilege([
+    file('apps/a/supabase/migrations/001.sql','CREATE POLICY owner ON public.profiles FOR UPDATE USING (id=auth.uid()) WITH CHECK (id=auth.uid());'),
+    file('apps/b/supabase/migrations/001.sql',"GRANT UPDATE ON public.profiles TO authenticated; CREATE FUNCTION public.is_platform_admin() RETURNS boolean LANGUAGE sql SECURITY DEFINER AS $$ SELECT role='admin' FROM public.profiles; $$;"),
+  ]);
+  assert.equal(f.length,0);
+});

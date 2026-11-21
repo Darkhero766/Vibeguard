@@ -13,6 +13,7 @@ export const FindingCheck = {
   unauthenticated_write: 'unauthenticated_write',
   service_role_client: 'service_role_client',
   unprotected_rpc: 'unprotected_rpc',
+  role_self_promotion: 'role_self_promotion',
   committed_env_file: 'committed_env_file',
   hardcoded_secret: 'hardcoded_secret',
   cors_wildcard: 'cors_wildcard',

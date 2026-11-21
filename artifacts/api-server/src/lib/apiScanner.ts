@@ -69,14 +69,88 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
     ));
   }
 
+  // Parse individual schema-qualified function bodies, not the "public" schema.
+  // This handles dollar-quoted PL/pgSQL and SQL bodies; other body forms are
+  // unclassified rather than misreported as confirmed unprotected RPCs.
   for (const file of sqlFiles) {
     const sql = stripSqlComments(file.content);
-    for (const match of sql.matchAll(/create\s+(?:or\s+replace\s+)?function\s+(\w+)[\s\S]{0,2500}?security\s+definer/gi)) {
+    const starts = [...sql.matchAll(/\bcreate\s+(?:or\s+replace\s+)?function\s+((?:(?:"[A-Za-z_][\w$]*"|[A-Za-z_][\w$]*)\s*\.\s*)?(?:"[A-Za-z_][\w$]*"|[A-Za-z_][\w$]*))\s*\(/gi)];
+    for (let i = 0; i < starts.length; i++) {
+      const match = starts[i];
+      const stop = starts[i + 1]?.index ?? sql.length;
+      const declaration = sql.slice(match.index ?? 0, stop).slice(0, 30000);
+      const as = /\bas\s+(\$[A-Za-z_0-9]*\$)/i.exec(declaration);
+      if (!as) continue;
+      const startBody = (as.index ?? 0) + as[0].length;
+      const endBody = declaration.indexOf(as[1], startBody);
+      if (endBody < 0) continue;
+      const header = declaration.slice(0, as.index);
+      const suffix = declaration.slice(endBody + as[1].length).split(";")[0];
+      if (!/\bsecurity\s+definer\b/i.test(header + " " + suffix)) continue;
+      // A trigger-returning function is not an ordinary callable PostgREST RPC.
+      if (/\breturns\s+trigger\b/i.test(header)) continue;
+      const body = declaration.slice(startBody, endBody);
+      const guarded = /\b(?:where|if|and|or|using|with\s+check)\b[\s\S]{0,240}\bauth\.(?:uid|jwt)\s*\(/i.test(body) ||
+        /\bif\s+(?:not\s+)?(?:public\.)?is_[A-Za-z_]*(?:admin|owner|member|authorized)\s*\([^)]*\)\s+then[\s\S]{0,300}\braise\s+exception\b/i.test(body);
+      if (guarded) continue;
       const line = lineAt(file.content, match.index ?? 0);
-      if (!/auth\.uid\s*\(|auth\.role\s*\(|raise\s+exception/i.test(match[0])) {
-        findings.push(finding(`rpc-${file.path}-${line}`, "High", `Security definer function "${match[1]}" has no visible permission check`, "A SECURITY DEFINER function has no visible auth or permission check in its body.", file.path, line, "unprotected_rpc"));
-      }
+      const funcName = match[1].split(".").at(-1)?.replaceAll('"', "") ?? match[1];
+      findings.push(finding(
+        "rpc-" + file.path + "-" + line, "High",
+        'SECURITY DEFINER function "' + funcName + '" lacks a detected in-body authorization guard',
+        "No recognizable in-body access check was found. Verify actual EXECUTE grants, trigger/RPC reachability, and deployed migration state before asserting exploitability.",
+        file.path, line, "unprotected_rpc",
+      ));
     }
+  }
+
+  // RLS restricts rows, not columns. An unrestricted authenticated UPDATE
+  // grant plus owner-only profile RLS may permit role self-promotion if a
+  // privileged admin function trusts that role. Separate migration roots
+  // never contribute evidence to one another.
+  const profileScopes = new Map<string, {
+    grant: { path: string; line: number } | null;
+    selfUpdate: boolean;
+    trustsRole: boolean;
+  }>();
+  for (const file of sqlFiles) {
+    const sql = stripSqlComments(file.content);
+    const key = lineage(file.path);
+    const state = profileScopes.get(key) ?? { grant: null, selfUpdate: false, trustsRole: false };
+    for (const policy of sql.matchAll(/\b(?:create|drop)\s+policy\b[^;]{0,1600}\bon\s+(?:public\.)?profiles\b[^;]*;/gi)) {
+      if (/^\s*drop\b/i.test(policy[0])) {
+        state.selfUpdate = false;
+        continue;
+      }
+      if (!/\bfor\s+update\b/i.test(policy[0])) continue;
+      const sections = policy[0].split(/\bwith\s+check\b/i);
+      const using = sections[0];
+      const checked = sections[1] ?? "";
+      state.selfUpdate = /\busing\s*\(/i.test(using) &&
+        /\bauth\.uid\s*\(/i.test(using) &&
+        /\bauth\.uid\s*\(/i.test(checked) &&
+        !/\brole\b/i.test(checked);
+    }
+    if (/\bis_platform_admin\s*\(/i.test(sql) && /\brole\s*=\s*'admin'/i.test(sql)) {
+      state.trustsRole = true;
+    }
+    for (const grant of sql.matchAll(/\b(grant|revoke)\s+(all(?:\s+privileges)?|update(?:\s*\([^)]*\))?)\s+on\s+(?:table\s+)?(?:public\.)?profiles\s+(?:to|from)\s+authenticated\s*;/gi)) {
+      if (grant[1].toLowerCase() === "revoke") state.grant = null;
+      else if (!/\bupdate\s*\(/i.test(grant[2])) state.grant = {
+        path: file.path, line: lineAt(file.content, grant.index ?? 0),
+      };
+    }
+    profileScopes.set(key, state);
+  }
+  for (const state of profileScopes.values()) {
+    if (!state.grant || !state.selfUpdate || !state.trustsRole) continue;
+    findings.push(finding(
+      "role-self-promotion-" + state.grant.path + "-" + state.grant.line,
+      "High",
+      "Profile self-update may permit promotion to an administrative role",
+      "A table-wide authenticated UPDATE grant, self-update RLS policy and role-based admin helper appear together. Check column privileges, all effective policies and deployed migration order before confirming the escalation.",
+      state.grant.path, state.grant.line, "role_self_promotion",
+    ));
   }
 
   for (const file of files.filter((f) => /\.(?:[cm]?[jt]sx?)$/i.test(f.path))) {

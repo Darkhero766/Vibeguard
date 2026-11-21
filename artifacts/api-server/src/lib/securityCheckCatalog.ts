@@ -3,6 +3,7 @@ export const SECURITY_CHECK_CATALOG = [
   { id: "unauthenticated_write", name: "Unauthenticated database writes", engine: "core" },
   { id: "service_role_client", name: "Client-side service_role reference", engine: "core" },
   { id: "unprotected_rpc", name: "Unprotected SECURITY DEFINER", engine: "core" },
+  { id: "role_self_promotion", name: "Role-changing profile UPDATE", engine: "core" },
   { id: "committed_env_file", name: "Committed .env file", engine: "core" },
   { id: "hardcoded_secret", name: "Hardcoded Stripe/AWS/API secrets", engine: "core" },
   { id: "cors_wildcard", name: "CORS wildcard", engine: "core" },
