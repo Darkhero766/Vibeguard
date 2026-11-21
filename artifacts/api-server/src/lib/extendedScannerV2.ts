@@ -35,8 +35,14 @@ function shouldKeepFinding(finding: ExtendedFinding, files: RepoFile[]): boolean
   const sourceLine = file ? lineAt(file.content, finding.line) : "";
 
   if (finding.check === "http_url") {
-    if (/https:\/\//i.test(sourceLine)) return false;
-    if (/http:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?\b/i.test(sourceLine)) return false;
+    // A bare URI in a README, test assertion, error string, URL parser, etc.
+    // does not show insecure transport. Require a literal HTTP URL directly
+    // supplied to an explicit network client invocation. This bounded rule
+    // intentionally misses variable, aliased and multiline transport calls.
+    const networkLiteral = /\b(?:fetch|axios\.(?:get|post|put|patch|delete|request)|request(?:\.(?:get|post|put|patch|delete))?|https?\.(?:get|request))\s*\(\s*['"\x60]http:\/\/([^\s/'"\x60?#]+)/i.exec(sourceLine);
+    if (!networkLiteral) return false;
+    const host = networkLiteral[1].toLowerCase();
+    if (/(?:^|\.)example\.(?:com|org|net)$|^(?:localhost|127\.0\.0\.1|0\.0\.0\.0|::1)$|\.invalid$/.test(host)) return false;
     if (/\.(?:md|mdx|txt)$/i.test(finding.filePath)) return false;
   }
 
