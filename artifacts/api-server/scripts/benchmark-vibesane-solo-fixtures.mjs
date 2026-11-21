@@ -25,10 +25,10 @@ export const syntheticCases=[
     source:"var users = [{name:'admin', password: Math.random().toString(32)}];"},
   {id:'animation_math_random',class:'negative',rule:'weak_random',path:'src/animation.js',
     source:'const angle = Math.random() * 360;'},
-  {id:'unguarded_security_definer',class:'positive',rule:'unprotected_rpc',path:'supabase/migrations/unsafe.sql',
-    source:'create function unsafe() returns void language plpgsql security definer as $$ begin perform 1; end $$;'},
-  {id:'auth_guarded_security_definer',class:'negative',rule:'unprotected_rpc',path:'supabase/migrations/safe.sql',
-    source:"create function safe() returns void language plpgsql security definer as $$ begin if auth.uid() is null then raise exception 'deny'; end if; end $$;"},
+  {id:'committed_environment_file',class:'positive',rule:'committed_env_file',path:'.env',
+    source:'SYNTHETIC_TEST_VALUE=placeholder_value_only'},
+  {id:'placeholder_env_example',class:'negative',rule:'committed_env_file',path:'.env.example',
+    source:'SYNTHETIC_TEST_VALUE=replace_with_your_own_value'},
 ];
 
 export async function runSyntheticCaseBenchmark(scanner=await loadScanner()){
