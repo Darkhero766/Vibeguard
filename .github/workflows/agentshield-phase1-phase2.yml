@@ -74,6 +74,7 @@ jobs:
         run: |
           node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --validate artifacts/api-server/benchmarks/real-world/pilot-manifest.v1.json
           node --test artifacts/api-server/scripts/test-vibesane-benchmark-evidence.mjs
+          node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --score artifacts/api-server/benchmarks/real-world/pilot-manifest.v1.json artifacts/api-server/benchmarks/real-world/scans.empty.v1.json artifacts/api-server/benchmarks/real-world/reviews.empty.v1.json > /dev/null
       - name: First-pass Phase 2 cross-file and Next.js accuracy metrics
         run: pnpm --filter @workspace/api-server run benchmark:agentshield:phase2
       - name: New adversarial synthetic holdout (untuned, informational)
