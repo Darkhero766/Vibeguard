@@ -190,3 +190,38 @@ test('cross-owner recovery produces a precise security review, not a false missi
   assert.equal(recovery[0].severity,'High');
   assert.match(recovery[0].description,/not proof of exploitability/);
 });
+
+test('authenticated SECURITY DEFINER cannot grant Pro to arbitrary caller target',()=>{
+  const sql=[
+    'CREATE FUNCTION public.debug_pro(p_target_user uuid) RETURNS void',
+    'LANGUAGE plpgsql SECURITY DEFINER AS $$',
+    'DECLARE current_user_id uuid := auth.uid();',
+    'BEGIN',
+    "IF current_user_id IS NULL THEN RAISE EXCEPTION 'login required'; END IF;",
+    "UPDATE public.usage SET plan='pro', scans_limit=999 WHERE owner=p_target_user;",
+    'END; $$;',
+  ].join('\n');
+  const found=api([file('supabase/migrations/024.sql',sql)])
+    .filter(f=>f.check==='privileged_entitlement_write');
+  assert.equal(found.length,1);
+  assert.equal(found[0].severity,'High');
+  assert.match(found[0].description,/EXECUTE grants/);
+});
+
+test('owner-bound and admin-guarded Pro changes are not fabricated vulnerabilities',()=>{
+  const start=[
+    'CREATE FUNCTION public.change_subscription(p_target_user uuid) RETURNS void',
+    'LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN',
+  ];
+  const scenarios=[
+    ["IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Auth required'; END IF;","UPDATE public.usage SET plan='pro' WHERE owner=auth.uid();"],
+    ["IF p_target_user <> auth.uid() THEN RAISE EXCEPTION 'Forbidden'; END IF;","UPDATE public.usage SET plan='pro' WHERE owner=p_target_user;"],
+    ["IF NOT public.is_platform_admin() THEN RAISE EXCEPTION 'Forbidden'; END IF;","UPDATE public.usage SET plan='pro' WHERE owner=p_target_user;"],
+    ["IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Auth required'; END IF;","UPDATE public.usage SET plan='free' WHERE owner=p_target_user;"],
+  ];
+  for(const statements of scenarios){
+    const sql=[...start,...statements,'END; $$;'].join('\n');
+    assert.equal(api([file('supabase/migrations/024.sql',sql)])
+      .filter(f=>f.check==='privileged_entitlement_write').length,0);
+  }
+});

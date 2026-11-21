@@ -117,6 +117,31 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
         ));
         continue;
       }
+      // An authenticated SECURITY DEFINER function must not upgrade another
+      // account just because auth.uid() is non-null. This is a review lead,
+      // not a claim that RPC EXECUTE grants make it exploitable.
+      const explicitAdminGuard = /\bif\s+(?:not\s+)?(?:public\.)?is_[A-Za-z_]*(?:admin|owner|authorized)\s*\([^)]*\)\s+then[\s\S]{0,300}\braise\s+exception\b/i.test(body);
+      const suspiciousEntitlementUpdate = [...body.matchAll(/\bupdate\s+(?:public\.)?usage\s+set\s+([^;]{0,700})/gi)]
+        .some(update => {
+          const statement = update[1];
+          if (!/\bplan\s*=\s*'pro'/i.test(statement)) return false;
+          const target = /\bwhere\s+(?:(?:[A-Za-z_]\w*)\.)?(?:owner|user_id)\s*=\s*([A-Za-z_]\w*)\b/i.exec(statement)?.[1] ?? "";
+          if (!/^(?:p_|param_|input_|target_)(?:target_)?(?:user|owner|account|id)[A-Za-z0-9_]*$/i.test(target)) return false;
+          // The matched parameter is an identifier, so it is already safe to
+          // embed in a bounded RegExp. Owner == auth.uid() is not vulnerable.
+          const directBinding = new RegExp("\\b" + target + "\\s*(?:=|is\\s+not\\s+distinct\\s+from)\\s*auth\\.uid\\s*\\(", "i").test(body) ||
+            new RegExp("\\bauth\\.uid\\s*\\(\\s*\\)\\s*=\\s*" + target + "\\b", "i").test(body);
+          return !directBinding && !explicitAdminGuard;
+        });
+      if (suspiciousEntitlementUpdate) {
+        findings.push(finding(
+          "entitlement-write-" + file.path + "-" + line, "High",
+          "Privileged subscription grant may target another account",
+          "A SECURITY DEFINER function sets usage.plan to Pro using a caller-supplied owner parameter. A login check does not bind that target to auth.uid(). Verify actual function EXECUTE grants, independent admin authorization and deployed migration state before asserting exploitability.",
+          file.path, line, "privileged_entitlement_write",
+        ));
+        continue;
+      }
       if (guarded) continue;
       const funcName = match[1].split(".").at(-1)?.replaceAll('"', "") ?? match[1];
       findings.push(finding(

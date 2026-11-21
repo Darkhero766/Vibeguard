@@ -4,6 +4,7 @@ export const SECURITY_CHECK_CATALOG = [
   { id: "service_role_client", name: "Client-side service_role reference", engine: "core" },
   { id: "unprotected_rpc", name: "Unprotected SECURITY DEFINER", engine: "core" },
   { id: "privileged_account_recovery", name: "Privileged cross-owner account recovery", engine: "core" },
+  { id: "privileged_entitlement_write", name: "Privileged subscription entitlement write", engine: "core" },
   { id: "role_self_promotion", name: "Role-changing profile UPDATE", engine: "core" },
   { id: "committed_env_file", name: "Committed .env file", engine: "core" },
   { id: "hardcoded_secret", name: "Hardcoded Stripe/AWS/API secrets", engine: "core" },
