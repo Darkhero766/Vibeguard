@@ -179,6 +179,7 @@ async function deactivatePro(
        SET plan = 'free', scans_limit = 1, monthly_scans_limit = 1,
            pro_expires_at = NULL, dodo_subscription_status = $2
      WHERE dodo_subscription_id = $1
+       AND pro_source IN ('dodo', 'dodo_return_sync')
   `, [subscriptionId, status]);
 }
 

@@ -74,7 +74,7 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
           }
           if(normalized.includes('INSERT INTO public.usage')){
             if(failOnce){failOnce=false;throw Error('Synthetic one-time DB failure');}
-            txUsage.set(params[0],{plan:'pro',subscription:params[4]});
+            txUsage.set(params[0],{plan:'pro',subscription:params[4],source:params[6]});
             return {rowCount:1,rows:[]};
           }
           if(normalized.includes('UPDATE public.usage') &&
@@ -82,7 +82,9 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
             const [subId,status]=params;
             let rows=0;
             for(const [id,row] of txUsage){
-              if(row.subscription===subId){
+              if(row.subscription===subId &&
+                  (['dodo','dodo_return_sync'].includes(row.source) ||
+                    !normalized.includes("pro_source IN ('dodo', 'dodo_return_sync')"))){
                 txUsage.set(id,{...row,plan:'free',status});
                 rows++;
               }
@@ -223,6 +225,31 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
     assert.equal(currentCancel.status,200);
     assert.equal(usage.get(userId)?.plan,'free',
       'Cancellation of matching subscription must revoke Pro');
+
+    // A later hackathon coupon can replace paid Pro but leave the old
+    // subscription id populated. Old Dodo cancellation must not override it.
+    usage.set(userId,{plan:'pro',source:'hackathon',
+      subscription:'synthetic-subscription-1'});
+    const staleCancel=await send('old-dodo-cancel-after-hackathon',
+      true,cancelled('synthetic-subscription-1'));
+    assert.equal(staleCancel.status,200);
+    assert.equal(usage.get(userId)?.plan,'pro',
+      'Old Dodo cancellation must not revoke hackathon Pro');
+    assert.equal(usage.get(userId)?.source,'hackathon');
+
+    // Signed on_hold/failed/expired events revoke matching Dodo entitlements.
+    for(const type of ['subscription.on_hold','subscription.failed',
+      'subscription.expired']){
+      usage.set(userId,{plan:'pro',source:'dodo_return_sync',
+        subscription:'synthetic-subscription-1'});
+      const response=await send('synthetic-'+type,true,{
+        ...payload,type,data:{...payload.data},
+      });
+      assert.equal(response.status,200,type);
+      assert.equal(usage.get(userId)?.plan,'free',type+' must revoke Dodo Pro');
+    }
+    usage.set(userId,{plan:'free',source:'dodo',
+      subscription:'synthetic-subscription-1'});
 
     const genericPayment={
       ...payload,type:'payment.succeeded',
