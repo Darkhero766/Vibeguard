@@ -17,6 +17,12 @@ Read the immutable source-free GitHub Actions artifact `phase2-app-holdout-22-so
 - `shadcn-ui/taxonomy@298a8857c7128a0d121e7f699dfd729f23b3966d`:
   - Historical High at `app/api/webhooks/stripe/route.ts:35` is preceded by `stripe.webhooks.constructEvent(..., Stripe-Signature, STRIPE_WEBHOOK_SECRET)` and an error response on failure. **Engineering conclusion:** signed webhook differs from missing user auth; retain Medium verification of signature handling, replay and business authorization, not a proven High unauthenticated write.
 
+## First diagnostic rescan of the same pinned source
+
+GitHub Actions run `44912044539`, artifact `14710580957`, ruleset `80d67452488bb2a07038dec45118204fab0f25fb`: same 22 repo+commit identities and 109 files; **19 unreviewed alerts** (2 Critical / 14 High / 3 Medium) compared with 23 unreviewed (4 Critical / 19 High) in the historical ruleset. Four older `unprotected_rpc` warnings disappeared after function parser and guard improvements, two shared server-only service-role references were reclassified, and three route warnings became Medium. The result is purely diagnostic and **does not establish that any remaining or removed alert is a real true/false positive**.
+
+The source comparison also exposed a lexical bug: apostrophes in comments could cause the previous regex masker to hide subsequent `await requireRole` checks. Fixed in `579189ee` by a stateful comments/string masking pass with negative controls. **A second same-source diagnostic rescan is intentionally requested**, not represented as an independent holdout.
+
 ## Why these are NOT unbiased holdout scores
 
 The pinned 22-app sample informed detector changes in this feature branch. It is now a **development source-context set**, not an untouched independent holdout for the revised engine. Do not use changed warning counts to claim improved accuracy, true/false-positive rates, precision or recall. Do not turn assistant-authored interpretations into human labels. A fresh non-tuned pinned sample with permissioned independent reviewers and missed-target examination remains mandatory.
