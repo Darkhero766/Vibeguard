@@ -93,6 +93,7 @@ jobs:
           node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs --manifest artifacts/api-server/benchmarks/real-world/phase2-app-holdout-22.v1.json --output-dir /tmp/vibesane-app-holdout-dry-run --all --engine api_core_plus_extended_v2 --dry-run > /dev/null
           node --test artifacts/api-server/scripts/test-vibesane-realworld-runner.mjs
           node --test artifacts/api-server/scripts/test-vibesane-independent-review-gate.mjs
+          node --test artifacts/api-server/scripts/test-vibesane-independent-review-packet.mjs
           node --test artifacts/api-server/scripts/test-vibesane-solo-founder-gate.mjs
           node --test artifacts/api-server/scripts/test-vibesane-solo-review-prep.mjs
           node --test artifacts/api-server/scripts/test-vibesane-solo-fixtures.mjs
