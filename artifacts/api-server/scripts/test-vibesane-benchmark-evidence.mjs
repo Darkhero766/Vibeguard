@@ -38,6 +38,8 @@ function fixture() {
     scans: { schemaVersion: 1, projects: [{
       repo: baseProject.repo, commit: pin, rulesetCommit: rulePin,
       status: 'complete', engine: 'extended_v2', filesScanned: 11,
+      scannedFiles: ['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js', 'src/e.js',
+        'src/f.js', 'src/g.js', 'src/h.js', 'src/i.js', 'src/j.js', 'src/k.js'],
       durationMs: 432, findings: entries,
     }] },
     reviews: { schemaVersion: 1, projects: [{
@@ -135,6 +137,8 @@ test('subsets reject findings and targets outside declared files', () => {
   const f = fixture();
   f.manifest.projects[0].coverageMode = 'bounded_subset';
   f.manifest.projects[0].paths = ['src/a.js'];
+  // Exercise finding/target scope rejection independent of scannedFiles validation.
+  delete f.scans.projects[0].scannedFiles;
   assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews), /outside declared path subset/);
 });
 
@@ -244,4 +248,33 @@ test('false positives cannot be credited with severity review or curated true-po
   delete fp.severityEvidence;
   f.reviews.projects[0].expectedTargets.push(target(f.scans.projects[0].findings[1]));
   assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews), /contradicts a false-positive adjudication/);
+});
+
+test('curated recall is disallowed for legacy scans without exact path evidence', () => {
+  const f = fixture();
+  delete f.scans.projects[0].scannedFiles;
+  assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews),
+    /Curated recall target requires proof/);
+  f.reviews.projects[0].expectedTargets = [];
+  assert.equal(scoreEvidence(f.manifest, f.scans, f.reviews).overall.precision, 0.5);
+});
+
+test('curated misses outside actual scanned files are never counted as false negatives', () => {
+  const f = fixture();
+  f.reviews.projects[0].expectedTargets.push(target(finding('weak_random', 'src/never-read.js', 77)));
+  assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews),
+    /requires proof of an actually scanned file/);
+});
+
+test('malformed or duplicate scannedFiles metadata fails closed', () => {
+  const f = fixture();
+  f.scans.projects[0].scannedFiles[1] = 'src/a.js';
+  assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews),
+    /Invalid or duplicate scannedFiles/);
+  f.scans.projects[0].scannedFiles[1] = '../private';
+  assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews),
+    /Invalid or duplicate scannedFiles/);
+  f.scans.projects[0].scannedFiles = ['src/a.js'];
+  assert.throws(() => scoreEvidence(f.manifest, f.scans, f.reviews),
+    /Invalid or duplicate scannedFiles/);
 });
