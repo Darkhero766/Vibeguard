@@ -29,14 +29,17 @@ export function parseBenchmarkArgs(argv) {
     if (arg === '--all' || arg === '--dry-run') {
       if (values.has(arg)) throw new Error('Duplicate argument: ' + arg);
       values.set(arg, true);
-    } else if (['--manifest', '--output-dir', '--repo'].includes(arg) &&
+    } else if (['--manifest', '--output-dir', '--repo', '--engine'].includes(arg) &&
                !values.has(arg) && argv[i + 1] && !argv[i + 1].startsWith('--')) {
       values.set(arg, argv[++i]);
-    } else throw new Error('Usage: --manifest FILE --output-dir DIR (--all | --repo OWNER/REPO) [--dry-run]');
+    } else throw new Error('Usage: --manifest FILE --output-dir DIR (--all | --repo OWNER/REPO) [--engine extended_v2_only|api_core_plus_extended_v2] [--dry-run]');
   }
   if (!values.has('--manifest') || !values.has('--output-dir') ||
       (values.has('--all') === values.has('--repo'))) {
     throw new Error('Exactly one of --all and --repo is required, with --manifest and --output-dir');
+  }
+  if (values.has('--engine') && !['extended_v2_only', 'api_core_plus_extended_v2'].includes(values.get('--engine'))) {
+    throw new Error('Unknown scanner engine');
   }
   return values;
 }
@@ -69,13 +72,13 @@ function localRulesetSha() {
   return sha.toLowerCase();
 }
 
-function readExisting(file, project, ruleset) {
+function readExisting(file, project, ruleset, engine) {
   const document = JSON.parse(readFileSync(file, 'utf8'));
   const scan = document.projects?.[0];
   if (document.schemaVersion !== 1 || document.projects.length !== 1 ||
       scan.repo !== project.repo || scan.commit?.toLowerCase() !== project.commit.toLowerCase() ||
       scan.rulesetCommit?.toLowerCase() !== ruleset ||
-      scan.engine !== 'extended_v2_only') {
+      scan.engine !== engine) {
     throw new Error('Incompatible existing scan for ' + project.repo);
   }
   return scan;
@@ -122,6 +125,7 @@ async function main(argv) {
   }
 
   const ruleset = localRulesetSha();
+  const engine = args.get('--engine') || 'extended_v2_only';
   const dir = path.resolve(args.get('--output-dir'));
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
   if (!lstatSync(dir).isDirectory() || lstatSync(dir).isSymbolicLink()) {
@@ -136,6 +140,7 @@ async function main(argv) {
       if (!existsSync(file)) {
         const p = spawnSync(process.execPath, [
           collector, '--manifest', manifestPath, '--repo', project.repo, '--output', file,
+          '--engine', engine,
         ], {
           cwd: root, encoding: 'utf8', timeout: 240_000, maxBuffer: 64 * 1024,
           env: { ...process.env, VIBESANE_RULESET_SHA: ruleset },
@@ -145,7 +150,7 @@ async function main(argv) {
           continue;
         }
       }
-      scans.push(readExisting(file, project, ruleset));
+      scans.push(readExisting(file, project, ruleset, engine));
     } catch {
       failures.push({ repo: project.repo, reason: 'unreadable_or_mismatched_scan' });
     }
@@ -159,7 +164,7 @@ async function main(argv) {
     status: complete ? 'collected_unreviewed' : 'incomplete',
     selected: selected.length, scannedCompletely: summary.completedProjects,
     incomplete: summary.incompleteProjects, failed: failures.length,
-    reviewedPrecision: null, curatedRecall: null,
+    engine, reviewedPrecision: null, curatedRecall: null,
     summaryFile: reportFile,
   }) + '\n');
   if (!complete) process.exitCode = 2;
