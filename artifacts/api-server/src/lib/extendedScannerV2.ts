@@ -25,6 +25,24 @@ function lineAt(content: string, line: number): string {
 }
 
 /**
+ * A direct-call-looking string inside a quoted single-line test fixture is
+ * inert. Conservatively skip ambiguous template interpolation, too.
+ */
+function insideQuotedLiteral(line: string, index: number): boolean {
+  let quote = "";
+  for (let i = 0; i < index; i++) {
+    const char = line[i];
+    if (char === "\\") { i++; continue; }
+    if (quote) {
+      if (char === quote) quote = "";
+    } else if (char === "'" || char === '"' || char.charCodeAt(0) === 96) {
+      quote = char;
+    }
+  }
+  return quote.length > 0;
+}
+
+/**
  * Extended rules are intentionally conservative about obvious documentation,
  * local development URLs, and this scanner's own source. This prevents the
  * scanner from reporting its own regexes as vulnerabilities.
@@ -40,7 +58,7 @@ function shouldKeepFinding(finding: ExtendedFinding, files: RepoFile[]): boolean
     // supplied to an explicit network client invocation. This bounded rule
     // intentionally misses variable, aliased and multiline transport calls.
     const networkLiteral = /\b(?:fetch|axios\.(?:get|post|put|patch|delete|request)|request(?:\.(?:get|post|put|patch|delete))?|https?\.(?:get|request))\s*\(\s*['"\x60]http:\/\/([^\s/'"\x60?#]+)/i.exec(sourceLine);
-    if (!networkLiteral) return false;
+    if (!networkLiteral || insideQuotedLiteral(sourceLine, networkLiteral.index)) return false;
     const host = networkLiteral[1].toLowerCase();
     if (/(?:^|\.)example\.(?:com|org|net)(?::\d+)?$|^(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?$|\.invalid(?::\d+)?$/.test(host)) return false;
     if (/\.(?:md|mdx|txt)$/i.test(finding.filePath)) return false;
