@@ -97,6 +97,24 @@ function shouldKeepFinding(finding: ExtendedFinding, files: RepoFile[]): boolean
   return true;
 }
 
+/** Context only: predictable reset-token checks can enable account takeover.
+ * Do not upgrade every MD5 use; harmless MD5 digests stay ordinary review hints.
+ */
+function contextualSeverity(finding: ExtendedFinding, files: RepoFile[]): ExtendedFinding {
+  if (finding.check !== "weak_hash") return finding;
+  const file = files.find(f => f.path === finding.filePath);
+  const line = file ? lineAt(file.content, finding.line) : "";
+  if (/\breq\.(?:query|body)\.token\s*={1,3}\s*md5\s*\(\s*req\.(?:query|body)\.login\s*\)/i.test(line)) {
+    return {
+      ...finding,
+      severity: "Critical",
+      title: "Predictable password reset token may enable account takeover",
+      description: "A reset token is compared with a deterministic MD5 of a request-controlled login identifier. Verify the password-reset flow and use single-use, high-entropy, expiring server-stored tokens.",
+    };
+  }
+  return finding;
+}
+
 function deduplicate(findings: ExtendedFinding[]): ExtendedFinding[] {
   const seen = new Set<string>();
   return findings.filter((finding) => {
@@ -109,7 +127,9 @@ function deduplicate(findings: ExtendedFinding[]): ExtendedFinding[] {
 
 /** Apply the same filtering and de-duplication to local files without GitHub access. */
 export function scanExtendedFilesV2(files: RepoFile[]): ExtendedFinding[] {
-  return deduplicate(scanExtendedFiles(files).filter((finding) => shouldKeepFinding(finding, files)));
+  return deduplicate(scanExtendedFiles(files)
+    .filter((finding) => shouldKeepFinding(finding, files))
+    .map((finding) => contextualSeverity(finding, files)));
 }
 
 function scopedRepoUrl(repoUrl: string, scanPaths?: string[]): string {
