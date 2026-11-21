@@ -44,3 +44,7 @@
 ## Approval boundary
 
 The user has requested completion of Phases 1–2. This authorizes engineering work and non-invasive validation on the safe feature branch. It **does not replace separate explicit approval** for production deployment/merge, paid services, production SQL/data/auth changes or handling sensitive external provider secrets. All blockers must be disclosed without rebranding testing infrastructure as a production release.
+
+## App holdout collection rerun note
+
+The first opt-in [collection run #44866781794](https://github.com/Darkhero766/Vibeguard/actions/runs/44866781794) **FAILED CLOSED: 0/22 completed**. The combined engine's collector omitted its bundled API-core exports, so every subprocess exited nonzero; no scan result or accuracy claim is inferred. The collector now exports the third bundled module and has a direct offline regression test checking API-core and Extended V2 rule execution before source fetching. A new, SHA-pinned public-only collection is requested using the same 22-source manifest and unchanged detection rules. Results remain unreviewed.
