@@ -29,10 +29,10 @@ function isSelfScanExcluded(path: string): boolean {
   return SELF_SCAN_EXCLUDED_PATHS.some((excluded) => excluded.endsWith("/") ? path.startsWith(excluded) : path === excluded);
 }
 
-function shouldRead(path: string): boolean {
+export function shouldRead(path: string): boolean {
   const base = path.split("/").pop() ?? "";
   return (
-    /\.(?:[cm]?[jt]sx?|sql|json|ya?ml|md|mdx|toml|ini|conf|xml|html|css|scss|sh|bash|py|rb|go|rs|java|php)$/i.test(path) ||
+    /\.(?:[cm]?[jt]sx?|sql|json|ya?ml|md|mdx|toml|ini|conf|xml|html|css|scss|sh|bash|py|rb|go|rs|java|php|pem|key)$/i.test(path) ||
     /^Dockerfile(?:\..*)?$/i.test(base) ||
     /^\.npmrc$/i.test(base) ||
     /^\.gitignore$/i.test(base) ||
