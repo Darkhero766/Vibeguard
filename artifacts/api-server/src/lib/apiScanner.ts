@@ -12,7 +12,9 @@ function finding(id: string, severity: Finding["severity"], title: string, descr
 }
 
 function stripSqlComments(sql: string): string {
-  return sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  // Retain character offsets and newlines for precise findings and event order.
+  const blank = (match: string) => match.replace(/[^\n]/g, " ");
+  return sql.replace(/\/\*[\s\S]*?\*\//g, blank).replace(/--[^\n]*/g, blank);
 }
 
 export function scanApiFiles(files: RepositoryFile[]): Finding[] {
@@ -25,13 +27,23 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
   const sqlFiles = files.filter(f => /\.sql$/i.test(f.path))
     .sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   const states = new Map<string, { filePath: string; line: number; enabled: boolean; name: string }>();
+  // A monorepo can contain multiple independent projects, each with a
+  // migrations/ directory. Never let one project's ALTER/DROP conceal a
+  // separate project's unprotected table with the same SQL name.
+  const lineage = (p: string) => {
+    const normalized = p.replace(/\\/g, "/");
+    const marker = /(^|\/)migrations?\//ig;
+    const found = [...normalized.matchAll(marker)].at(-1);
+    return found ? normalized.slice(0, (found.index ?? 0) + found[0].length)
+      : normalized.slice(0, normalized.lastIndexOf("/") + 1);
+  };
   const tableDdl = /\b(create\s+table\s+(?:if\s+not\s+exists\s+)?|drop\s+table\s+(?:if\s+exists\s+)?|alter\s+table\s+(?:if\s+exists\s+)?)(?:"?([A-Za-z_]\w*)"?\s*\.\s*)?"?([A-Za-z_]\w*)"?/gi;
   for (const file of sqlFiles) {
     const sql = stripSqlComments(file.content);
     for (const match of sql.matchAll(tableDdl)) {
       const schema = (match[2] || "public").toLowerCase();
       const table = match[3].toLowerCase();
-      const id = schema + "." + table;
+      const id = lineage(file.path) + "\u0000" + schema + "." + table;
       const action = match[1].trim().toLowerCase();
       const line = lineAt(file.content, match.index ?? 0);
       if (action.startsWith("create")) {
