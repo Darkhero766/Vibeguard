@@ -116,6 +116,13 @@ export async function run(manifestPath,outputPath){
   const scanner=await loadScanner();
   const findings=[...scanner.scanApiFiles(sources),...scanner.scanExtendedFilesV2(sources)];
   const out=scoreExternallyLabeledSubset(spec,gt,findings);
+  const mode=process.env.VIBESANE_EVALUATION_MODE||'initial_frozen_baseline';
+  ensure(['initial_frozen_baseline','post_tuning_diagnostic'].includes(mode),
+    'Unsupported evaluation mode');
+  out.evaluationMode=mode;
+  out.noTuningOnThisDatasetBeforeBaseline=mode==='initial_frozen_baseline';
+  if(mode==='post_tuning_diagnostic')out.limitations.push(
+    'This corpus was used to implement and test scanner fixes, so the post-fix result is contaminated development regression evidence, not an independent holdout.');
   out.engine='api_core_plus_extended_v2';
   out.scannerCommit=process.env.VIBESANE_RULESET_SHA||'';
   ensure(SHA.test(out.scannerCommit),'Set VIBESANE_RULESET_SHA to scanner commit SHA');
