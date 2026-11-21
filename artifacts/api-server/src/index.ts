@@ -1,4 +1,5 @@
 import app from "./app";
+import { assertStagingIsolation } from "./lib/stagingIsolation";
 import { logger } from "./lib/logger";
 import { ensureTables, pool } from "@workspace/db";
 
@@ -15,6 +16,11 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+// Fail closed BEFORE opening a public staging listener when external project
+// references, database credentials or payment mode are misconfigured.
+// Production deployments bypass this guard without changing their behavior.
+assertStagingIsolation();
 
 // IMPORTANT: start listening before any external dependency work.
 // Render expects the HTTP port to become reachable quickly during deploys.
