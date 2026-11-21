@@ -48,7 +48,7 @@ test('Public scan canonicalizes pasted punctuation before either scan and never 
     '@workspace/api-zod': 'export const CreateScanBody={safeParse:v=>({success:typeof v?.repoUrl==="string",data:{repoUrl:v?.repoUrl}})};export const CreateScanResponse={parse:x=>x};',
     '../lib/scanner': 'export const scanPublicRepository=(...args)=>globalThis.__SCAN_URL_FIXTURE__.scanClone(...args);',
     '../lib/apiScanner': 'export const scanRepositoryViaApi=(...args)=>globalThis.__SCAN_URL_FIXTURE__.scanApi(...args);',
-    '../lib/extendedScannerV2': 'export const runExtendedSecurityChecksV2=(...args)=>globalThis.__SCAN_URL_FIXTURE__.scanExtended(...args);',
+    '../lib/extendedScannerV2': 'export const runExtendedSecurityChecksV2WithStats=async(...args)=>({findings:await globalThis.__SCAN_URL_FIXTURE__.scanExtended(...args),filesScanned:86});',
     '../lib/securityCheckCatalog': 'export const TOTAL_SECURITY_CHECKS=51;',
     '../middlewares/auth': [
       'export const requireAuth=(req,res,next)=>{req.userId="test-user";req.userJwt="jwt";next();};',
@@ -103,6 +103,7 @@ test('Public scan canonicalizes pasted punctuation before either scan and never 
     assert.equal(r.status, 200);
     assert.equal(r.body.repoUrl, 'https://github.com/OWASP/NodeGoat');
     assert.equal(r.body.checksRun, 51);
+    assert.equal(r.body.filesScanned, 86, 'broader extended engine determines visible file coverage');
     assert.deepEqual(fixture.core, [{ url: 'https://github.com/OWASP/NodeGoat', token: 'synthetic-github-token' }]);
     assert.deepEqual(fixture.extended, fixture.core);
     assert.equal(fixture.creditsUsed, 1);
