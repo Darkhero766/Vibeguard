@@ -101,6 +101,15 @@ function shouldKeepFinding(finding: ExtendedFinding, files: RepoFile[]): boolean
  * Do not upgrade every MD5 use; harmless MD5 digests stay ordinary review hints.
  */
 function contextualSeverity(finding: ExtendedFinding, files: RepoFile[]): ExtendedFinding {
+  // Keep test fixtures visible for triage without implying that a cookie
+  // example is an exposed production authentication token.
+  if (finding.check === "cookie_missing_httponly" &&
+      /(?:^|\/)(?:test|tests|__tests__|spec|specs)(?:\/|$)|(?:\.test|\.spec)\.[cm]?[jt]sx?$/i.test(finding.filePath)) {
+    return {
+      ...finding, severity: "Low",
+      description: finding.description + " Located in test/fixture code; verify production reachability before escalating.",
+    };
+  }
   if (finding.check !== "weak_hash") return finding;
   const file = files.find(f => f.path === finding.filePath);
   const line = file ? lineAt(file.content, finding.line) : "";
