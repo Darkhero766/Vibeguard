@@ -29,7 +29,7 @@ test('detects NodeGoat-like plaintext password document with commented safe alte
   ].join('\n');
   const findings = scan(source);
   assert.equal(findings.length, 1);
-  assert.equal(findings[0].line, 2);
+  assert.equal(findings[0].line, 4); // raw password property, not object start
   assert.equal(findings[0].check, 'plaintext_password_storage');
   assert.equal(findings[0].severity, 'High');
 });
@@ -220,4 +220,21 @@ test('weak Math.random CSRF-token value is detected without flagging strong toke
   const results = scanExtendedFiles([{ path: 'auth-sessions/app.js', content: source }])
     .filter(f => f.check === 'weak_random');
   assert.deepEqual(results.map(f => f.line), [1]);
+});
+
+test('plaintext password finding anchors the source property rather than object declaration', () => {
+  const source = [
+    'function persist(password, usersCol) {',
+    '  const user = {',
+    '    username: "example",',
+    '    email: "alice@invalid.example",',
+    '    // other metadata',
+    '    password // raw request value',
+    '  };',
+    '  usersCol.insert(user);',
+    '}',
+  ].join('\\n');
+  const findings = scan(source);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].line, 6);
 });
