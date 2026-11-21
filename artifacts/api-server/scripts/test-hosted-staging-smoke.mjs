@@ -105,7 +105,7 @@ try{
     const page=await getWebsite(route);
     assert.equal(page.response.status,200,route+' must not become Render Not Found');
     assert.match(page.body,/<html/i,route+' must serve an HTML document');
-    assert.match(page.body,/name=["']robots["']\\s+content=["']noindex/i,
+    assert.match(page.body,/name=["']robots["']\s+content=["']noindex/i,
       route+' must remain excluded from indexes in staging');
     assert.match(page.body,/<div id=["']root["']/i,
       route+' must provide the React application mount');
