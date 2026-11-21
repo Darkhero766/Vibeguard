@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { CreateScanBody, CreateScanResponse } from "@workspace/api-zod";
 import { scanPublicRepository } from "../lib/scanner";
 import { scanRepositoryViaApi } from "../lib/apiScanner";
-import { runExtendedSecurityChecksV2 } from "../lib/extendedScannerV2";
+import { runExtendedSecurityChecksV2WithStats } from "../lib/extendedScannerV2";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { optionalAuth, requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
@@ -95,7 +95,7 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
     // Attach the rejection handler immediately. GitHub rate limits can make
     // the extended scan reject before the core scan finishes its fallback;
     // an unhandled rejection would otherwise terminate the Node process.
-    const extendedPromise = runExtendedSecurityChecksV2(repoUrl, githubToken)
+    const extendedPromise = runExtendedSecurityChecksV2WithStats(repoUrl, githubToken)
       .then(
         (findings) => ({ ok: true as const, findings }),
         (error: unknown) => ({ ok: false as const, error }),
@@ -132,7 +132,7 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
       });
       return;
     }
-    const extendedFindings = extendedResult.findings;
+    const { findings: extendedFindings, filesScanned: extendedFilesScanned } = extendedResult.findings;
 
     const normalizedExtended = extendedFindings.map((item) => ({
       ...item,
@@ -153,6 +153,9 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
     const finalReport = {
       ...report,
       findings,
+      // Clone fallback considers source code only, while the extended rules also
+      // analyze eligible manifests/configuration files. Report the wider coverage.
+      filesScanned: Math.max(report.filesScanned, extendedFilesScanned),
       checksRun: TOTAL_SECURITY_CHECKS,
     };
     // Validate output, then charge the authenticated account before returning or
