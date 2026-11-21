@@ -90,3 +90,25 @@ test('detects executable weak-hash calls while ignoring harmless hash names', ()
   const results = scanExtendedFiles([{ path: 'src/crypto.js', content: source }]);
   assert.deepEqual(results.filter((f) => f.check === 'weak_hash').map((f) => f.line), [1, 2, 3]);
 });
+
+const readerBuild = await build({
+  entryPoints: [path.join(dir, '../src/lib/githubRepoReader.ts')],
+  bundle: true, platform: 'node', format: 'esm', write: false,
+  logLevel: 'silent', target: 'node20',
+});
+const readerUrl = 'data:text/javascript;base64,' +
+  Buffer.from(readerBuild.outputFiles[0].contents).toString('base64');
+const { shouldRead } = await import(readerUrl);
+
+test('repository reader includes text PEM private-key files without admitting binaries', () => {
+  assert.equal(shouldRead('artifacts/cert/server.key'), true);
+  assert.equal(shouldRead('keys/deploy.pem'), true);
+  assert.equal(shouldRead('keys/deploy.p12'), false);
+  assert.equal(shouldRead('node_modules/secret.key'), false);
+});
+
+test('extended scanner detects PEM private-key files in eligible source', () => {
+  const sample = '-----BEGIN RSA PRIVATE KEY-----\nSYNTHETIC_TEST_ONLY\n-----END RSA PRIVATE KEY-----';
+  const findings = scanExtendedFiles([{ path: 'artifacts/cert/server.key', content: sample }]);
+  assert.equal(findings.filter((f) => f.check === 'private_key').length, 1);
+});
