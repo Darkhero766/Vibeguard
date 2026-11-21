@@ -58,3 +58,35 @@ test('ignores non-code files, larger ambiguous literals and false stand-alone re
   assert.equal(scan('const user={password}; db.find(user);').length, 0);
   assert.equal(scan('const user = { password }; ' + 'x'.repeat(1700) + ' db.insert(user);').length, 0);
 });
+
+// Regression: an npm lockfile with legacy integrity digests must not produce
+// thousands of fake High severity application-hashing vulnerabilities.
+const extendedBuild = await build({
+  entryPoints: [path.join(dir, '../src/lib/extendedScanner.ts')],
+  bundle: true, platform: 'node', format: 'esm', write: false,
+  logLevel: 'silent', target: 'node20',
+});
+const extendedUrl = 'data:text/javascript;base64,' +
+  Buffer.from(extendedBuild.outputFiles[0].contents).toString('base64');
+const { scanExtendedFiles } = await import(extendedUrl);
+
+test('does not report npm sha1 integrity entries as weak application hashing', () => {
+  const packages = Object.fromEntries(Array.from({ length: 1303 }, (_, i) => [
+    'node_modules/example-' + i, { integrity: 'sha1-aBcDeFgHiJkLmNoPqRsTuVwXyZ0=' },
+  ]));
+  const lockfile = JSON.stringify({ name: 'sample', lockfileVersion: 2, packages });
+  const results = scanExtendedFiles([{ path: 'package-lock.json', content: lockfile }]);
+  assert.equal(results.filter((f) => f.check === 'weak_hash').length, 0);
+});
+
+test('detects executable weak-hash calls while ignoring harmless hash names', () => {
+  const source = [
+    "const a = crypto.createHash('sha1').update(password).digest('hex');",
+    'const b = md5(password);',
+    "const checksum = crypto.subtle.digest('SHA-1', bytes);",
+    "const metadata = 'sha1-dependency-integrity';",
+    "const algorithm = 'md5';",
+  ].join('\n');
+  const results = scanExtendedFiles([{ path: 'src/crypto.js', content: source }]);
+  assert.deepEqual(results.filter((f) => f.check === 'weak_hash').map((f) => f.line), [1, 2, 3]);
+});
