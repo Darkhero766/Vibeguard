@@ -155,3 +155,44 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d token_test \
             -v ON_ERROR_STOP=1 \
             -f supabase/review-only/test-token-audit-lockdown.sql.fixture
+
+  public-source-collection:
+    name: Opt-in 30 pinned public-source metadata collection (unreviewed)
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[collect-30-public]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      CI: "true"
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Install exact locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Read ONLY pinned PUBLIC GitHub source and collect scanner metadata
+        run: |
+          node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs \
+            --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json \
+            --output-dir /tmp/vibesane-phase2-public-source-evidence --all
+      - name: Upload only source-free unreviewed scan metadata (even when partial)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-30-public-source-metadata
+          path: /tmp/vibesane-phase2-public-source-evidence/*.json
+          if-no-files-found: warn
+          retention-days: 7
