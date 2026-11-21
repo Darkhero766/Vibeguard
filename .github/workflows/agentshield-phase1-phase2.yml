@@ -70,6 +70,10 @@ jobs:
         run: pnpm --filter @workspace/api-server run test:agentshield:release
       - name: Phase 1+2 security and evaluation tests
         run: pnpm --filter @workspace/api-server run test:agentshield:phase12
+      - name: Real-world benchmark schema and scorer regression (offline; no external source execution)
+        run: |
+          node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --validate artifacts/api-server/benchmarks/real-world/pilot-manifest.v1.json
+          node --test artifacts/api-server/scripts/test-vibesane-benchmark-evidence.mjs
       - name: First-pass Phase 2 cross-file and Next.js accuracy metrics
         run: pnpm --filter @workspace/api-server run benchmark:agentshield:phase2
       - name: New adversarial synthetic holdout (untuned, informational)
