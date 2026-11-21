@@ -255,11 +255,81 @@ function aliasedShellTaintFindings(files: RepositoryFile[]): ExtendedFinding[] {
   return output;
 }
 
+/**
+ * Bounded source-to-sink signals for common Next.js request-query flows.
+ * This is NOT full AST/taint analysis. Only flag a path actually reaching
+ * a filesystem operation, or a navigation target coming from a URL query.
+ * Keep the matched code, credential and request data out of reports.
+ */
+function scopedQuerySinks(files: RepositoryFile[]): ExtendedFinding[] {
+  const out: ExtendedFinding[] = [];
+  for (const file of files) {
+    if (!/\.[cm]?[jt]sx?$/i.test(file.path)) continue;
+    const cleaned = file.content.replace(/\/\*[\s\S]*?\*\//g,
+      block => block.replace(/[^\n]/g, " "))
+      .replace(/(^|\s)\/\/[^\n]*/gm, block => block.replace(/[^\n]/g, " "));
+    const lines = cleaned.split("\n");
+    const hasQuerySource = /\b(?:parseQuery\s*\(\s*searchParams|searchParams\.get\s*\(|req\.query\b)/.test(cleaned);
+    if (!hasQuerySource) continue;
+    const queryTainted = new Set<string>();
+    const joinedPaths = new Map<string, number>();
+    for (let i=0;i<lines.length;i++) {
+      const line = lines[i];
+      // Handler boundaries prevent a variable declared by one route from
+      // becoming evidence for an unrelated route in the same module.
+      if (/^\s*(?:export\s+)?(?:async\s+)?function\s+(?:GET|POST|PUT|PATCH|DELETE)\s*\(/.test(line)) {
+        queryTainted.clear();
+        joinedPaths.clear();
+      }
+      const assigned = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(.*)/.exec(line);
+      if (assigned) {
+        const rhs=assigned[2];
+        if (/\bsearchParams\.get\s*\(/.test(rhs) ||
+            (/\bparsed\.data\.[A-Za-z_$][\w$]*/.test(rhs) &&
+             /\bparseQuery\s*\(\s*searchParams\b/.test(cleaned))) {
+          queryTainted.add(assigned[1]);
+        } else {
+          queryTainted.delete(assigned[1]);
+        }
+      }
+      const combined = /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:path\.)?(?:join|resolve)\s*\(\s*[^,\n]{1,120},\s*([A-Za-z_$][\w$]*)\s*\)/.exec(line);
+      if (combined) {
+        if (queryTainted.has(combined[2])) joinedPaths.set(combined[1],i+1);
+        else joinedPaths.delete(combined[1]);
+      }
+      const sink = /\b(?:readFile|readdir|stat|open|createReadStream|writeFile)\s*\(\s*([A-Za-z_$][\w$]*)\b/.exec(line);
+      if (sink && joinedPaths.has(sink[1]) && i+1-(joinedPaths.get(sink[1])||0)<35) {
+        const n=i+1;
+        out.push(makeFinding(
+          "request-path-to-filesystem-"+file.path+"-"+n,
+          "High",
+          "Request query path may escape a filesystem root",
+          "A value derived from a request query is joined to a base directory and passed into a filesystem operation. Review canonical path containment and enforce a fixed approved root.",
+          file.path,n,"path_traversal",
+        ));
+      }
+      const locationTarget = /\b(?:(?:window|document)\.location\.href\s*=\s*|(?:window|document)\.location\.(?:assign|replace)\s*\(\s*)([A-Za-z_$][\w$]*)\b/.exec(line);
+      if (locationTarget && queryTainted.has(locationTarget[1])) {
+        const n=i+1;
+        out.push(makeFinding(
+          "query-to-browser-redirect-"+file.path+"-"+n,
+          "High",
+          "Browser redirect uses URL query input",
+          "A client navigation destination is derived from a URL query parameter. Restrict destinations to same-origin or explicitly approved hosts before assigning window.location.",
+          file.path,n,"open_redirect",
+        ));
+      }
+    }
+  }
+  return out;
+}
+
 export function scanExtendedFiles(files: RepositoryFile[]): ExtendedFinding[] {
   const findings = [
     ...sqlChecks(files),
     ...scanPotentialPlaintextPasswords(files),
     ...aliasedShellTaintFindings(files),
+    ...scopedQuerySinks(files),
     ...rules.flatMap((rule) => regexFindings(files, rule)),
   ];
   const seen = new Set<string>();
