@@ -30,6 +30,35 @@ function makeFinding(
   return { id, severity, title, description, filePath, line: Math.max(1, line), check } as ExtendedFinding;
 }
 
+/**
+ * Ignore lexically inert payload strings only when a simple, still-open
+ * single-line variable initializer proves the detector match is text.
+ * Any complex expression (template interpolation, parser ambiguity) keeps
+ * its original finding. This is intentionally NOT a general JS lexer.
+ */
+function inSimpleLiteralInitializer(content: string, index: number): boolean {
+  const lineStart = content.lastIndexOf("\n", index - 1) + 1;
+  const prefix = content.slice(lineStart, index);
+  return /\b(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*=\s*(['"])(?:\\.|(?!\1)[^\\])*$/u.test(prefix);
+}
+
+/**
+ * Only suppress a missing HttpOnly heuristic when the third argument is a
+ * directly preceding constant object with an explicit literal true value.
+ * No spreads, intervening statements, shadowed assignments, or mutations
+ * can be proven by this bounded rule, so they stay reviewable warnings.
+ */
+function safeAdjacentCookieOptions(content: string, matchIndex: number, matchedCall: string): boolean {
+  const arg = /,\s*([A-Za-z_$][\w$]*)\s*\)$/u.exec(matchedCall);
+  if (!arg) return false;
+  const prefix = content.slice(Math.max(0, matchIndex - 450), matchIndex);
+  const declaration = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*\{([^{}]{0,260})\}\s*;\s*$/u.exec(prefix);
+  if (!declaration || declaration[1] !== arg[1]) return false;
+  const object = declaration[2];
+  if (/\.\.\.|\b(?:get|set)\s+[A-Za-z_$]/u.test(object)) return false;
+  return /\bhttpOnly\s*:\s*true\b/iu.test(object);
+}
+
 function regexFindings(
   files: RepositoryFile[],
   rule: { id: string; severity: ExtendedFinding["severity"]; title: string; description: string; pattern: RegExp; extensions?: RegExp },
@@ -44,7 +73,12 @@ function regexFindings(
       : file.content;
     for (const match of matchingContent.matchAll(rule.pattern)) {
       // Explicit HttpOnly:true is not evidence of a missing cookie protection.
-      if (rule.id === "cookie_missing_httponly" && /\bhttpOnly\s*:\s*true\b/i.test(match[0])) continue;
+      if (rule.id === "cookie_missing_httponly" &&
+          (/\bhttpOnly\s*:\s*true\b/i.test(match[0]) ||
+           safeAdjacentCookieOptions(file.content, match.index ?? 0, match[0]))) continue;
+      // A quoted regression-test payload is text, not an executed eval/DOM write.
+      if ((rule.id === "eval_usage" || rule.id === "innerhtml_assignment") &&
+          inSimpleLiteralInitializer(file.content, match.index ?? 0)) continue;
       const line = lineAt(file.content, match.index ?? 0);
       const source = file.content.split("\n")[line - 1] ?? "";
       // PEM key delimiters begin with dashes; they are not SQL comments.
