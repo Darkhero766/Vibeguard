@@ -4,7 +4,7 @@ import { SECURITY_CHECK_CATALOG } from "./securityCheckCatalog";
 
 type RepoFile = { path: string; content: string };
 
-// The catalog is the source of truth. The 8 core checks live in scanner.ts;
+// The catalog is the source of truth. Core checks live in apiScanner.ts;
 // the remaining catalog entries are implemented by extendedScanner.ts.
 export const EXTENDED_RULE_COUNT = SECURITY_CHECK_CATALOG.filter(
   (check) => check.engine === "extended",
@@ -113,6 +113,23 @@ function contextualSeverity(finding: ExtendedFinding, files: RepoFile[]): Extend
       ...finding, severity: "Low",
       description: finding.description + " Located in test/fixture code; verify production reachability before escalating.",
     };
+  }
+  if (finding.check === "dangerous_html") {
+    const source = files.find(f => f.path === finding.filePath)?.content ?? "";
+    const lines = source.split("\n");
+    const near = lines.slice(Math.max(0, finding.line - 4), finding.line).join("\n");
+    const output = lines.slice(Math.max(0, finding.line - 1), finding.line + 22).join("\n");
+    // CSS generated from chart themes is not automatically an exploitable
+    // HTML XSS, but dynamic config may still be CSS/HTML injection.
+    if (/<style\b/i.test(near) &&
+        /\bObject\.entries\s*\(\s*THEMES\s*\)/.test(output) &&
+        /\bcolorConfig\b/.test(output)) {
+      return {
+        ...finding, severity: "Medium",
+        title: "Chart component inserts dynamic CSS through dangerouslySetInnerHTML",
+        description: "A chart style element generates CSS from configuration. Verify the chart id, variable names and theme color values cannot contain untrusted CSS or HTML; the source pattern alone does not prove XSS.",
+      };
+    }
   }
   if (finding.check !== "weak_hash") return finding;
   const file = files.find(f => f.path === finding.filePath);

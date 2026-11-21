@@ -157,3 +157,29 @@ test('source collector bundles both actual API-core and extended-v2 implementati
   assert.ok(engines.scanApiFiles(cases).some(f => f.check === 'unauthenticated_write'));
   assert.ok(engines.scanExtendedFilesV2(cases).some(f => f.check === 'weak_random'));
 });
+
+test('dynamic chart CSS is reviewed as Medium without asserting proven HTML XSS',()=>{
+  const css=[
+    'const ChartStyle=({id,config})=>{',
+    'const colorConfig=Object.entries(config);',
+    'return (<style',
+    'dangerouslySetInnerHTML={{',
+    '__html: Object.entries(THEMES).map(([theme,prefix])=>',
+    'prefix + " { " + colorConfig.map(([key,item])=>"--color-" + key + ":" + item.color).join(" ") + " }").join("\\n")',
+    '}} />);',
+    '};',
+  ].join('\n');
+  const findings=scan(css,'src/components/ui/chart.tsx').filter(f=>f.check==='dangerous_html');
+  assert.equal(findings.length,1);
+  assert.equal(findings[0].severity,'Medium');
+  assert.match(findings[0].description,/does not prove XSS/);
+});
+
+test('untrusted HTML is still High; customer ids are not auth tokens',()=>{
+  const html='return <div dangerouslySetInnerHTML={{__html: userInput}} />;';
+  assert.equal(scan(html,'src/components/View.tsx').find(f=>f.check==='dangerous_html')?.severity,'High');
+  const generated='const customerId = "cus-" + Date.now() + "-" + Math.random().toString(36).slice(2,7);';
+  assert.equal(scan(generated,'src/pages/sales-checkout.tsx').filter(f=>f.check==='weak_random').length,0);
+  const secret='const resetToken = Math.random().toString(36);';
+  assert.equal(scan(secret,'src/auth/reset.ts').filter(f=>f.check==='weak_random').length,1);
+});
