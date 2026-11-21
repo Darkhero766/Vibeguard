@@ -141,3 +141,19 @@ test('admin object password and moving GitHub tarball are detected on in-scope s
   const depFindings = scan(manifest, 'package.json').filter(f => f.check === 'git_dependency');
   assert.deepEqual(depFindings.map(f => f.line), [3]);
 });
+
+
+test('source collector bundles both actual API-core and extended-v2 implementations', async () => {
+  const { loadScanner } = await import('./collect-vibesane-public-evidence.mjs');
+  const engines = await loadScanner();
+  assert.equal(typeof engines.scanApiFiles, 'function');
+  assert.equal(typeof engines.scanExtendedFilesV2, 'function');
+  const cases = [
+    { path: 'app/api/orders/route.ts',
+      content: "export async function POST() { await db.from('orders').insert({ paid: true }); }" },
+    { path: 'src/users.ts',
+      content: "const users = [{ name: 'admin', password: Math.random().toString(32) }];" },
+  ];
+  assert.ok(engines.scanApiFiles(cases).some(f => f.check === 'unauthenticated_write'));
+  assert.ok(engines.scanExtendedFilesV2(cases).some(f => f.check === 'weak_random'));
+});
