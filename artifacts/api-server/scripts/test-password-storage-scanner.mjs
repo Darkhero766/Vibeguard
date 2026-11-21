@@ -238,3 +238,27 @@ test('plaintext password finding anchors the source property rather than object 
   assert.equal(findings.length, 1);
   assert.equal(findings[0].line, 6);
 });
+
+
+test('Math.random-derived admin password in an object is warned, ordinary random data is not', () => {
+  const content = [
+    "const users = [{ name: 'admin', password: Math.random().toString(32), canDelete: true }];",
+    "const gameState = { randomSeed: Math.random() };",
+    "const strong = { password: crypto.randomBytes(32).toString('hex') };",
+  ].join('\n');
+  const findings = scanExtendedFiles([{ path: 'routes/index.js', content }])
+    .filter(f => f.check === 'weak_random');
+  assert.deepEqual(findings.map(f => f.line), [1]);
+});
+
+test('unpinned branch tarballs in package.json are warned, pinned commits are not', () => {
+  const manifest = JSON.stringify({ dependencies: {
+    "unsafe": "https://github.com/binarymist/grunt-if/tarball/master",
+    "alsoUnsafe": "https://github.com/example/mutable/tarball/main",
+    "pinned": "https://github.com/example/pinned/tarball/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  } }, null, 2);
+  const findings = scanExtendedFiles([{ path: 'package.json', content: manifest }])
+    .filter(f => f.check === 'git_dependency');
+  assert.equal(findings.length, 2);
+  assert.deepEqual(findings.map(f => f.line), [3, 4]);
+});
