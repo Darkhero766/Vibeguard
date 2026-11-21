@@ -145,6 +145,30 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
     }
   }
 
+  // Detect hardcoded authentication constants, including short passwords
+  // actually compared to requester input. Never emit credential literals.
+  for (const file of files.filter(f => /\.[cm]?[jt]sx?$/i.test(f.path))) {
+    const source = file.content.replace(/\/\*[\s\S]*?\*\//g,
+      block => block.replace(/[^\n]/g, " "));
+    const staticAuth = /\b(?:const|let|var)\s+([A-Z][A-Z0-9_]*(?:AUTH_TOKEN|API_TOKEN|API_KEY|PASS|PASSWORD|SECRET|AUTH_KEY))\s*=\s*(['"])([^'"\r\n]{4,128})\2/gi;
+    for (const match of source.matchAll(staticAuth)) {
+      const identifier = match[1];
+      const literal = match[3].trim();
+      if (/^(?:example|placeholder|changeme|replace|your_|dummy|fake|not_a_secret)/i.test(literal)) continue;
+      const compared = new RegExp("(?:===|!==|==|!=)\\s*" + identifier + "\\b|\\b" +
+        identifier + "\\s*(?:===|!==|==|!=)").test(source.slice((match.index ?? 0) + match[0].length));
+      if (literal.length < 16 && !compared) continue;
+      const line = lineAt(file.content, match.index ?? 0);
+      findings.push(finding(
+        "static-auth-" + file.path + "-" + line,
+        "High",
+        "Authentication credential is hardcoded in source",
+        "An authentication token, key or password is assigned a literal in source. Review whether this is an active credential or non-production example; remove active credentials and rotate them without printing them in findings.",
+        file.path, line, "hardcoded_secret",
+      ));
+    }
+  }
+
   for (const file of files.filter((f) => /(^|\/)\.env(?:\.(?!(?:example|sample|template)$)[\w-]+)?$/i.test(f.path))) {
     findings.push(finding(`env-${file.path}`, "Critical", "A .env file is committed to the repository", "Environment files can expose API keys, database passwords, and service credentials.", file.path, 1, "committed_env_file"));
   }
