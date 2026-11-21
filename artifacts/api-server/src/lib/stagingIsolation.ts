@@ -21,6 +21,15 @@ export function assertStagingIsolation(env: StagingIsolationEnv = process.env): 
     fail("expected staging Supabase project ref is required");
   }
 
+  // This staging deployment is pinned to the already approved, isolated
+  // Supabase project. Matching API and DB URLs against an arbitrary environment
+  // value is not enough: both could otherwise accidentally point at production.
+  // Project refs are public identifiers, not credentials.
+  const approvedStagingProject = "aojmjxxmsgnipbbrtvlz";
+  if (expected !== approvedStagingProject) {
+    fail("expected staging Supabase project ref does not match approved staging deployment");
+  }
+
   let api: URL;
   let database: URL;
   try {
