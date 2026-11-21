@@ -83,6 +83,8 @@ jobs:
           node --test artifacts/api-server/scripts/test-vibesane-solo-review-prep.mjs
           node --test artifacts/api-server/scripts/test-vibesane-solo-fixtures.mjs
           node --test artifacts/api-server/scripts/test-phase2-critical-context.mjs
+          node --test artifacts/api-server/scripts/test-phase2-external-missed-class-regressions.mjs
+          node --test artifacts/api-server/scripts/test-vibesane-realvuln8.mjs
           node artifacts/api-server/scripts/benchmark-vibesane-solo-fixtures.mjs
           node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json --output-dir /tmp/vibesane-benchmark-dry-run --all --dry-run > /dev/null
           node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --score artifacts/api-server/benchmarks/real-world/pilot-manifest.v1.json artifacts/api-server/benchmarks/real-world/scans.empty.v1.json artifacts/api-server/benchmarks/real-world/reviews.empty.v1.json > /dev/null
