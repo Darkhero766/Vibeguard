@@ -109,6 +109,18 @@ Output is local, per-repository metadata-only scan JSON, plus `unreviewed-summar
 
 [Engineering gate issue #62](https://github.com/Darkhero766/Vibeguard/issues/62) remains **open** until source scans, human review and security signoff are actually evidenced. The manifest and automated machinery are preparation, not the final release gate. Do not merge PR #61 or deploy to production based on these changes.
 
+## Public-source calibration snapshot (21 November 2026)
+
+First complete opt-in GitHub Actions run: [source collection #44861632644](https://github.com/Darkhero766/Vibeguard/actions/runs/44861632644) at ruleset `4a89a6d858792a1b8f9cc9cf48af56401a0437b7`.
+
+- Source completeness: **30/30** pinned projects; **364** eligible files, **0** incomplete; the 30 scopes include two reader-eligible whole-repo scans and 28 explicitly bounded subsets.
+- Raw, unadjudicated EXTENDED V2 alerts: **116** (2 Critical, 12 High, 29 Medium, 73 Low); **95** were in Express tests/examples, making test-code stratification crucial.
+- Per-project scanner/collection time median **541 ms**, p95 **4,120 ms**; these are not full application audit timings.
+- Formal true/false positives, missed true vulnerabilities and severity accuracy remain **UNVERIFIED**: reviewed alerts 0, separately curated targets 0, precision=null, curated recall=null.
+- Source review found candidate false positives from *quoted* XSS test fixtures and cookie options passed as a directly adjacent constant; identified a candidate missed Math.random-based CSRF token argument. These are calibration hypotheses backed by narrow tests, NOT independent human labels.
+
+**Data-leak and holdout rules:** Only finding metadata was retained; no downloaded source or token values were committed. These 30 selected sources were inspected during rule refinement and therefore constitute a *development calibration set*, **not an untouched independent final holdout**. The final Phase 2 release gate still requires a separate frozen holdout, manual source inspection and adjudications, false-negative target curation, severity-context review, and an independently replicated scoring report. The opt-in collector does not run on normal CI pushes.
+
 ## Milestones and release protections
 
 Validate the original five-source pilot first, then collect and adjudicate the 30 pinned candidate sources. Investigate runtime, GitHub rate limits and partial coverage. A 30-source selection is available, but independent security adjudication and evidence from real scans are not yet complete. Resolve reviewer disagreements, keep final holdout cases genuinely untouched, then compare results by rule and severity with denominator counts, duplicates, abstentions, scoped recall and p50/p95 times.
