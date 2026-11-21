@@ -31,7 +31,8 @@ export const syntheticCases=[
     source:'SYNTHETIC_TEST_VALUE=replace_with_your_own_value'},
 ];
 
-export async function runSyntheticCaseBenchmark(scanner=await loadScanner()){
+export async function runSyntheticCaseBenchmark(scanner){
+  scanner ??= await loadScanner();
   const results=[];
   for(const item of syntheticCases){
     const files=[{path:item.path,content:item.source}];
