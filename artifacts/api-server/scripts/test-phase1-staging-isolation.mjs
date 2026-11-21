@@ -94,3 +94,22 @@ test('production and other environments preserve historical startup behavior', (
   }));
   assert.doesNotThrow(() => assertStagingIsolation({}));
 });
+
+test('staging refuses production even when every URL and expected project pin agrees on production', () => {
+  reject({
+    VIBESANE_STAGING_SUPABASE_REF: productionRef,
+    SUPABASE_URL: 'https://' + productionRef + '.supabase.co',
+    SUPABASE_DB_URL: 'postgresql://postgres.' + productionRef +
+      ':synthetic-test-only@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres',
+  }, /approved staging deployment/);
+});
+
+test('staging rejects an arbitrary second Supabase project despite mutually matching URLs', () => {
+  const other = 'bbbbbbbbbbbbbbbbbbbb';
+  reject({
+    VIBESANE_STAGING_SUPABASE_REF: other,
+    SUPABASE_URL: 'https://' + other + '.supabase.co',
+    SUPABASE_DB_URL: 'postgresql://postgres.' + other +
+      ':synthetic-test-only@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres',
+  }, /approved staging deployment/);
+});
