@@ -213,6 +213,19 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
       'Missing account binding must rollback and remain retriable');
     assert.equal(usage.get(userId)?.subscription,'synthetic-subscription-1');
 
+    // Dodo can schedule cancellation at the end of a paid period.
+    // subscription.updated reflects that metadata change; access remains
+    // valid until the provider eventually emits an effective termination.
+    const scheduleCancel={
+      ...payload,type:'subscription.updated',
+      data:{...payload.data,cancel_at_next_billing_date:true,status:'active'},
+    };
+    const scheduled=await send('scheduled-cancel-at-end',true,scheduleCancel);
+    assert.equal(scheduled.status,200);
+    assert.equal(events.get('scheduled-cancel-at-end')?.processed,true);
+    assert.equal(usage.get(userId)?.plan,'pro',
+      'Scheduling future cancellation cannot revoke current paid-through Pro');
+
     const cancelled=(subscriptionId)=>({
       ...payload,type:'subscription.cancelled',
       data:{...payload.data,subscription_id:subscriptionId},

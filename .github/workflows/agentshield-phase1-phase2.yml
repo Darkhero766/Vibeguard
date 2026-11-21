@@ -212,7 +212,7 @@ jobs:
         run: |
           node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs \
             --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json \
-            --output-dir /tmp/vibesane-phase2-public-source-evidence --all
+            --output-dir /tmp/vibesane-phase2-public-source-evidence --all --engine api_core_plus_extended_v2
       - name: Generate separate blinded and candidate review packets (metadata only)
         run: |
           mkdir -p /tmp/vibesane-phase2-review-packets
