@@ -153,6 +153,9 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
     const staticAuth = /\b(?:const|let|var)\s+([A-Z][A-Z0-9_]*(?:AUTH_TOKEN|API_TOKEN|API_KEY|PASS|PASSWORD|SECRET|AUTH_KEY))\s*=\s*(['"])([^'"\r\n]{4,128})\2/gi;
     for (const match of source.matchAll(staticAuth)) {
       const identifier = match[1];
+      // JWT literals already have a dedicated detector and a narrow repair
+      // verification contract. Avoid a second generic finding for the same key.
+      if (/^(?:JWT_SECRET|JWT_SIGNING_KEY)$/.test(identifier)) continue;
       const literal = match[3].trim();
       if (/^(?:example|placeholder|changeme|replace|your_|dummy|fake|not_a_secret)/i.test(literal)) continue;
       const compared = new RegExp("(?:===|!==|==|!=)\\s*" + identifier + "\\b|\\b" +
