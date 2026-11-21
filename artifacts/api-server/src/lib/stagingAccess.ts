@@ -59,6 +59,15 @@ export const stagingAccess: RequestHandler = async (req, res, next) => {
     .split(",")
     .map((s) => s.trim())
     .filter((s) => /^[1-9][0-9]*$/.test(s) && Number.isSafeInteger(Number(s)));
+  // Independently approve the verified repository owner for staging browser
+  // tests without replacing other pre-existing allowlisted testers. This ID
+  // is checked against a fresh staging Supabase Auth response, never client
+  // supplied claims. Absence or malformed configuration does not grant access.
+  const verifiedOwnerGitHubId = (process.env.VIBESANE_STAGING_APPROVED_OWNER_GITHUB_ID ?? "").trim();
+  if (/^[1-9][0-9]*$/.test(verifiedOwnerGitHubId) &&
+      Number.isSafeInteger(Number(verifiedOwnerGitHubId))) {
+    allowedGitHubIds.push(verifiedOwnerGitHubId);
+  }
   const allowedUserIds = (process.env.VIBESANE_STAGING_ALLOWED_USER_IDS ?? "")
     .split(",")
     .map((s) => s.trim().toLowerCase())

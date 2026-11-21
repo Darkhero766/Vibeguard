@@ -9,6 +9,9 @@ import { apiUrl } from '@/lib/api';
 const PLAN_PRICE = 12;
 const HACKATHON_COUPON = 'HACKATHON60';
 const TERMS_VERSION = '2026-09-14';
+const IS_STAGING = import.meta.env.VITE_DEPLOYMENT_ENV === 'staging' ||
+  (typeof window !== 'undefined' &&
+    window.location.hostname === 'vibesane-phase12-staging-web.onrender.com');
 
 export default function CheckoutPage() {
   const [, navigate] = useLocation();
@@ -61,7 +64,12 @@ export default function CheckoutPage() {
       });
 
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.error || 'Unable to start checkout');
+      if (!response.ok) {
+        if (response.status === 403 && data?.error === 'Staging access restricted') {
+          throw new Error('This account is not authorized for the private staging test. Sign in with the approved GitHub tester account. No payment was initiated.');
+        }
+        throw new Error(data?.error || 'Unable to start checkout');
+      }
 
       if (data.free) {
         await refreshUsage();
@@ -73,7 +81,9 @@ export default function CheckoutPage() {
       if (!data.checkout_url) throw new Error('Checkout URL was not returned by the payment gateway.');
       window.location.href = data.checkout_url;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to start checkout. Please try again.');
+      setMessage(error instanceof TypeError && /fetch/i.test(error.message)
+        ? 'Could not reach the staging API. Please check your connection and retry; no payment was initiated.'
+        : error instanceof Error ? error.message : 'Unable to start checkout. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -102,6 +112,11 @@ export default function CheckoutPage() {
             <p className="mt-3 max-w-xl text-[14px] leading-6 text-muted-foreground">
               Secure hosted checkout. Your Pro access is activated only after the payment system confirms it.
             </p>
+            {IS_STAGING && (
+              <p role="status" className="mt-3 border border-amber-500/40 bg-amber-500/10 p-3 text-[12px] leading-5">
+                Isolated staging checkout — test-mode payments only. Do not enter real card details or use production coupons.
+              </p>
+            )}
           </div>
 
           <div className="vg-rise mt-10 border-2 border-foreground bg-card p-6 sm:p-8">
@@ -201,7 +216,7 @@ export default function CheckoutPage() {
 
             <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
               <span className="inline-flex items-center gap-1.5"><ShieldCheck size={12} /> Dodo secure checkout</span>
-              <span className="inline-flex items-center gap-1.5"><Check size={12} /> Webhook verified</span>
+              <span className="inline-flex items-center gap-1.5"><Check size={12} /> Signed webhook verification</span>
             </div>
           </div>
         </section>

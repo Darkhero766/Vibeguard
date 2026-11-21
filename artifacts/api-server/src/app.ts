@@ -27,8 +27,13 @@ app.use(
     },
   }),
 );
+// Staging denial responses must include the same safe CORS headers as successful
+// API responses; otherwise the browser hides the HTTP 403 as "Failed to fetch".
+// Keep the existing production CORS behavior unchanged.
+app.use(process.env.VIBESANE_DEPLOYMENT_ENV === "staging"
+  ? cors({ origin: "https://vibesane-phase12-staging-web.onrender.com" })
+  : cors());
 app.use(stagingAccess);
-app.use(cors());
 app.use(
   express.json({
     limit: "2mb",

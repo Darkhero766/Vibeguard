@@ -150,3 +150,60 @@ test('staging browser sessions require server-verified GitHub identity on tester
     }
   }
 });
+
+test('separate verified staging owner allowlist preserves strict identity and existing testers', async () => {
+  const keys=['VIBESANE_DEPLOYMENT_ENV','VIBESANE_STAGING_ACCESS_KEY',
+    'VIBESANE_STAGING_ALLOWED_GITHUB_IDS','VIBESANE_STAGING_ALLOWED_USER_IDS',
+    'VIBESANE_STAGING_APPROVED_OWNER_GITHUB_ID','SUPABASE_URL','SUPABASE_ANON_KEY'];
+  const prior=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
+  try {
+    process.env.VIBESANE_DEPLOYMENT_ENV='staging';
+    process.env.VIBESANE_STAGING_ACCESS_KEY='a'.repeat(64);
+    process.env.VIBESANE_STAGING_ALLOWED_GITHUB_IDS='';
+    process.env.VIBESANE_STAGING_ALLOWED_USER_IDS='';
+    process.env.VIBESANE_STAGING_APPROVED_OWNER_GITHUB_ID=allowlistedGitHubId;
+    process.env.SUPABASE_URL='https://isolated-test.supabase.co';
+    process.env.SUPABASE_ANON_KEY='staging-publishable-test-key';
+    const owner={id:'owner-uuid',identities:[{provider:'github',provider_id:allowlistedGitHubId}]};
+    assert.equal((await run({authorization:'owner.jwt',user:owner})).nextCalls,1);
+    assert.equal((await run({authorization:'stranger.jwt',
+      user:{id:'other-uuid',identities:[{provider:'github',provider_id:'123456'}]}})).res.code,403);
+    assert.equal((await run({authorization:'metadata-forgery.jwt',
+      user:{id:'other-uuid',user_metadata:{provider_id:allowlistedGitHubId}}})).res.code,403);
+    assert.equal((await run({authorization:'expired.jwt',user:owner,responseOk:false})).res.code,403);
+    process.env.VIBESANE_STAGING_APPROVED_OWNER_GITHUB_ID='not-an-id';
+    assert.equal((await run({authorization:'owner.jwt',user:owner})).res.code,403);
+  } finally {
+    for(const [key,value] of Object.entries(prior))
+      if(value===undefined)delete process.env[key];else process.env[key]=value;
+  }
+});
+
+test('staging app handles CORS before returning 403 so browsers see access errors',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const appSource=readFileSync(path.join(dir,'../src/app.ts'),'utf8');
+  assert.ok(appSource.indexOf('app.use(stagingAccess)')>appSource.indexOf('app.use(process.env.VIBESANE_DEPLOYMENT_ENV'),
+    'CORS must run before protected-route gate');
+  const {createRequire}=await import('node:module');
+  const require=createRequire(import.meta.url);
+  const express=require('express');
+  const cors=require('cors');
+  const app=express();
+  app.use(cors({origin:'https://vibesane-phase12-staging-web.onrender.com'}));
+  app.use((_req,res)=>res.status(403).json({error:'Staging access restricted'}));
+  const server=await new Promise(resolve=>{
+    const s=app.listen(0,'127.0.0.1',()=>resolve(s));
+  });
+  try {
+    const response=await fetch('http://127.0.0.1:'+server.address().port+'/api/checkout',{
+      method:'POST',
+      headers:{Origin:'https://vibesane-phase12-staging-web.onrender.com',
+        'Content-Type':'application/json'},
+      body:'{}',
+    });
+    assert.equal(response.status,403);
+    assert.equal(response.headers.get('access-control-allow-origin'),
+      'https://vibesane-phase12-staging-web.onrender.com');
+    assert.equal((await response.json()).error,'Staging access restricted');
+  }finally{await new Promise(resolve=>server.close(resolve));}
+});
