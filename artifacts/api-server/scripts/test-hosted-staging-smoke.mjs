@@ -94,6 +94,24 @@ try{
   assert.match(auth.body,/name=["']robots["']\s+content=["']noindex/i);
   results.push({check:'staging_frontend_auth_route',status:'pass'});
 
+  // Regression for the mobile Get Pro -> /checkout static-host 404. This must
+  // check hosted Render routing, not only a locally generated HTML artifact.
+  // Redirect following is intentional: Render may normalize directory paths.
+  for (const [route, label] of [
+    ['/pricing', 'staging_frontend_pricing_route'],
+    ['/checkout', 'staging_frontend_checkout_route'],
+    ['/audit/report', 'staging_frontend_nested_route'],
+  ]) {
+    const page=await getWebsite(route);
+    assert.equal(page.response.status,200,route+' must not become Render Not Found');
+    assert.match(page.body,/<html/i,route+' must serve an HTML document');
+    assert.match(page.body,/name=["']robots["']\\s+content=["']noindex/i,
+      route+' must remain excluded from indexes in staging');
+    assert.match(page.body,/<div id=["']root["']/i,
+      route+' must provide the React application mount');
+    results.push({check:label,status:'pass'});
+  }
+
   const robots=await getWebsite('/robots.txt');
   assert.equal(robots.response.status,200,'Staging robots rules must be reachable');
   assert.match(robots.body,/Disallow:\s*\//i);
