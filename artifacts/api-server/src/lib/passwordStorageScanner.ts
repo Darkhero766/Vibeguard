@@ -56,7 +56,7 @@ export function scanPotentialPlaintextPasswords(files: SourceFile[]): PasswordSt
       }
       // Anchor evidence on the untransformed password property, not on the
       // opening line of the containing object literal.
-      const propertyOffset = rawMatch[0].search(/\\bpassword\\b/i);
+      const propertyOffset = rawMatch[0].search(/\bpassword\b/i);
       const propertyStart = start + rawMatch.index + Math.max(0, propertyOffset);
       const line = lineAt(file.content, propertyStart);
       findings.push({
