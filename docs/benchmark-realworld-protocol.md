@@ -68,21 +68,21 @@ A score with an empty review file intentionally has **null precision** and **nul
 
 ## 21 November 2026 — 30-repository pinned source selection
 
-The [30-candidate manifest](../artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json) **preserves the five original pilot entries** and adds 25 publicly visible, SPDX-license-verified repositories. Each added source was pinned to a verified 40-hex Git commit; all added declared file paths were checked against that commit's Git tree. It spans 5 deliberately vulnerable applications and 25 unlabeled general-purpose repositories. In total there are 109 declared source paths or whole-repo entries (the number is not a completed scan count).
+The [30-candidate manifest](../artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json) **preserves the five original pilot entries** and adds 25 publicly visible, SPDX-license-verified repositories. Each added source was pinned to a verified 40-hex Git commit; all added declared file paths were checked against that commit's Git tree. It spans 5 deliberately vulnerable applications and 25 unlabeled general-purpose repositories. There are 109 explicitly declared source file paths in bounded subsets, plus two inherited whole-repository scopes; neither number is a completed scan count.
 
-**Selection is not measurement.** None of these new entries has an independent human finding adjudication, and no general precision, recall, true-negative rate or security certification may be claimed from a manifest. Some libraries are security-focused yet not "proven clean"; many scopes are deliberately bounded subsets, not complete apps. The current engine is \`extended_v2_only\`, not every experimental AgentShield detector or a production-equivalent end-to-end audit.
+**Selection is not measurement.** None of these new entries has an independent human finding adjudication, and no general precision, recall, true-negative rate or security certification may be claimed from a manifest. Some libraries are security-focused yet not "proven clean"; many scopes are deliberately bounded subsets, not complete apps. The current engine is `extended_v2_only`, not every experimental AgentShield detector or a production-equivalent end-to-end audit.
 
 ### Offline verification (mandatory in CI)
 
 From the repository checkout, with no network or external source execution:
 
-\`\`\`sh
+```sh
 node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --validate artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json
 node --test artifacts/api-server/scripts/test-vibesane-realworld-runner.mjs
 node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs \
   --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json \
   --output-dir /tmp/vibesane-realworld-evidence --all --dry-run
-\`\`\`
+```
 
 The CI step verifies schema, distinct pins, pilot continuity, metrics invariants, path safety and network-free dry-run. **Standard CI does not fetch the 30 source repositories**, cannot supply manual labels, and must not call this a passed real-world accuracy evaluation.
 
@@ -90,28 +90,28 @@ The CI step verifies schema, distinct pins, pilot continuity, metrics invariants
 
 On a trusted checkout with locked project dependencies installed and no uncommitted scanner changes, use:
 
-\`\`\`sh
+```sh
 node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs \
   --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json \
   --output-dir /tmp/vibesane-realworld-evidence --all
-\`\`\`
+```
 
-Use \`--repo OWNER/REPO\` instead of \`--all\` to validate one candidate. This is a sequential, bounded, read-only public GitHub source analysis (with per-repository timeout); it **never executes fetched code** or uses the app's Supabase, production, billing, or scan quota. It derives \`rulesetCommit\` from local \`git rev-parse HEAD\` and refuses dirty scanner paths. The collector itself pins the source tree and rejects private repositories; missing, omitted, truncated, or oversized inputs remain incomplete. API limits and source availability can prevent scans from completing.
+Use `--repo OWNER/REPO` instead of `--all` to validate one candidate. This is a sequential, bounded, read-only public GitHub source analysis (with per-repository timeout); it **never executes fetched code** or uses the app's Supabase, production, billing, or scan quota. It derives `rulesetCommit` from local `git rev-parse HEAD` and refuses dirty scanner paths. The collector itself pins the source tree and rejects private repositories; missing, omitted, truncated, or oversized inputs remain incomplete. API limits and source availability can prevent scans from completing.
 
-Output is local, per-repository metadata-only scan JSON, plus \`unreviewed-summary.json\`. Existing matching raw scan records can be reused on retry; mismatched ruleset/source records are rejected. Resolve incomplete artifacts deliberately rather than treating them as zero findings. The runner reports null precision and recall **even when all 30 scans finish**, because no independent review has been performed.
+Output is local, per-repository metadata-only scan JSON, plus `unreviewed-summary.json`. Existing matching raw scan records can be reused on retry; mismatched ruleset/source records are rejected. Resolve incomplete artifacts deliberately rather than treating them as zero findings. The runner reports null precision and recall **even when all 30 scans finish**, because no independent review has been performed.
 
 ### Independent reviewer handoff (blocking Phase 2 gate)
 
-1. Have qualified security reviewers independently inspect each pinned source around sampled alert lines and relevant execution paths. Record explicit \`true_positive\`, \`false_positive\`, \`uncertain\`, or \`duplicate\` verdicts and evidence; distinguish lexical risk hints from exploitable flaws. Reconcile conflicts openly.
-2. Separately inspect vulnerabilities that scanners might **miss** and create supported \`expectedTargets\` with exact rule ID, file, start/end lines, reviewer and substantive evidence. Do not derive this list solely from scanner alerts; otherwise measured recall is circular.
+1. Have qualified security reviewers independently inspect each pinned source around sampled alert lines and relevant execution paths. Record explicit `true_positive`, `false_positive`, `uncertain`, or `duplicate` verdicts and evidence; distinguish lexical risk hints from exploitable flaws. Reconcile conflicts openly.
+2. Separately inspect vulnerabilities that scanners might **miss** and create supported `expectedTargets` with exact rule ID, file, start/end lines, reviewer and substantive evidence. Do not derive this list solely from scanner alerts; otherwise measured recall is circular.
 3. Record whether alert severity is contextually appropriate, note supported vs unsupported vulnerability classes, and preserve reviewer provenance. Never infer true negatives from general source code or from the project's vulnerable/benign label.
-4. Assemble only the independently reviewed adjudications in a separate reviewer JSON file (see v1 scorer schema and existing regression fixtures). Score using \`--score MANIFEST SCANS REVIEWS\`; include denominator counts, complete-source coverage, review coverage, exclusions, per-rule metrics, and uncertainty in any internal result. Human expertise and traceable evidence, not AI-generated labels, are required for an independent verification claim.
+4. Assemble only the independently reviewed adjudications in a separate reviewer JSON file (see v1 scorer schema and existing regression fixtures). Score using `--score MANIFEST SCANS REVIEWS`; include denominator counts, complete-source coverage, review coverage, exclusions, per-rule metrics, and uncertainty in any internal result. Human expertise and traceable evidence, not AI-generated labels, are required for an independent verification claim.
 
 [Engineering gate issue #62](https://github.com/Darkhero766/Vibeguard/issues/62) remains **open** until source scans, human review and security signoff are actually evidenced. The manifest and automated machinery are preparation, not the final release gate. Do not merge PR #61 or deploy to production based on these changes.
 
 ## Milestones and release protections
 
-First validate this five-source pilot. Investigate runtime, GitHub rate limits and partial coverage. Expand to 30 licensed, pinned and independently adjudicated projects or fixtures with relevant supported JS/TS/Supabase scenarios, real-world benign examples, and enough positive examples to measure recall in specified supported checks. Resolve reviewer disagreements, keep final holdout cases genuinely untouched, then compare results by rule and severity with denominator counts, duplicates, abstentions, scoped recall and p50/p95 times.
+Validate the original five-source pilot first, then collect and adjudicate the 30 pinned candidate sources. Investigate runtime, GitHub rate limits and partial coverage. A 30-source selection is available, but independent security adjudication and evidence from real scans are not yet complete. Resolve reviewer disagreements, keep final holdout cases genuinely untouched, then compare results by rule and severity with denominator counts, duplicates, abstentions, scoped recall and p50/p95 times.
 
 The external collector never runs in standard CI. CI tests the **benchmark machinery** using synthetic local data and validates manifest schema only. This work stays in the Phase 1/2 feature branch and does not authorize production changes, beta launch, autonomous remediation or public accuracy claims.
 
