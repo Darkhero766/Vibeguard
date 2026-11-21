@@ -25,6 +25,8 @@ test('GitHub App linking rejects foreign personal installations and unauthorized
   [11,{id:11,account:{id:orgId,login:'test-organization',type:'Organization'}}],
  ]);
  let permission='admin';
+ let omitAuthIdentity=false;
+ let omitPersistedIdentity=false;
  let verificationCalls=0;
  let saveCount=0;
  let server;
@@ -43,7 +45,11 @@ test('GitHub App linking rejects foreign personal installations and unauthorized
    listInstallationRepos:async()=>[{fullName:'test-organization/safe-project'}],
   };
   globalThis.__GH_OWNERSHIP_DB__={
-   async query(_sql,params){
+   async query(sql,params){
+    if(String(sql).includes('FROM auth.identities')){
+     const id=params[0]===USER_A?idA:params[0]===USER_B?idB:null;
+     return {rows:id && !omitPersistedIdentity?[{provider_id:String(id)}]:[]};
+    }
     return {rows:params[0]===USER_A?[{encrypted_token:'synthetic-no-secret'}]:[]};
    },
   };
@@ -55,7 +61,9 @@ test('GitHub App linking rejects foreign personal installations and unauthorized
     const isB=header===['Bearer','fixture-jwt-B'].join(' ');
     const id=isA?USER_A:isB?USER_B:null;
     return new Response(id?JSON.stringify({
-     id, identities:[{provider:'github',provider_id:String(isA?idA:idB)}],
+     id,
+     identities: omitAuthIdentity?[]:[{provider:'github',provider_id:String(isA?idA:idB)}],
+     user_metadata:{provider_id:String(isA?idB:idA)},
     }):'unauthorized',{status:id?200:401,headers:{'Content-Type':'application/json'}});
    }
    if(url==='https://api.github.com/user'){
@@ -119,6 +127,20 @@ test('GitHub App linking rejects foreign personal installations and unauthorized
 
   assert.equal((await send('/github/app/install-url','A')).status,200);
   assert.equal((await send('/github/app/install-url','invalid')).status,401);
+
+  // Staging Auth can omit inline GitHub provider_id even when auth.identities
+  // has a confirmed GitHub identity for the same independently validated JWT.
+  // The route may fall back only to the Supabase-owned row for that user.
+  omitAuthIdentity=true;
+  assert.equal((await send('/github/app/install-url','A')).status,200,
+    'Trusted database GitHub identity must allow install URL when Auth /user omits it');
+  assert.equal((await send('/github/app/install-url','B')).status,200,
+    'Identity fallback is scoped to each separately verified Auth owner');
+  omitPersistedIdentity=true;
+  assert.equal((await send('/github/app/install-url','A')).status,403,
+    'No verified inline or database identity must deny App installation');
+  omitPersistedIdentity=false;
+  omitAuthIdentity=false;
   assert.equal((await send('/github/app/complete','A','POST',{
    installationId:9,state:'signed-fixture-state',
   })).status,403,'Cannot link a GitHub installation owned by another user');
@@ -129,6 +151,13 @@ test('GitHub App linking rejects foreign personal installations and unauthorized
   assert.equal((await send('/github/app/complete','A','POST',{
    installationId:10,state:'tampered',
   })).status,403);
+  omitAuthIdentity=true;
+  assert.equal((await send('/github/app/complete','A','POST',{
+   installationId:10,state:'signed-fixture-state',
+  })).status,200,'App completion must support trusted DB identity fallback');
+  assert.equal((await send('/github/app/repos','A')).status,200,
+    'Linked repos must use verified DB identity for authorized owner');
+  omitAuthIdentity=false;
   assert.equal((await send('/github/app/complete','A','POST',{
    installationId:10,state:'signed-fixture-state',
   })).status,200,'Matching Supabase/GitHub identity may link own install');

@@ -1,23 +1,51 @@
 import { Router } from "express";
+import { pool } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { createInstallState, getAppSlug, getInstallation, getLinkedInstallationForUser, listInstallationRepos, saveInstallation, verifyInstallState } from "../lib/githubApp";
 import { canClaimGitHubInstallation } from "../lib/githubAppOwnership";
 
+/**
+ * Resolve an App-install identity only from Supabase-controlled auth identities
+ * belonging to the JWT user already verified by requireAuth. Some hosted Auth
+ * /user responses omit provider_id from the inline identities JSON; that
+ * absence must not force a legitimate GitHub OAuth user to connect twice.
+ * Never trust user_metadata, a request header, a browser ID, or a GitHub token
+ * merely posted by an authenticated client.
+ */
+async function resolveVerifiedGitHubId(req: AuthedRequest): Promise<number | undefined> {
+  if (req.githubProviderId) return req.githubProviderId;
+  if (!req.userId) return undefined;
+  const { rows } = await pool.query<{ provider_id: string | number }>(
+    "SELECT provider_id FROM auth.identities WHERE user_id = $1 AND provider = 'github' LIMIT 1",
+    [req.userId],
+  );
+  const value = rows[0]?.provider_id;
+  const text = typeof value === "string" ? value :
+    typeof value === "number" && Number.isSafeInteger(value) ? String(value) : "";
+  if (!/^[1-9][0-9]*$/.test(text)) return undefined;
+  const parsed = Number(text);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) return undefined;
+  req.githubProviderId = parsed;
+  return parsed;
+}
+
 const router = Router();
 
 router.get("/github/app/install-url", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
-  if (!req.githubProviderId) {
-    res.status(403).json({ error: "Connect your GitHub identity before installing the App" });
-    return;
-  }
   try {
+    if (!await resolveVerifiedGitHubId(req)) {
+      res.status(403).json({ error: "Sign in with GitHub on staging before installing the App" });
+      return;
+    }
     const slug = await getAppSlug();
     const state = createInstallState(req.userId!);
     const installUrl = `https://github.com/apps/${encodeURIComponent(slug)}/installations/new?state=${encodeURIComponent(state)}`;
+    res.setHeader("Cache-Control", "no-store");
     res.json({ installUrl });
-  } catch (error) {
-    req.log.error({ err: error }, "Could not create GitHub App install URL");
-    res.status(500).json({ error: error instanceof Error ? error.message : "Could not start GitHub connection" });
+  } catch {
+    // Do not leak GitHub App keys, installation state or upstream error bodies.
+    req.log.error("GitHub App installation link temporarily unavailable");
+    res.status(503).json({ error: "GitHub App installation is temporarily unavailable" });
   }
 });
 
@@ -42,7 +70,8 @@ router.post("/github/app/complete", requireAuth, async (req: AuthedRequest, res)
       res.status(502).json({ error: "GitHub installation did not include account information" });
       return;
     }
-    if (!account.type || !(await canClaimGitHubInstallation(req.userId!, req.githubProviderId, {
+    const verifiedGitHubId = await resolveVerifiedGitHubId(req);
+    if (!account.type || !(await canClaimGitHubInstallation(req.userId!, verifiedGitHubId, {
       id: account.id, login: account.login, type: account.type,
     }))) {
       res.status(403).json({ error: "GitHub installation account ownership could not be verified" });
@@ -53,7 +82,7 @@ router.post("/github/app/complete", requireAuth, async (req: AuthedRequest, res)
     res.json({ ok: true, account: { login: account.login, type: account.type ?? "User" }, repositories });
   } catch (error) {
     req.log.error({ err: error, installationId }, "Could not complete GitHub App installation");
-    res.status(502).json({ error: error instanceof Error ? error.message : "Could not complete GitHub connection" });
+    res.status(502).json({ error: "Could not complete GitHub connection" });
   }
 });
 
@@ -64,7 +93,8 @@ router.get("/github/app/repos", requireAuth, async (req: AuthedRequest, res): Pr
       res.status(404).json({ error: "No GitHub App installation found" });
       return;
     }
-    if (!(await canClaimGitHubInstallation(req.userId!, req.githubProviderId, linked.account))) {
+    const verifiedGitHubId = await resolveVerifiedGitHubId(req);
+    if (!(await canClaimGitHubInstallation(req.userId!, verifiedGitHubId, linked.account))) {
       res.status(403).json({ error: "GitHub account ownership must be reverified" });
       return;
     }
@@ -74,7 +104,7 @@ router.get("/github/app/repos", requireAuth, async (req: AuthedRequest, res): Pr
     res.json(repositories);
   } catch (error) {
     req.log.error({ err: error }, "Could not list GitHub App repositories");
-    res.status(502).json({ error: error instanceof Error ? error.message : "Could not list GitHub repositories" });
+    res.status(502).json({ error: "Could not list GitHub repositories" });
   }
 });
 
