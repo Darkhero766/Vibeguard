@@ -25,15 +25,19 @@ const MAX_FILE_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 12_000_000;
 
 function argsMap(argv) {
-  if (argv.length !== 6) throw new Error('Usage: --manifest PATH --repo OWNER/REPO --output PATH');
+  if (![6, 8].includes(argv.length)) throw new Error('Usage: --manifest PATH --repo OWNER/REPO --output PATH [--engine extended_v2_only|api_core_plus_extended_v2]');
   const values = new Map();
   for (let i = 0; i < argv.length; i += 2) {
-    if (!['--manifest', '--repo', '--output'].includes(argv[i]) || values.has(argv[i]) || !argv[i + 1]) {
+    if (!['--manifest', '--repo', '--output', '--engine'].includes(argv[i]) || values.has(argv[i]) || !argv[i + 1]) {
       throw new Error('Only --manifest, --repo and --output are supported once each');
     }
     values.set(argv[i], argv[i + 1]);
   }
-  if (values.size !== 3) throw new Error('Missing required collector arguments');
+  if (!values.has('--manifest') || !values.has('--repo') || !values.has('--output') ||
+      values.size !== (argv.length / 2)) throw new Error('Missing required collector arguments');
+  if (values.has('--engine') && !['extended_v2_only', 'api_core_plus_extended_v2'].includes(values.get('--engine'))) {
+    throw new Error('Unsupported explicit scanner engine');
+  }
   return values;
 }
 
@@ -41,6 +45,7 @@ async function loadScanner() {
   const entryPoints = [
     path.join(dirname, '../src/lib/extendedScannerV2.ts'),
     path.join(dirname, '../src/lib/githubRepoReader.ts'),
+    path.join(dirname, '../src/lib/apiScanner.ts'),
   ];
   const modules = await Promise.all(entryPoints.map(async entry => {
     const built = await build({
@@ -121,6 +126,7 @@ async function main() {
   const cli = argsMap(process.argv.slice(2));
   const manifest = JSON.parse(readFileSync(cli.get('--manifest'), 'utf8'));
   validateManifest(manifest);
+  const engine = cli.get('--engine') || 'extended_v2_only';
   const project = manifest.projects.find(p => p.repo === cli.get('--repo'));
   if (!project) throw new Error('Repo not in the pinned public benchmark manifest');
   await requirePublicRepository(project);
@@ -137,16 +143,30 @@ async function main() {
     scanner.readRepositoryFiles(scopedUrl, token),
   ]);
   const coverage = evaluateCoverage(project, tree, scanner.shouldRead, source.files);
-  const findings = scanner.scanExtendedFilesV2(source.files).map(f => ({
+  // This combined engine runs the existing API-core and extended V2 rules on
+  // exactly the same immutable source files, without a clone or remote execution.
+  // It is a closer core-rule approximation; not the product's hosted checkout,
+  // experimental AST/taint pipeline, UI, quota or AI review path.
+  const raw = engine === 'api_core_plus_extended_v2'
+    ? [...scanner.scanApiFiles(source.files), ...scanner.scanExtendedFilesV2(source.files)]
+    : scanner.scanExtendedFilesV2(source.files);
+  const findingKeys = new Set();
+  const findings = raw.map(f => ({
     ruleId: f.check, severity: f.severity, filePath: f.filePath, line: f.line,
-  }));
+  })).filter(f => {
+    const key = JSON.stringify([f.ruleId, f.filePath, f.line]);
+    if (findingKeys.has(key)) return false;
+    findingKeys.add(key);
+    return true;
+  });
   const report = {
     schemaVersion: 1,
     projects: [{
       repo: project.repo, commit: project.commit,
       rulesetCommit: process.env.VIBESANE_RULESET_SHA || 'unknown',
       status: coverage.complete ? 'complete' : 'incomplete',
-      engine: 'extended_v2_only',
+      engine,
+      fullProductionParity: false,
       filesScanned: source.files.length,
       scannedFiles: source.files.map(f => f.path).sort(),
       sourceLinesScanned: source.files.reduce((sum, f) => sum + f.content.split('\n').length, 0),
@@ -161,7 +181,7 @@ async function main() {
   writeFileSync(cli.get('--output'), JSON.stringify(report, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
   process.stdout.write(JSON.stringify({
     status: report.projects[0].status, repo: project.repo,
-    scanned: source.files.length, findings: findings.length,
+    engine, scanned: source.files.length, findings: findings.length,
     coverage, outputCreated: true, externalCodeExecuted: false,
   }) + '\n');
 }
