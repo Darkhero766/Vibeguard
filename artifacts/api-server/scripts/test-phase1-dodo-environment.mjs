@@ -38,3 +38,36 @@ test('staging Dodo routes fail closed unless explicitly configured for test mode
     else process.env.DODO_PAYMENTS_ENVIRONMENT=priorMode;
   }
 });
+
+test('checkout return origin is pinned to isolated staging, never production',async()=>{
+  const built=await build({
+    entryPoints:[path.join(dir,'../src/lib/dodoEnvironment.ts')],
+    bundle:true,format:'esm',platform:'node',write:false,target:'node20',logLevel:'silent',
+  });
+  const mod=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].contents).toString('base64'));
+  const stage='https://vibesane-phase12-staging-web.onrender.com';
+  assert.equal(mod.dodoCheckoutReturnOrigin({VIBESANE_DEPLOYMENT_ENV:'staging'}),stage);
+  assert.equal(mod.dodoCheckoutReturnOrigin({VIBESANE_DEPLOYMENT_ENV:'staging',VITE_APP_URL:stage+'/'}),stage);
+  for(const value of ['https://vibesane.app','http://vibesane-phase12-staging-web.onrender.com','https://attacker.example','https://vibesane-phase12-staging-web.onrender.com.evil.test']) {
+    assert.throws(()=>mod.dodoCheckoutReturnOrigin({VIBESANE_DEPLOYMENT_ENV:'staging',VITE_APP_URL:value}),/Unsafe staging checkout return origin/);
+  }
+  assert.equal(mod.dodoCheckoutReturnOrigin({VIBESANE_DEPLOYMENT_ENV:'production'}),'https://vibesane.app');
+  assert.equal(mod.dodoCheckoutReturnOrigin({VIBESANE_DEPLOYMENT_ENV:'production',VITE_APP_URL:'https://vibesane.app'}),'https://vibesane.app');
+});
+
+test('subscription ownership rejects conflicting identity signals and missing identifiers',async()=>{
+  const built=await build({
+    entryPoints:[path.join(dir,'../src/lib/dodoEnvironment.ts')],
+    bundle:true,format:'esm',platform:'node',write:false,target:'node20',logLevel:'silent',
+  });
+  const {dodoSubscriptionBelongsToAccount:owned}=await import('data:text/javascript;base64,'+
+    Buffer.from(built.outputFiles[0].contents).toString('base64'));
+  const base={userId:'account-1',accountEmail:'owner@example.invalid',metadataUserId:'account-1',customerEmail:'owner@example.invalid'};
+  assert.equal(owned(base),true);
+  assert.equal(owned({...base,metadataUserId:'account-2'}),false);
+  assert.equal(owned({...base,customerEmail:'different@example.invalid'}),false);
+  assert.equal(owned({...base,metadataUserId:null,customerEmail:''}),false);
+  assert.equal(owned({...base,metadataUserId:null}),true);
+  assert.equal(owned({...base,customerEmail:''}),true);
+  assert.equal(owned({...base,customerEmail:' OWNER@EXAMPLE.INVALID '}),true);
+});

@@ -3,7 +3,7 @@ import { rateLimit } from "../middlewares/rateLimit";
 import { pool } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { PRO_SCAN_LIMIT } from "../lib/plan";
-import { dodoBaseUrl, assertDodoEnvironmentSafe } from "../lib/dodoEnvironment";
+import { dodoBaseUrl, assertDodoEnvironmentSafe, dodoCheckoutReturnOrigin, dodoSubscriptionBelongsToAccount } from "../lib/dodoEnvironment";
 import { verifyDodoSignature } from "../lib/dodoWebhookSignature";
 
 const router = Router();
@@ -224,7 +224,7 @@ router.post("/checkout", rateLimit({ name: "checkout", windowMs: 60_000, max: 6 
       return;
     }
 
-    const origin = process.env.VITE_APP_URL || "https://vibesane.app";
+    const origin = dodoCheckoutReturnOrigin();
     const session = await dodoFetch("/checkouts", {
       method: "POST",
       body: JSON.stringify({
@@ -294,7 +294,9 @@ router.post("/billing/sync", rateLimit({ name: "billing-sync", windowMs: 60_000,
       res.status(409).json({ error: "Subscription product does not match VibeSane Pro" });
       return;
     }
-    if (metadataUserId !== userId && customerEmail !== accountEmail) {
+    if (!dodoSubscriptionBelongsToAccount({
+      metadataUserId, customerEmail, userId, accountEmail,
+    })) {
       res.status(403).json({ error: "Subscription does not belong to this account" });
       return;
     }
