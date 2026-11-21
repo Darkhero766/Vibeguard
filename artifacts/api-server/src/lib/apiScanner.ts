@@ -18,22 +18,47 @@ function stripSqlComments(sql: string): string {
 export function scanApiFiles(files: RepositoryFile[]): Finding[] {
   const findings: Finding[] = [];
 
-  for (const file of files.filter((f) => /\.sql$/i.test(f.path))) {
+  // Process the supplied migrations in file order. A CREATE TABLE without RLS
+  // is not a surviving vulnerability if a later supplied migration enables RLS
+  // or drops the table. For bounded source subsets this only represents the
+  // provided evidence, NOT the complete live database migration state.
+  const sqlFiles = files.filter(f => /\.sql$/i.test(f.path))
+    .sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  const states = new Map<string, { filePath: string; line: number; enabled: boolean; name: string }>();
+  const tableDdl = /\b(create\s+table\s+(?:if\s+not\s+exists\s+)?|drop\s+table\s+(?:if\s+exists\s+)?|alter\s+table\s+(?:if\s+exists\s+)?)(?:"?([A-Za-z_]\w*)"?\s*\.\s*)?"?([A-Za-z_]\w*)"?/gi;
+  for (const file of sqlFiles) {
     const sql = stripSqlComments(file.content);
-    for (const match of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:"?([A-Za-z_]\w*)"?\s*\.\s*)?"?([A-Za-z_]\w*)"?/gi)) {
-      const schema = match[1];
-      const table = match[2];
+    for (const match of sql.matchAll(tableDdl)) {
+      const schema = (match[2] || "public").toLowerCase();
+      const table = match[3].toLowerCase();
+      const id = schema + "." + table;
+      const action = match[1].trim().toLowerCase();
       const line = lineAt(file.content, match.index ?? 0);
-      const qualifiedTable = schema ? `${schema}.${table}` : table;
-      const escapedSchema = schema?.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const escapedTable = table.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const tableRef = escapedSchema ? `"?${escapedSchema}"?\\s*\\.\\s*"?${escapedTable}"?` : `"?${escapedTable}"?`;
-      const enablePattern = new RegExp(`alter\\s+table\\s+(?:if\\s+exists\\s+)?${tableRef}\\s+enable\\s+row\\s+level\\s+security`, "i");
-      if (!enablePattern.test(sql)) {
-        findings.push(finding(`rls-${file.path}-${line}`, "Critical", `RLS is not enabled on "${qualifiedTable}"`, `Table ${qualifiedTable} has no Row-Level Security enabled.`, file.path, line, "rls"));
+      if (action.startsWith("create")) {
+        states.set(id, { filePath: file.path, line, enabled: false, name: id });
+      } else if (action.startsWith("drop")) {
+        states.delete(id);
+      } else {
+        const state = states.get(id);
+        if (!state) continue;
+        const afterName = sql.slice((match.index ?? 0) + match[0].length);
+        if (/^\s+enable\s+row\s+level\s+security\b/i.test(afterName)) state.enabled = true;
+        if (/^\s+disable\s+row\s+level\s+security\b/i.test(afterName)) state.enabled = false;
       }
     }
+  }
+  for (const state of states.values()) {
+    if (!state.enabled) findings.push(finding(
+      `rls-${state.filePath}-${state.line}`,
+      "Critical",
+      `No RLS enable statement found for "${state.name}" in scanned migrations`,
+      `Table ${state.name} is created without a surviving ENABLE ROW LEVEL SECURITY statement in supplied SQL files. Full migration history, grants and live state must be checked before claiming exposure.`,
+      state.filePath, state.line, "rls",
+    ));
+  }
 
+  for (const file of sqlFiles) {
+    const sql = stripSqlComments(file.content);
     for (const match of sql.matchAll(/create\s+(?:or\s+replace\s+)?function\s+(\w+)[\s\S]{0,2500}?security\s+definer/gi)) {
       const line = lineAt(file.content, match.index ?? 0);
       if (!/auth\.uid\s*\(|auth\.role\s*\(|raise\s+exception/i.test(match[0])) {
@@ -47,7 +72,26 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
     for (const match of file.content.matchAll(serviceRoleUsage)) {
       const line = lineAt(file.content, match.index ?? 0);
       if (/(^|\/)api\/|(^|\/)server\/|(^|\/)middleware\.|\.server\./i.test(file.path)) continue;
-      findings.push(finding(`service-role-${file.path}-${line}`, "Critical", "Supabase service_role key is referenced in client code", "The service_role key bypasses Row-Level Security and must stay server-side. A client bundle must never receive this credential.", file.path, line, "service_role_client"));
+      // A shared utils/ module containing a server-side admin credential is NOT
+      // automatically a browser bundle leak. Keep it visible as a High review
+      // lead, reserve Critical for explicit client-bound source. A client import
+      // graph / emitted build is still required to confirm actual disclosure.
+      const browserBound = /^\s*["']use client["']\s*;?/m.test(file.content.slice(0, 400)) ||
+        /(^|\/)(?:components|client|hooks)\//i.test(file.path) ||
+        /\.client\.[cm]?[jt]sx?$/i.test(file.path) ||
+        /(?:window|globalThis)\.__ENV\./.test(match[0]) ||
+        /import\.meta\.env\./.test(match[0]);
+      findings.push(finding(
+        `service-role-${file.path}-${line}`,
+        browserBound ? "Critical" : "High",
+        browserBound
+          ? "Service-role credential referenced in browser-targeted source"
+          : "Service-role credential referenced in a shared module; check import boundary",
+        browserBound
+          ? "A browser-targeted module references a service-role credential. Verify whether the credential is embedded in client bundles and whether the path is reachable."
+          : "This may be a legitimate server-only Supabase admin helper. Inspect imports, build output and public environment exposure before claiming a client secret leak.",
+        file.path, line, "service_role_client",
+      ));
     }
 
     const write = file.content.search(/\.(?:insert|update|delete|upsert)\s*\(/i);
