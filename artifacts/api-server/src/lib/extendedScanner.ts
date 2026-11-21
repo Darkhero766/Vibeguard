@@ -51,7 +51,7 @@ async function readRepository(repoUrl: string, githubToken?: string): Promise<Re
   const result = await readRepositoryFiles(repoUrl, githubToken);
   return result.files.filter((file) => {
     const base = file.path.split("/").pop() ?? "";
-    return /\.(?:[cm]?[jt]sx?|sql|json|ya?ml|md|mdx|toml|ini|conf|xml|html|css|scss|sh|bash|py|rb|go|rs|java|php)$/i.test(file.path) || /^Dockerfile(?:\..*)?$/i.test(base) || /^\.npmrc$/i.test(base) || /^\.gitignore$/i.test(base) || /(^|\/)\.env(?:\.[\w-]+)?$/i.test(file.path);
+    return /\.(?:[cm]?[jt]sx?|sql|json|ya?ml|md|mdx|toml|ini|conf|xml|html|css|scss|sh|bash|py|rb|go|rs|java|php|pem|key)$/i.test(file.path) || /^Dockerfile(?:\..*)?$/i.test(base) || /^\.npmrc$/i.test(base) || /^\.gitignore$/i.test(base) || /(^|\/)\.env(?:\.[\w-]+)?$/i.test(file.path);
   });
 }
 
