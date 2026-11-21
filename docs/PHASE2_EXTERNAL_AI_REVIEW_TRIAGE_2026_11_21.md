@@ -27,10 +27,30 @@
 6. Upgrade only deterministic request-login-derived MD5 password-reset-token comparisons to Critical; unrelated MD5 remains a generic High review hint.
 7. Preserve focused positive and negative regression cases in the required Phase 1–2 suite. Source scans are read-only and isolated from production.
 
+
+## Uploaded per-finding Claude file: exact reconciliation
+
+The user supplied `phase2_30_reviewer_queue_claude_review.json` after this document's original creation. Parsing the actual file confirms 112 unique original alert keys, labeled by **one AI reviewer** as 13 `true_positive`, 98 `false_positive`, 1 `uncertain`, 0 duplicates. Original ruleset `6050e354d24509eac3cfb7f95e6cbf96688c49f0`; all values are **proposals**, not independently adjudicated labels. The 38-alert scanner capture at `c18e2335005d8d805d8a067e7a0fff74b398acb8` has 37 exact identities in common, 73 removed `http_url` alerts, 1 removed intentionally readable CSRF cookie alert, and 1 NodeGoat raw-password finding moved from line 20 to the real line 25. **Do not compute or publish accuracy from this reused calibration corpus.**
+
+The eight AI-reported missed candidates are explicitly checked against the new `scannedFiles` evidence:
+
+| Candidate | Was source analyzed? | Source check and interpretation |
+| --- | --- | --- |
+| DVNA `core/appHandler.js:39` command injection | **No** | Request value concatenated to shell command, plausible source weakness; **coverage gap**, not a measured FN |
+| DVNA `core/appHandler.js:188` redirect | **No** | Request URL forwarded to redirect, plausible source weakness; coverage gap |
+| DVNA `core/appHandler.js:197` mathjs.eval | **No** | Request value enters mathjs evaluator; scope gap and semantics need specialist review |
+| DVNA `server.js:27` cookie | **No** | Outside five-file subset; coverage gap |
+| Goof `routes/index.js:174` shell command | **Yes** | `var item=req.body.content` → extracted URL → `exec('identify ' + url)`; strong in-scope command-injection candidate. Added bounded same-handler CommonJS alias and local taint test; no execution |
+| Goof `routes/index.js:330` admin credential | **Yes** | Admin password initialized via `Math.random().toString(32)`; strong in-scope weak-randomness candidate, added positive/negative tests |
+| NodeGoat `config/env/all.js:8–9` cookie/crypto secrets | **Yes** | Literal placeholder-looking strings, do **not** auto-label as an exploitable secret or silently classify clean without runtime context |
+| NodeGoat `package.json:51` mutable GitHub tarball | **Yes** | `grunt-if` depends on moving `tarball/master` reference. Added `git_dependency` check and pinned-commit negative case; class differs from AI's `wildcard_dependency` label |
+
+The 4/8 outside-scope candidates must never be presented as scanner false negatives. For the four in-scope candidates, **source-verified detection gaps are not a validated recall denominator** without independent reviews and supported-rule contracts; raw new alerts remain unreviewed. The specific fixes above were tested with safe positive/negative fixtures and are calibration, not sealed-holdout performance.
+
 ## Label definitions and review handoff
 
 **Alert TP** means actionable security weakness in the observed execution context, not just lexically matching a rule. **FP** means demonstrably inert or safe under that context; uncertainty remains `uncertain`. **Duplicate** means a repeated finding at the *same underlying sink*, not three separate calls sharing one code smell. Alert-based precision and distinct-root-cause counts must be reported separately. Severity must be adjudicated independently from the existence of a weakness.
 
-The original 30-repo selection has been used for rule tuning. It **cannot** be called an untouched holdout. The preliminary 112 AI judgments and eight reported missed-vulnerability candidates remain unverified; those outside `scannedFiles` are scope/coverage gaps. Obtain the actual Claude per-alert file, reconcile its identities with pinned scanner SHA and line changes, and request qualified independent **human** adjudications plus new untouched app-like Supabase/Next.js holdout sources before calculating release-quality precision/recall.
+The original 30-repo selection has been used for rule tuning. It **cannot** be called an untouched holdout. The uploaded Claude JSON was subsequently received and reconciled as an **AI-only** source of proposals; human ground truth and a fresh untouched app-like Supabase/Next.js holdout are still required before calculating release-quality precision/recall.
 
 **No external repository code was executed, and no production database, secrets, deployment, customer data or PR merge were modified for this review.**
