@@ -110,3 +110,17 @@ This document is a staging safety plan, not certification or authorization to de
 - Protected staging routes use the stage access secret and JWT where applicable; webhook callback relies on HMAC and test mode; no real OAuth app, Dodo sandbox secret or staging DB password is connected. The staging service is publicly addressable, but business endpoints require the separate access key. It has no production credentials.
 - Do **not** change to paid Render tier or add production DB, GitHub, payment or Auth credentials. The remaining workflow is to set the **staging project** database connection string directly in Render, via the provider's secure dashboard, plus independent test OAuth and Dodo sandbox setup; then verify real /readyz and E2E. The connected Supabase tool did not provide a private DB password and blocked automated creation of a separate login. No override attempted.
 - [CI run 44687518185](https://github.com/Darkhero766/Vibeguard/actions/runs/44687518185) passed all three jobs and 272/272 Node tests for the staging-access implementation. Newer documentation edits still require SHA-specific CI check.
+
+
+### 21 November — staging project-mismatch guard (not yet deployed)
+
+The feature branch now includes `src/lib/stagingIsolation.ts`, invoked **before** the Node HTTP listener is opened. Only when `VIBESANE_DEPLOYMENT_ENV=staging` does it enforce:
+
+- `VIBESANE_STAGING_SUPABASE_REF=aojmjxxmsgnipbbrtvlz` as an explicit approved-staging-project trust anchor. This is a **public project identifier**, not a secret.
+- `SUPABASE_URL` must be exactly `https://aojmjxxmsgnipbbrtvlz.supabase.co` (optional trailing slash), and `SUPABASE_DB_URL` / `DATABASE_URL` must use the same project's direct Postgres host or its dedicated `postgres.<project-ref>` Supabase session/transaction pooler username. It rejects a localhost placeholder, production or arbitrary DB host, mismatched username and absent database password. Actual DB connection strings and passwords must stay in Render's **secret environment settings**, never PR comments or logs.
+- Dodo mode must be `test_mode`, `VIBESANE_STAGING_ACCESS_KEY` at least 32 characters and `GITHUB_TOKEN_ENCRYPTION_KEY` 64 hex characters. Keys must be randomly generated and distinct from production; length checks alone do not establish entropy.
+- Exceptions expose an error **category only**, never a DB URL, password, staging key or token. In production mode the preflight intentionally does nothing; no production behavior is changed.
+
+**Rollout dependency:** Before deploying a new staging API build, set `VIBESANE_STAGING_SUPABASE_REF` to the correct staging ref in the dedicated Render staging service, and confirm the **existing private database URL** is stage-specific and matches one of the supported direct/pooler forms. Never put its value in a public issue, this runbook, GitHub Actions, or this chat. The current Render staging deployment is at an **older commit** and does not yet implement this startup guard. Do not deploy it until the stage-only environment check is satisfied; its deliberate fail-closed behavior otherwise prevents the staging HTTP service from starting. Do not copy any production credential.
+
+The regression tests `test-phase1-staging-isolation.mjs` cover correct stage URLs, mutually consistent wrong production URL and DB, mismatched DB username, arbitrary hosts, missing secrets, live payment mode, and unchanged production mode. A green test is **not** confirmation of live staging configuration or a completed provider E2E.
