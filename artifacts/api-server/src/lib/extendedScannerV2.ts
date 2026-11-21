@@ -16,6 +16,8 @@ const SELF_SCAN_RULE_FILES = new Set([
   "artifacts/api-server/scripts/test-password-storage-scanner.mjs",
   "artifacts/api-server/scripts/test-vibesane-v2-context.mjs",
   "artifacts/api-server/scripts/test-phase1-staging-isolation.mjs",
+  // Isolated in-repo detector fixtures are not executable customer attack paths.
+  "artifacts/api-server/scripts/test-phase2-external-missed-class-regressions.mjs",
   "artifacts/api-server/src/lib/extendedScanner.ts",
   "artifacts/api-server/src/lib/extendedScannerV2.ts",
   "artifacts/api-server/src/lib/securityCheckCatalog.ts",
