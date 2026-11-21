@@ -14,6 +14,7 @@ const SELF_SCAN_RULE_FILES = new Set([
   "artifacts/api-server/src/lib/apiScanner.ts",
   "artifacts/api-server/src/lib/passwordStorageScanner.ts",
   "artifacts/api-server/scripts/test-password-storage-scanner.mjs",
+  "artifacts/api-server/scripts/test-vibesane-v2-context.mjs",
   "artifacts/api-server/src/lib/extendedScanner.ts",
   "artifacts/api-server/src/lib/extendedScannerV2.ts",
   "artifacts/api-server/src/lib/securityCheckCatalog.ts",
