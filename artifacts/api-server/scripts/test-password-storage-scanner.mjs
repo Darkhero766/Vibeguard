@@ -233,7 +233,7 @@ test('plaintext password finding anchors the source property rather than object 
     '  };',
     '  usersCol.insert(user);',
     '}',
-  ].join('\\n');
+  ].join('\n');
   const findings = scan(source);
   assert.equal(findings.length, 1);
   assert.equal(findings[0].line, 6);
