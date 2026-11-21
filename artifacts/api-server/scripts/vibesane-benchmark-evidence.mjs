@@ -238,9 +238,16 @@ export function scoreEvidence(manifest, scanData, reviewData) {
       add(target, 'knownTargets');
       const matching = [...found.values()].filter(f => f.ruleId === target.ruleId &&
         f.filePath === target.filePath && f.line >= target.startLine && f.line <= target.endLine);
+      // A lexical hit is not an independently confirmed detection when its
+      // reviewer called it uncertain, duplicate or left it unreviewed.
+      // Fail closed rather than inflate recall with unresolved matched alerts.
+      // A genuine missed target has NO matching scanner finding at this sink.
       for (const candidate of matching) {
-        ensure(labels.get(findingKey(candidate))?.verdict !== 'false_positive',
+        const candidateVerdict = labels.get(findingKey(candidate))?.verdict;
+        ensure(candidateVerdict !== 'false_positive',
           'Curated positive target contradicts a false-positive adjudication: ' + id);
+        ensure(candidateVerdict === 'true_positive',
+          'Curated target matches an alert without a verified true-positive verdict: ' + id);
       }
       add(target, matching.length ? 'detectedTargets' : 'missedTargets');
     }
