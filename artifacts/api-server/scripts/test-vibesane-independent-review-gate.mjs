@@ -99,5 +99,5 @@ test('missing original findings cannot be treated as reviewed', () => {
   const b = review('reviewer-b');
   b.projects[0].adjudications = [];
   assert.throws(() => reconcileIndependentReviews(manifest, scans, review('reviewer-a'), b),
-    /Unreviewed finding/);
+    /Unreviewed finding|without a verified true-positive verdict/);
 });
