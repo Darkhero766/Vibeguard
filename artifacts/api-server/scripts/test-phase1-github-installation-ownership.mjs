@@ -27,6 +27,7 @@ test('GitHub App linking rejects foreign personal installations and unauthorized
  let permission='admin';
  let omitAuthIdentity=false;
  let omitPersistedIdentity=false;
+ let simulatedAppError=null;
  let verificationCalls=0;
  let saveCount=0;
  let server;
@@ -34,7 +35,7 @@ test('GitHub App linking rejects foreign personal installations and unauthorized
   process.env.SUPABASE_URL='https://auth-fixture.invalid';
   process.env.SUPABASE_ANON_KEY='nonsecret-publishable-fixture';
   globalThis.__GH_OWNERSHIP_TEST__={
-   getAppSlug:async()=> 'test-security-app',
+   getAppSlug:async()=> { if(simulatedAppError) throw simulatedAppError; return 'test-security-app'; },
    createInstallState:()=> 'signed-fixture-state',
    verifyInstallState:(state)=>state==='signed-fixture-state'?USER_A:null,
    getInstallation:async(id)=>installations.get(id)??{id,account:null},
@@ -127,6 +128,11 @@ test('GitHub App linking rejects foreign personal installations and unauthorized
 
   assert.equal((await send('/github/app/install-url','A')).status,200);
   assert.equal((await send('/github/app/install-url','invalid')).status,401);
+  simulatedAppError=new Error('GitHub App lookup failed: 401');
+  const rejected=await send('/github/app/install-url','A');
+  assert.equal(rejected.status,503);
+  assert.equal((await rejected.json()).error,'GitHub App installation is temporarily unavailable');
+  simulatedAppError=null;
 
   // Staging Auth can omit inline GitHub provider_id even when auth.identities
   // has a confirmed GitHub identity for the same independently validated JWT.

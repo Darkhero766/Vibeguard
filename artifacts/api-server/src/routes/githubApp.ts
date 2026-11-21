@@ -3,6 +3,7 @@ import { pool } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { createInstallState, getAppSlug, getInstallation, getLinkedInstallationForUser, listInstallationRepos, saveInstallation, verifyInstallState } from "../lib/githubApp";
 import { canClaimGitHubInstallation } from "../lib/githubAppOwnership";
+import { classifyGitHubAppSetupError, missingGitHubAppPrerequisite } from "../lib/githubAppSetupDiagnostics";
 
 /**
  * Resolve an App-install identity only from Supabase-controlled auth identities
@@ -29,6 +30,23 @@ async function resolveVerifiedGitHubId(req: AuthedRequest): Promise<number | und
   return parsed;
 }
 
+// Staging-only, read-only preflight on startup. Inspect config presence and
+// GitHub's authenticated App descriptor without logging credentials or App
+// installation state. An actual GitHub installation is never created here.
+if (process.env.VIBESANE_DEPLOYMENT_ENV === "staging") {
+  const missing = missingGitHubAppPrerequisite();
+  if (missing) {
+    console.warn("[github-app] staging preflight", { reason: missing });
+  } else {
+    void getAppSlug().then(() => {
+      createInstallState("staging-preflight-no-user");
+      console.info("[github-app] staging preflight", { status: "ready" });
+    }).catch((error: unknown) => {
+      console.warn("[github-app] staging preflight", { reason: classifyGitHubAppSetupError(error) });
+    });
+  }
+}
+
 const router = Router();
 
 router.get("/github/app/install-url", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
@@ -42,10 +60,15 @@ router.get("/github/app/install-url", requireAuth, async (req: AuthedRequest, re
     const installUrl = `https://github.com/apps/${encodeURIComponent(slug)}/installations/new?state=${encodeURIComponent(state)}`;
     res.setHeader("Cache-Control", "no-store");
     res.json({ installUrl });
-  } catch {
-    // Do not leak GitHub App keys, installation state or upstream error bodies.
-    req.log.error("GitHub App installation link temporarily unavailable");
-    res.status(503).json({ error: "GitHub App installation is temporarily unavailable" });
+  } catch (error) {
+    // Emit only an allowlisted error category, never raw provider/crypto errors.
+    const reason = missingGitHubAppPrerequisite() ?? classifyGitHubAppSetupError(error);
+    req.log?.warn?.({ reason }, "Staging GitHub App installation setup failed");
+    res.status(503).json({
+      error: reason.startsWith("missing_")
+        ? "GitHub App configuration is incomplete in staging"
+        : "GitHub App installation is temporarily unavailable",
+    });
   }
 });
 

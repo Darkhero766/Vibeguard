@@ -54,7 +54,7 @@ function githubHeaders(token: string): Record<string, string> {
 }
 
 export async function getAppSlug(): Promise<string> {
-  const response = await fetch("https://api.github.com/app", { headers: githubHeaders(createAppJwt()) });
+  const response = await fetch("https://api.github.com/app", { headers: githubHeaders(createAppJwt()), signal: AbortSignal.timeout(10_000) });
   if (!response.ok) throw new Error(`GitHub App lookup failed: ${response.status}`);
   const data = (await response.json()) as { slug?: string };
   if (!data.slug) throw new Error("GitHub App slug was not returned");
