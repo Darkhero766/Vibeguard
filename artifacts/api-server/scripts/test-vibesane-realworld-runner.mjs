@@ -96,3 +96,41 @@ test('dry-run is network-free, needs no Git checkout and never generates labels'
   assert.equal(out.sourceFetched, false);
   assert.equal(out.accuracyMeasured, false);
 });
+
+
+test('frozen 22-app subset manifest is disjoint from tuned 30 and keeps license/pin scope', () => {
+  const frozen = JSON.parse(readFileSync(path.join(root, 'benchmarks/real-world/phase2-app-holdout-22.v1.json'), 'utf8'));
+  assert.equal(validateManifest(frozen), 22);
+  const old = new Set(manifest.projects.map(p => p.repo.toLowerCase()));
+  assert.ok(frozen.projects.every(p => !old.has(p.repo.toLowerCase())));
+  assert.equal(new Set(frozen.projects.map(p => p.repo.toLowerCase())).size, 22);
+  assert.equal(frozen.projects.reduce((n, p) => n + p.paths.length, 0), 109);
+  assert.ok(frozen.projects.every(p => p.coverageMode === 'bounded_subset'));
+  assert.ok(frozen.projects.every(p => p.sourceType === 'unlabeled_general'));
+  assert.ok(frozen.projects.every(p => ['MIT', 'Apache-2.0'].includes(p.license)));
+  assert.ok(frozen.projects.some(p => p.paths.some(x => x.endsWith('.sql'))));
+  assert.ok(frozen.projects.some(p => p.paths.some(x => /\/api\//.test(x))));
+  assert.ok(frozen.projects.some(p => p.paths.some(x => /stripe|billing|subscription/i.test(x))));
+});
+
+test('combined API-core plus V2 mode is explicit, bounded, and dry-run network-free', () => {
+  const frozenPath = path.join(root, 'benchmarks/real-world/phase2-app-holdout-22.v1.json');
+  const accepted = parseBenchmarkArgs([
+    '--manifest', frozenPath, '--output-dir', '/tmp/vibesane-holdout-dry-run',
+    '--all', '--engine', 'api_core_plus_extended_v2', '--dry-run',
+  ]);
+  assert.equal(accepted.get('--engine'), 'api_core_plus_extended_v2');
+  assert.throws(() => parseBenchmarkArgs([
+    '--manifest', frozenPath, '--output-dir', '/tmp/out',
+    '--all', '--engine', 'production_verified',
+  ]), /Unknown scanner engine/);
+  const result = JSON.parse(execFileSync(process.execPath, [
+    path.join(root, 'scripts/run-vibesane-realworld-benchmark.mjs'),
+    '--manifest', frozenPath, '--output-dir', '/tmp/vibesane-holdout-no-write',
+    '--all', '--engine', 'api_core_plus_extended_v2', '--dry-run',
+  ], { encoding: 'utf8', timeout: 5000 }));
+  assert.equal(result.status, 'dry_run');
+  assert.equal(result.candidates.length, 22);
+  assert.equal(result.sourceFetched, false);
+  assert.equal(result.accuracyMeasured, false);
+});
