@@ -45,3 +45,18 @@ export function dodoSubscriptionBelongsToAccount(data: {
   if (email && email !== accountEmail) return false;
   return true;
 }
+
+/**
+ * Require a single, printable ASCII API credential. In particular, reject
+ * embedded or pasted CR/LF, rather than forwarding an invalid Authorization
+ * header that the HTTP runtime may include in a thrown exception.
+ * Never include secret values or raw headers in thrown error messages.
+ */
+export function requireDodoApiKey(env: Readonly<Record<string,string | undefined>> = process.env): string {
+  const key = env.DODO_PAYMENTS_API_KEY ?? "";
+  if (!key) throw new Error("Dodo payment credential is not configured");
+  if (!/^[\x21-\x7e]+$/.test(key)) {
+    throw new Error("Dodo payment credential format is invalid");
+  }
+  return key;
+}

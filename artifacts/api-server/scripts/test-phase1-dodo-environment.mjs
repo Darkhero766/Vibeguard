@@ -71,3 +71,37 @@ test('subscription ownership rejects conflicting identity signals and missing id
   assert.equal(owned({...base,customerEmail:''}),true);
   assert.equal(owned({...base,customerEmail:' OWNER@EXAMPLE.INVALID '}),true);
 });
+
+
+test('malformed Dodo credentials are rejected without echoing secret material',async()=>{
+  const built=await build({
+    entryPoints:[path.join(dir,'../src/lib/dodoEnvironment.ts')],
+    bundle:true,format:'esm',platform:'node',write:false,target:'node20',logLevel:'silent',
+  });
+  const {requireDodoApiKey}=await import('data:text/javascript;base64,'+
+    Buffer.from(built.outputFiles[0].contents).toString('base64'));
+  const marker='sample-confidential-key-material';
+  for(const value of [
+    '', '  ', marker+'\n', '\r'+marker, marker+'\r\n', marker+' \t', marker+'\u0000',
+    marker.slice(0,5)+'\n'+marker.slice(5),
+  ]) {
+    assert.throws(()=>requireDodoApiKey({DODO_PAYMENTS_API_KEY:value}),
+      error=>error instanceof Error &&
+        !error.message.includes(marker) &&
+        !error.message.includes('Bearer') &&
+        /credential/.test(error.message));
+  }
+  assert.equal(requireDodoApiKey({DODO_PAYMENTS_API_KEY:'test_synthetic_key'}),'test_synthetic_key');
+});
+
+test('checkout and billing sync never send raw provider exceptions to clients or logs',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const route=readFileSync(path.join(dir,'../src/routes/dodo.ts'),'utf8');
+  assert.match(route,/const apiKey = requireDodoApiKey\(\)/);
+  assert.doesNotMatch(route,/console\.error\("\[dodo\] checkout failed", error\)/);
+  assert.doesNotMatch(route,/console\.error\("\[dodo\] return sync failed", error\)/);
+  assert.doesNotMatch(route,/res\.status\(500\)\.json\(\{ error: error instanceof Error \? error\.message/);
+  assert.match(route,/res\.status\(503\)\.json\(\{ error: "Checkout is temporarily unavailable/);
+  assert.match(route,/res\.status\(503\)\.json\(\{ error: "Subscription status is temporarily unavailable/);
+  assert.doesNotMatch(route,/throw new Error\(message\)/);
+});

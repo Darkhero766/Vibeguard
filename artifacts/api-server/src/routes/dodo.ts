@@ -3,7 +3,7 @@ import { rateLimit } from "../middlewares/rateLimit";
 import { pool } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { PRO_SCAN_LIMIT } from "../lib/plan";
-import { dodoBaseUrl, assertDodoEnvironmentSafe, dodoCheckoutReturnOrigin, dodoSubscriptionBelongsToAccount } from "../lib/dodoEnvironment";
+import { dodoBaseUrl, assertDodoEnvironmentSafe, dodoCheckoutReturnOrigin, dodoSubscriptionBelongsToAccount, requireDodoApiKey } from "../lib/dodoEnvironment";
 import { verifyDodoSignature } from "../lib/dodoWebhookSignature";
 
 const router = Router();
@@ -43,8 +43,7 @@ async function ensureDodoTables() {
 }
 
 async function dodoFetch(path: string, init: RequestInit = {}) {
-  const apiKey = process.env.DODO_PAYMENTS_API_KEY;
-  if (!apiKey) throw new Error("DODO_PAYMENTS_API_KEY is not configured");
+  const apiKey = requireDodoApiKey();
 
   const response = await fetch(`${dodoBaseUrl()}${path}`, {
     ...init,
@@ -64,10 +63,10 @@ async function dodoFetch(path: string, init: RequestInit = {}) {
   }
 
   if (!response.ok) {
-    const message = typeof body === "object" && body && "message" in body
-      ? String((body as { message?: unknown }).message)
-      : `Dodo API returned ${response.status}`;
-    throw new Error(message);
+    // Provider error bodies are untrusted and may contain secrets or PII.
+    // Only expose a fixed message; do not log response bodies or credentials.
+    console.error("[dodo] provider request failed", { status: response.status });
+    throw new Error("Dodo provider request failed");
   }
 
   return body as Record<string, unknown>;
@@ -244,8 +243,10 @@ router.post("/checkout", rateLimit({ name: "checkout", windowMs: 60_000, max: 6 
       session_id: typeof session.session_id === "string" ? session.session_id : null,
     });
   } catch (error) {
-    console.error("[dodo] checkout failed", error);
-    res.status(500).json({ error: error instanceof Error ? error.message : "Unable to start checkout" });
+    // Some runtime errors embed Authorization headers in their messages.
+    // NEVER forward or log the raw error object or its message.
+    console.error("[dodo] checkout failed (redacted)");
+    res.status(503).json({ error: "Checkout is temporarily unavailable. No payment has been confirmed." });
   }
 });
 
@@ -318,8 +319,9 @@ router.post("/billing/sync", rateLimit({ name: "billing-sync", windowMs: 60_000,
 
     res.status(409).json({ activated: false, plan: "free", status, message: `Subscription is ${status || "not active"}.` });
   } catch (error) {
-    console.error("[dodo] return sync failed", error);
-    res.status(500).json({ error: error instanceof Error ? error.message : "Unable to sync subscription" });
+    // Sync errors may contain provider response details or credentials.
+    console.error("[dodo] return sync failed (redacted)");
+    res.status(503).json({ error: "Subscription status is temporarily unavailable. Please retry later." });
   }
 });
 
