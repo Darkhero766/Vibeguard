@@ -98,8 +98,23 @@ async function activateProByEmail(email: string, values: {
   status?: string;
   expiresAt?: string | null;
   source?: string;
+  metadataUserId?: string | null;
 }, executor: Pick<typeof pool, "query"> = pool) {
-  const user = await executor.query(`SELECT id FROM auth.users WHERE lower(email) = lower($1) LIMIT 1`, [email]);
+  // The signed Dodo payload includes our server-created user_id metadata.
+  // Staging must never grant Pro to an account found only by email; the
+  // subscriber UUID and customer email must identify the SAME Auth user.
+  // Legacy production events can retain email lookup until separately
+  // reviewed/backfilled in the production migration.
+  const metadataUserId = values.metadataUserId?.trim() ?? "";
+  if (!metadataUserId && process.env.VIBESANE_DEPLOYMENT_ENV === "staging") {
+    throw new Error("Staging subscription event lacks an authenticated account binding");
+  }
+  if (metadataUserId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(metadataUserId)) {
+    throw new Error("Subscription account binding is malformed");
+  }
+  const user = metadataUserId
+    ? await executor.query(`SELECT id FROM auth.users WHERE id = $1 AND lower(email) = lower($2) LIMIT 1`, [metadataUserId, email])
+    : await executor.query(`SELECT id FROM auth.users WHERE lower(email) = lower($1) LIMIT 1`, [email]);
   const userId = user.rows[0]?.id as string | undefined;
   if (!userId) return false;
 
@@ -372,6 +387,9 @@ router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise
       ? data.next_billing_date
       : (typeof data.expires_at === "string" ? data.expires_at : null);
     const productId = typeof data.product_id === "string" ? data.product_id : null;
+    const dataMetadata = data.metadata && typeof data.metadata === "object"
+      ? data.metadata as Record<string, unknown> : {};
+    const metadataUserId = typeof dataMetadata.user_id === "string" ? dataMetadata.user_id : null;
 
     if (["subscription.active", "subscription.renewed", "subscription.plan_changed"].includes(eventType)) {
       // Dodo subscription events require product_id and subscription_id.
@@ -389,6 +407,7 @@ router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise
           status: "active",
           expiresAt: verifiedExpiry,
           source: "dodo",
+          metadataUserId,
         }, client);
       }
     } else if (eventType === "payment.succeeded") {

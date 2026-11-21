@@ -66,6 +66,9 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
               processed:false,attempts:(prior?.attempts??0)+(prior?1:0)});
             return {rowCount:1,rows:[{id:'local-event-id'}]};
           }
+          if(normalized.includes('SELECT id FROM auth.users WHERE id = $1 AND lower(email)')){
+            return {rowCount:1,rows:params[0]===userId && params[1]===email?[{id:userId}]:[]};
+          }
           if(normalized.includes('SELECT id FROM auth.users WHERE lower(email)')){
             return {rowCount:1,rows:params[0]===email?[{id:userId}]:[]};
           }
@@ -146,6 +149,7 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
         product_id:'pdt_0NmsVBNuntowIFXXZKqKS',
         subscription_id:'synthetic-subscription-1',
         next_billing_date:new Date(Date.now()+31*24*60*60*1000).toISOString(),
+        metadata:{user_id:userId},
         customer:{email,customer_id:'synthetic-customer'},
       },
     };
@@ -185,6 +189,28 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
     assert.equal(recovered.status,200);
     assert.equal(events.get('old-incomplete')?.processed,true);
     assert.equal(events.get('old-incomplete')?.attempts,3);
+    const otherAccountEvent={
+      ...payload,type:'subscription.active',
+      data:{...payload.data,metadata:{user_id:'f0010000-5500-4400-8800-000000000002'},
+        subscription_id:'synthetic-wrong-owner'},
+    };
+    const wrongOwner=await send('synthetic-wrong-owner-event',true,otherAccountEvent);
+    assert.equal(wrongOwner.status,200,'Signed but mismatched owner does not grant access');
+    assert.equal(events.get('synthetic-wrong-owner-event')?.processed,true);
+    assert.equal(usage.get(userId)?.subscription,'synthetic-subscription-1',
+      'Wrong metadata user_id cannot override existing subscriber');
+
+    const missingMetadataEvent={
+      ...payload,type:'subscription.renewed',
+      data:{...payload.data,metadata:undefined,
+        subscription_id:'synthetic-missing-metadata'},
+    };
+    const missingMetadata=await send('synthetic-missing-metadata-event',true,missingMetadataEvent);
+    assert.equal(missingMetadata.status,500,'Staging requires signed account binding');
+    assert.equal(events.has('synthetic-missing-metadata-event'),false,
+      'Missing account binding must rollback and remain retriable');
+    assert.equal(usage.get(userId)?.subscription,'synthetic-subscription-1');
+
     const cancelled=(subscriptionId)=>({
       ...payload,type:'subscription.cancelled',
       data:{...payload.data,subscription_id:subscriptionId},
