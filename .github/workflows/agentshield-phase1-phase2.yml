@@ -75,6 +75,8 @@ jobs:
           node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --validate artifacts/api-server/benchmarks/real-world/pilot-manifest.v1.json
           node --test artifacts/api-server/scripts/test-vibesane-benchmark-evidence.mjs
           node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --validate artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json
+          node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --validate artifacts/api-server/benchmarks/real-world/phase2-app-holdout-22.v1.json
+          node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs --manifest artifacts/api-server/benchmarks/real-world/phase2-app-holdout-22.v1.json --output-dir /tmp/vibesane-app-holdout-dry-run --all --dry-run > /dev/null
           node --test artifacts/api-server/scripts/test-vibesane-realworld-runner.mjs
           node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json --output-dir /tmp/vibesane-benchmark-dry-run --all --dry-run > /dev/null
           node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --score artifacts/api-server/benchmarks/real-world/pilot-manifest.v1.json artifacts/api-server/benchmarks/real-world/scans.empty.v1.json artifacts/api-server/benchmarks/real-world/reviews.empty.v1.json > /dev/null
@@ -194,5 +196,46 @@ jobs:
         with:
           name: phase2-30-public-source-metadata
           path: /tmp/vibesane-phase2-public-source-evidence/*.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  app-holdout-source-collection:
+    name: Collect 22 frozen app-source subsets (unreviewed; read-only)
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[collect-app-holdout-22]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      CI: "true"
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Install exact locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Read ONLY pinned PUBLIC app sources, no fetched code execution
+        run: |
+          node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs \
+            --manifest artifacts/api-server/benchmarks/real-world/phase2-app-holdout-22.v1.json \
+            --output-dir /tmp/vibesane-app-holdout-evidence --all
+      - name: Upload only source-free metadata (even if incomplete)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-app-holdout-22-source-metadata
+          path: /tmp/vibesane-app-holdout-evidence/*.json
           if-no-files-found: warn
           retention-days: 7
