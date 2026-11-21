@@ -37,7 +37,14 @@ function regexFindings(
   const findings: ExtendedFinding[] = [];
   for (const file of files) {
     if (rule.extensions && !rule.extensions.test(file.path)) continue;
-    for (const match of file.content.matchAll(rule.pattern)) {
+    // A block comment may contain runnable-looking examples across many lines.
+    // Preserve offsets so reports keep the original source line numbers.
+    const matchingContent = rule.id === "cookie_missing_httponly"
+      ? file.content.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, " "))
+      : file.content;
+    for (const match of matchingContent.matchAll(rule.pattern)) {
+      // Explicit HttpOnly:true is not evidence of a missing cookie protection.
+      if (rule.id === "cookie_missing_httponly" && /\bhttpOnly\s*:\s*true\b/i.test(match[0])) continue;
       const line = lineAt(file.content, match.index ?? 0);
       const source = file.content.split("\n")[line - 1] ?? "";
       // PEM key delimiters begin with dashes; they are not SQL comments.
@@ -122,7 +129,7 @@ const rules: Array<{ id: string; severity: ExtendedFinding["severity"]; title: s
   { id: "google_api_key", severity: "High", title: "Google API key appears in source", description: "A Google API key pattern was detected in repository source. Restrict, rotate, or move it to the correct server-side secret store as appropriate.", pattern: /AIza[0-9A-Za-z_-]{35}/g },
   { id: "github_token", severity: "Critical", title: "GitHub access token appears in source", description: "A GitHub personal or fine-grained access token appears in source control. Revoke it immediately and move credentials out of the repository.", pattern: /(?:ghp_|gho_|ghu_|ghs_|ghr_)[A-Za-z0-9_]{30,}/g },
   { id: "private_key", severity: "Critical", title: "Private key material is committed", description: "A PEM private key block was detected. Private keys should never be committed; revoke or replace the key and remove it from history.", pattern: /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g },
-  { id: "database_url", severity: "Critical", title: "Database credential URL is hardcoded", description: "A database connection URL containing credentials appears in source. Move it to a server-side secret and rotate the credential if exposed.", pattern: /(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s"'`]{8,}/gi },
+  { id: "database_url", severity: "Critical", title: "Database credential URL is hardcoded", description: "A database connection URL containing credentials appears in source. Move it to a server-side secret and rotate the credential if exposed.", pattern: /(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^@\s"'`\/<>{}:]+:[^@\s"'`\/<>{}]+@[^\/\s"'`]+/gi },
   { id: "hardcoded_password", severity: "High", title: "Hardcoded password assignment", description: "A password-like variable is assigned a long literal. Hardcoded credentials remain exposed in version history and should be replaced with secret management.", pattern: /(?:password|passwd|pwd)\s*[:=]\s*["'][^"'\n]{12,}["']/gi },
   { id: "hardcoded_bearer", severity: "High", title: "Hardcoded bearer token", description: "A bearer token is embedded directly in source. Authentication tokens should be injected at runtime and never committed.", pattern: /Bearer\s+[A-Za-z0-9._~+\/-]{20,}/g },
   { id: "sendgrid_key", severity: "Critical", title: "SendGrid API key appears in source", description: "A SendGrid API key pattern was detected. Revoke it and move mail-service credentials to secret storage.", pattern: /SG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g },
@@ -140,7 +147,7 @@ const rules: Array<{ id: string; severity: ExtendedFinding["severity"]; title: s
   { id: "postmessage_wildcard", severity: "Medium", title: "postMessage uses wildcard origin", description: "window.postMessage(..., '*') sends data to any origin. Use an explicit trusted origin when transmitting sensitive data.", pattern: /\.postMessage\s*\([\s\S]{0,300},\s*["']\*["']\s*\)/g, extensions: /\.(?:[cm]?[jt]sx?)$/i },
   { id: "open_redirect", severity: "High", title: "Redirect target comes from request input", description: "Redirecting directly to a request parameter can create an open redirect and phishing primitive. Validate destinations against an allowlist.", pattern: /\b(?:res|response)\.redirect\s*\(\s*(?:req\.(?:query|body|params)|searchParams\.get)/g, extensions: /\.(?:[cm]?[jt]sx?|ts|js)$/i },
   { id: "cors_all_origins", severity: "Medium", title: "CORS allows every origin", description: "A wildcard CORS policy allows arbitrary sites to make cross-origin requests. Avoid wildcard origins when authenticated data is exposed.", pattern: /(?:origin|Access-Control-Allow-Origin)\s*[:=]\s*["']\*["']/gi },
-  { id: "cookie_missing_httponly", severity: "Medium", title: "Cookie is set without HttpOnly", description: "A server cookie is created without an explicit HttpOnly flag. Session cookies should normally be inaccessible to JavaScript to reduce token theft through XSS.", pattern: /(?:res|response)\.cookie\s*\([\s\S]{0,500}\{[\s\S]{0,500}\}\s*\)/g, extensions: /\.(?:[cm]?[jt]sx?|ts|js)$/i },
+  { id: "cookie_missing_httponly", severity: "Medium", title: "Cookie is set without HttpOnly", description: "A server cookie is created without an explicit HttpOnly flag. Session cookies should normally be inaccessible to JavaScript to reduce token theft through XSS.", pattern: /(?:res|response)\.cookie\s*\(\s*[^,;\n]{1,140},[\s\S]{0,360}?\)/g, extensions: /\.(?:[cm]?[jt]sx?|ts|js)$/i },
   { id: "cookie_insecure", severity: "Medium", title: "Cookie explicitly disables Secure", description: "A cookie is configured with secure:false. Authentication/session cookies should use Secure in HTTPS deployments.", pattern: /(?:secure\s*:\s*false|secure\s*=\s*false)/gi },
   { id: "cookie_samesite_none", severity: "Medium", title: "Cookie uses SameSite=None", description: "SameSite=None permits cross-site cookie sending and requires Secure. Use it only when cross-site authentication is intentional.", pattern: /sameSite\s*:\s*["']none["']/gi },
   { id: "http_url", severity: "Low", title: "Insecure HTTP URL is hardcoded", description: "A plain HTTP URL appears in source. Use HTTPS for network requests unless the endpoint is deliberately local or otherwise trusted.", pattern: /https?:\/\/[^\s"'`]+/gi, extensions: /\.(?:[cm]?[jt]sx?|json|ya?ml|py|rb|go|java|php)$/i },
