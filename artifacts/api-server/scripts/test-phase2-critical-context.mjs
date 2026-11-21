@@ -274,3 +274,53 @@ test('unrelated, unawaited and cross-handler role helpers do not mask unguarded 
     assert.equal(findings[0].severity,'High');
   }
 });
+
+test('in-memory Map.delete in Stripe webhook is not an unguarded database write',()=>{
+  const src=[
+    "const checkoutSessionMap = new Map<string, unknown>();",
+    'export async function POST(request: Request) {',
+    "  const sig=request.headers.get('stripe-signature');",
+    '  const event=stripe.webhooks.constructEvent(await request.text(),sig,webhookSecret);',
+    '  checkoutSessionMap.delete(event.id);',
+    '}',
+  ].join('\n');
+  assert.equal(api([file('app/api/stripe/webhook/route.ts',src)])
+    .filter(f=>f.check==='unauthenticated_write').length,0);
+});
+
+test('signed Stripe webhook database mutations retain contextual Medium review, not missing-login High',()=>{
+  const src=[
+    "import { stripe } from '@/lib/stripe';",
+    'export async function POST(request: Request) {',
+    "  const sig=request.headers.get('Stripe-Signature');",
+    '  const event=stripe.webhooks.constructEvent(await request.text(),sig,webhookSecret);',
+    "  await db.user.update({where:{id:event.data.object.id},data:{plan:'pro'}});",
+    '}',
+  ].join('\n');
+  const findings=api([file('app/api/webhooks/stripe/route.ts',src)])
+    .filter(f=>f.check==='unauthenticated_write');
+  assert.equal(findings.length,1);
+  assert.equal(findings[0].severity,'Medium');
+  assert.match(findings[0].description,/invalid signatures abort/);
+});
+
+test('unsigned or late-verified Stripe webhook writes remain High',()=>{
+  const unsigned=[
+    'export async function POST(request:Request){',
+    "await db.user.update({where:{id:'a'},data:{plan:'pro'}});",
+    '}',
+  ].join('\n');
+  const late=[
+    'export async function POST(request:Request){',
+    "await db.user.update({where:{id:'a'},data:{plan:'pro'}});",
+    'stripe.webhooks.constructEvent(raw,sig,secret);',
+    '}',
+  ].join('\n');
+  const noVerifier="const docs='stripe.webhooks.constructEvent(raw,sig,secret)';\n"+unsigned;
+  for(const source of [unsigned,late,noVerifier]){
+    const findings=api([file('app/api/webhooks/stripe/route.ts',source)])
+      .filter(f=>f.check==='unauthenticated_write');
+    assert.equal(findings.length,1);
+    assert.equal(findings[0].severity,'High');
+  }
+});

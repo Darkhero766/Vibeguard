@@ -232,7 +232,19 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
       ));
     }
 
-    const write = file.content.search(/\.(?:insert|update|delete|upsert)\s*\(/i);
+    // Calling Map.delete/Set.delete is not a database write. Find the first
+    // actual candidate mutation instead of blindly taking any .delete().
+    // This is important for webhook routes staging in-memory subscriptions.
+    const write = [...file.content.matchAll(/\.(?:insert|update|delete|upsert)\s*\(/gi)]
+      .find(candidate => {
+        const beforeCandidate = file.content.slice(0, candidate.index ?? 0);
+        const receiver = /([A-Za-z_$][\w$]*)\s*$/.exec(beforeCandidate)?.[1] ?? "";
+        if (!receiver) return true;
+        const declaredCollection = new RegExp(
+          "\\b(?:const|let|var)\\s+" + receiver +
+          "\\s*(?::[^=\\n]+)?=\\s*new\\s+(?:Map|Set)\\b", "i").test(file.content);
+        return !declaredCollection;
+      })?.index ?? -1;
     if (write >= 0 && /(?:^|\/)app\/api(?:\/[^/]+)*\/route\.[cm]?tsx?$/i.test(file.path)) {
       const before = file.content.slice(0, write);
       // Recognize a locally checked, awaited authorization guard without trusting
@@ -275,16 +287,26 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
         const lastHandler = handlers.at(-1)?.index ?? -1;
         const beforeInHandler = lastHandler >= 0 ? activeBeforeWrite.slice(lastHandler) : "";
         const awaitedRoleHelper = importedAccountRole && /\bawait\s+requireRole\s*\(/.test(beforeInHandler);
+        // Signed provider webhooks must not require a signed-in user. They
+        // authenticate the provider with a signature instead. Keep a review
+        // warning when the verifier and mutation are in the same handler.
+        const webhookPath = /(?:^|\/)(?:webhooks?\/stripe|stripe\/webhook)\/route\.[cm]?tsx?$/i.test(file.path);
+        const signedWebhook = webhookPath && /\bstripe\.webhooks\.constructEvent\s*\(/.test(beforeInHandler);
+        const contextualGuard = awaitedRoleHelper || signedWebhook;
         const line = lineAt(file.content, write);
         findings.push(finding(
           "write-" + file.path + "-" + line,
-          awaitedRoleHelper ? "Medium" : "High",
+          contextualGuard ? "Medium" : "High",
           awaitedRoleHelper
             ? "Database write follows an imported role guard; verify its implementation"
-            : "Database write is missing an auth check",
+            : signedWebhook
+              ? "Database write follows Stripe signature verification; review webhook trust"
+              : "Database write is missing an auth check",
           awaitedRoleHelper
             ? "The handler awaits requireRole imported from an account-auth module before the write. Inspect the imported helper, throw/deny behavior, route boundaries and database RLS before claiming an unauthenticated mutation. This warning is retained for manual review."
-            : "This API route writes to the database without a detected authentication check before the write.",
+            : signedWebhook
+              ? "A Stripe webhook signature-verification call precedes the mutation. Confirm invalid signatures abort the handler, the signed object controls the write target and replay is handled. This is not evidence of a missing browser login."
+              : "This API route writes to the database without a detected authentication check before the write.",
           file.path, line, "unauthenticated_write",
         ));
       }
