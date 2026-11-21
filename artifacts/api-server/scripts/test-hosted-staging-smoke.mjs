@@ -23,7 +23,7 @@ async function request(urlPath, options={}){
       const contentType=response.headers.get('content-type')??'';
       const payload=contentType.includes('application/json')
         ? await response.json():{};
-      return {status:response.status,payload};
+      return {status:response.status,payload,corsOrigin:response.headers.get('access-control-allow-origin')};
     }catch(error){
       lastError=error;
       if(attempt<3)await sleep(5000);
@@ -49,6 +49,18 @@ try{
   assert.equal(protectedRoute.status,403,'Private staging API must deny requests lacking access key');
   results.push({check:'protected_api_without_key',status:'pass'});
 
+  // The real mobile checkout originally received 403, but the browser hid it
+  // as "Failed to fetch" because access denial preceded CORS headers.
+  const stagingOrigin='https://vibesane-phase12-staging-web.onrender.com';
+  const visibleDenial=await request('/api/github/token/status',{
+    headers:{Origin:stagingOrigin},
+  });
+  assert.equal(visibleDenial.status,403,'Restricted browser request must remain denied');
+  assert.equal(visibleDenial.payload?.error,'Staging access restricted');
+  assert.equal(visibleDenial.corsOrigin,stagingOrigin,
+    'Browser must be permitted to read the 403 JSON; no secret header is exposed');
+  results.push({check:'staging_browser_can_read_access_denial',status:'pass'});
+
   // No external payment is initiated: malformed signature must be rejected
   // before webhook writes (Dodo sandbox-only mode remains configured).
   const unsignedWebhook=await request('/api/webhooks/dodo',{
@@ -69,9 +81,11 @@ try{
 
   const preflight=await request('/api/github/token/status',{
     method:'OPTIONS',
-    headers:{Origin:'https://staging.vibesane.invalid','Access-Control-Request-Method':'GET'},
+    headers:{Origin:'https://vibesane-phase12-staging-web.onrender.com','Access-Control-Request-Method':'GET'},
   });
   assert.equal(preflight.status,204,'Staging browser preflight must work');
+  assert.equal(preflight.corsOrigin,stagingOrigin,
+    'Preflight must identify only the staging website as the browser origin');
   results.push({check:'cors_preflight',status:'pass'});
 
   // Staging frontend is separate from production. This does not perform
