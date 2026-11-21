@@ -20,6 +20,7 @@ test('HTTP URL alone, docs examples and parsing examples are not insecure networ
     'request.get("https://secure.vendor.net/path");',
     'const example = "fetch(\'http://placeholder.example.com/test\')";',
     'const fromTest = "http://example.com/";',
+    "const quotedCall = 'fetch(\\\"http://real.service.test/api\\\")';",
   ].join('\n');
   assert.equal(scan(code).filter(f => f.check === 'http_url').length, 0);
 });
