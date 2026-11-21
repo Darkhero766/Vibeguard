@@ -15,6 +15,9 @@ const idA=101, idB=202, orgId=309;
 test('GitHub App linking rejects foreign personal installations and unauthorized orgs',async()=>{
  const previousUrl=process.env.SUPABASE_URL;
  const previousKey=process.env.SUPABASE_ANON_KEY;
+ const setupEnvKeys=['GITHUB_APP_ID','GITHUB_APP_PRIVATE_KEY','GITHUB_APP_PRIVATE_KEY_BASE64',
+  'GITHUB_APP_STATE_SECRET','GITHUB_APP_WEBHOOK_SECRET','VIBESANE_DEPLOYMENT_ENV'];
+ const previousSetup=Object.fromEntries(setupEnvKeys.map(k=>[k,process.env[k]]));
  const nativeFetch=globalThis.fetch;
  const previousFixture=globalThis.__GH_OWNERSHIP_TEST__;
  const priorDb=globalThis.__GH_OWNERSHIP_DB__;
@@ -34,6 +37,12 @@ test('GitHub App linking rejects foreign personal installations and unauthorized
  try{
   process.env.SUPABASE_URL='https://auth-fixture.invalid';
   process.env.SUPABASE_ANON_KEY='nonsecret-publishable-fixture';
+  process.env.GITHUB_APP_ID='12345';
+  process.env.GITHUB_APP_PRIVATE_KEY='SYNTHETIC-STUB-NO-REAL-KEY';
+  delete process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
+  process.env.GITHUB_APP_STATE_SECRET='SYNTHETIC-STUB-NO-SECRET';
+  delete process.env.GITHUB_APP_WEBHOOK_SECRET;
+  process.env.VIBESANE_DEPLOYMENT_ENV='fixture';
   globalThis.__GH_OWNERSHIP_TEST__={
    getAppSlug:async()=> { if(simulatedAppError) throw simulatedAppError; return 'test-security-app'; },
    createInstallState:()=> 'signed-fixture-state',
@@ -133,6 +142,13 @@ test('GitHub App linking rejects foreign personal installations and unauthorized
   assert.equal(rejected.status,503);
   assert.equal((await rejected.json()).error,'GitHub App installation is temporarily unavailable');
   simulatedAppError=null;
+  const priorPrivate=process.env.GITHUB_APP_PRIVATE_KEY;
+  delete process.env.GITHUB_APP_PRIVATE_KEY;
+  const missingKey=await send('/github/app/install-url','A');
+  assert.equal(missingKey.status,503);
+  assert.equal((await missingKey.json()).error,
+    'GitHub App configuration is incomplete in staging');
+  process.env.GITHUB_APP_PRIVATE_KEY=priorPrivate;
 
   // Staging Auth can omit inline GitHub provider_id even when auth.identities
   // has a confirmed GitHub identity for the same independently validated JWT.
@@ -193,5 +209,9 @@ test('GitHub App linking rejects foreign personal installations and unauthorized
   else process.env.SUPABASE_URL=previousUrl;
   if(previousKey===undefined)delete process.env.SUPABASE_ANON_KEY;
   else process.env.SUPABASE_ANON_KEY=previousKey;
+  for(const [key,value] of Object.entries(previousSetup)){
+    if(value===undefined) delete process.env[key];
+    else process.env[key]=value;
+  }
  }
 });

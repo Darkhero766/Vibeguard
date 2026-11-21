@@ -55,6 +55,12 @@ router.get("/github/app/install-url", requireAuth, async (req: AuthedRequest, re
       res.status(403).json({ error: "Sign in with GitHub on staging before installing the App" });
       return;
     }
+    const missing = missingGitHubAppPrerequisite();
+    if (missing) {
+      req.log?.warn?.({ reason: missing }, "Staging GitHub App configuration is incomplete");
+      res.status(503).json({ error: "GitHub App configuration is incomplete in staging" });
+      return;
+    }
     const slug = await getAppSlug();
     const state = createInstallState(req.userId!);
     const installUrl = `https://github.com/apps/${encodeURIComponent(slug)}/installations/new?state=${encodeURIComponent(state)}`;
