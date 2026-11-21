@@ -66,7 +66,8 @@ export function validateManifest(manifest) {
 function bucket() {
   return { alerts: 0, truePositive: 0, falsePositive: 0, uncertain: 0,
     duplicate: 0, unreviewed: 0, knownTargets: 0, detectedTargets: 0,
-    missedTargets: 0 };
+    missedTargets: 0, severityAppropriate: 0, severityOverstated: 0,
+    severityUnderstated: 0, severityUncertain: 0, severityNotReviewed: 0 };
 }
 
 function metrics(b) {
@@ -74,6 +75,9 @@ function metrics(b) {
   return {
     ...b,
     reviewedForPrecision,
+    reviewedAlerts: reviewedForPrecision + b.uncertain + b.duplicate,
+    reviewCoverage: b.alerts ? (reviewedForPrecision + b.uncertain + b.duplicate) / b.alerts : null,
+    precisionLabelCoverage: b.alerts ? reviewedForPrecision / b.alerts : null,
     precision: reviewedForPrecision ? b.truePositive / reviewedForPrecision : null,
     recallOnCuratedTargets: b.knownTargets ? b.detectedTargets / b.knownTargets : null,
   };
@@ -168,6 +172,11 @@ export function scoreEvidence(manifest, scanData, reviewData) {
         ensure(!labels.has(key), 'Duplicate adjudication: ' + id);
         ensure(VERDICTS.has(label.verdict), 'Invalid review verdict');
         ensure(validEvidence(label.evidence) && typeof label.reviewer === 'string' && label.reviewer.trim().length >= 2, 'Review requires evidence and reviewer');
+        if (label.severityAssessment !== undefined) {
+          ensure(label.verdict === 'true_positive', 'Severity review only applies to verified true positives');
+          ensure(['appropriate', 'overstated', 'understated', 'uncertain'].includes(label.severityAssessment), 'Invalid severity assessment');
+          ensure(validEvidence(label.severityEvidence), 'Severity assessment requires specific evidence');
+        }
         labels.set(key, label);
       }
     }
@@ -181,6 +190,15 @@ export function scoreEvidence(manifest, scanData, reviewData) {
         duplicate: 'duplicate',
       })[label.verdict] : 'unreviewed';
       add(finding, property);
+      if (label?.verdict === 'true_positive') {
+        const severityProperty = label.severityAssessment ? ({
+          appropriate: 'severityAppropriate',
+          overstated: 'severityOverstated',
+          understated: 'severityUnderstated',
+          uncertain: 'severityUncertain',
+        })[label.severityAssessment] : 'severityNotReviewed';
+        add(finding, severityProperty);
+      }
     }
 
     const targetKeys = new Set();
@@ -196,9 +214,13 @@ export function scoreEvidence(manifest, scanData, reviewData) {
       ensure(!targetKeys.has(key), 'Duplicate curated target');
       targetKeys.add(key);
       add(target, 'knownTargets');
-      const detected = [...found.values()].some(f => f.ruleId === target.ruleId &&
+      const matching = [...found.values()].filter(f => f.ruleId === target.ruleId &&
         f.filePath === target.filePath && f.line >= target.startLine && f.line <= target.endLine);
-      add(target, detected ? 'detectedTargets' : 'missedTargets');
+      for (const candidate of matching) {
+        ensure(labels.get(findingKey(candidate))?.verdict !== 'false_positive',
+          'Curated positive target contradicts a false-positive adjudication: ' + id);
+      }
+      add(target, matching.length ? 'detectedTargets' : 'missedTargets');
     }
     projects.push({
       id, status: 'complete', engine: scan.engine,
@@ -221,6 +243,8 @@ export function scoreEvidence(manifest, scanData, reviewData) {
       'Precision counts only explicitly adjudicated true/false alerts; uncertain, duplicate and unreviewed alerts are excluded.',
       'Recall is limited to separately curated expected targets; unlabeled code cannot be assumed secure or counted as true negative.',
       'The scorer cannot establish exploitation, reviewer independence, source coverage, dataset representativeness, or comparative superiority.',
+      'Severity reviews are counted only on true positives with explicit context evidence; missing reviews do not establish correct severity.',
+      'Report both reviewCoverage and precisionLabelCoverage to disclose selective review sampling.',
       'Do not report a percentage without sample counts, manifest pins, ruleset SHA, and evaluation limitations.',
     ],
   };
