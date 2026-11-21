@@ -95,15 +95,28 @@ export type SecurityScanContext = {
  * must first receive a catalog entry so the UI's "50 checks" claim always
  * matches the executable rule set.
  */
+export type ExtendedScanResultV2 = {
+  findings: ExtendedFinding[];
+  filesScanned: number;
+};
+
+/** Scan all eligible files once and return honest coverage metadata. */
+export async function runExtendedSecurityChecksV2WithStats(
+  repoUrl: string,
+  githubToken?: string,
+  scanPaths?: string[],
+): Promise<ExtendedScanResultV2> {
+  const scopedUrl = scopedRepoUrl(repoUrl, scanPaths);
+  // One GitHub download powers analysis and filtering; no second tree/blob fetch.
+  const result = await readRepositoryFiles(scopedUrl, githubToken);
+  return { findings: scanExtendedFilesV2(result.files), filesScanned: result.files.length };
+}
+
+/** Retain the legacy array-only interface for other scanner callers. */
 export async function runExtendedSecurityChecksV2(
   repoUrl: string,
   githubToken?: string,
   scanPaths?: string[],
 ): Promise<ExtendedFinding[]> {
-  const scopedUrl = scopedRepoUrl(repoUrl, scanPaths);
-  // Reuse the same downloaded files for analysis and finding filtering.
-  // The previous implementation fetched the entire GitHub tree/blobs TWICE
-  // per extended scan, rapidly exhausting the shared anonymous rate limit.
-  const result = await readRepositoryFiles(scopedUrl, githubToken);
-  return scanExtendedFilesV2(result.files);
+  return (await runExtendedSecurityChecksV2WithStats(repoUrl, githubToken, scanPaths)).findings;
 }
