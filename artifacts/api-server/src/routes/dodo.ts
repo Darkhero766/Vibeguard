@@ -3,7 +3,7 @@ import { rateLimit } from "../middlewares/rateLimit";
 import { pool } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { PRO_SCAN_LIMIT } from "../lib/plan";
-import { dodoBaseUrl, assertDodoEnvironmentSafe, dodoCheckoutReturnOrigin, dodoSubscriptionBelongsToAccount, requireDodoApiKey } from "../lib/dodoEnvironment";
+import { dodoBaseUrl, assertDodoEnvironmentSafe, dodoCheckoutReturnOrigin, dodoSubscriptionBelongsToAccount, requireDodoApiKey, requireFutureProExpiry } from "../lib/dodoEnvironment";
 import { verifyDodoSignature } from "../lib/dodoWebhookSignature";
 
 const router = Router();
@@ -306,11 +306,14 @@ router.post("/billing/sync", rateLimit({ name: "billing-sync", windowMs: 60_000,
       const nextBilling = typeof subscription.next_billing_date === "string"
         ? subscription.next_billing_date
         : (typeof subscription.expires_at === "string" ? subscription.expires_at : null);
+      // Never make a paid entitlement indefinite when the provider omitted
+      // or returned a stale next-billing date.
+      const verifiedExpiry = requireFutureProExpiry(nextBilling);
       await activateProByUserId(userId, {
         customerId,
         subscriptionId,
         status,
-        expiresAt: nextBilling,
+        expiresAt: verifiedExpiry,
         source: "dodo_return_sync",
       });
       res.json({ activated: true, plan: "pro", status, subscription_id: subscriptionId });
@@ -365,7 +368,9 @@ router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise
     const data = payload.data && typeof payload.data === "object" ? payload.data as Record<string, unknown> : {};
     const customer = customerFrom(data);
     const subscriptionId = typeof data.subscription_id === "string" ? data.subscription_id : null;
-    const nextBilling = typeof data.next_billing_date === "string" ? data.next_billing_date : null;
+    const nextBilling = typeof data.next_billing_date === "string"
+      ? data.next_billing_date
+      : (typeof data.expires_at === "string" ? data.expires_at : null);
     const productId = typeof data.product_id === "string" ? data.product_id : null;
 
     if (["subscription.active", "subscription.renewed", "subscription.plan_changed"].includes(eventType)) {
@@ -374,12 +379,15 @@ router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise
       if (!subscriptionId || productId !== PRODUCT_ID) {
         throw new Error("Webhook lacks a valid VibeSane Pro subscription/product");
       }
+      // Fail and retry rather than grant a non-expiring plan to an account
+      // for an event without a trustworthy, future paid-through date.
+      const verifiedExpiry = requireFutureProExpiry(nextBilling);
       if (customer.email) {
         await activateProByEmail(customer.email, {
           customerId: customer.id,
           subscriptionId,
           status: "active",
-          expiresAt: nextBilling,
+          expiresAt: verifiedExpiry,
           source: "dodo",
         }, client);
       }
@@ -400,7 +408,7 @@ router.post("/webhooks/dodo", async (req: AuthedRequest, res: Response): Promise
   } catch (error) {
     if (client) await client.query("ROLLBACK").catch(() => {});
     // Do not reveal provider secrets or raw payment data to clients.
-    console.error("[dodo] webhook processing failed", error);
+    console.error("[dodo] webhook processing failed (redacted)");
     res.status(500).json({ error: "Webhook processing failed" });
   } finally {
     client?.release();

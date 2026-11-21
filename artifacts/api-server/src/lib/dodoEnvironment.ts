@@ -60,3 +60,20 @@ export function requireDodoApiKey(env: Readonly<Record<string,string | undefined
   }
   return key;
 }
+
+/**
+ * Never activate a paid plan with null/invalid/expired next-billing date.
+ * Our existing plan snapshot treats pro_expires_at=NULL as non-expiring.
+ * A missing provider date is a retryable integration error, NOT unlimited Pro.
+ */
+export function requireFutureProExpiry(value: unknown, nowMs: number = Date.now()): string {
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    throw new Error("Verified subscription expiry is missing or invalid");
+  }
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed) || parsed <= nowMs) {
+    throw new Error("Verified subscription expiry is not in the future");
+  }
+  return new Date(parsed).toISOString();
+}

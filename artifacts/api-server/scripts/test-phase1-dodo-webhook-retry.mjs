@@ -145,6 +145,7 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
       data:{
         product_id:'pdt_0NmsVBNuntowIFXXZKqKS',
         subscription_id:'synthetic-subscription-1',
+        next_billing_date:new Date(Date.now()+31*24*60*60*1000).toISOString(),
         customer:{email,customer_id:'synthetic-customer'},
       },
     };
@@ -206,6 +207,19 @@ test('signed Dodo webhooks retry partial failures atomically and avoid double en
     assert.equal(paymentResult.status,200);
     assert.equal(usage.get(userId)?.plan,'free',
       'A successful unrelated one-time payment must not create a Pro subscription');
+
+    const missingExpiry={
+      ...payload,type:'subscription.renewed',
+      data:{...payload.data,next_billing_date:undefined,expires_at:undefined},
+    };
+    const beforeMissingExpiry=usage.get(userId)?.plan;
+    const missingExpiryResponse=await send('subscription-without-future-billing',true,missingExpiry);
+    assert.equal(missingExpiryResponse.status,500,
+      'Missing paid-through date must be retryable, not silently grant indefinite Pro');
+    assert.equal(events.has('subscription-without-future-billing'),false,
+      'Missing expiry must rollback and remain retryable');
+    assert.equal(usage.get(userId)?.plan,beforeMissingExpiry,
+      'Bad renewal must not change entitlement');
 
     const missingProduct={
       ...payload,type:'subscription.active',

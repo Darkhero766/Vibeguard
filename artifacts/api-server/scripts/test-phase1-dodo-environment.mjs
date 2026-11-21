@@ -105,3 +105,28 @@ test('checkout and billing sync never send raw provider exceptions to clients or
   assert.match(route,/res\.status\(503\)\.json\(\{ error: "Subscription status is temporarily unavailable/);
   assert.doesNotMatch(route,/throw new Error\(message\)/);
 });
+
+test('paid entitlements require a valid future provider expiration',async()=>{
+  const built=await build({
+    entryPoints:[path.join(dir,'../src/lib/dodoEnvironment.ts')],
+    bundle:true,format:'esm',platform:'node',write:false,target:'node20',logLevel:'silent',
+  });
+  const {requireFutureProExpiry}=await import('data:text/javascript;base64,'+
+    Buffer.from(built.outputFiles[0].contents).toString('base64'));
+  const now=Date.parse('2026-11-21T12:00:00Z');
+  assert.equal(requireFutureProExpiry('2026-12-21T12:00:00.000Z',now),'2026-12-21T12:00:00.000Z');
+  assert.equal(requireFutureProExpiry('2026-12-21T17:30:00+05:30',now),'2026-12-21T12:00:00.000Z');
+  for(const date of [null,undefined,'','never','2026-11-01T00:00:00Z',
+    '2026-11-21T12:00:00Z','2026-12-21','2026-12-21T12:00:00',
+    '2099-99-99T12:00:00Z',0,{}]) {
+    assert.throws(()=>requireFutureProExpiry(date,now),/subscription expiry/);
+  }
+});
+
+test('webhook errors are redacted and missing expiration is not non-expiring Pro',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const src=readFileSync(path.join(dir,'../src/routes/dodo.ts'),'utf8');
+  assert.match(src,/const verifiedExpiry = requireFutureProExpiry\(nextBilling\)/);
+  assert.doesNotMatch(src,/console\.error\("\[dodo\] webhook processing failed", error\)/);
+  assert.match(src,/console\.error\("\[dodo\] webhook processing failed \(redacted\)"\)/);
+});
