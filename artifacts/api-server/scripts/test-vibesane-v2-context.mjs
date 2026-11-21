@@ -86,3 +86,13 @@ test('predictable reset tokens are Critical but unrelated MD5 calls stay High', 
   assert.deepEqual(found.map(f => f.severity), ['Critical', 'High', 'Critical']);
   assert.match(found[0].title, /account takeover/i);
 });
+
+test('cookie test fixtures are demoted but not silently hidden', () => {
+  const content = 'res.cookie("session", token, { secure: true });';
+  const testCase = scan(content, 'test/res.cookie.js')
+    .find(f => f.check === 'cookie_missing_httponly');
+  const prodCase = scan(content, 'app/routes/session.js')
+    .find(f => f.check === 'cookie_missing_httponly');
+  assert.equal(testCase?.severity, 'Low');
+  assert.equal(prodCase?.severity, 'Medium');
+});
