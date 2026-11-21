@@ -38,14 +38,20 @@ function argsMap(argv) {
 }
 
 async function loadScanner() {
-  const entry = path.join(dirname, '../src/lib/extendedScannerV2.ts');
-  const built = await build({
-    entryPoints: [entry], bundle: true, platform: 'node',
-    format: 'esm', target: 'node24', write: false, logLevel: 'silent',
-  });
-  const url = 'data:text/javascript;base64,' +
-    Buffer.from(built.outputFiles[0].contents).toString('base64');
-  return import(url);
+  const entryPoints = [
+    path.join(dirname, '../src/lib/extendedScannerV2.ts'),
+    path.join(dirname, '../src/lib/githubRepoReader.ts'),
+  ];
+  const modules = await Promise.all(entryPoints.map(async entry => {
+    const built = await build({
+      entryPoints: [entry], bundle: true, platform: 'node',
+      format: 'esm', target: 'node24', write: false, logLevel: 'silent',
+    });
+    const url = 'data:text/javascript;base64,' +
+      Buffer.from(built.outputFiles[0].contents).toString('base64');
+    return import(url);
+  }));
+  return { ...modules[0], ...modules[1] };
 }
 
 async function githubTree(project, token) {
