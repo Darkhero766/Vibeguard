@@ -199,10 +199,67 @@ const rules: Array<{ id: string; severity: ExtendedFinding["severity"]; title: s
   { id: "command_injection", severity: "Critical", title: "Command execution uses request-controlled input", description: "An OS command API appears to receive request-derived data. Validate against an allowlist and prefer argument arrays over shell strings.", pattern: /\b(?:exec|execSync|spawn|spawnSync)\s*\([^\n]*(?:req\.(?:query|params|body)|searchParams\.get)/gi, extensions: /\.(?:[cm]?[jt]sx?|ts|js|py|rb|php)$/i },
 ];
 
+/**
+ * Bounded same-function taint signal for a named child_process.exec alias.
+ * Only handles obvious CommonJS aliases, local declaration propagation and
+ * string-concatenated shell arguments. Source is inspected, never executed.
+ * This is not full interprocedural taint analysis.
+ */
+function aliasedShellTaintFindings(files: RepositoryFile[]): ExtendedFinding[] {
+  const output: ExtendedFinding[] = [];
+  for (const file of files) {
+    if (!/\.[cm]?[jt]sx?$/i.test(file.path)) continue;
+    const imported = /\b(?:const|let|var)\s+([A-Za-z_][\w]*)\s*=\s*require\s*\(\s*['"](?:node:)?child_process['"]\s*\)\s*\.\s*exec\b/g;
+    const aliases = [...file.content.matchAll(imported)].map(m => m[1]);
+    if (aliases.length === 0) continue;
+    const tainted = new Set<string>();
+    const lines = file.content.split("\n");
+    let blockComment = false;
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
+      if (/^\s*\/\*/.test(raw)) blockComment = true;
+      if (blockComment) {
+        if (/\*\//.test(raw)) blockComment = false;
+        continue;
+      }
+      if (/^\s*(?:\/\/|#|\*)/.test(raw)) continue;
+      // Do not propagate request taint across unrelated named handlers.
+      if (/\b(?:exports\.[\w$]+\s*=\s*function|function\s+[A-Za-z_$][\w$]*\s*\()/.test(raw)) {
+        tainted.clear();
+      }
+      const declared = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(.+)/.exec(raw);
+      if (declared) {
+        const [, name, expression] = declared;
+        const fromRequest = /\b(?:req|request)\.(?:body|params|query)\b/.test(expression);
+        const fromTaintedVar = [...tainted].some(v =>
+          new RegExp("\\b" + v.replace(/[$]/g, "\\$") + "\\b").test(expression));
+        if (fromRequest || fromTaintedVar) tainted.add(name);
+        else tainted.delete(name);
+      }
+      // Match only a literal shell prefix concatenated with a proven local
+      // tainted value. A plain exec('constant') is not enough to assert CI.
+      for (const alias of aliases) {
+        const call = new RegExp("\\b" + alias + "\\s*\\(\\s*['\\\"][^'\\\"\\n]*['\\\"]\\s*\\+\\s*([A-Za-z_$][\\w$]*)\\b").exec(raw);
+        if (!call || !tainted.has(call[1])) continue;
+        const line = i + 1;
+        output.push(makeFinding(
+          "command_injection-" + file.path + "-" + line,
+          "Critical",
+          "Request-derived value reaches a shell string",
+          "A local value derived from req.body/query/params is concatenated into a child_process.exec shell command. Verify reachability and reject shell string concatenation.",
+          file.path, line, "command_injection",
+        ));
+      }
+    }
+  }
+  return output;
+}
+
 export function scanExtendedFiles(files: RepositoryFile[]): ExtendedFinding[] {
   const findings = [
     ...sqlChecks(files),
     ...scanPotentialPlaintextPasswords(files),
+    ...aliasedShellTaintFindings(files),
     ...rules.flatMap((rule) => regexFindings(files, rule)),
   ];
   const seen = new Set<string>();
