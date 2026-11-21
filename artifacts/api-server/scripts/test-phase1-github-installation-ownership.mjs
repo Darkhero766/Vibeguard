@@ -161,7 +161,7 @@ test('GitHub App linking rejects foreign personal installations and unauthorized
   assert.equal((await send('/github/app/complete','A','POST',{
    installationId:10,state:'signed-fixture-state',
   })).status,200,'Matching Supabase/GitHub identity may link own install');
-  assert.equal(saveCount,1);
+  assert.equal(saveCount,2,'Two authorized installation completions were tested');
   assert.equal((await send('/github/app/repos','A')).status,200);
   assert.equal((await send('/github/app/repos','B')).status,404);
 
