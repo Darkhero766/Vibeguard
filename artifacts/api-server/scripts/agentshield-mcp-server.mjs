@@ -410,7 +410,11 @@ export async function listFindings(workspace, scanId, { signal } = {}) {
     baselines.delete(scanId);
     return { status: 'rescan_required', scanId, findings: [], note: 'Workspace content changed since this scan; run scan_changed again.' };
   }
-  return baseline.result;
+  return {
+    ...baseline.result,
+    scanId: baseline.scanId,
+    baselineExpiresInMs: Math.max(0, BASELINE_TTL_MS - (Date.now() - baseline.createdAt)),
+  };
 }
 export async function verifyRemediation(workspace, baselineId, { signal } = {}) {
   throwIfAborted(signal);
