@@ -217,7 +217,7 @@ async function resolveBaseCommit(root, baseRef, signal) {
   return sha;
 }
 function committedChangedEntries(output) {
-  const chunks = output.split('\\0');
+  const chunks = output.split('\0');
   const files = [];
   for (let i = 0; i < chunks.length;) {
     const status = chunks[i++];
@@ -575,19 +575,22 @@ export function validateToolArguments(name, args) {
   const keys = Object.keys(args);
   if (name === 'status') return keys.length === 0;
   if (name === 'scan_changed') {
-    return (keys.length === 1 || keys.length === 2) && typeof args.workspace === 'string'
-      && args.workspace.length > 0 && args.workspace.length <= 4096 && path.isAbsolute(args.workspace)
+    return (keys.length === 1 || keys.length === 2) && keys.every(key => ['workspace', 'base_ref'].includes(key))
+      && typeof args.workspace === 'string' && args.workspace.length > 0
+      && args.workspace.length <= 4096 && path.isAbsolute(args.workspace)
       && (args.base_ref === undefined || validBaseRef(args.base_ref));
   }
   if (name === 'list_findings') {
-    return (keys.length === 2 || keys.length === 3) && typeof args.workspace === 'string'
-      && args.workspace.length > 0 && args.workspace.length <= 4096 && path.isAbsolute(args.workspace)
+    return (keys.length === 2 || keys.length === 3) && keys.every(key => ['workspace', 'scan_id', 'base_ref'].includes(key))
+      && typeof args.workspace === 'string' && args.workspace.length > 0
+      && args.workspace.length <= 4096 && path.isAbsolute(args.workspace)
       && typeof args.scan_id === 'string' && args.scan_id.length >= 16 && args.scan_id.length <= 80
       && (args.base_ref === undefined || validBaseRef(args.base_ref));
   }
   if (name === 'verify_remediation') {
-    return (keys.length === 2 || keys.length === 3) && typeof args.workspace === 'string'
-      && args.workspace.length > 0 && args.workspace.length <= 4096 && path.isAbsolute(args.workspace)
+    return (keys.length === 2 || keys.length === 3) && keys.every(key => ['workspace', 'baseline_id', 'base_ref'].includes(key))
+      && typeof args.workspace === 'string' && args.workspace.length > 0
+      && args.workspace.length <= 4096 && path.isAbsolute(args.workspace)
       && typeof args.baseline_id === 'string' && args.baseline_id.length >= 16 && args.baseline_id.length <= 80
       && (args.base_ref === undefined || validBaseRef(args.base_ref));
   }
