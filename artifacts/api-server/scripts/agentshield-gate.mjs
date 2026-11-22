@@ -97,6 +97,7 @@ export async function finalGate(root, config, scan) {
       throw new Error('Unsupported changed files prevent a complete final security gate.');
     }
     const report = await scan(root, ['--changed']);
+    if (report.status !== 'complete') throw new Error('Scanner did not return a complete result.');
     const after = await snapshot(root);
     if (before.fingerprint !== after.fingerprint) throw new Error('Files changed while final scan was running.');
     if (after.unsupportedChangedPaths.length) throw new Error('Unsupported changed files appeared during the final scan.');
