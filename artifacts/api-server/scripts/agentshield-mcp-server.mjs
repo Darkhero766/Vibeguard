@@ -592,8 +592,9 @@ export async function handleMessage(message, { signal } = {}) {
   }
 
   if (requestedVersion && !isModern) {
-    return rpcError(message.id, -32001, 'Unsupported protocol version for per-request metadata.', {
-      supportedVersions: [MODERN_PROTOCOL],
+    return rpcError(message.id, -32022, 'Unsupported protocol version for per-request metadata.', {
+      supported: SUPPORTED_PROTOCOLS,
+      requested: requestedVersion,
     });
   }
   if (isModern && !modernMetaIsValid(meta)) {
