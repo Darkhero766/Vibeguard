@@ -261,3 +261,34 @@ test('base-ref scan treats committed deletions and missing refs as incomplete', 
   assert.equal(missingBase.code, 2);
   assert.equal(missingBase.report.status, 'error');
 });
+
+
+test('Claude Code Stop hook enforces commit-aware base-to-HEAD scope', async (t) => {
+  const { cwd, target } = await fixture(t, 'src/auth.ts', 'export const safe = true;\n');
+  await commitFixture(cwd, 'synthetic base');
+  const token = 'P'.repeat(40);
+  await writeFile(target, 'const MY_API_TOKEN = "' + token + '";\n');
+  await commitFixture(cwd, 'synthetic committed blocker');
+
+  const controlHome = await mkdtemp(path.join(os.tmpdir(), 'agentshield-committed-control-'));
+  t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
+  const rootHash = createHash('sha256').update(cwd).digest('hex').slice(0, 28);
+  await writeFile(path.join(controlHome, rootHash + '.json'), JSON.stringify({
+    completionGate: 'enforce', mode: 'assist', baseRef: 'main', blockingSeverity: 'High',
+  }));
+  const env = {
+    ...process.env,
+    VIBESANE_AGENTSHIELD_CONFIG_HOME: controlHome,
+    VIBESANE_AGENTSHIELD_STATE_HOME: path.join(controlHome, 'state'),
+  };
+  const event = { hook_event_name: 'Stop', cwd, session_id: 'committed-diff-enforcement-test' };
+  const blocked = await spawnWithInput(process.execPath, [stopHook], JSON.stringify(event), env);
+  assert.equal(blocked.code, 0);
+  assert.equal(JSON.parse(blocked.stdout).decision, 'block');
+
+  await writeFile(target, 'export const apiTokenIsLoadedFromServerConfig = true;\n');
+  await commitFixture(cwd, 'synthetic committed remediation');
+  const cleared = await spawnWithInput(process.execPath, [stopHook], JSON.stringify(event), env);
+  assert.equal(cleared.code, 0);
+  assert.equal(cleared.stdout.trim(), '');
+});
