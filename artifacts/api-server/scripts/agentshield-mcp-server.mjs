@@ -6,7 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realpath, lstat, open } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
+import { BaselineStore } from './agentshield-baselines.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -19,8 +20,7 @@ const MAX_FINDINGS = 50;
 const MAX_FILES = 100;
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 8_000_000;
-const baselines = new Map();
-const MAX_BASELINES = 50;
+const baselineStore = new BaselineStore({ maxEntries: 50, ttlMs: 30 * 60 * 1000 });
 const BASELINE_TTL_MS = 30 * 60 * 1000;
 const MODERN_PROTOCOL = '2026-07-28';
 const LEGACY_PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
@@ -343,28 +343,11 @@ export function compareFindings(previous, current) {
     newFindings: current.filter((finding) => !previousKeys.has(findingKey(finding))),
   };
 }
-function pruneBaselines(now = Date.now()) {
-  for (const [id, record] of baselines) {
-    if (now - record.createdAt > BASELINE_TTL_MS) baselines.delete(id);
-  }
-  if (baselines.size > MAX_BASELINES) {
-    const oldest = [...baselines.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt);
-    for (const [id] of oldest.slice(0, baselines.size - MAX_BASELINES)) baselines.delete(id);
-  }
-}
 function rememberBaseline(root, fingerprint, result) {
-  pruneBaselines();
-  const scanId = randomUUID();
-  baselines.set(scanId, { scanId, root, fingerprint, result, createdAt: Date.now() });
-  pruneBaselines();
-  return scanId;
+  return baselineStore.remember(root, fingerprint, result).scanId;
 }
 function getBaseline(scanId, root) {
-  pruneBaselines();
-  if (typeof scanId !== 'string' || scanId.length < 16 || scanId.length > 80) return null;
-  const record = baselines.get(scanId);
-  if (!record || record.root !== root) return null;
-  return record;
+  return baselineStore.get(scanId, root);
 }
 export async function scanChanged({ workspace } = {}, { signal } = {}) {
   throwIfAborted(signal);
@@ -408,13 +391,13 @@ export async function listFindings(workspace, scanId, { signal } = {}) {
     return { status: 'baseline_not_found', findings: [], note: 'The scan_id is unknown, expired, or belongs to a different workspace. Run scan_changed again.' };
   }
   if (snapshot.fingerprint !== baseline.fingerprint) {
-    baselines.delete(scanId);
+    baselineStore.delete(scanId);
     return { status: 'rescan_required', scanId, findings: [], note: 'Workspace content changed since this scan; run scan_changed again.' };
   }
   return {
     ...baseline.result,
     scanId: baseline.scanId,
-    baselineExpiresInMs: Math.max(0, BASELINE_TTL_MS - (Date.now() - baseline.createdAt)),
+    baselineExpiresInMs: Math.max(0, baseline.expiresAt - Date.now()),
   };
 }
 export async function verifyRemediation(workspace, baselineId, { signal } = {}) {
@@ -430,7 +413,7 @@ export async function verifyRemediation(workspace, baselineId, { signal } = {}) 
     return { status: 'no_changes_since_baseline', baselineId, securityGuarantee: false, note: 'Workspace is unchanged since the named baseline; no remediation verification was performed.' };
   }
   if (!before.candidatePaths.length) {
-    baselines.delete(baselineId);
+    baselineStore.delete(baselineId);
     return {
       status: 'verification_incomplete',
       securityGuarantee: false,
