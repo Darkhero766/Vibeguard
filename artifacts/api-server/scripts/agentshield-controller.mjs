@@ -210,7 +210,7 @@ async function readHookInput() {
 async function postEdit(event, root, config) {
   if (!['Write', 'Edit', 'MultiEdit'].includes(event.tool_name) || typeof event.tool_input?.file_path !== 'string') return null;
   const filePath = event.tool_input.file_path;
-  if (!/\.(?:[cm]?[jt]sx?|sql|json|ya?ml)$/i.test(filePath) && !/(^|[/\\])\.env(?:\.[\w-]+)?$/i.test(filePath)) return null;
+  if (!/\.(?:[cm]?[jt]sx?|pyi?|sql|json|ya?ml)$/i.test(filePath) && !/(^|[/\\])\.env(?:\.[\w-]+)?$/i.test(filePath)) return null;
   const report = await scan(root, ['--file', filePath]);
   if (report.filesScanned !== 1 || report.scannedPaths.length !== 1) throw new Error('Post-edit scan did not cover the edited file.');
   const file = report.scannedPaths[0];
