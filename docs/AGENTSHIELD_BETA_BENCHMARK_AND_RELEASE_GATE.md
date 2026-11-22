@@ -37,6 +37,8 @@ The local suite must prove all of the following for Claude Code Stop with `compl
 - `advisory` mode preserves report-only behavior.
 - Cursor follow-up and Codex MCP/skill workflows are tested as non-equivalent to hard delivery enforcement.
 
+The accuracy runner measures true positives, false positives, true negatives and false negatives for every named target rule. Release qualification requires aggregate precision ≥0.90 and recall ≥0.85, **and** per-category precision/recall ≥0.60 on the 120-case curated set, and ≥0.50 on every category in the separately authored holdout set. The report must include all category metrics, misclassifications and off-target finding counts. These synthetic labels are useful regression evidence, not proof of exploitability or real-world recall.
+
 ## Metrics and thresholds for beta claims
 - **False-clean rate on blocker fixtures:** 0. Any missed expected blocker is a release blocker for that rule's advertised coverage.
 - **Coverage honesty:** 100% of unsupported/partial/timeout/race cases must not return a passing status.
