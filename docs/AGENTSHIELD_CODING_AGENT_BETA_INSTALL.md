@@ -37,7 +37,7 @@ The tarball is local and unpublished. The package script checks its file manifes
 
 ## Completion gate and host enforcement
 
-The default `completionGate` is `advisory` for compatibility. To opt into enforcement in a Claude Code project, run `vibesane config --mode assist --completion-gate enforce --cwd /absolute/path/to/project`, then check the persisted setting with `vibesane status --cwd /absolute/path/to/project`.
+The default `completionGate` is `advisory` for compatibility. To opt into enforcement in a Claude Code project, install the hooks with `vibesane init --cwd /absolute/path/to/project`, then run `vibesane config --mode assist --completion-gate enforce --cwd /absolute/path/to/project` and confirm the persisted setting with `vibesane status --cwd /absolute/path/to/project`.
 
 With enforcement enabled, the Claude Code Stop hook returns an explicit `decision: block` when the final changed-file scan is incomplete, previously flagged files are not covered, or findings at/above the configured blocking severity remain. The block persists until the scan is complete and blockers are resolved; an exhausted remediation budget does not convert a blocker into a pass. Developers can still interrupt the host or explicitly change local policy, so this is a host-level control, not a tamper-proof boundary.
 
