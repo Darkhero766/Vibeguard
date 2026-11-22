@@ -213,10 +213,10 @@ async function commitFixture(cwd, message) {
 }
 
 test('base-ref scan detects committed changes even when the worktree is clean', async (t) => {
-  const { cwd, target } = await fixture(t, 'src/auth.ts', 'export const safe = true;\\n');
+  const { cwd, target } = await fixture(t, 'src/auth.ts', 'export const safe = true;\n');
   await commitFixture(cwd, 'synthetic base');
   const secret = 'K'.repeat(40);
-  await writeFile(target, 'const MY_API_TOKEN = "' + secret + '";\\n');
+  await writeFile(target, 'const MY_API_TOKEN = "' + secret + '";\n');
   await commitFixture(cwd, 'synthetic committed credential');
   const result = await scan(cwd, ['--changed', '--base-ref', 'main']);
   assert.equal(result.code, 1);
@@ -226,7 +226,7 @@ test('base-ref scan detects committed changes even when the worktree is clean', 
   assert.ok(result.report.findings.some(f => f.severity === 'High'));
   assert.ok(!result.stdout.includes(secret));
 
-  await writeFile(target, 'export const apiTokenIsLoadedFromServerConfig = true;\\n');
+  await writeFile(target, 'export const apiTokenIsLoadedFromServerConfig = true;\n');
   await commitFixture(cwd, 'synthetic remediation');
   const clean = await scan(cwd, ['--changed', '--base-ref', 'main']);
   assert.equal(clean.code, 0);
@@ -236,7 +236,7 @@ test('base-ref scan detects committed changes even when the worktree is clean', 
 });
 
 test('base-ref scan follows a committed rename and scans the destination path', async (t) => {
-  const { cwd, target } = await fixture(t, 'src/old.js', 'export const value = true;\\n');
+  const { cwd, target } = await fixture(t, 'src/old.js', 'export const value = true;\n');
   await commitFixture(cwd, 'synthetic base');
   const renamed = path.join(cwd, 'src', 'renamed.js');
   await run('git', ['-C', cwd, 'mv', target, renamed]);
@@ -248,7 +248,7 @@ test('base-ref scan follows a committed rename and scans the destination path', 
 });
 
 test('base-ref scan treats committed deletions and missing refs as incomplete', async (t) => {
-  const { cwd, target } = await fixture(t, 'src/deleted.js', 'export const value = true;\\n');
+  const { cwd, target } = await fixture(t, 'src/deleted.js', 'export const value = true;\n');
   await commitFixture(cwd, 'synthetic base');
   await run('git', ['-C', cwd, 'rm', '-q', target]);
   await commitFixture(cwd, 'synthetic deletion');
