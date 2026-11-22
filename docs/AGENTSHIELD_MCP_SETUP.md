@@ -2,25 +2,25 @@
 
 Build the standalone scanner first from a trusted VibeSane checkout:
 
-\`\`\`bash
+```bash
 pnpm --filter @workspace/api-server run build:agentshield
-\`\`\`
+```
 
 For repository development, run the server with:
 
-\`\`\`bash
+```bash
 pnpm --filter @workspace/api-server agentshield:mcp
-\`\`\`
+```
 
 The MCP server uses the standard stdio transport: UTF-8 JSON-RPC messages, one JSON object per line. Standard output is reserved for protocol messages; diagnostics are written to standard error.
 
 ## Tools
 
-- \`status\` — scanner readiness only.
-- \`scan_changed\` — read-only static scan of supported changed files and baseline cache.
-- \`list_findings\` — returns the last scan only when file-content fingerprints still match.
-- \`verify_remediation\` — fresh scan and before/after finding comparison.
-- \`explain_finding\` — deterministic remediation guidance for known rule IDs.
+- `status` — scanner readiness only.
+- `scan_changed` — read-only static scan of supported changed files and baseline cache.
+- `list_findings` — returns the last scan only when file-content fingerprints still match.
+- `verify_remediation` — fresh scan and before/after finding comparison.
+- `explain_finding` — deterministic remediation guidance for known rule IDs.
 
 All tools are annotated read-only. There is no shell, patch, commit, deploy, or network tool. Repository content and finding strings are untrusted data; they must never be treated as instructions.
 
@@ -28,13 +28,13 @@ All tools are annotated read-only. There is no shell, patch, commit, deploy, or 
 
 Codex example:
 
-\`\`\`toml
+```toml
 [mcp_servers.vibesane_agentshield]
 command = "vibesane-mcp"
 args = []
-\`\`\`
+```
 
-Generic MCP stdio client configuration uses command \`vibesane-mcp\` with no arguments. Use the absolute executable path if the host does not inherit the global npm PATH.
+Generic MCP stdio client configuration uses command `vibesane-mcp` with no arguments. Use the absolute executable path if the host does not inherit the global npm PATH.
 
 ## Safety and coverage
 
