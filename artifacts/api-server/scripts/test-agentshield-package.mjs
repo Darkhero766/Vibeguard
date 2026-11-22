@@ -81,8 +81,9 @@ try {
     'Packaging did not return an archive path and SHA-256.');
   archive = packaged.archive;
   const packagedReadme = await run('tar', ['-xOf', archive, 'package/README.md']);
-  assert(packagedReadme.stdout.includes('--completion-gate enforce'),
-    'Packaged README omits Claude Code completion enforcement instructions.');
+  assert(packagedReadme.stdout.includes('--completion-gate enforce')
+    && packagedReadme.stdout.includes('--base-ref origin/main'),
+    'Packaged README omits commit-aware Claude Code completion enforcement instructions.');
 
   await run('npm', ['install', '--global', '--ignore-scripts', '--offline', '--no-audit', '--no-fund', '--prefix', installPrefix, archive], {
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_offline: 'true' },
