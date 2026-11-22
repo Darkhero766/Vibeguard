@@ -156,3 +156,50 @@ test('Claude Code Stop hook enforces blockers then allows a complete clean resca
   assert.equal(cleared.code, 0);
   assert.equal(cleared.stdout.trim(), '');
 });
+
+
+test('Claude Code Stop hook blocks enforce mode when there are no changed files to scan', async (t) => {
+  const { cwd } = await fixture(t, 'src/index.js', 'export const baseline = true;\n');
+  await run('git', ['-C', cwd, 'add', '.']);
+  await run('git', ['-C', cwd, '-c', 'user.name=AgentShield Test', '-c',
+    'user.email=agentshield-test@example.invalid', 'commit', '-qm', 'synthetic clean baseline']);
+
+  const controlHome = await mkdtemp(path.join(os.tmpdir(), 'agentshield-empty-control-'));
+  t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
+  const rootHash = createHash('sha256').update(cwd).digest('hex').slice(0, 28);
+  await writeFile(path.join(controlHome, rootHash + '.json'), JSON.stringify({
+    completionGate: 'enforce', mode: 'assist', enabled: true,
+  }));
+  const env = {
+    ...process.env,
+    VIBESANE_AGENTSHIELD_CONFIG_HOME: controlHome,
+    VIBESANE_AGENTSHIELD_STATE_HOME: path.join(controlHome, 'state'),
+  };
+  const result = await spawnWithInput(process.execPath, [stopHook],
+    JSON.stringify({ hook_event_name: 'Stop', cwd, session_id: 'empty-worktree-test' }), env);
+  assert.equal(result.code, 0);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.decision, 'block');
+  assert.match(payload.reason, /no Git-visible changed files/i);
+});
+
+test('Claude Code Stop hook blocks if enforcement is enabled but scanner is disabled', async (t) => {
+  const { cwd } = await fixture(t, 'src/index.js', 'export const changed = true;\n');
+  const controlHome = await mkdtemp(path.join(os.tmpdir(), 'agentshield-disabled-control-'));
+  t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
+  const rootHash = createHash('sha256').update(cwd).digest('hex').slice(0, 28);
+  await writeFile(path.join(controlHome, rootHash + '.json'), JSON.stringify({
+    completionGate: 'enforce', enabled: false,
+  }));
+  const env = {
+    ...process.env,
+    VIBESANE_AGENTSHIELD_CONFIG_HOME: controlHome,
+    VIBESANE_AGENTSHIELD_STATE_HOME: path.join(controlHome, 'state'),
+  };
+  const result = await spawnWithInput(process.execPath, [stopHook],
+    JSON.stringify({ hook_event_name: 'Stop', cwd, session_id: 'disabled-scanner-test' }), env);
+  assert.equal(result.code, 0);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.decision, 'block');
+  assert.match(payload.reason, /scanner is disabled/i);
+});
