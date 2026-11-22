@@ -27,8 +27,9 @@ const scripts = [
   'agentshield-install.mjs',
   'agentshield-capabilities.mjs',
   'agentshield-hybrid.mjs',
-  'agentshield-mcp-server.mjs',\n  'agentshield-python.mjs',
+  'agentshield-mcp-server.mjs',
   'agentshield-python.mjs',
+];
 async function main() {
   const scanner = path.join(root, 'dist', 'agentshield.mjs');
   if (!(await stat(scanner).catch(() => null))?.isFile()) {
