@@ -44,6 +44,10 @@ The local suite must prove all of the following for Claude Code Stop with `compl
 - **Installability:** package installs and binaries start on a clean supported Node 20+ environment.
 - **FP:** measure and publish per-rule false-positive counts; do not hide them in aggregate precision.
 
+## Local package smoke command
+
+Run `node ./scripts/test-agentshield-package.mjs` from `artifacts/api-server` on a supported macOS/Linux Node 20+ workstation. It builds the scanner, creates the unpublished tarball, installs it into a temporary npm prefix, checks the CLI and doctor, scans a synthetic Git fixture, exercises MCP initialize/tool-list/status over stdio, then removes temporary files. This smoke command is not evidence until its output is captured from an actual run.
+
 ## Report template
 Record beta build hash, platform, Node version, package SHA-256, fixture commit/hash, tests executed, test counts, scan time, TP/FP/TN/FN by rule, incomplete-scan behavior, integration host/version, known defects, and release decision. Mark anything not executed as NOT TESTED.
 
