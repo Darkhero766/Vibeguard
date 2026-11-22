@@ -114,7 +114,7 @@ async function main(args) {
       '',
       'Commands:',
       '  vibesane doctor [--cwd PROJECT]',
-      '  vibesane scan --changed [--cwd PROJECT]',
+      '  vibesane scan --changed [--base-ref REF] [--cwd PROJECT]',
       '  vibesane verify --changed [--cwd PROJECT]',
       '  vibesane status [--cwd PROJECT]',
       '  vibesane config [--mode monitor|assist|auto-fix] [--completion-gate advisory|enforce] [--base-ref REF] [--cwd PROJECT]',
