@@ -7,3 +7,6 @@ test('scanner readiness fails closed',async()=>assert.equal((await statusTool('/
 test('normalizes actual CLI schema and suppresses excerpts',()=>{const r=normalizeReport({status:'complete',filesScanned:1,scannedPaths:['a.js'],findings:[{filePath:'a.js',line:2,check:'secret',severity:'High',title:'Secret detected',description:'RAW SECRET'}]});assert.equal(r.findings[0].ruleId,'secret');assert.equal(JSON.stringify(r).includes('RAW SECRET'),false);});
 test('partial/error/malformed reports return UNKNOWN',()=>{for(const x of [{status:'error',findings:[]},{status:'complete',filesScanned:2,scannedPaths:['x'],findings:[]},{status:'complete',filesScanned:0,scannedPaths:[],findings:'bad'}])assert.throws(()=>normalizeReport(x));});
 test('coverage caps are enforced',()=>assert.throws(()=>normalizeReport({status:'complete',filesScanned:201,scannedPaths:Array(201).fill('x'),findings:[]})));
+
+test('zero-file complete report is not a scan pass',()=>assert.throws(()=>normalizeReport({status:'complete',filesScanned:0,scannedPaths:[],findings:[]})));
+test('unknown severity is sanitized',()=>{const r=normalizeReport({status:'complete',filesScanned:1,scannedPaths:['x.js'],findings:[{filePath:'x.js',line:1,ruleId:'r',severity:'Injected',title:'t'}]});assert.equal(r.findings[0].severity,'Unknown');});
