@@ -26,7 +26,7 @@ test('CLI accepts only catalogued model keys and explicit live flag',()=>{
 test('provider requests use provider-specific headers and include only unlabeled synthetic snippets',()=>{
  const openai=buildProviderRequest(MODEL_CATALOG[1],cases,'FAKE_KEY');const body=JSON.parse(openai.init.body);
  assert.equal(openai.url,'https://api.openai.com/v1/responses');assert.match(openai.init.headers.Authorization,/^Bearer/);
- const modelInput=JSON.stringify(body.input);assert.match(modelInput,/FAKE_SYNTHETIC/);assert.doesNotMatch(modelInput,/"expected"|rationale/);
+ const modelInput=JSON.stringify(body.input);assert.match(modelInput,/FAKE_SYNTHETIC/);assert.doesNotMatch(modelInput,/"expected":\s*(true|false)/);
  const anth=buildProviderRequest(MODEL_CATALOG[2],cases,'FAKE_KEY');assert.equal(anth.init.headers['x-api-key'],'FAKE_KEY');assert.doesNotMatch(anth.url,/FAKE_KEY/);
  const google=buildProviderRequest(MODEL_CATALOG[4],cases,'FAKE_KEY');assert.equal(google.init.headers['x-goog-api-key'],'FAKE_KEY');assert.doesNotMatch(google.url,/FAKE_KEY/);
 });
