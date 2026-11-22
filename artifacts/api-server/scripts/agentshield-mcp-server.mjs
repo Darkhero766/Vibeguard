@@ -220,6 +220,19 @@ async function resolveBaseCommit(root, baseRef, signal) {
   }
   const sha = result.stdout.trim();
   if (!/^[a-f0-9]{40,64}$/i.test(sha)) throw new Error('Configured base_ref did not resolve to a commit.');
+  const headResult = await exec('git', gitArgs(root, ['rev-parse', '--verify', 'HEAD']), {
+    timeout: 7000, maxBuffer: 10_000, windowsHide: true, env: FIXED_ENV, signal,
+  });
+  const head = headResult.stdout.trim();
+  if (sha === head) throw new Error('base_ref points to current HEAD; use a distinct target base that is an ancestor of the coding branch.');
+  try {
+    await exec('git', gitArgs(root, ['merge-base', '--is-ancestor', sha, 'HEAD']), {
+      timeout: 7000, maxBuffer: 10_000, windowsHide: true, env: FIXED_ENV, signal,
+    });
+  } catch (error) {
+    if (signal?.aborted || error?.name === 'AbortError') throw error;
+    throw new Error('base_ref must be an ancestor of HEAD; update or rebase the coding branch onto the target base.');
+  }
   return sha;
 }
 function committedChangedEntries(output) {
