@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realpath, lstat, open } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -20,6 +20,9 @@ const MAX_FILES = 100;
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 8_000_000;
 const cache = new Map();
+const baselines = new Map();
+const MAX_BASELINES = 50;
+const BASELINE_TTL_MS = 30 * 60 * 1000;
 const MODERN_PROTOCOL = '2026-07-28';
 const LEGACY_PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
 const SUPPORTED_PROTOCOLS = [MODERN_PROTOCOL, ...LEGACY_PROTOCOLS];
@@ -66,8 +69,11 @@ export const TOOL_DEFS = [
   {
     name: 'verify_remediation',
     title: 'Verify remediation by rescanning',
-    description: 'After the coding agent edits files, run a fresh complete scan and compare it with the previous scan. Reports remaining, removed and new findings. This is static re-scan evidence only, not runtime proof or a security certification.',
-    inputSchema: { type: 'object', properties: { workspace: { type: 'string', minLength: 1, maxLength: 4096 } }, required: ['workspace'], additionalProperties: false },
+    description: 'After the coding agent edits files, run a fresh complete scan and compare it with the baseline identified by baseline_id from scan_changed. Reports remaining, removed and new findings. This is static re-scan evidence only, not runtime proof or a security certification.',
+    inputSchema: { type: 'object', properties: {
+      workspace: { type: 'string', minLength: 1, maxLength: 4096 },
+      baseline_id: { type: 'string', minLength: 16, maxLength: 80 },
+    }, required: ['workspace', 'baseline_id'], additionalProperties: false },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   {
