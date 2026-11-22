@@ -12,6 +12,24 @@ const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptsDir, '..');
 const FILES = [
   'scripts/check-agentshield-source-syntax.mjs',
+  'scripts/build-agentshield.mjs',
+  'scripts/test-agentshield-week2.mjs',
+  'scripts/test-agentshield-week3.mjs',
+  'scripts/test-agentshield-week4.mjs',
+  'scripts/test-agentshield-week5.mjs',
+  'scripts/test-agentshield-hybrid.mjs',
+  'scripts/test-agentshield-ast.mjs',
+  'scripts/test-agentshield-taint.mjs',
+  'scripts/test-agentshield-release.mjs',
+  'scripts/test-agentshield-models.mjs',
+  'scripts/test-scan-score.mjs',
+  'scripts/test-agentshield-phase12.mjs',
+  'scripts/test-agentshield-crossfile.mjs',
+  'scripts/test-agentshield-route-auth.mjs',
+  'scripts/test-agentshield-supabase-policy.mjs',
+  'scripts/test-agentshield-auth-regression.mjs',
+  'scripts/test-vibesane-sql-context.mjs',
+  'scripts/test-agentshield-python.mjs',
   'scripts/agentshield-cli.mjs',
   'scripts/agentshield-gate.mjs',
   'scripts/agentshield-policy.mjs',
@@ -39,6 +57,8 @@ const FILES = [
 const SOURCE_INPUTS = [
   'src/lib/apiScanner.ts',
   'src/lib/extendedScannerV2.ts',
+  'scripts/agentshield-accuracy-corpus.mjs',
+  'scripts/agentshield-holdout-corpus.mjs',
   'package.json',
   'skills/vibesane-agentshield/SKILL.md',
 ];
