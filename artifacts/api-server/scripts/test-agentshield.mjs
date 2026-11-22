@@ -32,6 +32,7 @@ async function fixture(t, name, source) {
   const cwd = await mkdtemp(path.join(os.tmpdir(), 'vibesane-agent-test-'));
   t.after(async () => { await rm(cwd, { recursive: true, force: true }); });
   await run('git', ['init', '-q', cwd]);
+  await run('git', ['-C', cwd, 'branch', '-M', 'main']);
   const target = path.join(cwd, name);
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, source);
@@ -202,4 +203,61 @@ test('Claude Code Stop hook blocks if enforcement is enabled but scanner is disa
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.decision, 'block');
   assert.match(payload.reason, /scanner is disabled/i);
+});
+
+
+async function commitFixture(cwd, message) {
+  await run('git', ['-C', cwd, 'add', '-A']);
+  await run('git', ['-C', cwd, '-c', 'user.name=AgentShield Test', '-c',
+    'user.email=agentshield-test@example.invalid', 'commit', '-qm', message]);
+}
+
+test('base-ref scan detects committed changes even when the worktree is clean', async (t) => {
+  const { cwd, target } = await fixture(t, 'src/auth.ts', 'export const safe = true;\\n');
+  await commitFixture(cwd, 'synthetic base');
+  const secret = 'K'.repeat(40);
+  await writeFile(target, 'const MY_API_TOKEN = "' + secret + '";\\n');
+  await commitFixture(cwd, 'synthetic committed credential');
+  const result = await scan(cwd, ['--changed', '--base-ref', 'main']);
+  assert.equal(result.code, 1);
+  assert.equal(result.report.status, 'complete');
+  assert.equal(result.report.baseRef.length, 40);
+  assert.deepEqual(result.report.scannedPaths, ['src/auth.ts']);
+  assert.ok(result.report.findings.some(f => f.severity === 'High'));
+  assert.ok(!result.stdout.includes(secret));
+
+  await writeFile(target, 'export const apiTokenIsLoadedFromServerConfig = true;\\n');
+  await commitFixture(cwd, 'synthetic remediation');
+  const clean = await scan(cwd, ['--changed', '--base-ref', 'main']);
+  assert.equal(clean.code, 0);
+  assert.equal(clean.report.status, 'complete');
+  assert.deepEqual(clean.report.scannedPaths, ['src/auth.ts']);
+  assert.equal(clean.report.findings.length, 0);
+});
+
+test('base-ref scan follows a committed rename and scans the destination path', async (t) => {
+  const { cwd, target } = await fixture(t, 'src/old.js', 'export const value = true;\\n');
+  await commitFixture(cwd, 'synthetic base');
+  const renamed = path.join(cwd, 'src', 'renamed.js');
+  await run('git', ['-C', cwd, 'mv', target, renamed]);
+  await commitFixture(cwd, 'synthetic rename');
+  const result = await scan(cwd, ['--changed', '--base-ref', 'main']);
+  assert.equal(result.code, 0);
+  assert.equal(result.report.status, 'complete');
+  assert.deepEqual(result.report.scannedPaths, ['src/renamed.js']);
+});
+
+test('base-ref scan treats committed deletions and missing refs as incomplete', async (t) => {
+  const { cwd, target } = await fixture(t, 'src/deleted.js', 'export const value = true;\\n');
+  await commitFixture(cwd, 'synthetic base');
+  await run('git', ['-C', cwd, 'rm', '-q', target]);
+  await commitFixture(cwd, 'synthetic deletion');
+  const deleted = await scan(cwd, ['--changed', '--base-ref', 'main']);
+  assert.equal(deleted.code, 2);
+  assert.equal(deleted.report.status, 'scan_incomplete');
+  assert.deepEqual(deleted.report.missingChangedPaths, ['src/deleted.js']);
+
+  const missingBase = await scan(cwd, ['--changed', '--base-ref', 'origin/not-fetched']);
+  assert.equal(missingBase.code, 2);
+  assert.equal(missingBase.report.status, 'error');
 });
