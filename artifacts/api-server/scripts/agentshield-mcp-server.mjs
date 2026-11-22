@@ -56,7 +56,7 @@ export const TOOL_DEFS = [
     title: 'Scan changed files',
     description: 'Run a fresh read-only static security scan of supported Git-changed files. Requires an absolute Git workspace path. A complete scan returns a unique scanId for this baseline. Incomplete coverage or truncated findings is UNKNOWN, never a pass.',
     inputSchema: { type: 'object', properties: { workspace: { type: 'string', minLength: 1, maxLength: 4096 } }, required: ['workspace'], additionalProperties: false },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   {
     name: 'list_findings',
