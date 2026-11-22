@@ -96,6 +96,7 @@ try {
   await mkdir(path.join(fixture, 'src'), { recursive: true });
   await writeFile(path.join(fixture, 'src', 'index.js'), 'export const baseline = true;\n');
   await run('git', ['init', '-q', fixture]);
+  await run('git', ['-C', fixture, 'branch', '-M', 'main']);
   await run('git', ['-C', fixture, 'config', 'user.name', 'AgentShield Package Smoke']);
   await run('git', ['-C', fixture, 'config', 'user.email', 'agentshield-smoke@example.invalid']);
   await run('git', ['-C', fixture, 'add', '.']);
@@ -105,10 +106,15 @@ try {
   const doctor = await run(cli, ['doctor', '--cwd', fixture], { cwd: temp });
   const health = JSON.parse(doctor.stdout);
   assert(health.status === 'ready', 'Installed CLI doctor did not report ready.');
-  const scan = await run(cli, ['scan', '--changed', '--cwd', fixture, '--format', 'json'], { cwd: temp });
+  await writeFile(path.join(fixture, 'src', 'index.js'), 'export const committedChange = true;\n');
+  await run('git', ['-C', fixture, 'add', '.']);
+  await run('git', ['-C', fixture, '-c', 'user.name=AgentShield Package Smoke', '-c',
+    'user.email=agentshield-smoke@example.invalid', 'commit', '-qm', 'synthetic committed change']);
+  const scan = await run(cli, ['scan', '--changed', '--base-ref', 'main', '--cwd', fixture, '--format', 'json'], { cwd: temp });
   const report = JSON.parse(scan.stdout);
-  assert(report.status === 'complete' && report.filesScanned === 1,
-    'Installed package did not complete the synthetic changed-file scan.');
+  assert(report.status === 'complete' && report.filesScanned === 1
+    && typeof report.baseRef === 'string' && report.baseRef.length === 40,
+    'Installed package did not complete the synthetic committed base-ref scan.');
 
   const requests = [
     { jsonrpc: '2.0', id: 1, method: 'initialize', params: {
