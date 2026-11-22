@@ -2,7 +2,8 @@
 // VibeSane AgentShield: local-only analysis of changed files. Bundled with esbuild.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readFile, lstat, realpath } from 'node:fs/promises';
+import { lstat, realpath, open } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import path from 'node:path';
 import { scanApiFiles } from '../src/lib/apiScanner.ts';
 import { scanExtendedFilesV2 } from '../src/lib/extendedScannerV2.ts';
@@ -149,8 +150,24 @@ async function loadFiles(opts) {
     const verified = await realpath(absolute);
     if (verified !== rootReal && !verified.startsWith(rootReal + path.sep)) throw new Error('File escaped the repository root.');
     let content;
-    try { content = await readFile(absolute, 'utf8'); }
-    catch { throw new Error('Unable to read a selected file.'); }
+    const handle = await open(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW || 0)).catch(() => {
+      throw new Error('Unable to open a selected file without following symlinks.');
+    });
+    try {
+      const opened = await handle.stat();
+      if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino) {
+        throw new Error('Selected file identity changed while opening it.');
+      }
+      content = await handle.readFile('utf8');
+      const afterRead = await handle.stat();
+      if (afterRead.dev !== opened.dev || afterRead.ino !== opened.ino
+        || afterRead.size !== opened.size || afterRead.mtimeMs !== opened.mtimeMs
+        || Buffer.byteLength(content, 'utf8') !== opened.size) {
+        throw new Error('Selected file changed while it was being read.');
+      }
+    } finally {
+      await handle.close();
+    }
     bytes += Buffer.byteLength(content, 'utf8');
     if (bytes > MAX_TOTAL_BYTES) throw new Error('Source size limit exceeded.');
     files.push({ path: safeRelative.split(path.sep).join('/'), content });
