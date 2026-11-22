@@ -192,11 +192,14 @@ export async function workspaceSnapshot(workspace) {
   const allChangedPaths = changedEntries(status);
   const paths = allChangedPaths.filter(supportedPath);
   const unsupportedChangedPaths = allChangedPaths.filter((file) => !ignoredPath(file) && !supportedPath(file));
-  if (paths.length > MAX_FILES) throw new Error('Changed-file limit exceeded.');
+  if (allChangedPaths.length > MAX_FILES) throw new Error('Changed-file limit exceeded.');
   let totalBytes = 0;
   const observations = [];
   const candidatePaths = [];
-  for (const relativePath of paths) {
+  // Fingerprint every changed, non-ignored file, including unsupported types.
+  // Otherwise an unsupported file could change during a scan without invalidating
+  // the snapshot when its Git porcelain status was already dirty.
+  for (const relativePath of allChangedPaths.filter((file) => !ignoredPath(file))) {
     const fullPath = path.resolve(root, relativePath);
     const relative = path.relative(root, fullPath);
     if (!relative || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
@@ -224,7 +227,7 @@ export async function workspaceSnapshot(workspace) {
       }
       totalBytes += bytes.byteLength - before.size;
       if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Changed files grew beyond the scanner total-size budget.');
-      candidatePaths.push(relativePath.split(path.sep).join('/'));
+      if (supportedPath(relativePath)) candidatePaths.push(relativePath.split(path.sep).join('/'));
       observations.push([relativePath, sha256(bytes), bytes.byteLength, opened.mtimeMs]);
     } finally {
       await handle.close();
@@ -252,7 +255,7 @@ export async function statusTool() {
 }
 
 export function normalizeReport(report, expectedPaths) {
-  if (!report || report.status !== 'complete' || !Array.isArray(report.findings)
+  if (!report || !['complete', 'partial_coverage'].includes(report.status) || !Array.isArray(report.findings)
     || !Array.isArray(report.scannedPaths) || !Number.isSafeInteger(report.filesScanned)
     || report.filesScanned < 0) throw new Error('Incomplete scanner report; status UNKNOWN.');
   if (report.scannedPaths.length > MAX_FILES || report.findings.length > 10000
@@ -299,7 +302,7 @@ async function runScanner(root, expectedPaths) {
       timeout: 15000, maxBuffer: MAX_OUTPUT, windowsHide: true, env: FIXED_ENV,
     });
   } catch (error) {
-    if (error?.code === 1 && typeof error.stdout === 'string') output = { stdout: error.stdout };
+    if ((error?.code === 1 || error?.code === 2) && typeof error.stdout === 'string') output = { stdout: error.stdout };
     else throw new Error('Scanner failed, timed out or exceeded its output budget.');
   }
   let report;
