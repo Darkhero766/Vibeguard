@@ -173,7 +173,7 @@ function changedEntries(status) {
     const flags = item.slice(0, 2);
     const file = item.slice(3);
     if (flags.includes('R') || flags.includes('C')) i++;
-    if (!flags.includes('D') && !flags.includes('!')) files.push(file);
+    if (!flags.includes('!')) files.push(file);
   }
   return [...new Set(files)].sort();
 }
