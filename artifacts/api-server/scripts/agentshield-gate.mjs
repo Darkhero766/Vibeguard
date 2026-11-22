@@ -88,6 +88,10 @@ export async function snapshot(root) {
 
 export async function finalGate(root, config, scan) {
   try {
+    // Invalid policy must never degrade to zero blocking findings / a clean result.
+    if (!config || typeof config !== 'object' || !Object.hasOwn(SEVERITY, config.blockingSeverity)) {
+      throw new Error('Invalid final-gate configuration.');
+    }
     const before = await snapshot(root);
     if (before.changedPaths.length === 0 && before.unsupportedChangedPaths.length === 0) {
       return { status: 'no_changed_files', filesScanned: 0, findings: [], blocking: 0,
@@ -101,15 +105,29 @@ export async function finalGate(root, config, scan) {
     const after = await snapshot(root);
     if (before.fingerprint !== after.fingerprint) throw new Error('Files changed while final scan was running.');
     if (after.unsupportedChangedPaths.length) throw new Error('Unsupported changed files appeared during the final scan.');
+    if (!Array.isArray(report.scannedPaths) || !Array.isArray(report.findings)
+      || !Number.isSafeInteger(report.filesScanned) || report.filesScanned !== before.changedPaths.length
+      || report.scannedPaths.length !== before.changedPaths.length
+      || report.scannedPaths.some(file => typeof file !== 'string')
+      || new Set(report.scannedPaths).size !== before.changedPaths.length) {
+      throw new Error('Final scan returned malformed or duplicated coverage.');
+    }
     const covered = new Set(report.scannedPaths);
-    const missing = before.changedPaths.filter(file => !covered.has(file));
-    if (missing.length || report.filesScanned !== before.changedPaths.length) {
+    if (before.changedPaths.some(file => !covered.has(file))) {
       throw new Error('Final scan omitted changed files; security coverage is incomplete.');
     }
+    for (const finding of report.findings) {
+      if (!finding || typeof finding !== 'object' || Array.isArray(finding)
+        || typeof finding.filePath !== 'string' || !covered.has(finding.filePath)
+        || typeof finding.ruleId !== 'string' || !Object.hasOwn(SEVERITY, finding.severity)
+        || (finding.line != null && (!Number.isSafeInteger(finding.line) || finding.line < 1))) {
+        throw new Error('Final scan returned an invalid or out-of-scope finding.');
+      }
+    }
     const findings = report.findings.map(f => ({
-      filePath: String(f.filePath).slice(0, 400), line: Number(f.line) || 1,
-      ruleId: String(f.ruleId).slice(0, 100), severity: f.severity,
-      title: String(f.title).slice(0, 180),
+      filePath: f.filePath.slice(0, 400), line: f.line || 1,
+      ruleId: f.ruleId.slice(0, 100), severity: f.severity,
+      title: String(f.title || '').slice(0, 180),
     }));
     const blocking = findings.filter(f => SEVERITY[f.severity] >= SEVERITY[config.blockingSeverity]).length;
     return { status: 'complete', filesScanned: report.filesScanned, scannedPaths: report.scannedPaths,
