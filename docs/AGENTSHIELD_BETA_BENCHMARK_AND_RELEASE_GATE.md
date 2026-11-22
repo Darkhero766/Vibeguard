@@ -22,6 +22,19 @@ This is the release gate for the installable AgentShield beta. It is intentional
 - Supabase: privileged service key client-side, RLS disabled, permissive policies, server-only key.
 - Regression: fix baseline finding, leave one finding, introduce a new finding, duplicate findings, line movement, changed path and unsupported changed path.
 
+## Completion-gate acceptance cases
+
+The local suite must prove all of the following for Claude Code Stop with `completionGate: enforce`:
+
+- A complete scan with no findings at/above threshold does not block.
+- A complete scan with a blocker returns the host's explicit block decision.
+- An incomplete, timed-out, malformed, zero-coverage, duplicated-path, or raced scan blocks.
+- Findings outside the reported scan path set invalidate the result.
+- Previously flagged files omitted from the final scan block.
+- An exhausted auto-fix budget never changes a blocking result into a pass.
+- `advisory` mode preserves report-only behavior.
+- Cursor follow-up and Codex MCP/skill workflows are tested as non-equivalent to hard delivery enforcement.
+
 ## Metrics and thresholds for beta claims
 - **False-clean rate on blocker fixtures:** 0. Any missed expected blocker is a release blocker for that rule's advertised coverage.
 - **Coverage honesty:** 100% of unsupported/partial/timeout/race cases must not return a passing status.
