@@ -358,8 +358,8 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
 
   // Detect JWT signing keys separately so callers get a stable, rule-specific
   // result. Match the original source for literal values, but use the lexical
-  // mask to ensure the declaration/property is executable code rather than a
-  // comment or a string containing a fake example. Never retain or emit values.
+  // mask to reject candidates inside comments or quoted strings. This is a
+  // bounded source heuristic, not an AST or runtime proof. Never emit values.
   for (const file of files.filter(f => /\.[cm]?[jt]sx?$/i.test(f.path))) {
     const executable = maskJsNonExecutable(file.content);
     const jwtAssignments = [
@@ -379,7 +379,7 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
           "jwt-secret-" + file.path + "-" + line,
           "High",
           "JWT signing secret is hardcoded in source",
-          "A JWT signing key appears to be assigned a literal in executable source. Move signing material to protected server-side key management and rotate any real key that may have been exposed. The literal is intentionally excluded from this finding.",
+          "A JWT signing key name is assigned a long string literal in source. This static heuristic does not prove runtime use; move real signing material to protected server-side key management and rotate any key that may have been exposed. The literal is intentionally excluded from this finding.",
           file.path, line, "hardcoded_jwt_secret" as Finding["check"],
         ));
       }
