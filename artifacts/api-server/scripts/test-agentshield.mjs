@@ -61,7 +61,7 @@ test('JWT detector handles typed declarations and object properties but ignores 
     '// const JWT_SECRET = "' + 'C'.repeat(36) + '";',
     'const example = { JWT_SECRET: "replace_me_with_a_real_key" };',
     'const runtimeSecret = process.env.JWT_SECRET;',
-    'const message = "JWT_SECRET: ' + String.fromCharCode(92) + '"' + 'D'.repeat(36) + String.fromCharCode(92) + '";',
+    'const message = "JWT_SECRET: ' + String.fromCharCode(92) + '"' + 'D'.repeat(36) + String.fromCharCode(92) + '"";',
   ].join('\n') + '\n';
   const { cwd } = await fixture(t, 'src/auth.ts', source);
   const result = await scan(cwd);
