@@ -36,7 +36,8 @@
     "test:agentshield:models": "node --test ./scripts/test-agentshield-models.mjs",
     "test:scan-score": "node --test ./scripts/test-scan-score.mjs",
     "agentshield:mcp": "node ./scripts/agentshield-mcp-server.mjs",
-    "test:agentshield:mcp": "node --test ./scripts/test-agentshield-mcp.mjs"
+    "test:agentshield:mcp": "node --test ./scripts/test-agentshield-mcp.mjs ./scripts/test-agentshield-python.mjs",
+    "test:agentshield:python": "node --test ./scripts/test-agentshield-python.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
