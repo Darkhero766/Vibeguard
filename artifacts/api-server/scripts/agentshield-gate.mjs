@@ -162,10 +162,14 @@ export async function finalGate(root, config, scan) {
     if (!config || typeof config !== 'object' || !Object.hasOwn(SEVERITY, config.blockingSeverity)) {
       throw new Error('Invalid final-gate configuration.');
     }
+    const completionGate = config.completionGate ?? 'advisory';
+    if (!['advisory', 'enforce'].includes(completionGate)) {
+      throw new Error('Invalid final-gate completion policy.');
+    }
     // Enforced completion must cover the committed topic-branch diff as well as
     // dirty worktree files. Without an explicit target base, a dirty-only scan
     // could incorrectly pass while earlier committed changes remain unscanned.
-    if (config.completionGate === 'enforce' && !config.baseRef) {
+    if (completionGate === 'enforce' && !config.baseRef) {
       throw new Error('Completion enforcement requires a configured target base reference.');
     }
     const before = await snapshot(root, { baseRef: config.baseRef || null });
@@ -176,7 +180,7 @@ export async function finalGate(root, config, scan) {
     if (before.unsupportedChangedPaths.length || before.missingChangedPaths.length || before.unsafeChangedPaths.length) {
       throw new Error('Unsupported, deleted, missing, or unsafe changed files prevent complete final coverage.');
     }
-    if (config.completionGate === 'enforce' && before.ignoredChangedPaths.length) {
+    if (completionGate === 'enforce' && before.ignoredChangedPaths.length) {
       throw new Error('Changed files under intentionally ignored directories prevent enforced completion coverage.');
     }
     const report = await scan(root, ['--changed', ...(before.baseCommit ? ['--base-ref', before.baseCommit] : [])]);
@@ -185,7 +189,7 @@ export async function finalGate(root, config, scan) {
     if (before.fingerprint !== after.fingerprint) throw new Error('Files changed while final scan was running.');
     if (after.unsupportedChangedPaths.length || after.missingChangedPaths.length || after.unsafeChangedPaths.length)
       throw new Error('Unsupported, missing, or unsafe changed files appeared during the final scan.');
-    if (config.completionGate === 'enforce' && after.ignoredChangedPaths.length)
+    if (completionGate === 'enforce' && after.ignoredChangedPaths.length)
       throw new Error('Changes under intentionally ignored directories appeared during the final scan.');
     if (!Array.isArray(report.scannedPaths) || !Array.isArray(report.findings)
       || !Number.isSafeInteger(report.filesScanned) || report.filesScanned !== before.changedPaths.length
