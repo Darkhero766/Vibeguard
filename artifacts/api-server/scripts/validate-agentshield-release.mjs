@@ -6,7 +6,6 @@ import { promisify } from 'node:util';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHash } from 'node:crypto';
 
 const exec = promisify(execFile);
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -68,8 +67,8 @@ async function runStep(name, program, args, { cwd = root, timeout = 900_000 } = 
     const { stdout = '', stderr = '' } = await exec(program, args, {
       cwd, env, timeout, maxBuffer: 12_000_000, windowsHide: true,
     });
-    const output = (stdout + (stderr ? '\\n[stderr]\\n' + stderr : '')).slice(-30_000);
-    const tap = output.match(/# tests (\\d+)[\\s\\S]*?# pass (\\d+)[\\s\\S]*?# fail (\\d+)/);
+    const output = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).slice(-30_000);
+    const tap = output.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)/);
     const item = {
       name, status: 'passed', exitCode: 0, durationMs: Date.now() - started,
       ...(tap ? { tests: Number(tap[1]), passed: Number(tap[2]), failed: Number(tap[3]) } : {}),
@@ -80,8 +79,8 @@ async function runStep(name, program, args, { cwd = root, timeout = 900_000 } = 
   } catch (error) {
     const stdout = String(error?.stdout || '');
     const stderr = String(error?.stderr || error?.message || '');
-    const output = (stdout + (stderr ? '\\n[stderr]\\n' + stderr : '')).slice(-30_000);
-    const tap = output.match(/# tests (\\d+)[\\s\\S]*?# pass (\\d+)[\\s\\S]*?# fail (\\d+)/);
+    const output = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).slice(-30_000);
+    const tap = output.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)/);
     const item = {
       name, status: 'failed', exitCode: Number.isInteger(error?.code) ? error.code : 1,
       durationMs: Date.now() - started,
@@ -154,7 +153,7 @@ async function main() {
     ],
   };
   await mkdir(dist, { recursive: true });
-  await writeFile(reportPath, JSON.stringify(report, null, 2) + '\\n', { mode: 0o600 });
+  await writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
   const summary = {
     status: report.status,
     releaseDecision: report.releaseDecision,
@@ -166,10 +165,10 @@ async function main() {
     benchmarkTargetsMet,
     failedSteps: report.failedSteps,
   };
-  process.stdout.write(JSON.stringify(summary, null, 2) + '\\n');
+  process.stdout.write(JSON.stringify(summary, null, 2) + '\n');
   if (report.status !== 'validation_passed_review_required') process.exitCode = 1;
 }
 main().catch(error => {
-  process.stderr.write('AgentShield release validation runner failed: ' + String(error?.message || error) + '\\n');
+  process.stderr.write('AgentShield release validation runner failed: ' + String(error?.message || error) + '\n');
   process.exitCode = 2;
 });
