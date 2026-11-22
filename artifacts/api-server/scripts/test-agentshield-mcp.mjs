@@ -14,6 +14,7 @@ import {
   handleMessage,
   negotiateProtocol,
   normalizeReport,
+  scanChanged,
   validateRpcMessage,
   validateToolArguments,
   workspaceSnapshot,
@@ -99,6 +100,15 @@ test('line decoder handles partial frames, CRLF and UTF-8 boundaries', () => {
     '{"jsonrpc":"2.0","method":"ping","params":{"label":"café 世界"}}',
     '{"jsonrpc":"2.0","method":"ping"}',
   ]);
+});
+
+test('already-cancelled scan requests fail before touching a workspace', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    scanChanged({ workspace: '/not-a-real-workspace' }, { signal: controller.signal }),
+    { name: 'AbortError' },
+  );
 });
 
 test('legacy protocol negotiation retains compatible handshake-era versions', () => {
