@@ -37,7 +37,12 @@ async function main() {
   await rm(stage, { recursive: true, force: true });
   await mkdir(path.join(stage, 'scripts'), { recursive: true, mode: 0o700 });
   await mkdir(path.join(stage, 'dist'), { recursive: true, mode: 0o700 });
+  await mkdir(path.join(stage, 'skills', 'vibesane-agentshield'), { recursive: true, mode: 0o700 });
   await cp(scanner, path.join(stage, 'dist', 'agentshield.mjs'));
+  await cp(
+    path.join(root, 'skills', 'vibesane-agentshield', 'SKILL.md'),
+    path.join(stage, 'skills', 'vibesane-agentshield', 'SKILL.md'),
+  );
   for (const file of scripts) {
     await cp(path.join(root, 'scripts', file), path.join(stage, 'scripts', file));
   }
@@ -83,6 +88,7 @@ async function main() {
       'dist/agentshield.mjs',
       'scripts/*.mjs',
       'scripts/*.cjs',
+      'skills/**',
       'README.md',
       'THIRD_PARTY_NOTICES.txt',
       'cursor-hooks.json',
@@ -116,6 +122,7 @@ async function main() {
     '## Coding agents',
     'MCP command: vibesane-mcp (Codex, Claude Code, Cursor MCP, and other compatible stdio clients).',
     'Claude Code hooks: vibesane init --cwd /absolute/path/to/project',
+    'Codex project workflow: vibesane init-codex --cwd /absolute/path/to/project (installs the included skill without overwriting files).',
     'Cursor Stop hook: merge the included cursor-hooks.json into the project .cursor/hooks.json; do not overwrite existing hooks.',
     'For a bounded Cursor remediation loop, explicitly set vibesane config --mode auto-fix --cwd /absolute/path/to/project.',
     'Host hook permissions and user approvals remain authoritative.',
@@ -147,6 +154,7 @@ async function main() {
     'cursor-hooks.json',
     'dist/agentshield.mjs',
     'scripts/agentshield-ast-worker.cjs',
+    'skills/vibesane-agentshield/SKILL.md',
     ...scripts.map((file) => 'scripts/' + file),
   ]);
   const actual = new Set(metadata.files.map((file) => file.path));
