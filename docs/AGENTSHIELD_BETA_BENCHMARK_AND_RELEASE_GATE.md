@@ -59,7 +59,7 @@ Record beta build hash, platform, Node version, package SHA-256, fixture commit/
 
 ## Commit-aware scope implemented; acceptance still required
 
-The scanner, Claude completion gate and MCP tools now accept a configured base reference. They combine the base-to-HEAD committed diff with staged, modified and untracked worktree paths. The gate fingerprints the resolved base SHA and file contents before/after scanning. Renames are mapped to destination paths; committed deletions, unsupported paths, malformed diffs, missing refs and scan races fail closed. MCP clients must pass the same `base_ref` to `scan_changed`, `list_findings` and `verify_remediation`.
+The scanner, Claude completion gate and MCP tools now accept a configured base reference. They combine the base-to-HEAD committed diff with staged, modified and untracked worktree paths. The gate fingerprints the resolved base SHA and file contents before/after scanning. Renames are mapped to destination paths; committed deletions, unsupported paths, malformed diffs, missing refs and scan races fail closed. MCP clients must pass the same `base_ref` to `scan_changed`, `list_findings` and `verify_remediation`. The ref must be a target/upstream branch distinct from the coding branch; an empty base-to-HEAD diff and empty worktree are UNKNOWN, not a clean pass.
 
 Claude project setup example:
 
