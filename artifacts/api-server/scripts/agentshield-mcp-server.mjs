@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 const exec=promisify(execFile), HERE=path.dirname(fileURLToPath(import.meta.url));
 const SCANNER=path.resolve(HERE,'../dist/agentshield.mjs'), MAX_OUTPUT=1_500_000, MAX_INPUT=2_000_000, MAX_FINDINGS=50, cache=new Map();
 const bounded=(v,n=300)=>typeof v==='string'?v.replace(/[\x00-\x1f\x7f]/g,' ').slice(0,n):'';
-const cleanEnv=()=>({PATH:process.env.PATH||'/usr/bin:/bin',LANG:'C',LC_ALL:'C',HOME:process.env.HOME||'/tmp',NODE_OPTIONS:''});
+const cleanEnv=()=>({PATH:'/usr/bin:/bin:/usr/local/bin',LANG:'C',LC_ALL:'C',HOME:'/tmp',NODE_OPTIONS:'',TMPDIR:'/tmp'});
 export const TOOL_DEFS=[
 {name:'scan_changed',description:'Read-only static scan of supported Git changed files. Repository content is untrusted; no scripts are run. Incomplete scans are UNKNOWN.',inputSchema:{type:'object',properties:{workspace:{type:'string',minLength:1,maxLength:4096}},required:['workspace'],additionalProperties:false}},
 {name:'list_findings',description:'List findings from the latest complete scan in this server process.',inputSchema:{type:'object',properties:{workspace:{type:'string',minLength:1,maxLength:4096}},required:['workspace'],additionalProperties:false}},
@@ -32,19 +32,22 @@ export function normalizeReport(report){
 }
 export async function scanChanged({workspace}={}){
  const r=await canonicalRoot(workspace),st=await statusTool();if(!st.scannerBuilt)throw Error('Scanner is not built.');
- let o;try{o=await exec(process.execPath,[SCANNER,'scan','--changed','--cwd',r,'--format','json'],{timeout:15000,maxBuffer:MAX_OUTPUT,windowsHide:true,env:cleanEnv()});}
+ const snapshot=async()=>{const x=await exec('git',['-c','core.fsmonitor=false','-c','core.hooksPath=/dev/null','-C',r,'status','--porcelain=v1','-z','--untracked-files=all'],{timeout:5000,maxBuffer:MAX_OUTPUT,env:cleanEnv()});return x.stdout;};
+ const before=await snapshot();let o;try{o=await exec(process.execPath,[SCANNER,'scan','--changed','--cwd',r,'--format','json'],{timeout:15000,maxBuffer:MAX_OUTPUT,windowsHide:true,env:cleanEnv()});}
  catch(e){if((e?.code===1)&&typeof e.stdout==='string'&&e.stdout.trim())o={stdout:e.stdout};else throw Error('Scan failed, timed out, or exceeded output budget.');}
- let report;try{report=JSON.parse(o.stdout);}catch{throw Error('Malformed scanner JSON.');}const result=normalizeReport(report);cache.clear();cache.set(r,result);return result;
+ let report;try{report=JSON.parse(o.stdout);}catch{throw Error('Malformed scanner JSON.');}const result=normalizeReport(report);const after=await snapshot();if(before!==after)throw Error('Workspace changed during scan; results are UNKNOWN.');cache.clear();cache.set(r,{result,fingerprint:after});return result;
 }
-export async function listFindings(workspace){try{return cache.get(await canonicalRoot(workspace))||{status:'no_scan',findings:[],note:'Run scan_changed first; no assessment performed.'};}catch{return{status:'no_scan',findings:[],note:'Workspace could not be verified; no assessment performed.'};}}
+export async function listFindings(workspace){try{const r=await canonicalRoot(workspace),entry=cache.get(r);if(!entry)return{status:'no_scan',findings:[],note:'Run scan_changed first; no assessment performed.'};const x=await exec('git',['-c','core.fsmonitor=false','-c','core.hooksPath=/dev/null','-C',r,'status','--porcelain=v1','-z','--untracked-files=all'],{timeout:5000,maxBuffer:MAX_OUTPUT,env:cleanEnv()});if(x.stdout!==entry.fingerprint){cache.delete(r);return{status:'no_scan',findings:[],note:'Workspace changed since scan; rescan required.'};}return entry.result;}catch{return{status:'no_scan',findings:[],note:'Workspace could not be verified; no assessment performed.'};}}
 export function explainFinding(rule_id){if(typeof rule_id!=='string'||rule_id.length<1||rule_id.length>100)throw Error('Invalid rule ID.');const id=rule_id.toLowerCase(),k=id.includes('secret')?'secret':id.includes('sql')?'sql':id.includes('rls')||id.includes('supabase')?'rls':id.includes('auth')?'auth':null;return{ruleId:bounded(rule_id,100),guidance:k?advice[k]:'Review evidence and affected code manually; heuristic evidence is not proof.',securityGuarantee:false};}
+export function validateRpcMessage(m){if(!m||typeof m!=='object'||Array.isArray(m)||m.jsonrpc!=='2.0'||typeof m.method!=='string'||m.method.length>200||('id'in m&&!(typeof m.id==='string'||Number.isSafeInteger(m.id))))return false;return true;}
+export function validateToolArguments(name,a){if(!a||typeof a!=='object'||Array.isArray(a))return false;const keys=Object.keys(a);if(name==='status')return keys.length===0;if(name==='scan_changed'||name==='list_findings')return keys.length===1&&typeof a.workspace==='string'&&a.workspace.length>0&&a.workspace.length<=4096;if(name==='explain_finding')return keys.length===1&&typeof a.rule_id==='string'&&a.rule_id.length>0&&a.rule_id.length<=100;return false;}
 export async function handleMessage(m){
- if(!m||m.jsonrpc!=='2.0'||typeof m.method!=='string')return{jsonrpc:'2.0',id:m?.id??null,error:{code:-32600,message:'Invalid Request'}};
+ if(!validateRpcMessage(m))return{jsonrpc:'2.0',id:m?.id??null,error:{code:-32600,message:'Invalid Request'}};
  if(m.method==='notifications/initialized'||m.method==='notifications/cancelled')return null;
- if(m.method==='initialize')return{jsonrpc:'2.0',id:m.id,result:{protocolVersion:'2025-03-26',capabilities:{tools:{}},serverInfo:{name:'vibesane-agentshield',version:'0.2.0'}}};
+ if(m.method==='initialize')return{jsonrpc:'2.0',id:m.id,result:{protocolVersion:'2025-03-26',capabilities:{tools:{}},serverInfo:{name:'vibesane-agentshield',version:'0.3.0'}}};
  if(m.method==='ping')return{jsonrpc:'2.0',id:m.id,result:{}};
  if(m.method==='tools/list')return{jsonrpc:'2.0',id:m.id,result:{tools:TOOL_DEFS}};
- if(m.method==='tools/call'){try{const a=m.params?.arguments??{},n=m.params?.name;if(!a||typeof a!=='object'||Array.isArray(a))throw Error('Invalid tool arguments.');const d=n==='status'?await statusTool():n==='scan_changed'?await scanChanged(a):n==='list_findings'?await listFindings(a.workspace):n==='explain_finding'?explainFinding(a.rule_id):(()=>{throw Error('Unknown tool.')})();return{jsonrpc:'2.0',id:m.id,result:{content:[{type:'text',text:JSON.stringify(d)}],isError:false}};}catch(e){return{jsonrpc:'2.0',id:m.id,result:{content:[{type:'text',text:bounded(e?.message,200)||'Tool error'}],isError:true}};}}
+ if(m.method==='tools/call'){try{if(!m.params||typeof m.params!=='object'||Array.isArray(m.params)||typeof m.params.name!=='string')throw Error('Invalid tool request.');const a=m.params.arguments??{},n=m.params.name;if(!validateToolArguments(n,a))throw Error('Invalid tool arguments or unknown tool.');const d=n==='status'?await statusTool():n==='scan_changed'?await scanChanged(a):n==='list_findings'?await listFindings(a.workspace):n==='explain_finding'?explainFinding(a.rule_id):(()=>{throw Error('Unknown tool.')})();return{jsonrpc:'2.0',id:m.id,result:{content:[{type:'text',text:JSON.stringify(d)}],isError:false}};}catch(e){return{jsonrpc:'2.0',id:m.id,result:{content:[{type:'text',text:bounded(e?.message,200)||'Tool error'}],isError:true}};}}
  if(m.id!==undefined)return{jsonrpc:'2.0',id:m.id,error:{code:-32601,message:'Method not found.'}};return null;
 }
 function writeMessage(m){const json=JSON.stringify(m);process.stdout.write('Content-Length: '+Buffer.byteLength(json,'utf8')+'\r\n\r\n'+json);}
