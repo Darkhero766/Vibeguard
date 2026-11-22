@@ -135,9 +135,9 @@ Never interpret missing results, a timeout, malformed output, zero supported fil
 
 ## Coverage and limitations
 
-The current scanner is strongest on JavaScript and TypeScript, with selected SQL rules and pattern-based checks for JSON, YAML, and environment files. The experimental AST/taint checks are opt-in and cover only selected JavaScript/TypeScript patterns.
+The current scanner has its strongest coverage on JavaScript and TypeScript, selected Supabase/SQL rules, and a new limited Python heuristic layer (subprocess shell injection, request-shaped pickle, unsafe YAML loading, disabled TLS verification, insecure temporary files, and request-shaped eval/exec). It also has selected pattern rules for Go, Ruby, PHP, Rust, and Java, plus JSON, YAML, and environment files. This is not complete language-aware SAST. The experimental AST/taint checks are opt-in and cover selected JavaScript/TypeScript patterns.
 
-There is no dedicated language-aware SAST for Python, Go, Java, Rust, C#, C/C++, PHP, Ruby, Kotlin, or Swift in this beta. The MCP bridge reports unsupported changed files as partial coverage rather than silently ignoring them.
+There is no complete compiler-aware SAST for any language in this beta. Python and the selected Go/Ruby/PHP/Rust/Java rules are limited regex heuristics, not AST or whole-program analysis. C#, C/C++, Kotlin, and Swift have no dedicated SAST coverage. The MCP bridge reports unsupported changed files as partial coverage rather than silently ignoring them.
 
 Static heuristics can produce false positives and false negatives. A clean changed-file scan is not proof of exploitability, runtime behavior, dependency safety, full-application authorization, or production security. No security certification is provided.
 
