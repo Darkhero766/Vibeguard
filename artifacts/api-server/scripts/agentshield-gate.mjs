@@ -87,7 +87,7 @@ export async function snapshot(root, { baseRef = null } = {}) {
     : [];
   const allPaths = [...new Set([...worktreePaths, ...committedPaths])].sort();
   const ignoredChangedPaths = allPaths.filter((file) => {
-    const slash = file.replaceAll('\\\\', '/');
+    const slash = file.replaceAll('\\', '/');
     return !slash.startsWith('/') && !slash.split('/').includes('..')
       && slash.split('/').some((part) => IGNORE.has(part));
   });
