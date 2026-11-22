@@ -140,9 +140,9 @@ async function main() {
     && Number.isInteger(syntaxStep.evidence?.checkedFiles)
     && syntaxStep.evidence.checkedFiles >= 18
     && syntaxStep.evidence.passedFiles === syntaxStep.evidence.checkedFiles
-    && syntaxStep.evidence.fingerprintedSourceInputs >= 4
+    && syntaxStep.evidence.fingerprintedSourceInputs >= 6
     && syntaxStep.evidence.missingSourceInputs?.length === 0
-    && ['src/lib/apiScanner.ts', 'src/lib/extendedScannerV2.ts', 'package.json', 'skills/vibesane-agentshield/SKILL.md']
+    && ['src/lib/apiScanner.ts', 'src/lib/extendedScannerV2.ts', 'scripts/agentshield-accuracy-corpus.mjs', 'scripts/agentshield-holdout-corpus.mjs', 'package.json', 'skills/vibesane-agentshield/SKILL.md']
       .every(file => syntaxStep.evidence.sourceInputs?.some(input => input.file === file && input.status === 'fingerprinted'))
     && /^[a-f0-9]{64}$/.test(syntaxStep.evidence?.sourceSha256 || ''));
   const testSuite = results.find(item => item.name === 'unit-integration-regression');
