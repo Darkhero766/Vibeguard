@@ -229,7 +229,8 @@ export async function main(argv = process.argv.slice(2)) {
     const { files, mode, selected, unsupportedChangedPaths, missingChangedPaths, unsafeChangedPaths } = await loadFiles(opts);
     const findings = analyze(files);
     const partial = unsupportedChangedPaths.length > 0;
-    const incomplete = missingChangedPaths.length > 0 || unsafeChangedPaths.length > 0;
+    const analysisLimited = findings.some((finding) => finding.ruleId === 'python_scan_limit');
+    const incomplete = missingChangedPaths.length > 0 || unsafeChangedPaths.length > 0 || analysisLimited;
     const report = {
       schemaVersion: 1, tool: 'VibeSane AgentShield',
       status: incomplete ? 'scan_incomplete' : partial ? 'partial_coverage' : 'complete', mode,
@@ -239,7 +240,9 @@ export async function main(argv = process.argv.slice(2)) {
       missingChangedPaths: missingChangedPaths.slice(0, 30),
       unsafeChangedPaths: unsafeChangedPaths.slice(0, 30),
       coverage: incomplete
-        ? 'One or more changed files were deleted or unsafe to read; security status is UNKNOWN.'
+        ? analysisLimited
+          ? 'One or more source files exceeded an analyzer budget and were not fully analyzed; security status is UNKNOWN.'
+          : 'One or more changed files were deleted or unsafe to read; security status is UNKNOWN.'
         : partial
           ? 'Partial static heuristic analysis. Unsupported changed files were not analyzed; do not report a clean result.'
           : 'Static heuristic analysis of selected files only; untested vulnerabilities may remain.',
