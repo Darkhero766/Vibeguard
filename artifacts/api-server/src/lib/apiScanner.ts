@@ -356,6 +356,36 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
     }
   }
 
+  // Detect JWT signing keys separately so callers get a stable, rule-specific
+  // result. Match the original source for literal values, but use the lexical
+  // mask to ensure the declaration/property is executable code rather than a
+  // comment or a string containing a fake example. Never retain or emit values.
+  for (const file of files.filter(f => /\.[cm]?[jt]sx?$/i.test(f.path))) {
+    const executable = maskJsNonExecutable(file.content);
+    const jwtAssignments = [
+      /\b(?:const|let|var)\s+(JWT_SECRET|JWT_SIGNING_KEY|jwtSecret)\s*(?::\s*[^=;\r\n]+)?=\s*(["'])([^"'\r\n]{16,256})\2/g,
+      /\b(JWT_SECRET|JWT_SIGNING_KEY)\s*:\s*(["'])([^"'\r\n]{16,256})\2/g,
+    ];
+    for (const pattern of jwtAssignments) {
+      for (const match of file.content.matchAll(pattern)) {
+        const identifier = match[1];
+        const valueOffset = match[0].indexOf(match[2]);
+        const activeDeclaration = executable.slice(match.index ?? 0, (match.index ?? 0) + valueOffset);
+        if (!activeDeclaration.includes(identifier)) continue;
+        const literal = match[3].trim();
+        if (/^(?:example|placeholder|changeme|replace|your_|dummy|fake|not_a_secret|test_only)/i.test(literal)) continue;
+        const line = lineAt(file.content, match.index ?? 0);
+        findings.push(finding(
+          "jwt-secret-" + file.path + "-" + line,
+          "High",
+          "JWT signing secret is hardcoded in source",
+          "A JWT signing key appears to be assigned a literal in executable source. Move signing material to protected server-side key management and rotate any real key that may have been exposed. The literal is intentionally excluded from this finding.",
+          file.path, line, "hardcoded_jwt_secret" as Finding["check"],
+        ));
+      }
+    }
+  }
+
   // Detect hardcoded authentication constants, including short passwords
   // actually compared to requester input. Never emit credential literals.
   for (const file of files.filter(f => /\.[cm]?[jt]sx?$/i.test(f.path))) {
