@@ -647,17 +647,22 @@ function writeMessage(message) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const decode = createLineDecoder();
   const queue = [];
+  const inflight = new Map();
   let busy = false;
   const drain = async () => {
     if (busy) return;
     busy = true;
     while (queue.length) {
-      const message = queue.shift();
+      const { message, controller } = queue.shift();
       try {
-        const response = await handleMessage(message);
-        if (response) writeMessage(response);
+        if (controller?.signal.aborted) continue;
+        const response = await handleMessage(message, { signal: controller?.signal });
+        // A cancelled request must not produce a late JSON-RPC response.
+        if (response && !controller?.signal.aborted) writeMessage(response);
       } catch {
-        process.stderr.write('AgentShield MCP request failed safely.\n');
+        if (!controller?.signal.aborted) process.stderr.write('AgentShield MCP request failed safely.\n');
+      } finally {
+        if (message?.id !== undefined && inflight.get(message.id) === controller) inflight.delete(message.id);
       }
     }
     busy = false;
@@ -679,15 +684,28 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         writeMessage({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } });
         continue;
       }
+      // Cancellation is processed immediately rather than queued behind a scan.
+      if (message?.jsonrpc === '2.0' && message.method === 'notifications/cancelled' && message.id === undefined) {
+        const requestId = message.params?.requestId;
+        if (typeof requestId === 'string' || Number.isSafeInteger(requestId)) inflight.get(requestId)?.abort();
+        continue;
+      }
       if (queue.length >= 8) {
         if (message && message.id !== undefined) writeMessage({ jsonrpc: '2.0', id: message.id, error: { code: -32000, message: 'Server busy' } });
         continue;
       }
-      queue.push(message);
+      const controller = message && message.id !== undefined ? new AbortController() : null;
+      if (controller && inflight.has(message.id)) {
+        writeMessage({ jsonrpc: '2.0', id: message.id, error: { code: -32600, message: 'Duplicate request ID' } });
+        continue;
+      }
+      if (controller) inflight.set(message.id, controller);
+      queue.push({ message, controller });
     }
     void drain();
   });
   process.stdin.on('end', () => {
+    for (const controller of inflight.values()) controller.abort();
     process.stderr.write('AgentShield MCP input closed.\n');
   });
 }
