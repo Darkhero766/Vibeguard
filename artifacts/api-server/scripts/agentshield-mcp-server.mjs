@@ -332,7 +332,7 @@ async function runScanner(root, expectedPaths, signal) {
   return normalizeReport(report, expectedPaths);
 }
 function findingKey(finding) {
-  return [finding.filePath, finding.ruleId, finding.title].join('\0');
+  return [finding.filePath, finding.ruleId, finding.title, finding.line ?? ''].join('\0');
 }
 export function compareFindings(previous, current) {
   const previousKeys = new Set(previous.map(findingKey));
