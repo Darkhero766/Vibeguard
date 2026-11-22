@@ -167,6 +167,8 @@ function analyze(files) {
     if (unique.has(key)) continue;
     unique.set(key, {
       id: redact(f.id, 300), ruleId: redact(f.check, 80), severity: f.severity,
+      confidence: ['high', 'medium', 'low'].includes(f.confidence) ? f.confidence : 'unrated',
+      engine: redact(f.engine || 'core_heuristics', 80),
       title: redact(f.title, 240), description: redact(f.description, 900),
       recommendation: fixes[f.check] || 'Review the finding and follow the mitigation in its description.',
       filePath: redact(f.filePath, 500), line: Number(f.line) || 1,
