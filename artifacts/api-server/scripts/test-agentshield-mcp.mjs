@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import {
   TOOL_DEFS,
   compareFindings,
@@ -12,7 +16,10 @@ import {
   normalizeReport,
   validateRpcMessage,
   validateToolArguments,
+  workspaceSnapshot,
 } from './agentshield-mcp-server.mjs';
+
+const exec = promisify(execFile);
 
 test('exposes only documented read-only tools with strict input schemas', () => {
   assert.deepEqual(TOOL_DEFS.map((tool) => tool.name), [
@@ -164,4 +171,36 @@ test('MCP stdio process speaks newline-delimited JSON-RPC, never Content-Length 
   assert.equal(messages.length, 2);
   assert.equal(messages[0].result.serverInfo.name, 'vibesane-agentshield');
   assert.equal(messages[1].result.tools.some((tool) => tool.name === 'verify_remediation'), true);
+});
+
+
+test('workspace snapshots hash dirty file contents and disclose unsupported changed files', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-test-'));
+  try {
+    await exec('git', ['init', '-q', root]);
+    await exec('git', ['-C', root, 'config', 'user.name', 'AgentShield Test']);
+    await exec('git', ['-C', root, 'config', 'user.email', 'agentshield-test@example.invalid']);
+    await mkdir(path.join(root, 'src'));
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const safe = true;\n');
+    await writeFile(path.join(root, 'README.md'), '# test\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'fixture baseline']);
+
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const safe = false;\n');
+    await writeFile(path.join(root, 'README.md'), '# changed documentation\n');
+    const first = await workspaceSnapshot(root);
+    assert.deepEqual(first.candidatePaths, ['src/app.js']);
+    assert.deepEqual(first.unsupportedChangedPaths, ['README.md']);
+
+    // Git porcelain stays "modified" for both versions; the content hash must still move.
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const safe = true;\n');
+    const second = await workspaceSnapshot(root);
+    assert.notEqual(first.fingerprint, second.fingerprint);
+    assert.deepEqual(second.unsupportedChangedPaths, ['README.md']);
+  } catch (error) {
+    if (error?.code === 'ENOENT') t.skip('Git is required for workspace snapshot tests.');
+    else throw error;
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
