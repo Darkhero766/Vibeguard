@@ -54,6 +54,13 @@ async function resolveBaseCommit(root, baseRef) {
     .catch(() => { throw new Error('Configured base reference is unavailable locally.'); });
   const sha = output.trim();
   if (!/^[a-f0-9]{40,64}$/i.test(sha)) throw new Error('Configured base did not resolve to a commit.');
+  const head = (await git(root, ['rev-parse', '--verify', 'HEAD'])).trim();
+  if (sha === head) throw new Error('Configured base points to current HEAD; use a distinct target base that is an ancestor of the coding branch.');
+  try {
+    await git(root, ['merge-base', '--is-ancestor', sha, 'HEAD']);
+  } catch {
+    throw new Error('Configured base must be an ancestor of HEAD; update or rebase the coding branch onto the target base.');
+  }
   return sha;
 }
 function diffChangedPaths(output) {
