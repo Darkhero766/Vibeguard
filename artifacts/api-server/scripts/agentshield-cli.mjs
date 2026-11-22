@@ -7,6 +7,7 @@ import path from 'node:path';
 import { scanApiFiles } from '../src/lib/apiScanner.ts';
 import { scanExtendedFilesV2 } from '../src/lib/extendedScannerV2.ts';
 import { scanPythonFiles } from './agentshield-python.mjs';
+import { toSarif } from './agentshield-sarif.mjs';
 
 const run = promisify(execFile);
 const MAX_FILES = 100;
@@ -31,7 +32,7 @@ function options(args) {
   }
   if (out.file && out.changed) throw new Error('Choose --file or --changed, not both.');
   if (!out.file && !out.changed) throw new Error('Specify --changed or --file PATH.');
-  if (!['json', 'text'].includes(out.format)) throw new Error('Format must be json or text.');
+  if (!['json', 'text', 'sarif'].includes(out.format)) throw new Error('Format must be json, text or sarif.');
   return out;
 }
 
@@ -197,6 +198,7 @@ function analyze(files) {
 
 function output(result, format) {
   if (format === 'json') { process.stdout.write(JSON.stringify(result) + '\n'); return; }
+  if (format === 'sarif') { process.stdout.write(JSON.stringify(toSarif(result)) + '\n'); return; }
   if (result.status !== 'complete') {
     process.stdout.write('VibeSane AgentShield: ' + result.status + '. ' +
       (result.error || 'Some changed files were not analyzed; this is not a clean result.') + '\n');
