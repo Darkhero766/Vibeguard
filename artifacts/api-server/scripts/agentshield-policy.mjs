@@ -57,6 +57,41 @@ export function parseConfig(raw = {}) {
   return config;
 }
 
+// Centralized Stop-hook result mapping so enforcement behavior can be tested independently.
+export function completionGateDecision({
+  status = 'complete', blocking = 0, blockingSeverity = 'High', completionGate = 'advisory',
+  unscannedCount = 0, repairMessage = null, repeatedGate = false, alreadyRequested = false, mode = 'monitor',
+} = {}) {
+  const enforced = completionGate === 'enforce';
+  if (status === 'scan_incomplete') {
+    const reason = 'VibeSane AgentShield: FINAL SCAN INCOMPLETE. Security status UNKNOWN; resolve the scan failure or run an approved verification before delivery.';
+    return enforced ? { decision: 'block', reason } : { systemMessage: reason };
+  }
+  if (status === 'no_changed_files') {
+    return { systemMessage: 'VibeSane AgentShield: no supported changed files to scan. No security pass is implied.' };
+  }
+  if (unscannedCount > 0) {
+    const reason = 'VibeSane AgentShield: final scan did not cover previously flagged files; result PARTIAL, not verified. Review or rescan the previously flagged files before delivery.';
+    return enforced ? { decision: 'block', reason } : { systemMessage: reason };
+  }
+  if (repairMessage) {
+    return { decision: 'block', reason: repairMessage,
+      hookSpecificOutput: { hookEventName: 'Stop', additionalContext: repairMessage } };
+  }
+  if (blocking > 0 && enforced) {
+    const reason = 'VibeSane AgentShield ENFORCEMENT: ' + blocking + ' blocking finding(s) at or above '
+      + blockingSeverity + ' remain in the changed-file scan. Remediate and rescan, or have an authorized maintainer change the gate policy.';
+    return { decision: 'block', reason, hookSpecificOutput: { hookEventName: 'Stop', additionalContext: reason } };
+  }
+  if (blocking > 0) {
+    if (repeatedGate || (mode === 'auto-fix' && alreadyRequested)) return null;
+    return { systemMessage: 'VibeSane AgentShield: final static scan found ' + blocking +
+      ' finding(s) at or above ' + blockingSeverity + '. ' +
+      (mode === 'auto-fix' ? 'Repair budget exhausted or continuation suppressed; request human review.' : 'Advisory mode; no completion block.') };
+  }
+  return null;
+}
+
 function hash(text) { return createHash('sha256').update(text).digest('hex').slice(0, 28); }
 export function keyForFinding(f) { return hash([f.filePath, f.ruleId, f.title].join('\0')); }
 export function stableFindings(findings) {
