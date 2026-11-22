@@ -263,6 +263,35 @@ test('final gate rejects deleted files in the committed base diff before trustin
   }
 });
 
+test('enforced final gate refuses mixed supported and ignored changed paths', async () => {
+  const root = await repoFixture();
+  try {
+    await exec('git', ['-C', root, 'branch', 'agentshield-base']);
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const reviewed = true;\n');
+    await mkdir(path.join(root, 'vendor'), { recursive: true });
+    await writeFile(path.join(root, 'vendor', 'generated.js'), 'export const ignored = true;\n');
+    await exec('git', ['-C', root, 'add', '-A']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'mixed source and ignored changes']);
+    const state = await snapshot(root, { baseRef: 'agentshield-base' });
+    assert.deepEqual(state.changedPaths, ['src/app.js']);
+    assert.deepEqual(state.ignoredChangedPaths, ['vendor/generated.js']);
+    let scannerCalled = false;
+    const result = await finalGate(root, {
+      blockingSeverity: 'High',
+      completionGate: 'enforce',
+      baseRef: 'agentshield-base',
+    }, async () => {
+      scannerCalled = true;
+      return { status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'], findings: [] };
+    });
+    assert.equal(result.status, 'scan_incomplete');
+    assert.equal(result.securityGuarantee, false);
+    assert.equal(scannerCalled, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('final gate fails closed when configured base ref is missing', async () => {
   const root = await repoFixture();
   try {
