@@ -107,7 +107,30 @@ async function child(program, args) {
   });
 }
 async function main(args) {
-  const [command, ...tail] = args;
+  const [command = 'help', ...tail] = args;
+  if (['help', '--help', '-h'].includes(command)) {
+    process.stdout.write([
+      'VibeSane AgentShield — coding-agent security feedback',
+      '',
+      'Commands:',
+      '  vibesane doctor [--cwd PROJECT]',
+      '  vibesane scan --changed [--cwd PROJECT]',
+      '  vibesane verify --changed [--cwd PROJECT]',
+      '  vibesane status [--cwd PROJECT]',
+      '  vibesane config [--mode monitor|assist|auto-fix] [--cwd PROJECT]',
+      '  vibesane acknowledge --rule RULE --file PATH --reason CODE --hours N [--cwd PROJECT]',
+      '  vibesane init [--cwd PROJECT]          Install Claude Code hooks',
+      '  vibesane init-codex [--cwd PROJECT]    Install the Codex project skill',
+      '  vibesane uninstall [--cwd PROJECT]',
+      '  vibesane capabilities --format json|text',
+      '  vibesane hybrid --changed [--enable-ast]',
+      '  vibesane-mcp                           Start read-only MCP stdio server',
+      '',
+      'Static checks cover supported changed files only. A clean result is not a security certification.',
+      '',
+    ].join('\\n'));
+    return 0;
+  }
   if (command === 'doctor') return doctor(tail);
   if (command === 'capabilities') {
     if (tail.length > 2 || (tail.length === 2 && tail[0] !== '--format') || (tail.length === 1 && !['json','text'].includes(tail[0]))) throw Error('Use capabilities --format json|text');
