@@ -53,6 +53,8 @@ const FILES = [
   'scripts/validate-agentshield-release.mjs',
   'scripts/test-agentshield.mjs',
   'scripts/test-agentshield-gate.mjs',
+  'scripts/test-agentshield-sarif.mjs',
+  'scripts/test-agentshield-baselines.mjs',
   'scripts/test-agentshield-mcp.mjs',
   'scripts/test-agentshield-package.mjs',
 ];
