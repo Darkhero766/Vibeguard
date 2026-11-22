@@ -28,6 +28,8 @@ The local suite must prove all of the following for Claude Code Stop with `compl
 
 - A complete scan with no findings at/above threshold does not block.
 - A complete scan with a blocker returns the host's explicit block decision.
+- No Git-visible changes / a clean worktree returns UNKNOWN and blocks under enforce mode (a committed change is not treated as scanned evidence).
+- Disabling AgentShield while completion enforcement is configured returns a block.
 - An incomplete, timed-out, malformed, zero-coverage, duplicated-path, or raced scan blocks.
 - Findings outside the reported scan path set invalidate the result.
 - Previously flagged files omitted from the final scan block.
