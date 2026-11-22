@@ -46,7 +46,7 @@ test('final gate refuses mixed supported and unsupported changed files', async (
 test('final gate rejects scanner-reported incomplete status even when file counts match', async () => {
   const root = await repoFixture();
   try {
-    await writeFile(path.join(root, 'src', 'app.js'), 'export const safe = false;\\n');
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const safe = false;\n');
     const result = await finalGate(root, { blockingSeverity: 'High' }, async () => ({
       status: 'scan_incomplete',
       filesScanned: 1,
@@ -78,7 +78,7 @@ test('final gate fails closed when a changed supported file was deleted', async 
 test('final gate rejects an invalid blocking threshold instead of silently allowing', async () => {
   const root = await repoFixture();
   try {
-    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\\n');
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\n');
     const result = await finalGate(root, { blockingSeverity: 'Bogus' }, async () => ({
       status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'], findings: [],
     }));
@@ -90,7 +90,7 @@ test('final gate rejects an invalid blocking threshold instead of silently allow
 test('final gate rejects duplicated scan paths even when the numeric file count matches', async () => {
   const root = await repoFixture();
   try {
-    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\\n');
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\n');
     const result = await finalGate(root, { blockingSeverity: 'High' }, async () => ({
       status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js', 'src/app.js'], findings: [],
     }));
@@ -102,7 +102,7 @@ test('final gate rejects duplicated scan paths even when the numeric file count 
 test('final gate rejects findings outside the reported scan path set', async () => {
   const root = await repoFixture();
   try {
-    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\\n');
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\n');
     const result = await finalGate(root, { blockingSeverity: 'High' }, async () => ({
       status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'],
       findings: [{ filePath: 'README.md', ruleId: 'synthetic_rule', severity: 'Critical', line: 1 }],
@@ -115,7 +115,7 @@ test('final gate rejects findings outside the reported scan path set', async () 
 test('final gate counts valid blocking findings at the configured threshold', async () => {
   const root = await repoFixture();
   try {
-    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\\n');
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\n');
     const result = await finalGate(root, { blockingSeverity: 'High' }, async () => ({
       status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'],
       findings: [{ filePath: 'src/app.js', ruleId: 'synthetic_blocker', severity: 'Critical', line: 1, title: 'Synthetic blocker' }],
@@ -129,9 +129,9 @@ test('final gate counts valid blocking findings at the configured threshold', as
 test('final gate rejects a worktree mutation during scanning', async () => {
   const root = await repoFixture();
   try {
-    await writeFile(path.join(root, 'src', 'app.js'), 'export const before = true;\\n');
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const before = true;\n');
     const result = await finalGate(root, { blockingSeverity: 'High' }, async () => {
-      await writeFile(path.join(root, 'src', 'app.js'), 'export const raced = true;\\n');
+      await writeFile(path.join(root, 'src', 'app.js'), 'export const raced = true;\n');
       return { status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'], findings: [] };
     });
     assert.equal(result.status, 'scan_incomplete');
