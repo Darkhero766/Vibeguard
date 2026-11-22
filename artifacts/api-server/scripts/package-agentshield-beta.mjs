@@ -127,7 +127,7 @@ async function main() {
     'MCP command: vibesane-mcp (Codex, Claude Code, Cursor MCP, and other compatible stdio clients).',
     'Claude Code hooks: vibesane init --cwd /absolute/path/to/project',
     'Claude Code and Codex completion enforcement (opt in): vibesane config --mode assist --completion-gate enforce --base-ref origin/main --cwd /absolute/path/to/project.',
-    'Enforce mode scans the target-base-to-HEAD committed diff plus staged, modified, and untracked files. Use a local target/upstream base such as origin/main that is distinct from the coding branch; keep it fetched. Missing history, deleted/unsupported paths, or incomplete scans fail closed.',
+    'Enforce mode scans the target-base-to-HEAD committed diff plus staged, modified, and untracked files. The configured target/upstream base such as origin/main must resolve locally to a commit strictly ancestral to HEAD; a base at HEAD or on unrelated/ahead history fails closed. Keep the ref fetched. Missing history, deleted/unsupported paths, or incomplete scans fail closed.',
     'The gate blocks on unresolved configured-severity findings, incomplete/unknown scans, no changed-path evidence, a disabled scanner, or scan races. A host-level guard is not tamper-proof.',
     'MCP scan_changed also accepts optional base_ref; pass the same value to list_findings and verify_remediation.',
     'Codex project workflow and Stop hook: vibesane init-codex --cwd /absolute/path/to/project; then review/trust the project hook in Codex with /hooks.',
