@@ -125,6 +125,8 @@ async function main() {
     '## Coding agents',
     'MCP command: vibesane-mcp (Codex, Claude Code, Cursor MCP, and other compatible stdio clients).',
     'Claude Code hooks: vibesane init --cwd /absolute/path/to/project',
+    'Claude Code completion enforcement (opt in): vibesane config --mode assist --completion-gate enforce --cwd /absolute/path/to/project.',
+    'Enforce mode blocks on unresolved configured-severity findings, incomplete/unknown scans, no changed-file evidence, or a disabled scanner. A host-level guard is not tamper-proof.',
     'Codex project workflow: vibesane init-codex --cwd /absolute/path/to/project (installs the included skill without overwriting files).',
     'Cursor Stop hook: merge the included cursor-hooks.json into the project .cursor/hooks.json; do not overwrite existing hooks.',
     'For a bounded Cursor remediation loop, explicitly set vibesane config --mode auto-fix --cwd /absolute/path/to/project.',
