@@ -380,6 +380,79 @@ test('MCP committed-diff scan, list and verification retain the same base-ref sc
   }
 });
 
+test('MCP baselines invalidate and report partial coverage when ignored paths change', async (t) => {
+  if ((await statusTool()).status !== 'ready') {
+    t.skip('Build the standalone scanner before MCP baseline lifecycle tests.');
+    return;
+  }
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-ignored-baseline-'));
+  try {
+    await exec('git', ['init', '-q', root]);
+    await exec('git', ['-C', root, 'branch', '-M', 'main']);
+    await exec('git', ['-C', root, 'config', 'user.name', 'AgentShield Test']);
+    await exec('git', ['-C', root, 'config', 'user.email', 'agentshield-test@example.invalid']);
+    await mkdir(path.join(root, 'src'));
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const safe = true;\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'synthetic base']);
+    await exec('git', ['-C', root, 'branch', 'agentshield-base']);
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'supported source change']);
+
+    const baseline = await scanChanged({ workspace: root, base_ref: 'agentshield-base' });
+    assert.equal(baseline.status, 'complete');
+    assert.ok(baseline.scanId);
+
+    await mkdir(path.join(root, 'vendor'));
+    await writeFile(path.join(root, 'vendor', 'generated.js'), 'export const ignored = true;\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'ignored directory change']);
+
+    const snapshot = await workspaceSnapshot(root, undefined, 'agentshield-base');
+    assert.deepEqual(snapshot.ignoredChangedPaths, ['vendor/generated.js']);
+    assert.notEqual(snapshot.fingerprint, baseline.scanId && (await workspaceSnapshot(root, undefined, 'agentshield-base')).fingerprint);
+    const stale = await listFindings(root, baseline.scanId, { baseRef: 'agentshield-base' });
+    assert.equal(stale.status, 'rescan_required');
+
+    const rescanned = await scanChanged({ workspace: root, base_ref: 'agentshield-base' });
+    assert.equal(rescanned.status, 'partial_coverage');
+    assert.equal(rescanned.ignoredChangedFileCount, 1);
+    assert.equal(rescanned.scanId, undefined);
+
+    const verification = await verifyRemediation(root, baseline.scanId, { baseRef: 'agentshield-base' });
+    assert.equal(verification.status, 'verification_incomplete');
+    assert.equal(verification.ignoredChangedFileCount, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('MCP reports partial coverage when only ignored paths change', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-ignored-only-'));
+  try {
+    await exec('git', ['init', '-q', root]);
+    await exec('git', ['-C', root, 'config', 'user.name', 'AgentShield Test']);
+    await exec('git', ['-C', root, 'config', 'user.email', 'agentshield-test@example.invalid']);
+    await mkdir(path.join(root, 'vendor'));
+    await writeFile(path.join(root, 'vendor', 'generated.js'), 'export const ignored = true;\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'ignored only']);
+    await writeFile(path.join(root, 'vendor', 'generated.js'), 'export const changed = true;\n');
+
+    const snapshot = await workspaceSnapshot(root);
+    assert.deepEqual(snapshot.candidatePaths, []);
+    assert.deepEqual(snapshot.ignoredChangedPaths, ['vendor/generated.js']);
+    const result = await scanChanged({ workspace: root });
+    assert.equal(result.status, 'partial_coverage');
+    assert.equal(result.filesScanned, 0);
+    assert.equal(result.ignoredChangedFileCount, 1);
+    assert.equal(result.scanId, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('workspace snapshots hash dirty file contents and disclose unsupported changed files', async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-test-'));
   try {
