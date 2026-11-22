@@ -260,6 +260,10 @@ test('workspace snapshots hash dirty file contents and disclose unsupported chan
     const third = await workspaceSnapshot(root);
     assert.notEqual(second.fingerprint, third.fingerprint);
     assert.deepEqual(third.unsupportedChangedPaths, ['README.md']);
+
+    // Deleted changed source cannot be scanned from current bytes and must fail closed.
+    await rm(path.join(root, 'src', 'app.js'));
+    await assert.rejects(workspaceSnapshot(root));
   } catch (error) {
     if (error?.code === 'ENOENT') t.skip('Git is required for workspace snapshot tests.');
     else throw error;
