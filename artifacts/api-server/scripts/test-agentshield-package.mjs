@@ -81,7 +81,9 @@ try {
     'Packaging did not return an archive path and SHA-256.');
   archive = packaged.archive;
 
-  await run('npm', ['install', '--global', '--ignore-scripts', '--prefix', installPrefix, archive]);
+  await run('npm', ['install', '--global', '--ignore-scripts', '--offline', '--no-audit', '--no-fund', '--prefix', installPrefix, archive], {
+    env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_offline: 'true' },
+  });
   const binDir = path.join(installPrefix, 'bin');
   const cli = path.join(binDir, 'vibesane');
   const mcp = path.join(binDir, 'vibesane-mcp');
