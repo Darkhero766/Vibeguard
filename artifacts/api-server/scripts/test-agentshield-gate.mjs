@@ -286,7 +286,7 @@ test('baseRef config accepts a local branch and rejects unsafe Git ref expressio
 test('enforced final gate refuses dirty-only coverage when no target base ref is configured', async () => {
   const root = await repoFixture();
   try {
-    await writeFile(path.join(root, 'src', 'app.js'), 'export const dirty = true;\\n');
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const dirty = true;\n');
     let scannerCalled = false;
     const result = await finalGate(root, {
       blockingSeverity: 'High',
