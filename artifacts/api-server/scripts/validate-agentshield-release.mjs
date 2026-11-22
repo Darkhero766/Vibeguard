@@ -121,16 +121,20 @@ async function main() {
     curatedBenchmark?.status === 'passed'
       && curatedBenchmark.evidence?.benchmarkType === 'synthetic_labeled_target_rule_curated'
       && Number.isInteger(curatedBenchmark.evidence?.totalCases)
-      && curatedBenchmark.evidence.totalCases >= 100
-      && curatedBenchmark.evidence.categoryCount >= 10
+      && curatedBenchmark.evidence.totalCases >= 120
+      && curatedBenchmark.evidence.categoryCount >= 12
       && curatedBenchmark.evidence.categoryResultsMet === true
+      && Object.values(curatedBenchmark.evidence.categories || {}).every(category =>
+        category.total >= 10 && category.tp + category.fn >= 5 && category.tn + category.fp >= 5)
       && curatedBenchmark.evidence?.targetsMet === true
       && holdoutBenchmark?.status === 'passed'
       && holdoutBenchmark.evidence?.benchmarkType === 'synthetic_labeled_target_rule_holdout'
       && Number.isInteger(holdoutBenchmark.evidence?.totalCases)
-      && holdoutBenchmark.evidence.totalCases > 0
+      && holdoutBenchmark.evidence.totalCases >= 24
       && holdoutBenchmark.evidence.categoryCount >= 6
       && holdoutBenchmark.evidence.categoryResultsMet === true
+      && Object.values(holdoutBenchmark.evidence.categories || {}).every(category =>
+        category.total >= 4 && category.tp + category.fn >= 2 && category.tn + category.fp >= 2)
       && holdoutBenchmark.evidence?.targetsMet === true
   );
   const benchmarkTargetsMet = benchmarkItems.length === 2 && benchmarkEvidenceValid;
