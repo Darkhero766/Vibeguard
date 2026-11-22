@@ -454,8 +454,10 @@ export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, 
     note: 'AgentShield scanned the supported changed-file subset only. Unsupported changed files were not analyzed; do not report a clean security status.',
   } : result;
   if (scopedResult.status === 'complete') {
-    const scanId = rememberBaseline(snapshot.root, after.fingerprint, scopedResult);
-    return { ...scopedResult, ...(after.baseCommit ? { baseRef: after.baseCommit } : {}), scanId, baselineExpiresInMs: BASELINE_TTL_MS };
+    // Persist the resolved scope (not just a symbolic ref) with the baseline.
+    const baselineResult = { ...scopedResult, ...(after.baseCommit ? { baseRef: after.baseCommit } : {}) };
+    const scanId = rememberBaseline(snapshot.root, after.fingerprint, baselineResult);
+    return { ...baselineResult, scanId, baselineExpiresInMs: BASELINE_TTL_MS };
   }
   return scopedResult;
 }
@@ -466,8 +468,11 @@ export async function listFindings(workspace, scanId, { signal, baseRef = null }
   if (!baseline) {
     return { status: 'baseline_not_found', findings: [], note: 'The scan_id is unknown, expired, or belongs to a different workspace. Run scan_changed again.' };
   }
+  if ((baseline.result.baseRef || null) !== (snapshot.baseCommit || null)) {
+    return { status: 'rescan_required', scanId, findings: [],
+      note: 'The base_ref scope differs from the named baseline. Repeat the original base_ref or run scan_changed again.' };
+  }
   if (snapshot.fingerprint !== baseline.fingerprint) {
-    baselineStore.delete(scanId);
     return { status: 'rescan_required', scanId, findings: [], note: 'Workspace content changed since this scan; run scan_changed again.' };
   }
   return {
@@ -485,6 +490,13 @@ export async function verifyRemediation(workspace, baselineId, { signal, baseRef
     securityGuarantee: false,
     note: 'The baseline_id is unknown, expired, or belongs to a different workspace. Run scan_changed before editing.',
   };
+  if ((baseline.result.baseRef || null) !== (before.baseCommit || null)) {
+    return {
+      status: 'verification_incomplete',
+      securityGuarantee: false,
+      note: 'The base_ref scope differs from the named baseline. Reuse the exact base_ref from scan_changed before verifying remediation.',
+    };
+  }
   if (before.fingerprint === baseline.fingerprint) {
     return { status: 'no_changes_since_baseline', baselineId, securityGuarantee: false, note: 'Workspace is unchanged since the named baseline; no remediation verification was performed.' };
   }
