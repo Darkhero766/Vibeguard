@@ -149,6 +149,12 @@ export async function finalGate(root, config, scan) {
     if (!config || typeof config !== 'object' || !Object.hasOwn(SEVERITY, config.blockingSeverity)) {
       throw new Error('Invalid final-gate configuration.');
     }
+    // Enforced completion must cover the committed topic-branch diff as well as
+    // dirty worktree files. Without an explicit target base, a dirty-only scan
+    // could incorrectly pass while earlier committed changes remain unscanned.
+    if (config.completionGate === 'enforce' && !config.baseRef) {
+      throw new Error('Completion enforcement requires a configured target base reference.');
+    }
     const before = await snapshot(root, { baseRef: config.baseRef || null });
     if (before.changedPaths.length === 0 && before.unsupportedChangedPaths.length === 0) {
       return { status: 'no_changed_files', filesScanned: 0, findings: [], blocking: 0,
