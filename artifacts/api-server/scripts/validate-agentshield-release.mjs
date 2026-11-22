@@ -138,7 +138,7 @@ async function main() {
   const syntaxEvidenceValid = Boolean(syntaxStep && syntaxStep.status === 'passed'
     && syntaxStep.evidence?.status === 'syntax_passed'
     && Number.isInteger(syntaxStep.evidence?.checkedFiles)
-    && syntaxStep.evidence.checkedFiles >= 18
+    && syntaxStep.evidence.checkedFiles >= 44
     && syntaxStep.evidence.passedFiles === syntaxStep.evidence.checkedFiles
     && syntaxStep.evidence.fingerprintedSourceInputs >= 6
     && syntaxStep.evidence.missingSourceInputs?.length === 0
