@@ -136,7 +136,7 @@ test('modern stateless discovery advertises protocol, tools and server identity'
   assert.equal(response.result._meta['io.modelcontextprotocol/serverInfo'].name, 'vibesane-agentshield');
   assert.equal(response.result.cacheScope, 'public');
   assert.ok(response.result.ttlMs > 0);
-  assert.match(response.result.instructions, /verify_remediation/);
+  assert.match(response.result.instructions, /baseline_id/);
 });
 
 test('modern tools/list and tools/call include required stateless result metadata', async () => {
@@ -198,7 +198,13 @@ test('JSON-RPC and tool schemas reject malformed input and unexpected keys', asy
   assert.equal(validateToolArguments('scan_changed', { workspace: '/repo' }), true);
   assert.equal(validateToolArguments('scan_changed', { workspace: 'relative/path' }), false);
   assert.equal(validateToolArguments('scan_changed', { workspace: '/repo', extra: true }), false);
-  assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo' }), true);
+  assert.equal(validateToolArguments('list_findings', { workspace: '/repo', scan_id: 'scan-identifier-123' }), true);
+  assert.equal(validateToolArguments('list_findings', { workspace: '/repo' }), false);
+  assert.equal(validateToolArguments('list_findings', { workspace: '/repo', scan_id: 'short' }), false);
+  assert.equal(validateToolArguments('list_findings', { workspace: '/repo', scan_id: 'scan-identifier-123', extra: true }), false);
+  assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo', baseline_id: 'scan-identifier-123' }), true);
+  assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo' }), false);
+  assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo', baseline_id: 'short' }), false);
   assert.equal(validateToolArguments('explain_finding', { rule_id: 'rls' }), true);
   assert.equal(validateToolArguments('unknown', {}), false);
 });
