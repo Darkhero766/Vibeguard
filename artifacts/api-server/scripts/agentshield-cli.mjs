@@ -83,6 +83,8 @@ async function loadFiles(opts) {
   if (opts.file && selected.length === 0) throw new Error('The specified file is outside the repository or has an unsupported extension.');
   if (targets.length > MAX_FILES) throw new Error('Changed-file limit exceeded (100); narrow the scan.');
   const files = [];
+  const missingChangedPaths = [];
+  const unsafeChangedPaths = [];
   let bytes = 0;
   for (const rel of selected) {
     const absolute = path.resolve(rootReal, rel);
@@ -90,8 +92,11 @@ async function loadFiles(opts) {
     if (safeRelative.startsWith('..') || path.isAbsolute(safeRelative)) throw new Error('File escaped the repository root.');
     let info;
     try { info = await lstat(absolute); }
-    catch (error) { if (error?.code === 'ENOENT') continue; throw new Error('Unable to inspect a selected file.'); }
-    if (!info.isFile()) continue; // do not follow symlinks, devices or directories
+    catch (error) {
+      if (error?.code === 'ENOENT' && !opts.file) { missingChangedPaths.push(rel); continue; }
+      throw new Error('Unable to inspect a selected file.');
+    }
+    if (!info.isFile() || info.isSymbolicLink()) { unsafeChangedPaths.push(rel); continue; } // never follow symlinks or special files
     if (info.size > MAX_FILE_BYTES || bytes + info.size > MAX_TOTAL_BYTES) throw new Error('Source size limit exceeded; scan fewer or smaller files.');
     const verified = await realpath(absolute);
     if (verified !== rootReal && !verified.startsWith(rootReal + path.sep)) throw new Error('File escaped the repository root.');
@@ -108,6 +113,8 @@ async function loadFiles(opts) {
     mode: opts.file ? 'file' : 'changed',
     selected: selected.length,
     unsupportedChangedPaths,
+    missingChangedPaths,
+    unsafeChangedPaths,
   };
 }
 
@@ -196,6 +203,12 @@ function output(result, format) {
     for (const file of (result.unsupportedChangedPaths || []).slice(0, 20)) {
       process.stdout.write('  Unsupported: ' + file + '\n');
     }
+    for (const file of (result.missingChangedPaths || []).slice(0, 20)) {
+      process.stdout.write('  Deleted before scan: ' + file + '\n');
+    }
+    for (const file of (result.unsafeChangedPaths || []).slice(0, 20)) {
+      process.stdout.write('  Unsafe file type: ' + file + '\n');
+    }
     return;
   }
   process.stdout.write('VibeSane AgentShield: ' + result.filesScanned + ' files scanned; ' + result.findings.length + ' findings.\n');
@@ -211,22 +224,27 @@ export async function main(argv = process.argv.slice(2)) {
   try {
     const opts = options(argv);
     format = opts.format;
-    const { files, mode, selected, unsupportedChangedPaths } = await loadFiles(opts);
+    const { files, mode, selected, unsupportedChangedPaths, missingChangedPaths, unsafeChangedPaths } = await loadFiles(opts);
     const findings = analyze(files);
     const partial = unsupportedChangedPaths.length > 0;
+    const incomplete = missingChangedPaths.length > 0 || unsafeChangedPaths.length > 0;
     const report = {
       schemaVersion: 1, tool: 'VibeSane AgentShield',
-      status: partial ? 'partial_coverage' : 'complete', mode,
+      status: incomplete ? 'scan_incomplete' : partial ? 'partial_coverage' : 'complete', mode,
       filesSelected: selected, filesScanned: files.length, scannedPaths: files.map((f) => f.path), findings,
       unsupportedChangedPaths: unsupportedChangedPaths.slice(0, 30),
       unsupportedChangedFileCount: unsupportedChangedPaths.length,
-      coverage: partial
-        ? 'Partial static heuristic analysis. Unsupported changed files were not analyzed; do not report a clean result.'
-        : 'Static heuristic analysis of selected files only; untested vulnerabilities may remain.',
+      missingChangedPaths: missingChangedPaths.slice(0, 30),
+      unsafeChangedPaths: unsafeChangedPaths.slice(0, 30),
+      coverage: incomplete
+        ? 'One or more changed files were deleted or unsafe to read; security status is UNKNOWN.'
+        : partial
+          ? 'Partial static heuristic analysis. Unsupported changed files were not analyzed; do not report a clean result.'
+          : 'Static heuristic analysis of selected files only; untested vulnerabilities may remain.',
       scannedAt: new Date().toISOString(),
     };
     output(report, format);
-    if (partial) return 2;
+    if (partial || incomplete) return 2;
     return findings.some((f) => f.severity === 'Critical' || f.severity === 'High') ? 1 : 0;
   } catch (err) {
     const report = { schemaVersion: 1, tool: 'VibeSane AgentShield', status: 'error',
