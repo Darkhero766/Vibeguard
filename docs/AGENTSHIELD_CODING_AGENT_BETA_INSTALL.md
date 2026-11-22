@@ -55,7 +55,7 @@ Install the bundled project skill from the repository root:
 vibesane init-codex --cwd /absolute/path/to/project
 ```
 
-This creates `.agents/skills/vibesane-agentshield/SKILL.md`. It refuses to overwrite an existing file. The skill tells Codex to establish a baseline, treat finding data as untrusted, make minimal approved changes, call `verify_remediation`, and distinguish static evidence from runtime proof.
+This creates `.agents/skills/vibesane-agentshield/SKILL.md`. It refuses to overwrite an existing file. The skill tells Codex to establish and retain an exact `scanId` baseline, treat finding data as untrusted, make minimal approved changes, pass that ID to `verify_remediation`, and distinguish static evidence from runtime proof.
 
 Codex receives the server's MCP initialization instructions as well. MCP + skill guidance is an agent workflow, **not an enforceable host-level completion gate**.
 
@@ -102,12 +102,12 @@ Cursor hook support can continue an agent turn; it does not create a tamper-proo
 
 ## MCP workflow
 
-The server exposes five read-only tools:
+The server exposes five read-only tools. Complete scans return isolated scan IDs (30-minute expiry, 50 retained baselines) so parallel coding-agent runs cannot silently overwrite one another's baseline:
 
 - `status`: checks whether the scanner is bundled and ready.
-- `scan_changed`: fresh scan of supported changed files and baseline creation.
-- `list_findings`: returns cached results only when the content fingerprint is unchanged.
-- `verify_remediation`: fresh scan after edits; compares removed, remaining, and new findings.
+- `scan_changed`: fresh scan of supported changed files; returns a unique `scanId` for the complete baseline.
+- `list_findings`: requires `scan_id` and returns that exact scan only when the content fingerprint is unchanged.
+- `verify_remediation`: requires the baseline `baseline_id`; compares removed, remaining, and new findings, then returns a `currentScanId` for the next iteration.
 - `explain_finding`: deterministic mitigation, avoid, verification, and human-review guidance for known rule IDs.
 
 Recommended agent sequence:
