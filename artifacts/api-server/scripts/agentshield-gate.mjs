@@ -22,7 +22,7 @@ export function changedEntries(status) {
     if (item.length < 4 || item[2] !== ' ') throw new Error('Invalid Git status response.');
     const flags = item.slice(0, 2), file = item.slice(3);
     if (flags.includes('R') || flags.includes('C')) i++; // NUL-terminated old path follows
-    if (!flags.includes('D') && !flags.includes('!')) entries.push(file);
+    if (!flags.includes('!')) entries.push(file);
   }
   return [...new Set(entries)].sort();
 }
