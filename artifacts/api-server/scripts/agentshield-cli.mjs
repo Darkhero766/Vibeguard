@@ -19,19 +19,21 @@ const IGNORE_PARTS = new Set(['.git', 'node_modules', '.next', 'dist', 'build', 
 const severities = { Critical: 4, High: 3, Medium: 2, Low: 1 };
 
 function options(args) {
-  if (args[0] !== 'scan') throw new Error('Usage: vibesane scan --changed [--format json|text] [--cwd PATH]');
-  const out = { changed: false, file: null, cwd: process.cwd(), format: 'text' };
+  if (args[0] !== 'scan') throw new Error('Usage: vibesane scan --changed [--base-ref REF] [--format json|text] [--cwd PATH]');
+  const out = { changed: false, file: null, baseRef: null, cwd: process.cwd(), format: 'text' };
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--changed') out.changed = true;
     else if (arg === '--json') out.format = 'json';
-    else if (['--cwd', '--file', '--format'].includes(arg)) {
+    else if (['--cwd', '--file', '--format', '--base-ref'].includes(arg)) {
       if (!args[i + 1]) throw new Error('Missing value for ' + arg);
       out[arg.slice(2)] = args[++i];
     } else throw new Error('Unknown argument: ' + arg);
   }
   if (out.file && out.changed) throw new Error('Choose --file or --changed, not both.');
   if (!out.file && !out.changed) throw new Error('Specify --changed or --file PATH.');
+  if (out.baseRef && !out.changed) throw new Error('--base-ref can only be used with --changed.');
+  if (out.baseRef && !validBaseRef(out.baseRef)) throw new Error('Invalid --base-ref. Use a local branch, remote-tracking ref, tag, or commit SHA.');
   if (!['json', 'text', 'sarif'].includes(out.format)) throw new Error('Format must be json, text or sarif.');
   return out;
 }
@@ -63,22 +65,66 @@ function changedPaths(porcelain) {
   for (let i = 0; i < chunks.length; i++) {
     const item = chunks[i];
     if (!item) continue;
+    if (item.length < 4 || item[2] !== ' ') throw new Error('Git returned malformed worktree status.');
     const status = item.slice(0, 2);
     const name = item.slice(3);
-    if (status.includes('R') || status.includes('C')) i++; // -z renames include an additional old path
-    if (status.includes('!')) continue;
-    files.push(name);
+    if (status.includes('R') || status.includes('C')) i++;
+    if (!status.includes('!')) files.push(name);
   }
   return [...new Set(files)].sort();
+}
+
+function validBaseRef(value) {
+  return typeof value === 'string' && value.length <= 200
+    && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value)
+    && !value.includes('..') && !value.includes('//') && !value.includes('@{')
+    && !value.endsWith('/') && !value.endsWith('.') && !value.startsWith('-');
+}
+
+function diffChangedPaths(output) {
+  const chunks = output.split('\0');
+  const files = [];
+  for (let i = 0; i < chunks.length;) {
+    const status = chunks[i++];
+    if (!status) continue;
+    if (/^[RC][0-9]*$/.test(status)) {
+      const oldPath = chunks[i++];
+      const newPath = chunks[i++];
+      if (!oldPath || !newPath) throw new Error('Git returned a malformed rename/copy entry.');
+      files.push(newPath);
+    } else if (/^[AMDTU][0-9]*$/.test(status)) {
+      const file = chunks[i++];
+      if (!file) throw new Error('Git returned a malformed changed path.');
+      files.push(file);
+    } else throw new Error('Git returned an unsupported diff status.');
+  }
+  return [...new Set(files)].sort();
+}
+
+async function resolveBaseCommit(cwd, baseRef) {
+  if (!baseRef) return null;
+  if (!validBaseRef(baseRef)) throw new Error('Invalid base reference.');
+  const checked = await run('git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null',
+    '-C', cwd, 'rev-parse', '--verify', '--end-of-options', baseRef + '^{commit}'], {
+    encoding: 'utf8', timeout: 7000, maxBuffer: 10_000, windowsHide: true,
+  }).catch(() => { throw new Error('Base reference is unavailable locally; fetch it or configure an existing commit/ref.'); });
+  const sha = checked.stdout.trim();
+  if (!/^[a-f0-9]{40,64}$/i.test(sha)) throw new Error('Git did not resolve the configured base to a commit.');
+  return sha;
 }
 
 async function loadFiles(opts) {
   const cwd = path.resolve(opts.cwd);
   const root = (await git(cwd, ['rev-parse', '--show-toplevel'])).trim();
   const rootReal = await realpath(root);
+  const worktreePaths = opts.file ? [] : changedPaths(await git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all']));
+  const baseCommit = opts.baseRef ? await resolveBaseCommit(rootReal, opts.baseRef) : null;
+  const committedPaths = baseCommit
+    ? diffChangedPaths(await git(cwd, ['diff', '--name-status', '-z', '--find-renames', baseCommit + '...HEAD', '--']))
+    : [];
   const targets = opts.file
     ? [path.isAbsolute(opts.file) ? path.relative(rootReal, opts.file) : path.relative(rootReal, path.resolve(cwd, opts.file))]
-    : changedPaths(await git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all']));
+    : [...new Set([...worktreePaths, ...committedPaths])].sort();
   const selected = targets.filter(validFile);
   const unsupportedChangedPaths = opts.file ? [] : targets.filter((file) => !ignoredPath(file) && !validFile(file));
   if (opts.file && selected.length === 0) throw new Error('The specified file is outside the repository or has an unsupported extension.');
@@ -116,6 +162,7 @@ async function loadFiles(opts) {
     unsupportedChangedPaths,
     missingChangedPaths,
     unsafeChangedPaths,
+    baseRef: baseCommit,
   };
 }
 
@@ -226,7 +273,7 @@ export async function main(argv = process.argv.slice(2)) {
   try {
     const opts = options(argv);
     format = opts.format;
-    const { files, mode, selected, unsupportedChangedPaths, missingChangedPaths, unsafeChangedPaths } = await loadFiles(opts);
+    const { files, mode, selected, unsupportedChangedPaths, missingChangedPaths, unsafeChangedPaths, baseRef } = await loadFiles(opts);
     const findings = analyze(files);
     const partial = unsupportedChangedPaths.length > 0;
     const analysisLimited = findings.some((finding) => finding.ruleId === 'python_scan_limit');
@@ -235,6 +282,7 @@ export async function main(argv = process.argv.slice(2)) {
       schemaVersion: 1, tool: 'VibeSane AgentShield',
       status: incomplete ? 'scan_incomplete' : partial ? 'partial_coverage' : 'complete', mode,
       filesSelected: selected, filesScanned: files.length, scannedPaths: files.map((f) => f.path), findings,
+      ...(baseRef ? { baseRef } : {}),
       unsupportedChangedPaths: unsupportedChangedPaths.slice(0, 30),
       unsupportedChangedFileCount: unsupportedChangedPaths.length,
       missingChangedPaths: missingChangedPaths.slice(0, 30),
