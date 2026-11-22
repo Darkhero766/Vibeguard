@@ -73,3 +73,67 @@ test('final gate fails closed when a changed supported file was deleted', async 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('final gate rejects an invalid blocking threshold instead of silently allowing', async () => {
+  const root = await repoFixture();
+  try {
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\\n');
+    const result = await finalGate(root, { blockingSeverity: 'Bogus' }, async () => ({
+      status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'], findings: [],
+    }));
+    assert.equal(result.status, 'scan_incomplete');
+    assert.equal(result.securityGuarantee, false);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('final gate rejects duplicated scan paths even when the numeric file count matches', async () => {
+  const root = await repoFixture();
+  try {
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\\n');
+    const result = await finalGate(root, { blockingSeverity: 'High' }, async () => ({
+      status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js', 'src/app.js'], findings: [],
+    }));
+    assert.equal(result.status, 'scan_incomplete');
+    assert.equal(result.securityGuarantee, false);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('final gate rejects findings outside the reported scan path set', async () => {
+  const root = await repoFixture();
+  try {
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\\n');
+    const result = await finalGate(root, { blockingSeverity: 'High' }, async () => ({
+      status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'],
+      findings: [{ filePath: 'README.md', ruleId: 'synthetic_rule', severity: 'Critical', line: 1 }],
+    }));
+    assert.equal(result.status, 'scan_incomplete');
+    assert.equal(result.securityGuarantee, false);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('final gate counts valid blocking findings at the configured threshold', async () => {
+  const root = await repoFixture();
+  try {
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\\n');
+    const result = await finalGate(root, { blockingSeverity: 'High' }, async () => ({
+      status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'],
+      findings: [{ filePath: 'src/app.js', ruleId: 'synthetic_blocker', severity: 'Critical', line: 1, title: 'Synthetic blocker' }],
+    }));
+    assert.equal(result.status, 'complete');
+    assert.equal(result.blocking, 1);
+    assert.equal(result.securityGuarantee, false);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('final gate rejects a worktree mutation during scanning', async () => {
+  const root = await repoFixture();
+  try {
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const before = true;\\n');
+    const result = await finalGate(root, { blockingSeverity: 'High' }, async () => {
+      await writeFile(path.join(root, 'src', 'app.js'), 'export const raced = true;\\n');
+      return { status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'], findings: [] };
+    });
+    assert.equal(result.status, 'scan_incomplete');
+    assert.equal(result.securityGuarantee, false);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
