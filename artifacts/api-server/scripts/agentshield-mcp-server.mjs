@@ -385,7 +385,8 @@ async function runScanner(root, expectedPaths, signal, baseCommit = null) {
   let report;
   try { report = JSON.parse(output.stdout); }
   catch { throw new Error('Scanner returned malformed JSON.'); }
-  return normalizeReport(report, expectedPaths);
+  const normalized = normalizeReport(report, expectedPaths);
+  return baseCommit ? { ...normalized, baseRef: baseCommit } : normalized;
 }
 function findingKey(finding) {
   // Rule/title/file identity survives line movement during remediation. Matching
