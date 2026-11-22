@@ -28,6 +28,7 @@ const scripts = [
   'agentshield-capabilities.mjs',
   'agentshield-hybrid.mjs',
   'agentshield-mcp-server.mjs',
+  'agentshield-baselines.mjs',
   'agentshield-python.mjs',
   'agentshield-sarif.mjs',
 ];
