@@ -229,12 +229,16 @@ test('JSON-RPC and tool schemas reject malformed input and unexpected keys', asy
   assert.equal(validateToolArguments('status', { extra: true }), false);
   assert.equal(validateToolArguments('scan_changed', { workspace: '/repo' }), true);
   assert.equal(validateToolArguments('scan_changed', { workspace: 'relative/path' }), false);
+  assert.equal(validateToolArguments('scan_changed', { workspace: '/repo', base_ref: 'origin/main' }), true);
+  assert.equal(validateToolArguments('scan_changed', { workspace: '/repo', base_ref: '../main' }), false);
   assert.equal(validateToolArguments('scan_changed', { workspace: '/repo', extra: true }), false);
   assert.equal(validateToolArguments('list_findings', { workspace: '/repo', scan_id: 'scan-identifier-123' }), true);
+  assert.equal(validateToolArguments('list_findings', { workspace: '/repo', scan_id: 'scan-identifier-123', base_ref: 'main' }), true);
   assert.equal(validateToolArguments('list_findings', { workspace: '/repo' }), false);
   assert.equal(validateToolArguments('list_findings', { workspace: '/repo', scan_id: 'short' }), false);
   assert.equal(validateToolArguments('list_findings', { workspace: '/repo', scan_id: 'scan-identifier-123', extra: true }), false);
   assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo', baseline_id: 'scan-identifier-123' }), true);
+  assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo', baseline_id: 'scan-identifier-123', base_ref: 'main' }), true);
   assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo' }), false);
   assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo', baseline_id: 'short' }), false);
   assert.equal(validateToolArguments('explain_finding', { rule_id: 'rls' }), true);
@@ -279,6 +283,31 @@ test('MCP stdio process speaks newline-delimited JSON-RPC, never Content-Length 
   assert.equal(messages[3].result.tools.some((tool) => tool.name === 'verify_remediation'), true);
 });
 
+
+test('MCP workspace snapshot includes committed base-to-HEAD changes', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-base-ref-'));
+  try {
+    await exec('git', ['init', '-q', root]);
+    await exec('git', ['-C', root, 'branch', '-M', 'main']);
+    await exec('git', ['-C', root, 'config', 'user.name', 'AgentShield Test']);
+    await exec('git', ['-C', root, 'config', 'user.email', 'agentshield-test@example.invalid']);
+    await mkdir(path.join(root, 'src'));
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const safe = true;\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'synthetic base']);
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'committed change']);
+
+    const snapshot = await workspaceSnapshot(root, undefined, 'main');
+    assert.deepEqual(snapshot.changedPaths, ['src/app.js']);
+    assert.deepEqual(snapshot.candidatePaths, ['src/app.js']);
+    assert.equal(snapshot.baseCommit.length, 40);
+    assert.notEqual(snapshot.fingerprint, (await workspaceSnapshot(root)).fingerprint);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test('workspace snapshots hash dirty file contents and disclose unsupported changed files', async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-test-'));
