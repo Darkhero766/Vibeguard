@@ -128,7 +128,7 @@ async function main(args) {
       '',
       'Static checks cover supported changed files only. A clean result is not a security certification.',
       '',
-    ].join('\\n'));
+    ].join('\n'));
     return 0;
   }
   if (command === 'doctor') return doctor(tail);
