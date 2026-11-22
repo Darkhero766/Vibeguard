@@ -114,10 +114,10 @@ Recommended agent sequence:
 
 ```text
 status
-scan_changed(workspace = absolute repository root)
+scan_changed(workspace = absolute repository root) -> store scanId
 [agent reviews findings and makes an approved minimal fix]
-verify_remediation(workspace = same absolute repository root)
-[agent continues only for remaining/new findings within host permissions]
+verify_remediation(workspace = same root, baseline_id = scanId)
+[use returned currentScanId for the next bounded remediation iteration]
 ```
 
 Interpret results carefully:
