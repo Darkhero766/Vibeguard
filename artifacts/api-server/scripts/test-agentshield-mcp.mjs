@@ -332,6 +332,36 @@ test('MCP workspace snapshot includes committed base-to-HEAD changes', async (t)
   }
 });
 
+test('MCP rejects base_ref at HEAD and base refs from unrelated history', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-invalid-base-'));
+  try {
+    await exec('git', ['init', '-q', root]);
+    await exec('git', ['-C', root, 'branch', '-M', 'main']);
+    await exec('git', ['-C', root, 'config', 'user.name', 'AgentShield Test']);
+    await exec('git', ['-C', root, 'config', 'user.email', 'agentshield-test@example.invalid']);
+    await mkdir(path.join(root, 'src'));
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const main = true;\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'main base']);
+    await assert.rejects(
+      workspaceSnapshot(root, undefined, 'main'),
+      /current HEAD/,
+    );
+
+    await exec('git', ['-C', root, 'checkout', '-qb', 'unrelated-base']);
+    await writeFile(path.join(root, 'src', 'independent.js'), 'export const independent = true;\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'unrelated history']);
+    await exec('git', ['-C', root, 'checkout', '-q', 'main']);
+    await assert.rejects(
+      workspaceSnapshot(root, undefined, 'unrelated-base'),
+      /ancestor of HEAD/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('MCP committed-diff scan, list and verification retain the same base-ref scope', async (t) => {
   if ((await statusTool()).status !== 'ready') {
     t.skip('Build the standalone scanner before MCP scan acceptance tests.');
