@@ -134,8 +134,10 @@ async function main() {
     && packageStep.evidence?.status === 'package_smoke_passed'
     && packageStep.evidence?.version === '0.7.0-beta.3'
     && /^[a-f0-9]{64}$/.test(packageStep.evidence?.packageSha256 || ''));
+  const gitRevision = await revision();
+  const revisionValid = /^[a-f0-9]{40}$/.test(gitRevision || '');
   const allRequiredPassed = results.every(item => item.status === 'passed')
-    && testSuiteValid && packageEvidenceValid;
+    && testSuiteValid && packageEvidenceValid && revisionValid;
   const report = {
     schemaVersion: 1,
     product: 'VibeSane AgentShield',
@@ -145,7 +147,7 @@ async function main() {
       ? 'candidate_for_independent_human_review'
       : 'do_not_distribute',
     createdAt: new Date().toISOString(),
-    gitRevision: await revision(),
+    gitRevision,\n    revisionValid,
     platform: process.platform,
     architecture: process.arch,
     nodeVersion: process.version,
