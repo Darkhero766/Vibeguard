@@ -1,4 +1,4 @@
-# AgentShield MCP (read-only 0.3.1)
+# AgentShield MCP (read-only beta 0.7.0-beta.3)
 
 Build the standalone scanner first from a trusted VibeSane checkout:
 
@@ -12,7 +12,7 @@ For repository development, run the server with:
 pnpm --filter @workspace/api-server agentshield:mcp
 ```
 
-The MCP server uses the standard stdio transport: UTF-8 JSON-RPC messages, one JSON object per line. Standard output is reserved for protocol messages; diagnostics are written to standard error.
+The MCP server uses the standard stdio transport: UTF-8 JSON-RPC messages, one JSON object per line. Standard output is reserved for protocol messages; diagnostics are written to standard error. It supports the stateless 2026-07-28 discovery/per-request metadata flow and retains the 2025-11-25 initialize handshake for legacy clients.
 
 ## Tools
 
