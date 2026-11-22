@@ -52,14 +52,15 @@ async function runStep(name, program, args, { cwd = root, timeout = 900_000 } = 
       cwd, env, timeout, maxBuffer: 12_000_000, windowsHide: true,
     });
     const output = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).slice(-30_000);
-    const tap = output.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)/);
+    const tap = output.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)[\s\S]*?# cancelled (\d+)[\s\S]*?# skipped (\d+)/);
     let evidence = null;
     if (name.includes('accuracy-benchmark') || name === 'offline-package-install-cli-mcp-smoke') {
       try { evidence = JSON.parse(stdout); } catch { evidence = { parseError: 'Command output was not valid JSON.' }; }
     }
     const item = {
       name, status: 'passed', exitCode: 0, durationMs: Date.now() - started,
-      ...(tap ? { tests: Number(tap[1]), passed: Number(tap[2]), failed: Number(tap[3]) } : {}),
+      ...(tap ? { tests: Number(tap[1]), passed: Number(tap[2]), failed: Number(tap[3]),
+        cancelled: Number(tap[4]), skipped: Number(tap[5]) } : {}),
       ...(evidence ? { evidence } : {}),
       output: output.slice(-8_000),
     };
@@ -69,11 +70,12 @@ async function runStep(name, program, args, { cwd = root, timeout = 900_000 } = 
     const stdout = String(error?.stdout || '');
     const stderr = String(error?.stderr || error?.message || '');
     const output = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).slice(-30_000);
-    const tap = output.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)/);
+    const tap = output.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)[\s\S]*?# cancelled (\d+)[\s\S]*?# skipped (\d+)/);
     const item = {
       name, status: 'failed', exitCode: Number.isInteger(error?.code) ? error.code : 1,
       durationMs: Date.now() - started,
-      ...(tap ? { tests: Number(tap[1]), passed: Number(tap[2]), failed: Number(tap[3]) } : {}),
+      ...(tap ? { tests: Number(tap[1]), passed: Number(tap[2]), failed: Number(tap[3]),
+        cancelled: Number(tap[4]), skipped: Number(tap[5]) } : {}),
       output,
     };
     results.push(item);
@@ -125,7 +127,8 @@ async function main() {
   const benchmarkTargetsMet = benchmarkItems.length === 2 && benchmarkEvidenceValid;
   const testSuite = results.find(item => item.name === 'unit-integration-regression');
   const testSuiteValid = Boolean(testSuite && testSuite.status === 'passed'
-    && Number.isInteger(testSuite.tests) && testSuite.tests > 0 && testSuite.failed === 0);
+    && Number.isInteger(testSuite.tests) && testSuite.tests > 0
+    && testSuite.failed === 0 && testSuite.cancelled === 0 && testSuite.skipped === 0);
   const packageStep = results.find(item => item.name === 'offline-package-install-cli-mcp-smoke');
   const packageEvidenceValid = Boolean(packageStep && packageStep.status === 'passed'
     && packageStep.evidence?.status === 'package_smoke_passed'
@@ -136,7 +139,7 @@ async function main() {
   const allStepsPassed = results.every(item => item.status === 'passed');
   const qualificationFailures = [
     ...(!allStepsPassed ? ['one_or_more_required_commands_failed_or_were_skipped'] : []),
-    ...(!testSuiteValid ? ['regression_suite_missing_nonzero_tap_counts_or_has_failures'] : []),
+    ...(!testSuiteValid ? ['regression_suite_missing_tap_counts_failed_cancelled_or_skipped_tests'] : []),
     ...(!benchmarkEvidenceValid ? ['curated_or_holdout_benchmark_evidence_missing_or_below_threshold'] : []),
     ...(!packageEvidenceValid ? ['offline_package_install_smoke_or_sha256_evidence_missing'] : []),
     ...(!revisionValid ? ['source_git_revision_unavailable_or_invalid'] : []),
