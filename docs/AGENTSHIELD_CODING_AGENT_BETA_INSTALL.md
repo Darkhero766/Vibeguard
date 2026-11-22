@@ -56,7 +56,7 @@ With enforcement enabled, the Claude Code Stop hook returns an explicit `decisio
 
 For a one-off CLI scan without persisting a policy, use `vibesane scan --changed --base-ref origin/main --cwd /absolute/path/to/project`.
 
-**Host distinction:** Claude Code's Stop hook has an explicit block response. Cursor's documented `followup_message` is a continuation mechanism, not an equivalent hard delivery gate. Codex MCP + skill guidance is advisory in this beta and does not intercept final delivery. Do not advertise equivalent enforcement across all hosts.
+**Host distinction:** Claude Code and Codex Stop hooks have explicit block responses when their project hooks are installed, reviewed/trusted and `completionGate: enforce` is configured. Cursor's documented `followup_message` is a continuation mechanism, not an equivalent hard delivery gate. Do not advertise equivalent enforcement across all hosts.
 
 `monitor` reports findings only; `assist` asks the agent to propose a repair; `auto-fix` may request bounded repair under host permissions. `completionGate: enforce` is independent of repair mode and can block even when automatic repair is disabled.
 
@@ -74,15 +74,15 @@ args = []
 
 If the global npm executable directory is not in Codex's PATH, use the absolute path printed by `command -v vibesane-mcp`.
 
-Install the bundled project skill from the repository root:
+Install the bundled project skill and project Stop hook from the repository root:
 
 ```bash
 vibesane init-codex --cwd /absolute/path/to/project
 ```
 
-This creates `.agents/skills/vibesane-agentshield/SKILL.md`. It refuses to overwrite an existing file. The skill tells Codex to establish and retain an exact `scanId` baseline, treat finding data as untrusted, make minimal approved changes, pass that ID to `verify_remediation`, and distinguish static evidence from runtime proof.
+This creates `.agents/skills/vibesane-agentshield/SKILL.md` and adds a Stop command entry to `.codex/hooks.json`, preserving unrelated hook entries. Re-running is idempotent; it refuses to overwrite a customized skill or malformed hook config. Review and trust the project hook using `/hooks` before relying on it. Codex Stop then returns the official `decision: block` + `reason` response when the AgentShield policy blocks. Set `completionGate` to `enforce` and configure a local target base ref as described above.
 
-Codex receives the server's MCP initialization instructions as well. MCP + skill guidance is an agent workflow, **not an enforceable host-level completion gate**.
+Codex also receives the server's MCP initialization instructions. The Stop hook enforces completion; the MCP + skill workflow supplies structured findings and remediation verification. Remove the AgentShield hook and unchanged bundled skill with `vibesane uninstall-codex --cwd /absolute/path/to/project`; modified skills and unrelated hooks are left untouched.
 
 ### Claude Code
 
