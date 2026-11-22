@@ -115,6 +115,13 @@ test('finding comparison distinguishes removed, remaining and newly introduced f
   assert.equal(multiplicity.remaining.length, 1);
   assert.equal(multiplicity.removed.length, 1);
   assert.equal(multiplicity.newFindings.length, 0);
+  const moved = compareFindings(
+    [make('move.js', 'rule-move', 'finding at old line')],
+    [{ ...make('move.js', 'rule-move', 'finding at old line'), line: 99 }],
+  );
+  assert.equal(moved.remaining.length, 1);
+  assert.equal(moved.removed.length, 0);
+  assert.equal(moved.newFindings.length, 0);
 });
 
 test('line decoder handles partial frames, CRLF and UTF-8 boundaries', () => {
