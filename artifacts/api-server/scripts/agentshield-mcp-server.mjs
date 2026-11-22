@@ -208,6 +208,7 @@ export async function workspaceSnapshot(workspace) {
         throw new Error('Changed file mutated while its content was being fingerprinted.');
       }
       totalBytes += bytes.byteLength - before.size;
+      if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Changed files grew beyond the scanner total-size budget.');
       candidatePaths.push(relativePath.split(path.sep).join('/'));
       observations.push([relativePath, sha256(bytes), bytes.byteLength, opened.mtimeMs]);
     } finally {
@@ -345,6 +346,18 @@ export async function verifyRemediation(workspace) {
   const current = await runScanner(before.root, before.candidatePaths);
   const after = await workspaceSnapshot(before.root);
   if (before.fingerprint !== after.fingerprint) throw new Error('Workspace changed during the verification scan; status UNKNOWN.');
+  if (baseline.result.findingsTruncated || current.findingsTruncated) {
+    return {
+      status: 'verification_incomplete',
+      baselineFindings: baseline.result.totalFindings,
+      currentFindings: current.totalFindings,
+      truncated: true,
+      verificationLevel: 'incomplete_static_rescan',
+      runtimeTestsExecuted: false,
+      securityGuarantee: false,
+      note: 'The bounded finding output was truncated; AgentShield cannot safely compare every finding. Treat remediation as UNKNOWN and review the full CLI report.',
+    };
+  }
   const delta = compareFindings(baseline.result.findings, current.findings);
   const status = delta.remaining.length ? 'findings_remain'
     : delta.newFindings.length ? 'new_findings_detected' : 'rescan_clean';
