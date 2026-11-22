@@ -148,11 +148,22 @@ async function main() {
   const testSuite = results.find(item => item.name === 'unit-integration-regression');
   const testSuiteValid = Boolean(testSuite && testSuite.status === 'passed'
     && Number.isInteger(testSuite.tests) && testSuite.tests > 0
+    && testSuite.passed === testSuite.tests
     && testSuite.failed === 0 && testSuite.cancelled === 0 && testSuite.skipped === 0);
   const packageStep = results.find(item => item.name === 'offline-package-install-cli-mcp-smoke');
+  const expectedPackageChecks = [
+    'build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor',
+    'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block',
+    'codex-stop-remediation', 'mcp-initialize', 'mcp-tools-list', 'mcp-status',
+    'codex-uninstall',
+  ];
   const packageEvidenceValid = Boolean(packageStep && packageStep.status === 'passed'
     && packageStep.evidence?.status === 'package_smoke_passed'
     && packageStep.evidence?.version === '0.7.0-beta.3'
+    && packageStep.evidence?.published === false
+    && Number.isSafeInteger(packageStep.evidence?.packageBytes) && packageStep.evidence.packageBytes > 0
+    && Number.isSafeInteger(packageStep.evidence?.packagedFiles) && packageStep.evidence.packagedFiles >= 20
+    && expectedPackageChecks.every(name => packageStep.evidence?.checks?.includes(name))
     && /^[a-f0-9]{64}$/.test(packageStep.evidence?.packageSha256 || ''));
   const gitRevision = await revision();
   const revisionValid = /^[a-f0-9]{40}$/.test(gitRevision || '');
