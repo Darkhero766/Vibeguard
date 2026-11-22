@@ -61,7 +61,7 @@ export const TOOL_DEFS = [
   {
     name: 'list_findings',
     title: 'Get current findings',
-    description: 'Return the exact scan identified by scan_id only when its workspace content fingerprint is unchanged. Use the scan_id returned by scan_changed; parallel agent sessions must not share implicit baselines.',
+    description: 'Return the exact scan identified by scan_id only when its workspace and resolved base_ref scope are unchanged. Use the scan_id returned by scan_changed and pass the identical optional base_ref; parallel agent sessions must not share implicit baselines.',
     inputSchema: { type: 'object', properties: {
       workspace: { type: 'string', minLength: 1, maxLength: 4096 },
       scan_id: { type: 'string', minLength: 16, maxLength: 80 },
@@ -72,7 +72,7 @@ export const TOOL_DEFS = [
   {
     name: 'verify_remediation',
     title: 'Verify remediation by rescanning',
-    description: 'After the coding agent edits files, run a fresh complete scan and compare it with the baseline identified by baseline_id from scan_changed. Reports remaining, removed and new findings. This is static re-scan evidence only, not runtime proof or a security certification.',
+    description: 'After the coding agent edits files, run a fresh complete scan and compare it with the baseline identified by baseline_id from scan_changed. Pass the identical optional base_ref used by scan_changed so committed changes remain in scope. Reports remaining, removed and new findings. This is static re-scan evidence only, not runtime proof or a security certification.',
     inputSchema: { type: 'object', properties: {
       workspace: { type: 'string', minLength: 1, maxLength: 4096 },
       baseline_id: { type: 'string', minLength: 16, maxLength: 80 },
