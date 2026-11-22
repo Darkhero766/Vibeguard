@@ -255,6 +255,11 @@ test('workspace snapshots hash dirty file contents and disclose unsupported chan
     const second = await workspaceSnapshot(root);
     assert.notEqual(first.fingerprint, second.fingerprint);
     assert.deepEqual(second.unsupportedChangedPaths, ['README.md']);
+    // Unsupported README content also changes the snapshot while already dirty.
+    await writeFile(path.join(root, 'README.md'), '# changed documentation again\n');
+    const third = await workspaceSnapshot(root);
+    assert.notEqual(second.fingerprint, third.fingerprint);
+    assert.deepEqual(third.unsupportedChangedPaths, ['README.md']);
   } catch (error) {
     if (error?.code === 'ENOENT') t.skip('Git is required for workspace snapshot tests.');
     else throw error;
