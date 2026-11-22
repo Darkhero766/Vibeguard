@@ -90,6 +90,18 @@ test('missing auth before an API database write is detected', async (t) => {
   assert.ok(result.report.findings.some((f) => f.ruleId === 'unauthenticated_write'));
 });
 
+test('CLI reports partial coverage when ignored directories change alongside supported source', async (t) => {
+  const { cwd } = await fixture(t, 'src/app.js', 'export const reviewed = true;\n');
+  await mkdir(path.join(cwd, 'vendor'), { recursive: true });
+  await writeFile(path.join(cwd, 'vendor', 'generated.js'), 'export const ignored = true;\n');
+  const result = await scan(cwd);
+  assert.equal(result.code, 2);
+  assert.equal(result.report.status, 'partial_coverage');
+  assert.equal(result.report.filesScanned, 1);
+  assert.deepEqual(result.report.ignoredChangedPaths, ['vendor/generated.js']);
+  assert.equal(result.report.ignoredChangedFileCount, 1);
+});
+
 test('clean JavaScript returns a completed scan with no findings', async (t) => {
   const { cwd } = await fixture(t, 'src/math.js', 'export const sum = (a, b) => a + b;\n');
   const result = await scan(cwd);
