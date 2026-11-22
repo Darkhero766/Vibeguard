@@ -41,7 +41,8 @@
     "test:agentshield:gate": "node --test ./scripts/test-agentshield-gate.mjs",
     "test:agentshield:sarif": "node --test ./scripts/test-agentshield-sarif.mjs",
     "test:agentshield:baselines": "node --test ./scripts/test-agentshield-baselines.mjs",
-    "test:agentshield:package": "node ./scripts/test-agentshield-package.mjs"
+    "test:agentshield:package": "node ./scripts/test-agentshield-package.mjs",
+    "test:agentshield:release-qualification": "node ./scripts/validate-agentshield-release.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
