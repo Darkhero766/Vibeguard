@@ -33,6 +33,16 @@ const FILES = [
   'scripts/test-agentshield-package.mjs',
 ];
 
+// TypeScript scanner inputs are bundled by esbuild rather than node --check,
+// but must still be included in source provenance. Also fingerprint the package
+// manifest and installed agent skill because they define the delivered artifact.
+const SOURCE_INPUTS = [
+  'src/lib/apiScanner.ts',
+  'src/lib/extendedScannerV2.ts',
+  'package.json',
+  'skills/vibesane-agentshield/SKILL.md',
+];
+
 const checks = [];
 const digest = createHash('sha256');
 for (const relative of FILES) {
@@ -54,10 +64,26 @@ for (const relative of FILES) {
     });
   }
 }
+const sourceInputs = [];
+for (const relative of SOURCE_INPUTS) {
+  try {
+    const bytes = await readFile(path.join(root, relative));
+    digest.update(relative);
+    digest.update('\0');
+    digest.update(bytes);
+    sourceInputs.push({ file: relative, status: 'fingerprinted', bytes: bytes.byteLength });
+  } catch (error) {
+    sourceInputs.push({ file: relative, status: 'missing', error: String(error?.message || error).slice(0, 500) });
+  }
+}
 const failed = checks.filter(item => item.status !== 'passed');
+const missingInputs = sourceInputs.filter(item => item.status !== 'fingerprinted');
 const report = {
-  status: failed.length ? 'syntax_failed' : 'syntax_passed',
+  status: failed.length || missingInputs.length ? 'syntax_failed' : 'syntax_passed',
   checkedFiles: checks.length,
+  fingerprintedSourceInputs: sourceInputs.filter(item => item.status === 'fingerprinted').length,
+  missingSourceInputs: missingInputs.map(item => item.file),
+  sourceInputs,
   passedFiles: checks.length - failed.length,
   failedFiles: failed.map(item => item.file),
   sourceSha256: digest.digest('hex'),
