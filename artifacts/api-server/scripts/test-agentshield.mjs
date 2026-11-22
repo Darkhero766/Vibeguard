@@ -251,7 +251,9 @@ test('CLI rejects a base ref at HEAD and a base ref from unrelated history', asy
   await run('git', ['-C', cwd, 'config', 'user.email', 'agentshield-test@example.invalid']);
   await run('git', ['-C', cwd, 'add', '.']);
   await run('git', ['-C', cwd, 'commit', '-qm', 'main base']);
-  await run('git', ['-C', cwd, 'checkout', '-qb', 'unrelated-base']);
+  await run('git', ['-C', cwd, 'checkout', '--orphan', 'unrelated-base']);
+  await run('git', ['-C', cwd, 'rm', '-rf', '.']);
+  await mkdir(path.join(cwd, 'src'), { recursive: true });
   await writeFile(path.join(cwd, 'src', 'independent.js'), 'export const independent = true;\n');
   await run('git', ['-C', cwd, 'add', '.']);
   await run('git', ['-C', cwd, 'commit', '-qm', 'unrelated history']);
