@@ -54,7 +54,7 @@ async function runStep(name, program, args, { cwd = root, timeout = 900_000 } = 
     const output = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).slice(-30_000);
     const tap = output.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)[\s\S]*?# cancelled (\d+)[\s\S]*?# skipped (\d+)/);
     let evidence = null;
-    if (name.includes('accuracy-benchmark') || name === 'offline-package-install-cli-mcp-smoke') {
+    if (name === 'source-syntax' || name.includes('accuracy-benchmark') || name === 'offline-package-install-cli-mcp-smoke') {
       try { evidence = JSON.parse(stdout); } catch { evidence = { parseError: 'Command output was not valid JSON.' }; }
     }
     const item = {
@@ -90,7 +90,11 @@ async function revision() {
   } catch { return null; }
 }
 async function main() {
-  const build = await runStep('build-scanner', process.execPath, [path.join(scriptsDir, 'build-agentshield.mjs')]);
+  const syntax = await runStep('source-syntax', process.execPath,
+    [path.join(scriptsDir, 'check-agentshield-source-syntax.mjs')]);
+  const build = syntax.status === 'passed'
+    ? await runStep('build-scanner', process.execPath, [path.join(scriptsDir, 'build-agentshield.mjs')])
+    : { name: 'build-scanner', status: 'skipped', reason: 'Source syntax validation failed.' };
   if (build.status === 'passed') {
     await runStep('unit-integration-regression', process.execPath,
       ['--test', ...TEST_FILES.map(file => path.join(scriptsDir, file))]);
@@ -129,6 +133,13 @@ async function main() {
       && holdoutBenchmark.evidence?.targetsMet === true
   );
   const benchmarkTargetsMet = benchmarkItems.length === 2 && benchmarkEvidenceValid;
+  const syntaxStep = results.find(item => item.name === 'source-syntax');
+  const syntaxEvidenceValid = Boolean(syntaxStep && syntaxStep.status === 'passed'
+    && syntaxStep.evidence?.status === 'syntax_passed'
+    && Number.isInteger(syntaxStep.evidence?.checkedFiles)
+    && syntaxStep.evidence.checkedFiles >= 18
+    && syntaxStep.evidence.passedFiles === syntaxStep.evidence.checkedFiles
+    && /^[a-f0-9]{64}$/.test(syntaxStep.evidence?.sourceSha256 || ''));
   const testSuite = results.find(item => item.name === 'unit-integration-regression');
   const testSuiteValid = Boolean(testSuite && testSuite.status === 'passed'
     && Number.isInteger(testSuite.tests) && testSuite.tests > 0
@@ -143,6 +154,7 @@ async function main() {
   const allStepsPassed = results.every(item => item.status === 'passed');
   const qualificationFailures = [
     ...(!allStepsPassed ? ['one_or_more_required_commands_failed_or_were_skipped'] : []),
+    ...(!syntaxEvidenceValid ? ['source_syntax_or_source_fingerprint_evidence_missing'] : []),
     ...(!testSuiteValid ? ['regression_suite_missing_tap_counts_failed_cancelled_or_skipped_tests'] : []),
     ...(!benchmarkEvidenceValid ? ['curated_or_holdout_benchmark_evidence_missing_or_below_threshold'] : []),
     ...(!packageEvidenceValid ? ['offline_package_install_smoke_or_sha256_evidence_missing'] : []),
@@ -168,6 +180,7 @@ async function main() {
     syntheticFixturesOnly: true,
     benchmarkTargetsMet,
     benchmarkEvidenceValid,
+    syntaxEvidenceValid,
     testSuiteValid,
     packageEvidenceValid,
     qualificationFailures,
@@ -195,6 +208,7 @@ async function main() {
     })),
     benchmarkTargetsMet,
     benchmarkEvidenceValid,
+    syntaxEvidenceValid,
     testSuiteValid,
     packageEvidenceValid,
     qualificationFailures,
