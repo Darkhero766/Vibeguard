@@ -66,7 +66,7 @@ async function initCodexSkill(args) {
     status: 'installed',
     skill: target,
     note: 'Restart or refresh Codex so it can discover the project skill. Existing files were not overwritten.',
-  }) + '\\n');
+  }) + '\n');
   return 0;
 }
 async function doctor(args) {
