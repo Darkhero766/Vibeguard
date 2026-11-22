@@ -65,7 +65,7 @@ function changedPaths(porcelain) {
     const status = item.slice(0, 2);
     const name = item.slice(3);
     if (status.includes('R') || status.includes('C')) i++; // -z renames include an additional old path
-    if (status.includes('D') || status.includes('!')) continue;
+    if (status.includes('!')) continue;
     files.push(name);
   }
   return [...new Set(files)].sort();
