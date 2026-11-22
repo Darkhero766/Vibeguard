@@ -16,7 +16,7 @@ function normalizeGithubRepoInput(raw: string): string {
 
 type FindingSeverity = 'Critical' | 'High' | 'Medium';
 type Finding = { id: string; severity: FindingSeverity; title: string; description: string; filePath: string; line: number; check: string };
-type ScanReport = { repo: string; repoUrl: string; findings: Finding[]; filesScanned: number; scannedAt: string };
+type ScanReport = { repo: string; repoUrl: string; findings: Finding[]; filesScanned: number; checksRun?: number; scannedAt: string };
 type PublicScanAllowance = { plan: 'free' | 'pro'; publicScansUsed: number; publicScansLimit: number; unlimited: boolean };
 
 function isPublicScanAllowance(data: unknown): data is PublicScanAllowance {
@@ -215,11 +215,12 @@ export default function PublicScanPage() {
                 <div className={`flex h-14 w-14 items-center justify-center border ${clean ? 'border-[#aebe8c] bg-[#eef1e4] text-[#66763e]' : 'border-[#e5c8c1] bg-[#f6e9e5] text-[#963f34]'}`}>{clean ? <ShieldCheck size={24} /> : <ShieldAlert size={24} />}</div>
               </div>
 
-              <div className="mt-7 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4">
+              <div className="mt-7 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-5">
                 <div className="bg-card p-4"><p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">Files</p><p className="mt-2 text-[22px] font-bold">{report.filesScanned}</p></div>
                 <div className="bg-card p-4"><p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">Findings</p><p className="mt-2 text-[22px] font-bold">{findings.length}</p></div>
                 <div className="bg-card p-4"><p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">Critical</p><p className="mt-2 text-[22px] font-bold">{critical}</p></div>
                 <div className="bg-card p-4"><p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">High</p><p className="mt-2 text-[22px] font-bold">{high}</p></div>
+                <div className="bg-card p-4"><p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">Rules run</p><p className="mt-2 text-[22px] font-bold">{report.checksRun ?? "—"}</p></div>
               </div>
               <div className="mt-4 flex flex-wrap gap-2"><span className="border border-[#e7d3b3] bg-[#f8efe1] px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.12em] text-[#a06427]">{medium} medium</span><span className="border border-border bg-background px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">not saved to repository history</span></div>
             </div>

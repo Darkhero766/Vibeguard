@@ -6,10 +6,9 @@ import { ProtectRepositoryPanel } from './ProtectRepositoryPanel';
 import { ProtectionActivity } from './ProtectionActivity';
 
 type Finding = { severity: 'Critical' | 'High' | 'Medium'; title: string; filePath: string; line: number };
-type Scan = { repo: string; repoUrl: string; findings: Finding[]; filesScanned: number; scannedAt: string };
+type Scan = { repo: string; repoUrl: string; findings: Finding[]; filesScanned: number; checksRun?: number; scannedAt: string };
 type ProtectedRepository = { repo: string; repoUrl: string; baselineSha: string; lastSha: string; status: string; lastScore: number; criticalCount: number; highCount: number; mediumCount: number; };
 type Props = { firstName: string; lastScan: Scan | null; usage: { scans_used: number; scans_limit: number; plan?: string | null } | null; isAtLimit: boolean; onViewLastScan: () => void; onProtect: () => void };
-const TOTAL_CHECKS = 51;
 const ADMIN_EMAIL = 'nightowlclub72@gmail.com';
 const PRO_SCAN_LIMIT = 10;
 const PROTECTION_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -20,7 +19,9 @@ function score(scan: Scan | null) {
   const critical = scan.findings.filter((f) => f.severity === 'Critical').length;
   const high = scan.findings.filter((f) => f.severity === 'High').length;
   const medium = scan.findings.filter((f) => f.severity === 'Medium').length;
-  return Math.max(1, Math.min(100, Math.round(100 - ((critical + high * 0.55 + medium * 0.2) / TOTAL_CHECKS) * 100)));
+  if (!Number.isInteger(scan.checksRun) || (scan.checksRun ?? 0) < 1) return null;
+  const penalty = critical * 18 + high * 10 + medium * 4;
+  return Math.max(0, Math.min(100, Math.round(100 - (penalty / ((scan.checksRun ?? 1) * 18)) * 100)));
 }
 
 export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onViewLastScan, onProtect }: Props) {
@@ -172,7 +173,7 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
             </div>
           </div>
           <div className="relative mt-8 flex flex-wrap items-end justify-between gap-5 border-t border-background/15 pt-5">
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-[0.1em] text-background/60"><span>{hasProtection ? `Protected · ${repoName}` : 'No repository protected yet'}</span><span>{selectedScan?.filesScanned ?? 0} files scanned</span><span>51 checks</span></div>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-[0.1em] text-background/60"><span>{hasProtection ? `Protected · ${repoName}` : 'No repository protected yet'}</span><span>{selectedScan?.filesScanned ?? 0} files scanned</span><span>{selectedScan?.checksRun ?? '—'} rules run</span></div>
             {totalFindings > 0 ? <button type="button" onClick={openSecurityCenter} className="vg-button vg-focus inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))]"><Wrench size={14} />Review &amp; fix findings<ArrowRight size={13} /></button> : selectedScan ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />All clear</span> : hasProtection ? <span className="inline-flex items-center gap-2 border border-[#aebe8c]/70 bg-[#eef1e4]/15 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#d8e2bd]"><ShieldCheck size={13} />Protection active</span> : <button type="button" onClick={() => { onProtect(); setShowProtectPanel(true); }} disabled={isAtLimit} className="inline-flex items-center gap-2 border-2 border-background bg-primary px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-primary-foreground shadow-[4px_4px_0_hsl(var(--background))] disabled:opacity-50">Connect GitHub &amp; protect <ArrowRight size={13} /></button>}
           </div>
         </div>
