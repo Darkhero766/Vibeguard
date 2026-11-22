@@ -108,6 +108,13 @@ test('finding comparison distinguishes removed, remaining and newly introduced f
   );
   assert.equal(duplicates.removed.length, 1);
   assert.equal(duplicates.newFindings.length, 2);
+  const multiplicity = compareFindings(
+    [make('dup.js', 'rule-x', 'same finding'), make('dup.js', 'rule-x', 'same finding')],
+    [make('dup.js', 'rule-x', 'same finding')],
+  );
+  assert.equal(multiplicity.remaining.length, 1);
+  assert.equal(multiplicity.removed.length, 1);
+  assert.equal(multiplicity.newFindings.length, 0);
 });
 
 test('line decoder handles partial frames, CRLF and UTF-8 boundaries', () => {
