@@ -1,1 +1,11 @@
-# AgentShield MCP (read-only v0)\n\nBuild the bundled scanner in the repository workspace: `pnpm --filter @workspace/api-server build:agentshield`. Then start the MCP server with `pnpm --filter @workspace/api-server agentshield:mcp`. The server uses stdio and exposes read-only scan_changed, list_findings, explain_finding, and status tools.\n\nExample local MCP client configuration (adjust the absolute path to the checkout):\n\n```json\n{\n  "mcpServers": {\n    "vibesane-agentshield": {\n      "command": "pnpm",\n      "args": ["--filter", "@workspace/api-server", "agentshield:mcp"]\n    }\n  }\n}\n```\n\nDo not configure the server for production repositories with sensitive credentials unless you have reviewed local execution permissions. Tools are read-only and heuristic; they do not certify security. The MCP process requires a local build artifact. No repair, shell, commit, deployment, or network tools are exposed.\n
+# AgentShield MCP (read-only v0.2)
+
+Build the scanner first from a trusted VibeSane checkout: `pnpm --filter @workspace/api-server build:agentshield`. Run server: `pnpm --filter @workspace/api-server agentshield:mcp`.
+
+This server uses MCP stdio framing (Content-Length headers) and exposes read-only `scan_changed`, `list_findings`, `explain_finding`, and `status`. Client configuration example:
+
+```json
+{ "mcpServers": { "vibesane-agentshield": { "command": "pnpm", "args": ["--filter", "@workspace/api-server", "agentshield:mcp"] } } }
+```
+
+Only configure against repositories whose local execution context you trust. The tools do not run repository scripts or expose shell/fix/commit/deploy/network actions. Static heuristics are not a security certification. Scan output is bounded and excludes source excerpts. Timeout, scanner errors and incomplete coverage are UNKNOWN—not clean.
