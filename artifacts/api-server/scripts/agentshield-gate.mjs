@@ -56,7 +56,7 @@ async function resolveBaseCommit(root, baseRef) {
   return sha;
 }
 function diffChangedPaths(output) {
-  const chunks = output.split('\\0');
+  const chunks = output.split('\0');
   const files = [];
   for (let i = 0; i < chunks.length;) {
     const status = chunks[i++];
