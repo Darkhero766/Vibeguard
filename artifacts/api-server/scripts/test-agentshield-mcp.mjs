@@ -164,7 +164,8 @@ test('modern requests require per-request protocol metadata', async () => {
     jsonrpc: '2.0', id: 9, method: 'tools/list',
     params: { _meta: { ...modernMeta, 'io.modelcontextprotocol/protocolVersion': '2025-11-25' } },
   });
-  assert.equal(wrongEra.error.code, -32001);
+  assert.equal(wrongEra.error.code, -32022);
+  assert.deepEqual(wrongEra.error.data.supported, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);
   const modernPing = await handleMessage({
     jsonrpc: '2.0', id: 10, method: 'ping', params: { _meta: modernMeta },
   });
