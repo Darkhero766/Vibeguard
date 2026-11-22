@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -295,4 +295,18 @@ test('Claude Code Stop hook enforces commit-aware base-to-HEAD scope', async (t)
   const cleared = await spawnWithInput(process.execPath, [stopHook], JSON.stringify(event), env);
   assert.equal(cleared.code, 0);
   assert.equal(cleared.stdout.trim(), '');
+});
+
+
+test('CLI refuses a changed-file symlink instead of following it', async (t) => {
+  const { cwd } = await fixture(t, 'src/placeholder.js', 'export const safe = true;\n');
+  const outside = path.join(os.tmpdir(), 'agentshield-cli-outside-' + process.pid + '.js');
+  t.after(async () => { await rm(outside, { force: true }); });
+  await writeFile(outside, 'const MY_API_TOKEN = "' + 'X'.repeat(40) + '";\n');
+  await symlink(outside, path.join(cwd, 'src', 'linked.js'));
+  const result = await scan(cwd);
+  assert.equal(result.code, 2);
+  assert.equal(result.report.status, 'scan_incomplete');
+  assert.deepEqual(result.report.unsafeChangedPaths, ['src/linked.js']);
+  assert.ok(!result.stdout.includes('X'.repeat(40)));
 });
