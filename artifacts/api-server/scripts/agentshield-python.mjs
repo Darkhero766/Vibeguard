@@ -46,12 +46,12 @@ export function scanPythonFiles(files = []) {
     const source = lines.map(codeOnly).join('\n');
     const taintedVariables = new Set();
     for (const line of lines.map(codeOnly)) {
-      const assignment = /^\\s*(?:[A-Za-z_]\\w*)?([A-Za-z_]\\w*)\\s*=\\s*(.+)$/.exec(line);
+      const assignment = /^\s*([A-Za-z_]\w*)\s*=\s*(.+)$/.exec(line);
       if (!assignment) continue;
       const [, variable, expression] = assignment;
-      const requestSource = /\\b(?:request|args|argv|query|params?|input|user|payload|form|headers?)\\b/i.test(expression);
+      const requestSource = /\b(?:request|args|argv|query|params?|input|user|payload|form|headers?)\b/i.test(expression);
       const derivedSource = [...taintedVariables].some((name) =>
-        new RegExp('\\\\b' + name + '\\\\b').test(expression));
+        new RegExp('\\b' + name + '\\b').test(expression));
       if (requestSource || derivedSource) taintedVariables.add(variable);
       else taintedVariables.delete(variable);
     }
@@ -64,18 +64,21 @@ export function scanPythonFiles(files = []) {
         const snippet = match[0];
         const dynamic = /\bf["'][\s\S]*?\{|\.\s*format\s*\(|\s%\s*(?:\(|[A-Za-z_])|\s\+\s*[A-Za-z_]/.test(snippet);
         const untrusted = /\b(?:request|args|argv|query|params?|input|user|payload|form|headers?)\b/i.test(snippet);
+        const firstArgument = /^\s*([A-Za-z_]\w*)\s*(?:,|$)/.exec(match[1])?.[1];
+        const localTaint = Boolean(firstArgument && taintedVariables.has(firstArgument));
+        if (!dynamic && !untrusted && !localTaint) return;
         if (!dynamic && !untrusted) return;
-        const confidence = dynamic && (untrusted || localTaint) ? 'medium' : localTaint ? 'medium' : 'low';
+        const confidence = (dynamic || localTaint) && (untrusted || localTaint) ? 'medium' : 'low';
         findings.push(finding(file, 'python_shell_injection', 'High', confidence,
           'Potential command injection through shell=True',
           'A subprocess call enables shell interpretation and appears to construct or source part of the command dynamically. Confirm whether the value can be influenced by an untrusted caller.',
           'Prefer an argument array with shell=False. Validate each argument against an allowlist and avoid building shell command strings.',
           match.index || 0));
       });
-
+    for (const match of source.matchAll(/\b(?:os\.system|os\.popen)\s*\(([^)]{1,500})\)/g)) {
     // os.system/os.popen interpret a shell command string. Keep the check
-    // limited to request-shaped or locally request-tainted variables.
-    for (const match of source.matchAll(/\\b(?:os\\.system|os\\.popen)\\s*\\(([^)]{1,500})\\)/g)) {
+      const fromRequest = /\b(?:request|args|argv|query|params?|input|user|payload)\b/i.test(expression);
+      const identifier = /^\s*([A-Za-z_]\w*)\s*$/.exec(expression)?.[1];
       const expression = match[1];
       const fromRequest = /\\b(?:request|args|argv|query|params?|input|user|payload)\\b/i.test(expression);
       const identifier = /^\\s*([A-Za-z_]\\w*)\\s*$/.exec(expression)?.[1];
