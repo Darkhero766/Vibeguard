@@ -6,6 +6,19 @@ const LEVEL = Object.freeze({
   Medium: 'warning',
   Low: 'note',
 });
+const CWE = Object.freeze({
+  hardcoded_secret: 798,
+  github_token: 798,
+  hardcoded_jwt_secret: 798,
+  unsafe_sql_template: 89,
+  python_shell_injection: 78,
+  python_unsafe_deserialization: 502,
+  python_unsafe_yaml_load: 502,
+  python_tls_verification_disabled: 295,
+  python_insecure_tempfile: 377,
+  python_dynamic_code_from_input: 95,
+  unauthenticated_write: 862,
+});
 function text(value, max = 1000) {
   return typeof value === 'string'
     ? value.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, ' ').slice(0, max)
@@ -35,12 +48,15 @@ export function toSarif(report = {}) {
     const recommendation = text(finding.recommendation, 800);
     const confidence = ['high', 'medium', 'low'].includes(finding.confidence) ? finding.confidence : 'unrated';
     const engine = text(finding.engine, 80) || 'static_heuristics';
+    const cweNumber = CWE[ruleId];
+    const cweId = Number.isSafeInteger(cweNumber) ? 'CWE-' + cweNumber : null;
     if (!rules.has(ruleId)) {
       rules.set(ruleId, {
         id: ruleId,
         shortDescription: { text: title },
         help: { text: recommendation || description || 'Review this static security finding.' },
-        properties: { tags: ['security'], confidence, engine },
+        ...(cweId ? { helpUri: 'https://cwe.mitre.org/data/definitions/' + cweNumber + '.html' } : {}),
+        properties: { tags: ['security', ...(cweId ? ['external/cwe/' + cweId.toLowerCase()] : [])], confidence, engine, ...(cweId ? { cwe: cweId } : {}) },
       });
     }
     const line = Number.isSafeInteger(finding.line) && finding.line > 0 ? finding.line : 1;
@@ -62,6 +78,7 @@ export function toSarif(report = {}) {
         confidence,
         engine,
         recommendation,
+        ...(cweId ? { cwe: cweId } : {}),
       },
     });
   }
