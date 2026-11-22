@@ -305,7 +305,9 @@ export async function handleHook(kind, { surface = 'claude' } = {}) {
     const config = await configFor(root);
     if (!config.enabled) {
       if (kind === 'Stop' && config.completionGate === 'enforce') {
-        printJSON({ decision: 'block', reason: 'VibeSane AgentShield: enforcement is enabled but the scanner is disabled. Security status is UNKNOWN; restore the scanner or explicitly change the project policy.' });
+        const reason = 'VibeSane AgentShield: enforcement is enabled but the scanner is disabled. Security status is UNKNOWN; restore the scanner or explicitly change the project policy.';
+        if (surface === 'cursor') printJSON({ followup_message: reason });
+        else printJSON({ decision: 'block', reason });
       }
       return;
     }
