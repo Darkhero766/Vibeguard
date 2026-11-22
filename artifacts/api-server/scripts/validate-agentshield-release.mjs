@@ -133,8 +133,15 @@ async function main() {
     && /^[a-f0-9]{64}$/.test(packageStep.evidence?.packageSha256 || ''));
   const gitRevision = await revision();
   const revisionValid = /^[a-f0-9]{40}$/.test(gitRevision || '');
-  const allRequiredPassed = results.every(item => item.status === 'passed')
-    && testSuiteValid && packageEvidenceValid && revisionValid;
+  const allStepsPassed = results.every(item => item.status === 'passed');
+  const qualificationFailures = [
+    ...(!allStepsPassed ? ['one_or_more_required_commands_failed_or_were_skipped'] : []),
+    ...(!testSuiteValid ? ['regression_suite_missing_nonzero_tap_counts_or_has_failures'] : []),
+    ...(!benchmarkEvidenceValid ? ['curated_or_holdout_benchmark_evidence_missing_or_below_threshold'] : []),
+    ...(!packageEvidenceValid ? ['offline_package_install_smoke_or_sha256_evidence_missing'] : []),
+    ...(!revisionValid ? ['source_git_revision_unavailable_or_invalid'] : []),
+  ];
+  const allRequiredPassed = qualificationFailures.length === 0;
   const report = {
     schemaVersion: 1,
     product: 'VibeSane AgentShield',
@@ -156,6 +163,7 @@ async function main() {
     benchmarkEvidenceValid,
     testSuiteValid,
     packageEvidenceValid,
+    qualificationFailures,
     failedSteps: failed.map(item => item.name),
     skippedSteps: skipped.map(item => item.name),
     steps: results,
@@ -182,6 +190,7 @@ async function main() {
     benchmarkEvidenceValid,
     testSuiteValid,
     packageEvidenceValid,
+    qualificationFailures,
     failedSteps: report.failedSteps,
   };
   process.stdout.write(JSON.stringify(summary, null, 2) + '\n');
