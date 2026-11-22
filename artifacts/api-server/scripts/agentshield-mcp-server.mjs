@@ -335,13 +335,35 @@ function findingKey(finding) {
   return [finding.filePath, finding.ruleId, finding.title, finding.line ?? ''].join('\0');
 }
 export function compareFindings(previous, current) {
-  const previousKeys = new Set(previous.map(findingKey));
-  const currentKeys = new Set(current.map(findingKey));
-  return {
-    removed: previous.filter((finding) => !currentKeys.has(findingKey(finding))),
-    remaining: previous.filter((finding) => currentKeys.has(findingKey(finding))),
-    newFindings: current.filter((finding) => !previousKeys.has(findingKey(finding))),
-  };
+  // Use occurrence counts rather than Sets: scanners can legitimately emit
+  // multiple findings with identical identity fields, and a Set silently
+  // collapses them, hiding removals or additions.
+  const counts = new Map();
+  for (const finding of current) {
+    const key = findingKey(finding);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const remaining = [];
+  const removed = [];
+  for (const finding of previous) {
+    const key = findingKey(finding);
+    const count = counts.get(key) || 0;
+    if (count > 0) {
+      remaining.push(finding);
+      counts.set(key, count - 1);
+    } else removed.push(finding);
+  }
+  const consumed = new Map();
+  const newFindings = [];
+  for (const finding of current) {
+    const key = findingKey(finding);
+    const total = counts.get(key) || 0;
+    const used = consumed.get(key) || 0;
+    // Counts left after consuming baseline occurrences identify true additions.
+    if (used < total) newFindings.push(finding);
+    consumed.set(key, used + 1);
+  }
+  return { removed, remaining, newFindings };
 }
 function rememberBaseline(root, fingerprint, result) {
   return baselineStore.remember(root, fingerprint, result).scanId;
