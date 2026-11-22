@@ -147,7 +147,8 @@ async function main() {
       ? 'candidate_for_independent_human_review'
       : 'do_not_distribute',
     createdAt: new Date().toISOString(),
-    gitRevision,\n    revisionValid,
+    gitRevision,
+    revisionValid,
     platform: process.platform,
     architecture: process.arch,
     nodeVersion: process.version,
@@ -175,6 +176,7 @@ async function main() {
     releaseDecision: report.releaseDecision,
     reportPath,
     gitRevision: report.gitRevision,
+    revisionValid,
     steps: results.map(({ name, status, tests, passed, failed: testFailed }) => ({
       name, status, tests, passed, failed: testFailed,
     })),
