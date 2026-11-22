@@ -55,7 +55,7 @@ function runHook(script, cwd, payload, env) {
       try { finish(null, JSON.parse(stdout)); }
       catch { finish(new Error('Codex Stop hook emitted invalid JSON: ' + stdout.slice(0, 500))); }
     });
-    child.stdin.end(JSON.stringify(payload) + '\\n');
+    child.stdin.end(JSON.stringify(payload) + '\n');
   });
 }
 
@@ -172,7 +172,7 @@ try {
     VIBESANE_AGENTSHIELD_STATE_HOME: path.join(temp, 'agent-state'),
   };
   await writeFile(path.join(fixture, 'src', 'auth.js'),
-    'const JWT_SECRET = "' + 'Z'.repeat(36) + '";\\n');
+    'const JWT_SECRET = "' + 'Z'.repeat(36) + '";\n');
   await run('git', ['-C', fixture, 'add', 'src/auth.js']);
   await run('git', ['-C', fixture, '-c', 'user.name=AgentShield Package Smoke', '-c',
     'user.email=agentshield-smoke@example.invalid', 'commit', '-qm', 'synthetic blocker fixture']);
@@ -186,7 +186,7 @@ try {
     'Installed Codex Stop hook did not return the expected continuation block for a synthetic blocker.');
 
   await writeFile(path.join(fixture, 'src', 'auth.js'),
-    'const JWT_SECRET = process.env.JWT_SECRET;\\n');
+    'const JWT_SECRET = process.env.JWT_SECRET;\n');
   await run('git', ['-C', fixture, 'add', 'src/auth.js']);
   await run('git', ['-C', fixture, '-c', 'user.name=AgentShield Package Smoke', '-c',
     'user.email=agentshield-smoke@example.invalid', 'commit', '-qm', 'synthetic blocker remediation']);
