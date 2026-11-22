@@ -224,7 +224,7 @@ test('final gate includes committed base diff and uncommitted worktree changes',
     assert.equal(state.baseCommit.length, 40);
 
     let receivedArgs;
-    const result = await finalGate(root, { blockingSeverity: 'High', baseRef: 'agentshield-base' }, async (_root, args) => {
+    const result = await finalGate(root, { blockingSeverity: 'High', completionGate: 'enforce', baseRef: 'agentshield-base' }, async (_root, args) => {
       receivedArgs = args;
       return {
         status: 'complete',
@@ -281,4 +281,25 @@ test('baseRef config accepts a local branch and rejects unsafe Git ref expressio
   assert.equal(parseConfig({ baseRef: 'a'.repeat(40) }).baseRef, 'a'.repeat(40));
   assert.throws(() => parseConfig({ baseRef: '../main' }), /baseRef/);
   assert.throws(() => parseConfig({ baseRef: 'main;touch' }), /baseRef/);
+});
+
+test('enforced final gate refuses dirty-only coverage when no target base ref is configured', async () => {
+  const root = await repoFixture();
+  try {
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const dirty = true;\\n');
+    let scannerCalled = false;
+    const result = await finalGate(root, {
+      blockingSeverity: 'High',
+      completionGate: 'enforce',
+      baseRef: null,
+    }, async () => {
+      scannerCalled = true;
+      return { status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'], findings: [] };
+    });
+    assert.equal(result.status, 'scan_incomplete');
+    assert.equal(result.securityGuarantee, false);
+    assert.equal(scannerCalled, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
