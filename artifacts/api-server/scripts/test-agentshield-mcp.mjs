@@ -400,6 +400,7 @@ test('MCP baselines invalidate and report partial coverage when ignored paths ch
     await exec('git', ['-C', root, 'add', '.']);
     await exec('git', ['-C', root, 'commit', '-qm', 'supported source change']);
 
+    const baselineSnapshot = await workspaceSnapshot(root, undefined, 'agentshield-base');
     const baseline = await scanChanged({ workspace: root, base_ref: 'agentshield-base' });
     assert.equal(baseline.status, 'complete');
     assert.ok(baseline.scanId);
@@ -411,7 +412,7 @@ test('MCP baselines invalidate and report partial coverage when ignored paths ch
 
     const snapshot = await workspaceSnapshot(root, undefined, 'agentshield-base');
     assert.deepEqual(snapshot.ignoredChangedPaths, ['vendor/generated.js']);
-    assert.notEqual(snapshot.fingerprint, baseline.scanId && (await workspaceSnapshot(root, undefined, 'agentshield-base')).fingerprint);
+    assert.notEqual(snapshot.fingerprint, baselineSnapshot.fingerprint);
     const stale = await listFindings(root, baseline.scanId, { baseRef: 'agentshield-base' });
     assert.equal(stale.status, 'rescan_required');
 
