@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 const exec = promisify(execFile);
-const SOURCE = /\.(?:[cm]?[jt]sx?|sql|json|ya?ml)$/i;
+const SOURCE = /\.(?:[cm]?[jt]sx?|pyi?|sql|json|ya?ml)$/i;
 const ENV = /(^|\/)\.env(?:\.[\w-]+)?$/i;
 const IGNORE = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'coverage', 'vendor']);
 const SEVERITY = { Critical: 4, High: 3, Medium: 2, Low: 1 };
