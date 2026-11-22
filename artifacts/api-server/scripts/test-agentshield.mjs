@@ -61,8 +61,8 @@ test('JWT detector handles typed declarations and object properties but ignores 
     '// const JWT_SECRET = "' + 'C'.repeat(36) + '";',
     'const example = { JWT_SECRET: "replace_me_with_a_real_key" };',
     'const runtimeSecret = process.env.JWT_SECRET;',
-    'const message = "JWT_SECRET: \\' + 'D'.repeat(36) + '\\'";',
-  ].join('\\n') + '\\n';
+    'const message = "JWT_SECRET: ' + 'D'.repeat(36) + '";',
+  ].join('\n') + '\n';
   const { cwd } = await fixture(t, 'src/auth.ts', source);
   const result = await scan(cwd);
   assert.equal(result.code, 1);
@@ -73,7 +73,6 @@ test('JWT detector handles typed declarations and object properties but ignores 
   assert.ok(!result.stdout.includes('B'.repeat(36)));
   assert.ok(!result.stdout.includes('C'.repeat(36)));
 });
-
 test('interpolated SQL query is flagged as a potential injection risk', async (t) => {
   const tick = String.fromCharCode(96);
   const sql = 'db.query(' + tick + 'SELECT * FROM users WHERE id = ' + '$' + '{userId}' + tick + ');\n';
