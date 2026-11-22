@@ -15,6 +15,8 @@ const cli = path.join(artifact, 'dist/agentshield.mjs');
 const hook = path.join(scriptsDir, 'agentshield-hook.mjs');
 const installer = path.join(scriptsDir, 'agentshield-install.mjs');
 const stopHook = path.join(scriptsDir, 'agentshield-stop.mjs');
+const codexStopHook = path.join(scriptsDir, 'agentshield-codex-stop.mjs');
+const vibesaneEntry = path.join(scriptsDir, 'vibesane.mjs');
 
 async function spawnWithInput(executable, args, input = '', env = process.env) {
   return new Promise((resolve, reject) => {
@@ -309,4 +311,96 @@ test('CLI refuses a changed-file symlink instead of following it', async (t) => 
   assert.equal(result.report.status, 'scan_incomplete');
   assert.deepEqual(result.report.unsafeChangedPaths, ['src/linked.js']);
   assert.ok(!result.stdout.includes('X'.repeat(40)));
+});
+
+
+test('Codex Stop hook blocks committed findings and permits a clean remediation commit', async (t) => {
+  const { cwd, target } = await fixture(t, 'src/auth.ts', 'export const safe = true;\n');
+  await commitFixture(cwd, 'synthetic base');
+  await run('git', ['-C', cwd, 'branch', 'agentshield-base']);
+  const secret = 'C'.repeat(40);
+  await writeFile(target, 'const MY_API_TOKEN = "' + secret + '";\n');
+  await commitFixture(cwd, 'synthetic committed blocker');
+
+  const controlHome = await mkdtemp(path.join(os.tmpdir(), 'agentshield-codex-control-'));
+  t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
+  const rootHash = createHash('sha256').update(cwd).digest('hex').slice(0, 28);
+  await writeFile(path.join(controlHome, rootHash + '.json'), JSON.stringify({
+    completionGate: 'enforce', mode: 'assist', baseRef: 'agentshield-base', blockingSeverity: 'High',
+  }));
+  const env = {
+    ...process.env,
+    VIBESANE_AGENTSHIELD_CONFIG_HOME: controlHome,
+    VIBESANE_AGENTSHIELD_STATE_HOME: path.join(controlHome, 'state'),
+  };
+  const event = { hook_event_name: 'Stop', cwd, session_id: 'codex-agentshield-test',
+    turn_id: 'turn-1', permission_mode: 'default' };
+  const blocked = await spawnWithInput(process.execPath, [codexStopHook], JSON.stringify(event), env);
+  assert.equal(blocked.code, 0);
+  const payload = JSON.parse(blocked.stdout);
+  assert.equal(payload.decision, 'block');
+  assert.match(payload.reason, /ENFORCEMENT/);
+
+  await writeFile(target, 'export const apiTokenIsLoadedFromServerConfig = true;\n');
+  await commitFixture(cwd, 'synthetic committed remediation');
+  const cleared = await spawnWithInput(process.execPath, [codexStopHook], JSON.stringify(event), env);
+  assert.equal(cleared.code, 0);
+  assert.equal(cleared.stdout.trim(), '');
+});
+
+test('Codex installer preserves existing hooks, installs idempotently, and uninstalls only its own entry', async (t) => {
+  const { cwd } = await fixture(t, 'src/index.js', 'export const value = 1;\n');
+  const codexDir = path.join(cwd, '.codex');
+  await mkdir(codexDir, { recursive: true });
+  const hooksFile = path.join(codexDir, 'hooks.json');
+  const original = {
+    description: 'Existing project hooks',
+    hooks: {
+      SessionStart: [{ hooks: [{ type: 'command', command: 'node existing-start.mjs' }] }],
+      Stop: [{ hooks: [{ type: 'command', command: 'node existing-stop.mjs', timeout: 12 }] }],
+    },
+  };
+  await writeFile(hooksFile, JSON.stringify(original));
+
+  const first = await run(process.execPath, [vibesaneEntry, 'init-codex', '--cwd', cwd]);
+  assert.match(first.stdout, /Review and trust the hook with \/hooks/);
+  const installed = JSON.parse(await readFile(hooksFile, 'utf8'));
+  assert.equal(installed.description, original.description);
+  assert.deepEqual(installed.hooks.SessionStart, original.hooks.SessionStart);
+  assert.ok(installed.hooks.Stop.some(entry => entry.hooks.some(item => item.command === 'node existing-stop.mjs')));
+  const managed = installed.hooks.Stop.flatMap(entry => entry.hooks)
+    .filter(item => item.command?.includes('agentshield-codex-stop.mjs'));
+  assert.equal(managed.length, 1);
+  assert.equal(managed[0].timeout, 30);
+  assert.ok(await readFile(path.join(cwd, '.agents/skills/vibesane-agentshield/SKILL.md'), 'utf8'));
+
+  await run(process.execPath, [vibesaneEntry, 'init-codex', '--cwd', cwd]);
+  const repeated = JSON.parse(await readFile(hooksFile, 'utf8'));
+  assert.equal(repeated.hooks.Stop.flatMap(entry => entry.hooks)
+    .filter(item => item.command?.includes('agentshield-codex-stop.mjs')).length, 1);
+
+  await run(process.execPath, [vibesaneEntry, 'uninstall-codex', '--cwd', cwd]);
+  const removed = JSON.parse(await readFile(hooksFile, 'utf8'));
+  assert.deepEqual(removed.hooks.SessionStart, original.hooks.SessionStart);
+  assert.ok(removed.hooks.Stop.flatMap(entry => entry.hooks)
+    .some(item => item.command === 'node existing-stop.mjs'));
+  assert.equal(removed.hooks.Stop.flatMap(entry => entry.hooks)
+    .some(item => item.command?.includes('agentshield-codex-stop.mjs')), false);
+  await assert.rejects(readFile(path.join(cwd, '.agents/skills/vibesane-agentshield/SKILL.md')));
+});
+
+test('Codex installer refuses to overwrite a customized skill or malformed hooks config', async (t) => {
+  const { cwd } = await fixture(t, 'src/index.js', 'export const value = 1;\n');
+  const skillDir = path.join(cwd, '.agents/skills/vibesane-agentshield');
+  await mkdir(skillDir, { recursive: true });
+  const skillPath = path.join(skillDir, 'SKILL.md');
+  await writeFile(skillPath, '# User-customized skill\n');
+  const hooksFile = path.join(cwd, '.codex/hooks.json');
+  await mkdir(path.dirname(hooksFile), { recursive: true });
+  await writeFile(hooksFile, JSON.stringify({ hooks: { Stop: 'not-an-array' } }));
+  const result = await spawnWithInput(process.execPath,
+    [vibesaneEntry, 'init-codex', '--cwd', cwd], '');
+  assert.equal(result.code, 2);
+  assert.equal(await readFile(skillPath, 'utf8'), '# User-customized skill\n');
+  assert.equal(JSON.parse(await readFile(hooksFile, 'utf8')).hooks.Stop, 'not-an-array');
 });
