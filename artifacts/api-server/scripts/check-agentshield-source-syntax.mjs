@@ -19,6 +19,7 @@ const FILES = [
   'scripts/agentshield-mcp-server.mjs',
   'scripts/agentshield-cursor-stop.mjs',
   'scripts/agentshield-stop.mjs',
+  'scripts/agentshield-codex-stop.mjs',
   'scripts/vibesane.mjs',
   'scripts/agentshield-baselines.mjs',
   'scripts/agentshield-python.mjs',
