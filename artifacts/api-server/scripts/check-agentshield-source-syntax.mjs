@@ -11,6 +11,7 @@ const exec = promisify(execFile);
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptsDir, '..');
 const FILES = [
+  'scripts/check-agentshield-source-syntax.mjs',
   'scripts/agentshield-cli.mjs',
   'scripts/agentshield-gate.mjs',
   'scripts/agentshield-policy.mjs',
