@@ -90,6 +90,8 @@ export async function snapshot(root, { baseRef = null } = {}) {
   if (allPaths.length > 100) throw new Error('Final gate file limit exceeded.');
   let budget = 0;
   const observations = [];
+  const missingChangedPaths = [];
+  const unsafeChangedPaths = [];
   // Fingerprint all changed non-ignored files, not just supported source files.
   // Unsupported edits must invalidate a previous final-scan result too.
   for (const rel of allPaths.filter((file) => !ignored(file))) {
@@ -99,16 +101,16 @@ export async function snapshot(root, { baseRef = null } = {}) {
     let info;
     try { info = await lstat(full); }
     catch (e) {
-      if (e?.code === 'ENOENT') { observations.push([rel, 'missing']); continue; }
+      if (e?.code === 'ENOENT') { missingChangedPaths.push(rel); observations.push([rel, 'missing']); continue; }
       throw new Error('Unable to inspect changed file.');
     }
-    if (!info.isFile() || info.isSymbolicLink()) { observations.push([rel, 'not_regular']); continue; }
+    if (!info.isFile() || info.isSymbolicLink()) { unsafeChangedPaths.push(rel); observations.push([rel, 'not_regular']); continue; }
     if (info.size > 1_000_000) { observations.push([rel, 'oversize']); continue; }
     budget += info.size;
     if (budget > 8_000_000) throw new Error('Final gate source budget exceeded.');
     const fileReal = await realpath(full);
     if (fileReal !== full || !fileReal.startsWith(real + path.sep)) {
-      observations.push([rel, 'unsafe_path']); continue;
+      unsafeChangedPaths.push(rel); observations.push([rel, 'unsafe_path']); continue;
     }
     const content = await readFile(full);
     if (content.length > 1_000_000) throw new Error('Changed file grew beyond its size budget.');
@@ -118,6 +120,8 @@ export async function snapshot(root, { baseRef = null } = {}) {
   return {
     changedPaths: paths,
     unsupportedChangedPaths,
+    missingChangedPaths,
+    unsafeChangedPaths,
     baseCommit,
     fingerprint: sha(status + JSON.stringify(observations) + String(baseCommit || '')),
     observations,
@@ -135,14 +139,15 @@ export async function finalGate(root, config, scan) {
       return { status: 'no_changed_files', filesScanned: 0, findings: [], blocking: 0,
         scannedPaths: [], note: 'No Git-visible changed files were available; no security verification was performed.' };
     }
-    if (before.unsupportedChangedPaths.length) {
-      throw new Error('Unsupported changed files prevent a complete final security gate.');
+    if (before.unsupportedChangedPaths.length || before.missingChangedPaths.length || before.unsafeChangedPaths.length) {
+      throw new Error('Unsupported, deleted, missing, or unsafe changed files prevent complete final coverage.');
     }
     const report = await scan(root, ['--changed', ...(before.baseCommit ? ['--base-ref', before.baseCommit] : [])]);
     if (report.status !== 'complete') throw new Error('Scanner did not return a complete result.');
     const after = await snapshot(root, { baseRef: config.baseRef || null });
     if (before.fingerprint !== after.fingerprint) throw new Error('Files changed while final scan was running.');
-    if (after.unsupportedChangedPaths.length) throw new Error('Unsupported changed files appeared during the final scan.');
+    if (after.unsupportedChangedPaths.length || after.missingChangedPaths.length || after.unsafeChangedPaths.length)
+      throw new Error('Unsupported, missing, or unsafe changed files appeared during the final scan.');
     if (!Array.isArray(report.scannedPaths) || !Array.isArray(report.findings)
       || !Number.isSafeInteger(report.filesScanned) || report.filesScanned !== before.changedPaths.length
       || report.scannedPaths.length !== before.changedPaths.length
