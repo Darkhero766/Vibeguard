@@ -141,6 +141,7 @@ async function main() {
     'vibesane capabilities --format text',
     '',
     'AgentShield scans supported changed files using static heuristics and exports SARIF 2.1.0 with severity, confidence, engine and selected CWE references. Unsupported languages, incomplete scans, and unverified behavior must not be described as clean.',
+    'Supported changed files: JavaScript/TypeScript, Python, SQL, JSON, YAML and .env. Markdown, Dockerfiles, arbitrary manifests, binary/generated files and other unsupported extensions are not scanned; enforced completion blocks on unsupported changed paths.',
     'MCP exposes read-only tools; it does not expose shell, patch, commit, deploy, or network capabilities.',
     'The optional AST/hybrid checks are experimental and opt-in. Local AI, when configured separately, is advisory only.',
     'No source code is uploaded by the local scanner. Run only against repositories the host is authorized to access.',
