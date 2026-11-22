@@ -26,10 +26,13 @@ export function changedEntries(status) {
   }
   return [...new Set(entries)].sort();
 }
+function ignored(file) {
+  const slash = file.replaceAll('\\', '/');
+  return slash.startsWith('/') || slash.split('/').some(x => x === '..' || IGNORE.has(x));
+}
 function supported(file) {
   const slash = file.replaceAll('\\', '/');
-  return !slash.startsWith('/') && !slash.split('/').some(x => x === '..' || IGNORE.has(x))
-    && (SOURCE.test(slash) || ENV.test(slash));
+  return !ignored(file) && (SOURCE.test(slash) || ENV.test(slash));
 }
 async function gitStatus(root) {
   const result = await exec('git', [
@@ -44,11 +47,15 @@ async function gitStatus(root) {
 export async function snapshot(root) {
   const real = await realpath(root);
   const status = await gitStatus(real);
-  const paths = changedEntries(status).filter(supported);
-  if (paths.length > 100) throw new Error('Final gate file limit exceeded.');
+  const allPaths = changedEntries(status);
+  const paths = allPaths.filter(supported);
+  const unsupportedChangedPaths = allPaths.filter((file) => !ignored(file) && !supported(file));
+  if (allPaths.length > 100) throw new Error('Final gate file limit exceeded.');
   let budget = 0;
   const observations = [];
-  for (const rel of paths) {
+  // Fingerprint all changed non-ignored files, not just supported source files.
+  // Unsupported edits must invalidate a previous final-scan result too.
+  for (const rel of allPaths.filter((file) => !ignored(file))) {
     const full = path.resolve(real, rel);
     const relative = path.relative(real, full);
     if (!relative || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) throw new Error('Unsafe changed path.');
@@ -69,20 +76,30 @@ export async function snapshot(root) {
     const content = await readFile(full);
     if (content.length > 1_000_000) throw new Error('Changed file grew beyond its size budget.');
     observations.push([rel, sha(content)]);
+    if (supported(rel) && !paths.includes(rel)) throw new Error('Changed file selection became inconsistent.');
   }
-  return { changedPaths: paths, fingerprint: sha(status + JSON.stringify(observations)), observations };
+  return {
+    changedPaths: paths,
+    unsupportedChangedPaths,
+    fingerprint: sha(status + JSON.stringify(observations)),
+    observations,
+  };
 }
 
 export async function finalGate(root, config, scan) {
   try {
     const before = await snapshot(root);
-    if (before.changedPaths.length === 0) {
+    if (before.changedPaths.length === 0 && before.unsupportedChangedPaths.length === 0) {
       return { status: 'no_changed_files', filesScanned: 0, findings: [], blocking: 0,
-        scannedPaths: [], note: 'No supported Git changes were available; no security verification was performed.' };
+        scannedPaths: [], note: 'No Git-visible changed files were available; no security verification was performed.' };
+    }
+    if (before.unsupportedChangedPaths.length) {
+      throw new Error('Unsupported changed files prevent a complete final security gate.');
     }
     const report = await scan(root, ['--changed']);
     const after = await snapshot(root);
     if (before.fingerprint !== after.fingerprint) throw new Error('Files changed while final scan was running.');
+    if (after.unsupportedChangedPaths.length) throw new Error('Unsupported changed files appeared during the final scan.');
     const covered = new Set(report.scannedPaths);
     const missing = before.changedPaths.filter(file => !covered.has(file));
     if (missing.length || report.filesScanned !== before.changedPaths.length) {
