@@ -26,6 +26,8 @@ test('serializes normalized findings to SARIF 2.1.0 without source snippets', ()
   assert.equal(result.runs[0].results[0].locations[0].physicalLocation.artifactLocation.uri, 'src/export.py');
   assert.equal(result.runs[0].results[0].locations[0].physicalLocation.region.startLine, 12);
   assert.equal(result.runs[0].results[0].properties.confidence, 'medium');
+  assert.equal(result.runs[0].results[0].properties.cwe, 'CWE-78');
+  assert.equal(result.runs[0].tool.driver.rules[0].helpUri, 'https://cwe.mitre.org/data/definitions/78.html');
   assert.equal(JSON.stringify(result).includes('RAW_SECRET_SHOULD_NOT_APPEAR'), false);
 });
 
