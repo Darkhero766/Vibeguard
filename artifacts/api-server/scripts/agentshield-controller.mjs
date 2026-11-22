@@ -7,7 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, lstat, readFile, writeFile, rename, rm, readdir, realpath } from 'node:fs/promises';
-import { DEFAULT_CONFIG, parseConfig, freshState, trackFile, guidanceFor, summarize } from './agentshield-policy.mjs';
+import { DEFAULT_CONFIG, parseConfig, freshState, trackFile, guidanceFor, summarize, completionGateDecision } from './agentshield-policy.mjs';
 import { verifyResolvedFile } from './agentshield-verifier.mjs';
 import { finalGate } from './agentshield-gate.mjs';
 
@@ -244,18 +244,13 @@ async function postEdit(event, root, config) {
   return resultForHook('PostToolUse', contextLines(result.entry, config));
 }
 async function atStop(event, root, config) {
-  if (event.stop_hook_active === true) return null; // avoid recursive Stop feedback
+  // Recursive Stop events still run the gate. They suppress new auto-fix requests,
+  // but must not bypass an explicitly enforced completion policy.
+  const recursiveStop = event.stop_hook_active === true;
   // Every Stop event performs a fresh worktree scan, catching Git-visible Bash edits,
   // staging, and untracked files missed by per-tool PostToolUse notifications.
-  const recursiveStop = event.stop_hook_active === true;
   const gate = await finalGate(root, config, scan);
-  if (gate.status === 'scan_incomplete') {
-    const reason = 'VibeSane AgentShield: FINAL SCAN INCOMPLETE. Security status UNKNOWN; resolve the scan failure or run an approved verification before delivery.';
-    return config.completionGate === 'enforce' ? { decision: 'block', reason } : { systemMessage: reason };
-  }
-  if (gate.status === 'no_changed_files') {
-    return { systemMessage: 'VibeSane AgentShield: no supported changed files to scan. No security pass is implied.' };
-  }
+  if (gate.status !== 'complete') return completionGateDecision({ status: gate.status, config });
   const session = event.session_id || 'session-unknown';
   const result = await withLockedState(root, session, config, async (state) => {
     let next = state;
@@ -286,29 +281,12 @@ async function atStop(event, root, config) {
     next.updatedAt = Date.now();
     return { state: next, message, unscannedCount: unscanned.length + Number(Boolean(next.prunedEntries)), repeatedGate, alreadyRequested };
   });
-  if (result.unscannedCount) {
-    const reason = 'VibeSane AgentShield: final scan did not cover previously flagged files; result PARTIAL, not verified. Review or rescan the previously flagged files before delivery.';
-    return config.completionGate === 'enforce' ? { decision: 'block', reason } : { systemMessage: reason };
-  }
-  if (result.message) {
-    // Claude Code Stop docs: decision:block and reason explicitly request continuation.
-    return { decision: 'block', reason: result.message,
-      hookSpecificOutput: { hookEventName: 'Stop', additionalContext: result.message } };
-  }
-  if (gate.blocking > 0 && config.completionGate === 'enforce') {
-    const reason = 'VibeSane AgentShield ENFORCEMENT: ' + gate.blocking + ' blocking finding(s) at or above '
-      + config.blockingSeverity + ' remain in the changed-file scan. Remediate and rescan, or have an authorized maintainer change the gate policy.';
-    return { decision: 'block', reason, hookSpecificOutput: { hookEventName: 'Stop', additionalContext: reason } };
-  }
-  if (gate.blocking > 0) {
-    if (result.repeatedGate || (config.mode === 'auto-fix' && result.alreadyRequested)) return null;
-    return { systemMessage: 'VibeSane AgentShield: final static scan found ' + gate.blocking +
-      ' finding(s) at or above ' + config.blockingSeverity +
-      '. ' + (config.mode === 'auto-fix' ? 'Repair budget exhausted or continuation suppressed; request human review.' :
-        'Advisory mode; no completion block.') };
-  }
-  // Do not claim full-app security when the changed-file subset appears clean.
-  return null;
+  return completionGateDecision({
+    status: gate.status, blocking: gate.blocking, blockingSeverity: config.blockingSeverity,
+    completionGate: config.completionGate, unscannedCount: result.unscannedCount,
+    repairMessage: result.message, repeatedGate: result.repeatedGate,
+    alreadyRequested: result.alreadyRequested, mode: config.mode,
+  });
 }
 const SEVERITY_ORDER = { Critical: 4, High: 3, Medium: 2, Low: 1 };
 
