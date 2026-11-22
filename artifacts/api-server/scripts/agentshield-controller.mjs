@@ -304,18 +304,41 @@ async function atStop(event, root, config) {
 }
 const SEVERITY_ORDER = { Critical: 4, High: 3, Medium: 2, Low: 1 };
 
-export async function handleHook(kind) {
+export async function handleHook(kind, { surface = 'claude' } = {}) {
   try {
     const event = await readHookInput();
-    if (typeof event.cwd !== 'string') return;
+    if (surface === 'cursor') {
+      // Cursor supplies the trusted project root through this documented hook env var.
+      // Prefer it over event-provided paths; never accept a workspace path from repository text.
+      const projectRoot = process.env.CURSOR_PROJECT_DIR;
+      if (typeof projectRoot === 'string' && projectRoot.length > 0) event.cwd = projectRoot;
+      event.session_id = event.session_id || event.conversation_id || event.generation_id || 'cursor-session';
+    }
+    if (typeof event.cwd !== 'string') throw new Error('Hook workspace is unavailable.');
     const root = await rootOf(event.cwd);
     const config = await configFor(root);
     if (!config.enabled) return;
     const response = kind === 'Stop' ? await atStop(event, root, config) : await postEdit(event, root, config);
-    if (response) printJSON(response);
+    if (!response) return;
+    if (surface === 'cursor') {
+      // Cursor Stop hooks use followup_message to continue the agent loop.
+      // atStop already enforces the project retry budget and records the signature.
+      const followup = response.reason || response.systemMessage ||
+        'VibeSane AgentShield: security status is UNKNOWN. Run a fresh scan before claiming a security pass.';
+      printJSON({ followup_message: brief(followup, 3500) });
+      return;
+    }
+    printJSON(response);
   } catch {
-    printJSON(resultForHook(kind, 'VibeSane AgentShield: scan or repair coordination failed. Security status is UNKNOWN, not passed.'));
+    if (surface === 'cursor') {
+      printJSON({ followup_message: 'VibeSane AgentShield: final security scan failed or was incomplete. Status is UNKNOWN; do not claim a security pass.' });
+    } else {
+      printJSON(resultForHook(kind, 'VibeSane AgentShield: scan or repair coordination failed. Security status is UNKNOWN, not passed.'));
+    }
   }
+}
+export async function handleCursorStop() {
+  return handleHook('Stop', { surface: 'cursor' });
 }
 
 function argsOf(argv) {
