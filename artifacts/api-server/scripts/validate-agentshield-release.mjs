@@ -95,6 +95,7 @@ async function main() {
   const build = syntax.status === 'passed'
     ? await runStep('build-scanner', process.execPath, [path.join(scriptsDir, 'build-agentshield.mjs')])
     : { name: 'build-scanner', status: 'skipped', reason: 'Source syntax validation failed.' };
+  if (build.status === 'skipped') results.push(build);
   if (build.status === 'passed') {
     await runStep('unit-integration-regression', process.execPath,
       ['--test', ...TEST_FILES.map(file => path.join(scriptsDir, file))]);
