@@ -67,21 +67,20 @@ export function scanPythonFiles(files = []) {
         const firstArgument = /^\s*([A-Za-z_]\w*)\s*(?:,|$)/.exec(match[1])?.[1];
         const localTaint = Boolean(firstArgument && taintedVariables.has(firstArgument));
         if (!dynamic && !untrusted && !localTaint) return;
-        if (!dynamic && !untrusted) return;
-        const confidence = (dynamic || localTaint) && (untrusted || localTaint) ? 'medium' : 'low';
+        const confidence = localTaint || (dynamic && untrusted) ? 'medium' : 'low';
         findings.push(finding(file, 'python_shell_injection', 'High', confidence,
           'Potential command injection through shell=True',
           'A subprocess call enables shell interpretation and appears to construct or source part of the command dynamically. Confirm whether the value can be influenced by an untrusted caller.',
           'Prefer an argument array with shell=False. Validate each argument against an allowlist and avoid building shell command strings.',
           match.index || 0));
       });
-    for (const match of source.matchAll(/\b(?:os\.system|os\.popen)\s*\(([^)]{1,500})\)/g)) {
+
     // os.system/os.popen interpret a shell command string. Keep the check
+    // limited to request-shaped or locally request-tainted variables.
+    for (const match of source.matchAll(/\b(?:os\.system|os\.popen)\s*\(([^)]{1,500})\)/g)) {
+      const expression = match[1];
       const fromRequest = /\b(?:request|args|argv|query|params?|input|user|payload)\b/i.test(expression);
       const identifier = /^\s*([A-Za-z_]\w*)\s*$/.exec(expression)?.[1];
-      const expression = match[1];
-      const fromRequest = /\\b(?:request|args|argv|query|params?|input|user|payload)\\b/i.test(expression);
-      const identifier = /^\\s*([A-Za-z_]\\w*)\\s*$/.exec(expression)?.[1];
       if (!fromRequest && !(identifier && taintedVariables.has(identifier))) continue;
       findings.push(finding(file, 'python_shell_injection', 'High', 'medium',
         'Potential shell command injection through os.system/os.popen',
@@ -89,6 +88,7 @@ export function scanPythonFiles(files = []) {
         'Avoid shell command strings. Use a fixed executable and an argument array with subprocess.run(..., shell=False).',
         match.index || 0));
     }
+
 
     // Unsafe pickle deserialization is only flagged when call context contains
     // a user/request-shaped source, reducing noise from trusted local caches.
