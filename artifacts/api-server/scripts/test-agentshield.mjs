@@ -127,7 +127,7 @@ test('hook installer preserves existing config and uninstalls reversibly', async
 
 test('Claude Code Stop hook enforces blockers then allows a complete clean rescan', async (t) => {
   const secret = 'S'.repeat(38);
-  const { cwd, target } = await fixture(t, 'src/auth.ts', 'const JWT_SECRET = "' + secret + '";\\n');
+  const { cwd, target } = await fixture(t, 'src/auth.ts', 'const JWT_SECRET = "' + secret + '";\n');
   const controlHome = await mkdtemp(path.join(os.tmpdir(), 'agentshield-stop-control-'));
   const stateHome = path.join(controlHome, 'state');
   t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
@@ -151,7 +151,7 @@ test('Claude Code Stop hook enforces blockers then allows a complete clean resca
   assert.equal(blockPayload.decision, 'block');
   assert.match(blockPayload.reason, /ENFORCEMENT/);
 
-  await writeFile(target, 'export const jwtSecretIsLoadedFromServerConfig = true;\\n');
+  await writeFile(target, 'export const jwtSecretIsLoadedFromServerConfig = true;\n');
   const cleared = await spawnWithInput(process.execPath, [stopHook], JSON.stringify(event), env);
   assert.equal(cleared.code, 0);
   assert.equal(cleared.stdout.trim(), '');
