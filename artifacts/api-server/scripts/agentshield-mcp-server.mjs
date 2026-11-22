@@ -277,11 +277,15 @@ export function normalizeReport(report, expectedPaths) {
     line: Number.isSafeInteger(finding.line) && finding.line > 0 ? finding.line : null,
     ruleId: bounded(finding.ruleId || finding.check, 100),
     severity: ['Critical', 'High', 'Medium', 'Low'].includes(finding.severity) ? finding.severity : 'Unknown',
+    confidence: ['high', 'medium', 'low'].includes(finding.confidence) ? finding.confidence : 'unrated',
+    engine: bounded(finding.engine || 'static_heuristics', 80),
     title: bounded(finding.title, 180),
     recommendation: bounded(finding.recommendation, 300),
   }));
   return {
-    status: 'complete',
+    status: report.status === 'partial_coverage' ? 'partial_coverage' : 'complete',
+    unsupportedChangedFileCount: Number.isSafeInteger(report.unsupportedChangedFileCount)
+      ? report.unsupportedChangedFileCount : 0,
     filesScanned: report.filesScanned,
     scannedPaths: scanned.map((item) => bounded(item, 400)),
     findings,
@@ -389,7 +393,7 @@ export async function verifyRemediation(workspace) {
   const current = await runScanner(before.root, before.candidatePaths);
   const after = await workspaceSnapshot(before.root);
   if (before.fingerprint !== after.fingerprint) throw new Error('Workspace changed during the verification scan; status UNKNOWN.');
-  if (before.unsupportedChangedPaths.length || baseline.result.status !== 'complete') {
+  if (before.unsupportedChangedPaths.length || baseline.result.status !== 'complete' || current.status !== 'complete') {
     return {
       status: 'verification_incomplete',
       baselineFindings: baseline.result.totalFindings,
