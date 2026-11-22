@@ -46,11 +46,14 @@ async function git(cwd, args) {
   }
 }
 
+function ignoredPath(rel) {
+  const normalized = rel.replaceAll('\\', '/');
+  return normalized.startsWith('/') || normalized.split('/').includes('..')
+    || normalized.split('/').some((part) => IGNORE_PARTS.has(part));
+}
 function validFile(rel) {
   const normalized = rel.replaceAll('\\', '/');
-  if (normalized.startsWith('/') || normalized.split('/').includes('..')) return false;
-  const segments = normalized.split('/');
-  return !segments.some((part) => IGNORE_PARTS.has(part)) && (SOURCE_FILE.test(normalized) || ENV_FILE.test(normalized));
+  return !ignoredPath(normalized) && (SOURCE_FILE.test(normalized) || ENV_FILE.test(normalized));
 }
 
 function changedPaths(porcelain) {
@@ -76,8 +79,9 @@ async function loadFiles(opts) {
     ? [path.isAbsolute(opts.file) ? path.relative(rootReal, opts.file) : path.relative(rootReal, path.resolve(cwd, opts.file))]
     : changedPaths(await git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all']));
   const selected = targets.filter(validFile);
+  const unsupportedChangedPaths = opts.file ? [] : targets.filter((file) => !ignoredPath(file) && !validFile(file));
   if (opts.file && selected.length === 0) throw new Error('The specified file is outside the repository or has an unsupported extension.');
-  if (selected.length > MAX_FILES) throw new Error('File limit exceeded (100); narrow the scan.');
+  if (targets.length > MAX_FILES) throw new Error('Changed-file limit exceeded (100); narrow the scan.');
   const files = [];
   let bytes = 0;
   for (const rel of selected) {
@@ -99,7 +103,12 @@ async function loadFiles(opts) {
     files.push({ path: safeRelative.split(path.sep).join('/'), content });
   }
   if (opts.file && files.length === 0) throw new Error('The selected file was not safely readable.');
-  return { files, mode: opts.file ? 'file' : 'changed', selected: selected.length };
+  return {
+    files,
+    mode: opts.file ? 'file' : 'changed',
+    selected: selected.length,
+    unsupportedChangedPaths,
+  };
 }
 
 // Narrow supplementary heuristic, not counted in the existing 50-rule catalog.
@@ -195,15 +204,22 @@ export async function main(argv = process.argv.slice(2)) {
   try {
     const opts = options(argv);
     format = opts.format;
-    const { files, mode, selected } = await loadFiles(opts);
+    const { files, mode, selected, unsupportedChangedPaths } = await loadFiles(opts);
     const findings = analyze(files);
+    const partial = unsupportedChangedPaths.length > 0;
     const report = {
-      schemaVersion: 1, tool: 'VibeSane AgentShield', status: 'complete', mode,
+      schemaVersion: 1, tool: 'VibeSane AgentShield',
+      status: partial ? 'partial_coverage' : 'complete', mode,
       filesSelected: selected, filesScanned: files.length, scannedPaths: files.map((f) => f.path), findings,
-      coverage: 'Static heuristic analysis of selected files only; untested vulnerabilities may remain.',
+      unsupportedChangedPaths: unsupportedChangedPaths.slice(0, 30),
+      unsupportedChangedFileCount: unsupportedChangedPaths.length,
+      coverage: partial
+        ? 'Partial static heuristic analysis. Unsupported changed files were not analyzed; do not report a clean result.'
+        : 'Static heuristic analysis of selected files only; untested vulnerabilities may remain.',
       scannedAt: new Date().toISOString(),
     };
     output(report, format);
+    if (partial) return 2;
     return findings.some((f) => f.severity === 'Critical' || f.severity === 'High') ? 1 : 0;
   } catch (err) {
     const report = { schemaVersion: 1, tool: 'VibeSane AgentShield', status: 'error',
