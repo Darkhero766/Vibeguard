@@ -69,10 +69,15 @@ async function runStep(name, program, args, { cwd = root, timeout = 900_000 } = 
     });
     const output = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).slice(-30_000);
     const tap = output.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)/);
+    let evidence = null;
+    if (name.includes('accuracy-benchmark') || name === 'offline-package-install-cli-mcp-smoke') {
+      try { evidence = JSON.parse(stdout); } catch { evidence = { parseError: 'Command output was not valid JSON.' }; }
+    }
     const item = {
       name, status: 'passed', exitCode: 0, durationMs: Date.now() - started,
       ...(tap ? { tests: Number(tap[1]), passed: Number(tap[2]), failed: Number(tap[3]) } : {}),
-      output,
+      ...(evidence ? { evidence } : {}),
+      output: output.slice(-8_000),
     };
     results.push(item);
     return item;
@@ -119,10 +124,8 @@ async function main() {
   const failed = results.filter(item => item.status === 'failed');
   const skipped = results.filter(item => item.status === 'skipped');
   const benchmarkItems = results.filter(item => item.name.includes('accuracy-benchmark'));
-  const benchmarkTargetsMet = benchmarkItems.length === 2 && benchmarkItems.every(item => {
-    if (item.status !== 'passed') return false;
-    try { return JSON.parse(item.output).targetsMet === true; } catch { return false; }
-  });
+  const benchmarkTargetsMet = benchmarkItems.length === 2 && benchmarkItems.every(item =>
+    item.status === 'passed' && item.evidence?.targetsMet === true);
   const allRequiredPassed = results.every(item => item.status === 'passed');
   const report = {
     schemaVersion: 1,
