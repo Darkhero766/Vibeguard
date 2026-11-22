@@ -117,11 +117,15 @@ async function main() {
       && curatedBenchmark.evidence?.benchmarkType === 'synthetic_labeled_target_rule_curated'
       && Number.isInteger(curatedBenchmark.evidence?.totalCases)
       && curatedBenchmark.evidence.totalCases >= 100
+      && curatedBenchmark.evidence.categoryCount >= 10
+      && curatedBenchmark.evidence.categoryResultsMet === true
       && curatedBenchmark.evidence?.targetsMet === true
       && holdoutBenchmark?.status === 'passed'
       && holdoutBenchmark.evidence?.benchmarkType === 'synthetic_labeled_target_rule_holdout'
       && Number.isInteger(holdoutBenchmark.evidence?.totalCases)
       && holdoutBenchmark.evidence.totalCases > 0
+      && holdoutBenchmark.evidence.categoryCount >= 6
+      && holdoutBenchmark.evidence.categoryResultsMet === true
       && holdoutBenchmark.evidence?.targetsMet === true
   );
   const benchmarkTargetsMet = benchmarkItems.length === 2 && benchmarkEvidenceValid;
