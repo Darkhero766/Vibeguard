@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 
 const run = promisify(execFile);
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -13,10 +14,11 @@ const artifact = path.resolve(scriptsDir, '..');
 const cli = path.join(artifact, 'dist/agentshield.mjs');
 const hook = path.join(scriptsDir, 'agentshield-hook.mjs');
 const installer = path.join(scriptsDir, 'agentshield-install.mjs');
+const stopHook = path.join(scriptsDir, 'agentshield-stop.mjs');
 
-async function spawnWithInput(executable, args, input = '') {
+async function spawnWithInput(executable, args, input = '', env = process.env) {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn(executable, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env });
     let stdout = '', stderr = '';
     child.stdout.setEncoding('utf8'); child.stdout.on('data', (s) => { stdout += s; });
     child.stderr.setEncoding('utf8'); child.stderr.on('data', (s) => { stderr += s; });
@@ -120,4 +122,37 @@ test('hook installer preserves existing config and uninstalls reversibly', async
   await run(process.execPath, [installer, 'uninstall', cwd]);
   const removed = JSON.parse(await readFile(settingsPath, 'utf8'));
   assert.deepEqual(removed, original);
+});
+
+
+test('Claude Code Stop hook enforces blockers then allows a complete clean rescan', async (t) => {
+  const secret = 'S'.repeat(38);
+  const { cwd, target } = await fixture(t, 'src/auth.ts', 'const JWT_SECRET = "' + secret + '";\\n');
+  const controlHome = await mkdtemp(path.join(os.tmpdir(), 'agentshield-stop-control-'));
+  const stateHome = path.join(controlHome, 'state');
+  t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
+
+  const rootHash = createHash('sha256').update(cwd).digest('hex').slice(0, 28);
+  await writeFile(path.join(controlHome, rootHash + '.json'), JSON.stringify({
+    completionGate: 'enforce',
+    mode: 'assist',
+    blockingSeverity: 'High',
+  }));
+
+  const env = {
+    ...process.env,
+    VIBESANE_AGENTSHIELD_CONFIG_HOME: controlHome,
+    VIBESANE_AGENTSHIELD_STATE_HOME: stateHome,
+  };
+  const event = { hook_event_name: 'Stop', cwd, session_id: 'agentshield-enforce-test' };
+  const blocked = await spawnWithInput(process.execPath, [stopHook], JSON.stringify(event), env);
+  assert.equal(blocked.code, 0);
+  const blockPayload = JSON.parse(blocked.stdout);
+  assert.equal(blockPayload.decision, 'block');
+  assert.match(blockPayload.reason, /ENFORCEMENT/);
+
+  await writeFile(target, 'export const jwtSecretIsLoadedFromServerConfig = true;\\n');
+  const cleared = await spawnWithInput(process.execPath, [stopHook], JSON.stringify(event), env);
+  assert.equal(cleared.code, 0);
+  assert.equal(cleared.stdout.trim(), '');
 });
