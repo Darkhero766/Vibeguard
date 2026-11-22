@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, writeFile, rm, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { snapshot, finalGate } from './agentshield-gate.mjs';
+import { parseConfig, completionGateDecision } from './agentshield-policy.mjs';
 
 const exec = promisify(execFile);
 async function repoFixture() {
@@ -136,4 +137,31 @@ test('final gate rejects a worktree mutation during scanning', async () => {
     assert.equal(result.status, 'scan_incomplete');
     assert.equal(result.securityGuarantee, false);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('completion enforcement blocks incomplete and unknown scans', () => {
+  const config = parseConfig({ completionGate: 'enforce' });
+  const result = completionGateDecision({ status: 'scan_incomplete', config, completionGate: config.completionGate });
+  assert.equal(result.decision, 'block');
+  assert.match(result.reason, /UNKNOWN/);
+});
+
+test('completion enforcement blocks blockers even after auto-fix continuation suppression', () => {
+  const config = parseConfig({ completionGate: 'enforce', mode: 'auto-fix' });
+  const result = completionGateDecision({ blocking: 1, blockingSeverity: config.blockingSeverity,
+    completionGate: config.completionGate, mode: config.mode, repeatedGate: true, alreadyRequested: true });
+  assert.equal(result.decision, 'block');
+  assert.match(result.reason, /1 blocking finding/);
+});
+
+test('advisory completion mode does not silently claim a clean pass', () => {
+  const config = parseConfig({ completionGate: 'advisory' });
+  const result = completionGateDecision({ blocking: 1, completionGate: config.completionGate, config });
+  assert.ok(result.systemMessage.includes('Advisory mode'));
+  assert.equal(result.decision, undefined);
+});
+
+test('completion policy rejects unknown modes and accepts the explicit enforce setting', () => {
+  assert.equal(parseConfig({ completionGate: 'enforce' }).completionGate, 'enforce');
+  assert.throws(() => parseConfig({ completionGate: 'always' }), /completionGate/);
 });
