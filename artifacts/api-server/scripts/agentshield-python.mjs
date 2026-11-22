@@ -44,6 +44,17 @@ export function scanPythonFiles(files = []) {
       continue;
     }
     const source = lines.map(codeOnly).join('\n');
+    const taintedVariables = new Set();
+    for (const line of lines.map(codeOnly)) {
+      const assignment = /^\\s*(?:[A-Za-z_]\\w*)?([A-Za-z_]\\w*)\\s*=\\s*(.+)$/.exec(line);
+      if (!assignment) continue;
+      const [, variable, expression] = assignment;
+      const requestSource = /\\b(?:request|args|argv|query|params?|input|user|payload|form|headers?)\\b/i.test(expression);
+      const derivedSource = [...taintedVariables].some((name) =>
+        new RegExp('\\\\b' + name + '\\\\b').test(expression));
+      if (requestSource || derivedSource) taintedVariables.add(variable);
+      else taintedVariables.delete(variable);
+    }
 
     // shell=True turns a command string into a shell program. Only elevate to
     // High when dynamic or request-shaped values are visible nearby.
@@ -54,13 +65,27 @@ export function scanPythonFiles(files = []) {
         const dynamic = /\bf["'][\s\S]*?\{|\.\s*format\s*\(|\s%\s*(?:\(|[A-Za-z_])|\s\+\s*[A-Za-z_]/.test(snippet);
         const untrusted = /\b(?:request|args|argv|query|params?|input|user|payload|form|headers?)\b/i.test(snippet);
         if (!dynamic && !untrusted) return;
-        const confidence = dynamic && untrusted ? 'medium' : 'low';
+        const confidence = dynamic && (untrusted || localTaint) ? 'medium' : localTaint ? 'medium' : 'low';
         findings.push(finding(file, 'python_shell_injection', 'High', confidence,
           'Potential command injection through shell=True',
           'A subprocess call enables shell interpretation and appears to construct or source part of the command dynamically. Confirm whether the value can be influenced by an untrusted caller.',
           'Prefer an argument array with shell=False. Validate each argument against an allowlist and avoid building shell command strings.',
           match.index || 0));
       });
+
+    // os.system/os.popen interpret a shell command string. Keep the check
+    // limited to request-shaped or locally request-tainted variables.
+    for (const match of source.matchAll(/\\b(?:os\\.system|os\\.popen)\\s*\\(([^)]{1,500})\\)/g)) {
+      const expression = match[1];
+      const fromRequest = /\\b(?:request|args|argv|query|params?|input|user|payload)\\b/i.test(expression);
+      const identifier = /^\\s*([A-Za-z_]\\w*)\\s*$/.exec(expression)?.[1];
+      if (!fromRequest && !(identifier && taintedVariables.has(identifier))) continue;
+      findings.push(finding(file, 'python_shell_injection', 'High', 'medium',
+        'Potential shell command injection through os.system/os.popen',
+        'A shell command API appears to receive data derived from a request or user-controlled variable. Confirm reachability and input control.',
+        'Avoid shell command strings. Use a fixed executable and an argument array with subprocess.run(..., shell=False).',
+        match.index || 0));
+    }
 
     // Unsafe pickle deserialization is only flagged when call context contains
     // a user/request-shaped source, reducing noise from trusted local caches.
