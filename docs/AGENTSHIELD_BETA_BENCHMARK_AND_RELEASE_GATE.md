@@ -44,6 +44,10 @@ The local suite must prove all of the following for Claude Code Stop with `compl
 - **Installability:** package installs and binaries start on a clean supported Node 20+ environment.
 - **FP:** measure and publish per-rule false-positive counts; do not hide them in aggregate precision.
 
+## One-command local qualification
+
+From `artifacts/api-server`, run `pnpm run test:agentshield:release-qualification`. It builds the scanner, executes the regression and API safety test suites against local/synthetic fixtures, runs curated and holdout accuracy benchmarks, then runs the isolated offline package/install/CLI/MCP smoke. It writes `dist/agentshield-release-validation.json`. A passing result only qualifies the candidate for independent human review; real host acceptance, release stack consolidation, and security review remain mandatory.
+
 ## Local package smoke command
 
 Run `node ./scripts/test-agentshield-package.mjs` from `artifacts/api-server` on a supported macOS/Linux Node 20+ workstation. It builds the scanner, creates the unpublished tarball, installs it into a temporary npm prefix, checks the CLI and doctor, scans a synthetic Git fixture, exercises MCP initialize/tool-list/status over stdio, then removes temporary files. This smoke command is not evidence until its output is captured from an actual run.
