@@ -108,8 +108,21 @@ async function main() {
   const failed = results.filter(item => item.status === 'failed');
   const skipped = results.filter(item => item.status === 'skipped');
   const benchmarkItems = results.filter(item => item.name.includes('accuracy-benchmark'));
-  const benchmarkTargetsMet = benchmarkItems.length === 2 && benchmarkItems.every(item =>
-    item.status === 'passed' && item.evidence?.targetsMet === true);
+  const curatedBenchmark = benchmarkItems.find(item => item.name === 'curated-accuracy-benchmark');
+  const holdoutBenchmark = benchmarkItems.find(item => item.name === 'holdout-accuracy-benchmark');
+  const benchmarkEvidenceValid = Boolean(
+    curatedBenchmark?.status === 'passed'
+      && curatedBenchmark.evidence?.benchmarkType === 'synthetic_labeled_target_rule_curated'
+      && Number.isInteger(curatedBenchmark.evidence?.totalCases)
+      && curatedBenchmark.evidence.totalCases >= 100
+      && curatedBenchmark.evidence?.targetsMet === true
+      && holdoutBenchmark?.status === 'passed'
+      && holdoutBenchmark.evidence?.benchmarkType === 'synthetic_labeled_target_rule_holdout'
+      && Number.isInteger(holdoutBenchmark.evidence?.totalCases)
+      && holdoutBenchmark.evidence.totalCases > 0
+      && holdoutBenchmark.evidence?.targetsMet === true
+  );
+  const benchmarkTargetsMet = benchmarkItems.length === 2 && benchmarkEvidenceValid;
   const testSuite = results.find(item => item.name === 'unit-integration-regression');
   const testSuiteValid = Boolean(testSuite && testSuite.status === 'passed'
     && Number.isInteger(testSuite.tests) && testSuite.tests > 0 && testSuite.failed === 0);
@@ -140,6 +153,7 @@ async function main() {
     productionTouched: false,
     syntheticFixturesOnly: true,
     benchmarkTargetsMet,
+    benchmarkEvidenceValid,
     testSuiteValid,
     packageEvidenceValid,
     failedSteps: failed.map(item => item.name),
@@ -165,6 +179,7 @@ async function main() {
       name, status, tests, passed, failed: testFailed,
     })),
     benchmarkTargetsMet,
+    benchmarkEvidenceValid,
     testSuiteValid,
     packageEvidenceValid,
     failedSteps: report.failedSteps,
