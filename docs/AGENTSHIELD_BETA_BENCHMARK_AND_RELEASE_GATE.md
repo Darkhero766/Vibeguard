@@ -57,5 +57,9 @@ Run `node ./scripts/test-agentshield-package.mjs` from `artifacts/api-server` on
 ## Report template
 Record beta build hash, platform, Node version, package SHA-256, fixture commit/hash, tests executed, test counts, scan time, TP/FP/TN/FN by rule, incomplete-scan behavior, integration host/version, known defects, and release decision. Mark anything not executed as NOT TESTED.
 
+## Known release blocker
+
+The current completion gate consumes Git-visible worktree changes (`--changed`). It does not yet persist a session-start commit or scan a committed branch diff. Under enforce mode, a clean worktree blocks as UNKNOWN; do not commit agent changes before the Stop hook. Before production claims, add a commit-aware scope (session start SHA or configured merge-base) with tests for multiple commits, staged changes, renames, deletions, force-push/missing-base and shallow-clone behavior.
+
 ## Release readiness
 A beta distribution requires: local test suite pass, package build/install smoke test, MCP process transport tests, at least one supported host acceptance test, synthetic fixture benchmark, review of package contents, and a dependency-stack consolidation plan. No Actions/CI invocation is permitted for this project validation.
