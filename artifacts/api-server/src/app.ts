@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { stagingAccess } from "./lib/stagingAccess";
 
 const app: Express = express();
 app.set("trust proxy", 1);
@@ -26,7 +27,13 @@ app.use(
     },
   }),
 );
-app.use(cors());
+// Staging denial responses must include the same safe CORS headers as successful
+// API responses; otherwise the browser hides the HTTP 403 as "Failed to fetch".
+// Keep the existing production CORS behavior unchanged.
+app.use(process.env.VIBESANE_DEPLOYMENT_ENV === "staging"
+  ? cors({ origin: "https://vibesane-phase12-staging-web.onrender.com" })
+  : cors());
+app.use(stagingAccess);
 app.use(
   express.json({
     limit: "2mb",

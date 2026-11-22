@@ -3,6 +3,9 @@
 // Inputs are already selected by the AgentShield scanner and revalidated here.
 import ts from 'typescript';
 import { analyzeTaintedSql } from './agentshield-taint.mjs';
+import { analyzeCrossFileSqlFlows } from './agentshield-crossfile.mjs';
+import { analyzeNextRouteAuth } from './agentshield-route-auth.mjs';
+import { analyzeSupabasePolicies } from './agentshield-supabase-policy.mjs';
 import { lstat, realpath, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -128,8 +131,8 @@ export function analyzeSource(filePath, content) {
 export async function analyzeRepositoryPaths(root, selectedPaths) {
   if (!Array.isArray(selectedPaths) || selectedPaths.length > 100) throw new Error('AST file count exceeds budget.');
   const rootReal=await realpath(root);
-  let total=0, analyzed=0, nodes=0, ignored=0;
-  const findings=[], taintFindings=[], incomplete=[];
+  let total=0, analyzed=0, sqlFilesAnalyzed=0, nodes=0, ignored=0;
+  const findings=[], taintFindings=[], routeAuthFindings=[], sqlPolicyFindings=[], incomplete=[], codeInputs=[];
   const unique=[...new Set(selectedPaths)];
   if (unique.length !== selectedPaths.length) throw new Error('Duplicate scanner coverage paths.');
   for (const rel of unique) {
@@ -137,7 +140,7 @@ export async function analyzeRepositoryPaths(root, selectedPaths) {
       rel.replaceAll('\\','/').split('/').some(part=>part==='..' || part==='.git')) {
       throw new Error('AST received an invalid relative path.');
     }
-    if (!CODE.test(rel)) { ignored++; continue; }
+    if (!CODE.test(rel) && !/\.sql$/i.test(rel)) { ignored++; continue; }
     const full=path.resolve(rootReal,rel);
     const suffix=path.relative(rootReal,full);
     if (!suffix || suffix.startsWith('..'+path.sep) || path.isAbsolute(suffix)) throw new Error('Unsafe AST path.');
@@ -148,23 +151,40 @@ export async function analyzeRepositoryPaths(root, selectedPaths) {
     const buf=await readFile(full);
     total+=buf.length;
     if (buf.length>MAX_FILE || total>MAX_TOTAL) throw new Error('AST source budget exceeded.');
-    const result=analyzeSource(rel,buf.toString('utf8'));
+    const source=buf.toString('utf8');
+    if(/\.sql$/i.test(rel)) {
+      const policy=analyzeSupabasePolicies(rel,source);
+      if(policy.status!=='complete') throw Error('SQL policy scan did not complete');
+      sqlFilesAnalyzed++;
+      sqlPolicyFindings.push(...policy.findings);
+      if(sqlPolicyFindings.length>MAX_FINDINGS) throw Error('SQL policy finding budget exceeded');
+      continue;
+    }
+    const result=analyzeSource(rel,source);
     if (result.status==='parse_incomplete') incomplete.push(rel);
     else {
       const taint = analyzeTaintedSql(rel, buf.toString('utf8'));
       if (taint.status !== 'complete') throw new Error('Taint parser was incomplete.');
+      const routeAuth=analyzeNextRouteAuth(rel,source);
+      if(routeAuth.status==='scan_incomplete') throw Error('Route auth parser incomplete');
+      routeAuthFindings.push(...routeAuth.findings);
       analyzed++; nodes+=result.visitedNodes + taint.visitedNodes;
+      codeInputs.push({path:rel,content:source});
       findings.push(...result.findings);
       taintFindings.push(...taint.findings);
     }
-    if (findings.length>MAX_FINDINGS || taintFindings.length>MAX_FINDINGS)
+    if (findings.length>MAX_FINDINGS || taintFindings.length>MAX_FINDINGS || routeAuthFindings.length>MAX_FINDINGS)
       throw new Error('AST or taint findings count exceeded.');
   }
+  const crossFile=analyzeCrossFileSqlFlows(codeInputs);
+  if(crossFile.status!=='complete') throw Error('Cross-file analysis failed safely.');
   return {
     status:incomplete.length?'scan_incomplete':'complete',
     filesAnalyzed:analyzed, codeFilesExpected:analyzed+incomplete.length,
-    unsupportedFilesSkipped:ignored, visitedNodes:nodes, findings, taintFindings,
+    unsupportedFilesSkipped:ignored, sqlFilesAnalyzed, visitedNodes:nodes+crossFile.visitedNodes,
+    findings, taintFindings, routeAuthFindings, sqlPolicyFindings, crossFileFindings:crossFile.findings,
+    crossFileCoverage:'changed_files_only',
     incompletePaths:incomplete.slice(0,20),
-    note:'Intra-file syntax and selected request-to-SQL taint checks only; no execution, type checking, inter-file tracing or exploit proof.',
+    note:'Selected SQL mutation policies, JS/TS taint, one-hop changed-file imports and Next.js auth heuristics. Not complete policy state, authorization, or exploit proof.',
   };
 }

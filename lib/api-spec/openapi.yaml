@@ -31,7 +31,7 @@ paths:
       operationId: createScan
       tags: [scans]
       summary: Scan a public GitHub repository
-      description: Fetches JavaScript and TypeScript source files from a public GitHub repository and checks them for three security issues.
+      description: Scans a public GitHub repository with a bounded set of supported security checks; findings require human review.
       requestBody:
         required: true
         content:
@@ -100,7 +100,7 @@ components:
           minimum: 1
         check:
           type: string
-          enum: [rls, unauthenticated_write, service_role_client, unprotected_rpc, committed_env_file, hardcoded_secret, cors_wildcard, fake_env_example]
+          enum: [rls, unauthenticated_write, service_role_client, unprotected_rpc, role_self_promotion, privileged_account_recovery, privileged_entitlement_write, committed_env_file, hardcoded_secret, cors_wildcard, fake_env_example, rls_policy_missing, sql_grant_public, sql_grant_anon, storage_public, storage_policy_broad, sql_execute_public, security_definer_search_path, hardcoded_jwt_secret, google_api_key, github_token, private_key, database_url, plaintext_password_storage, hardcoded_password, hardcoded_bearer, sendgrid_key, twilio_token, slack_token, npm_token, vercel_token, netlify_token, child_process_exec, eval_usage, function_constructor, innerhtml_assignment, dangerous_html, document_write, postmessage_wildcard, open_redirect, cors_all_origins, cookie_missing_httponly, cookie_insecure, cookie_samesite_none, http_url, debug_endpoint, wildcard_dependency, git_dependency, npmrc_token, docker_socket, weak_hash, weak_random, path_traversal, command_injection]
       required: [id, severity, title, description, filePath, line, check]
     ScanReport:
       type: object

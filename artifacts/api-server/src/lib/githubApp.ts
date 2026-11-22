@@ -54,7 +54,7 @@ function githubHeaders(token: string): Record<string, string> {
 }
 
 export async function getAppSlug(): Promise<string> {
-  const response = await fetch("https://api.github.com/app", { headers: githubHeaders(createAppJwt()) });
+  const response = await fetch("https://api.github.com/app", { headers: githubHeaders(createAppJwt()), signal: AbortSignal.timeout(10_000) });
   if (!response.ok) throw new Error(`GitHub App lookup failed: ${response.status}`);
   const data = (await response.json()) as { slug?: string };
   if (!data.slug) throw new Error("GitHub App slug was not returned");
@@ -157,4 +157,25 @@ export async function saveInstallation(owner: string, installationId: number, ac
 export async function getInstallationIdForUser(owner: string): Promise<number | null> {
   const rows = await db.select({ installationId: githubAppInstallations.installationId }).from(githubAppInstallations).where(eq(githubAppInstallations.owner, owner));
   return rows[0]?.installationId ?? null;
+}
+
+export async function getLinkedInstallationForUser(owner: string): Promise<{
+  installationId: number;
+  account: { id: number; login: string; type: string };
+} | null> {
+  const rows = await db.select({
+    installationId: githubAppInstallations.installationId,
+    accountId: githubAppInstallations.accountId,
+    accountLogin: githubAppInstallations.accountLogin,
+    accountType: githubAppInstallations.accountType,
+  }).from(githubAppInstallations).where(eq(githubAppInstallations.owner, owner));
+  const row = rows[0];
+  return row ? {
+    installationId: Number(row.installationId),
+    account: {
+      id: Number(row.accountId),
+      login: row.accountLogin,
+      type: row.accountType,
+    },
+  } : null;
 }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { getHeuristicScanScore } from "@/lib/scanScore";
 import { Check, Clipboard, ShieldCheck } from 'lucide-react';
 
 type Severity = 'Critical' | 'High' | 'Medium';
@@ -11,21 +12,11 @@ type Finding = {
   check: string;
 };
 
-type ReportLike = { findings: Finding[]; filesScanned: number };
+type ReportLike = { findings: Finding[]; filesScanned: number; checksRun?: number };
 
-const TOTAL_CHECKS = 50;
 
-function getScore(findings: Finding[]) {
-  const unique = new Map<string, Finding>();
-  for (const finding of findings) {
-    unique.set(`${finding.check}:${finding.filePath}:${finding.line}`, finding);
-  }
-
-  let penalty = 0;
-  for (const finding of unique.values()) {
-    penalty += finding.severity === 'Critical' ? 18 : finding.severity === 'High' ? 10 : 4;
-  }
-  return Math.max(0, Math.min(100, 100 - penalty));
+function getScore(findings: Finding[], checksRun?: number) {
+  return getHeuristicScanScore(findings, checksRun);
 }
 
 function remediation(finding: Finding) {
@@ -61,9 +52,9 @@ export function ReportEnhancements({ report }: { report: ReportLike }) {
   const critical = report.findings.filter((f) => f.severity === 'Critical').length;
   const high = report.findings.filter((f) => f.severity === 'High').length;
   const medium = report.findings.filter((f) => f.severity === 'Medium').length;
-  const score = useMemo(() => getScore(report.findings), [report.findings]);
-  const passed = Math.max(0, TOTAL_CHECKS - new Set(report.findings.map((f) => f.check)).size);
-  const scoreLabel = score >= 90 ? 'Strong' : score >= 70 ? 'Needs attention' : score >= 40 ? 'At risk' : 'Critical risk';
+  const score = useMemo(() => getScore(report.findings, report.checksRun), [report.findings, report.checksRun]);
+  const passed = Number.isInteger(report.checksRun) ? Math.max(0, (report.checksRun ?? 0) - new Set(report.findings.map((f) => f.check)).size) : null;
+  const scoreLabel = score === null ? 'Not available' : score >= 90 ? 'Strong' : score >= 70 ? 'Needs attention' : score >= 40 ? 'At risk' : 'Critical risk';
 
   const copyFixPrompt = async () => {
     try {
@@ -77,14 +68,14 @@ export function ReportEnhancements({ report }: { report: ReportLike }) {
     <div className="mt-6 space-y-4">
       <div className="grid gap-4 md:grid-cols-[220px_1fr]">
         <div className="border border-border bg-card p-6">
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Security score</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Heuristic scan score</p>
           <div className="mt-4 flex items-end gap-2">
-            <span className="text-[54px] font-black leading-none tracking-[-0.07em]">{score}</span>
+            <span className="text-[54px] font-black leading-none tracking-[-0.07em]">{score ?? '—'}</span>
             <span className="mb-1 font-mono text-[11px] text-muted-foreground">/100</span>
           </div>
           <p className="mt-2 text-[12px] font-semibold text-foreground">{scoreLabel}</p>
           <div className="mt-5 h-2 overflow-hidden bg-muted">
-            <div className="h-full bg-primary transition-all duration-700" style={{ width: `${score}%` }} />
+            <div className="h-full bg-primary transition-all duration-700" style={{ width: `${score ?? 0}%` }} />
           </div>
         </div>
 
@@ -92,7 +83,7 @@ export function ReportEnhancements({ report }: { report: ReportLike }) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Security checks</p>
-              <p className="mt-1 text-[18px] font-bold tracking-[-0.025em]">{TOTAL_CHECKS} checks active</p>
+              <p className="mt-1 text-[18px] font-bold tracking-[-0.025em]">{report.checksRun ?? '—'} rules run</p>
             </div>
             <span className="font-mono text-[11px] text-muted-foreground">{report.filesScanned} files analyzed</span>
           </div>
@@ -103,9 +94,9 @@ export function ReportEnhancements({ report }: { report: ReportLike }) {
             <span className="border border-[#e5c8c1] bg-[#f6e9e5] px-2 py-1 text-[#963f34]">{critical} critical</span>
             <span className="border border-[#e7d3b3] bg-[#f8efe1] px-2 py-1 text-[#a06427]">{high} high</span>
             <span className="border border-[#d2dbc1] bg-[#eef1e4] px-2 py-1 text-[#66763e]">{medium} medium</span>
-            <span className="border border-border bg-muted px-2 py-1 text-muted-foreground">{passed} no finding</span>
+            <span className="border border-border bg-muted px-2 py-1 text-muted-foreground">{passed ?? '—'} no finding</span>
           </div>
-          <p className="mt-3 text-[12px] leading-5 text-muted-foreground">Every check is evaluated independently; a passed check means no matching evidence was found.</p>
+          <p className="mt-3 text-[12px] leading-5 text-muted-foreground">Severity-weighted indicator based on the rules actually run. It is not a security certification; absence of findings does not prove absence of vulnerabilities.</p>
         </div>
       </div>
 

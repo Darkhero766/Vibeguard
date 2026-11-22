@@ -2,16 +2,16 @@ import { Router, type IRouter } from "express";
 import { CreateScanBody, CreateScanResponse } from "@workspace/api-zod";
 import { scanPublicRepository } from "../lib/scanner";
 import { scanRepositoryViaApi } from "../lib/apiScanner";
-import { runExtendedSecurityChecksV2 } from "../lib/extendedScannerV2";
+import { runExtendedSecurityChecksV2WithStats } from "../lib/extendedScannerV2";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
-import { optionalAuth, type AuthedRequest } from "../middlewares/auth";
+import { optionalAuth, requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
 import { cacheScanResult } from "../lib/scanCache";
 import { ensurePlanForUser, consumePublicScan } from "../lib/plan";
 import { rateLimit } from "../middlewares/rateLimit";
+import { normalizeScanRepositoryUrl } from "../lib/scanRepositoryUrl";
 
 const router: IRouter = Router();
-const CORE_SECURITY_CHECKS = 8;
 
 function errorStatus(error: unknown): number | null {
   if (typeof error === "object" && error !== null && "status" in error) {
@@ -25,11 +25,44 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown repository scan error.";
 }
 
+/**
+ * Server-authoritative allowance for the public-scanner UI.
+ *
+ * The persisted usage table has counters, not a public_scans_limit column.
+ * Both plan limits and private admin/tester exceptions are evaluated in
+ * ensurePlanForUser. Never infer entitlements from user-editable browser data.
+ */
+router.get("/scans/allowance", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const plan = await ensurePlanForUser(req.userId!);
+    res.json({
+      plan: plan.plan,
+      publicScansUsed: plan.publicScansUsed,
+      publicScansLimit: plan.publicScansLimit,
+      unlimited: plan.unlimited,
+    });
+  } catch (error) {
+    req.log.error({ err: error }, "Public scan allowance verification failed");
+    res.status(503).json({ error: "Unable to verify scan allowance. Please retry." });
+  }
+});
+
 router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), optionalAuth, async (req: AuthedRequest, res): Promise<void> => {
   const parsed = CreateScanBody.safeParse(req.body);
   if (!parsed.success) {
     req.log.warn({ errors: parsed.error.message }, "Invalid scan request");
     res.status(400).json({ error: "Enter a valid public GitHub repository URL." });
+    return;
+  }
+
+  // Validate and canonicalize before quota lookup or launching parallel API
+  // requests. A sentence-ending dot must not become a different repo name.
+  let repoUrl: string;
+  try {
+    repoUrl = normalizeScanRepositoryUrl(parsed.data.repoUrl);
+  } catch (error) {
+    res.status(400).json({ error: errorMessage(error) });
     return;
   }
 
@@ -58,42 +91,48 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
 
   try {
     let report;
-    let tokenUsed = Boolean(githubToken);
 
-    const extendedPromise = runExtendedSecurityChecksV2(parsed.data.repoUrl, githubToken);
+    // Attach the rejection handler immediately. GitHub rate limits can make
+    // the extended scan reject before the core scan finishes its fallback;
+    // an unhandled rejection would otherwise terminate the Node process.
+    const extendedPromise = runExtendedSecurityChecksV2WithStats(repoUrl, githubToken)
+      .then(
+        (findings) => ({ ok: true as const, findings }),
+        (error: unknown) => ({ ok: false as const, error }),
+      );
 
     try {
-      report = await scanRepositoryViaApi(parsed.data.repoUrl, githubToken);
+      report = await scanRepositoryViaApi(repoUrl, githubToken);
     } catch (firstError) {
       const status = errorStatus(firstError);
-      const message = errorMessage(firstError);
+      // A 404 is a missing/inaccessible repository, not a retryable API
+      // throttle. Do not attempt clone or strip OAuth credentials.
+      if (status === 404) throw firstError;
       req.log.warn({ err: firstError, status }, "GitHub API scan failed; falling back to Git clone");
       try {
-        report = await scanPublicRepository(parsed.data.repoUrl, githubToken);
-        tokenUsed = Boolean(githubToken);
+        report = await scanPublicRepository(repoUrl, githubToken);
       } catch (cloneError) {
         const cloneStatus = errorStatus(cloneError);
-        const cloneMessage = errorMessage(cloneError);
-        if (githubToken && (cloneStatus === 401 || cloneStatus === 403 || cloneStatus === 404)) {
-          req.log.warn({ err: cloneError, status: cloneStatus }, "Authenticated Git clone failed; retrying API anonymously");
-          report = await scanRepositoryViaApi(parsed.data.repoUrl, undefined);
-          tokenUsed = false;
-        } else {
-          const wrapped = new Error(cloneMessage || message);
-          Object.assign(wrapped, { status: cloneStatus ?? status ?? 502 });
-          throw wrapped;
-        }
+        // Never downgrade an authenticated GitHub scan to anonymous.
+        // Shared cloud IPs often exhaust the smaller anonymous API limit.
+        const wrapped = new Error(errorMessage(cloneError));
+        Object.assign(wrapped, { status: cloneStatus ?? status ?? 502 });
+        throw wrapped;
       }
     }
 
-    let extendedFindings: Awaited<ReturnType<typeof runExtendedSecurityChecksV2>> = [];
-    let extendedSucceeded = false;
-    try {
-      extendedFindings = await extendedPromise;
-      extendedSucceeded = true;
-    } catch (extendedError) {
-      req.log.warn({ err: extendedError }, "Extended security checks failed; returning core findings");
+    const extendedResult = await extendedPromise;
+    if (!extendedResult.ok) {
+      // A partial scan must never be presented as all security checks having
+      // passed or consume the customer's limited scan allowance.
+      req.log.warn({ err: extendedResult.error, status: errorStatus(extendedResult.error) },
+        "Extended checks unavailable; withholding incomplete repository report");
+      res.status(503).json({
+        error: "Full security scan could not finish because GitHub access is temporarily unavailable. Check your GitHub connection or retry later. No scan credit was used.",
+      });
+      return;
     }
+    const { findings: extendedFindings, filesScanned: extendedFilesScanned } = extendedResult.findings;
 
     const normalizedExtended = extendedFindings.map((item) => ({
       ...item,
@@ -114,7 +153,10 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
     const finalReport = {
       ...report,
       findings,
-      checksRun: extendedSucceeded ? TOTAL_SECURITY_CHECKS : CORE_SECURITY_CHECKS,
+      // Clone fallback considers source code only, while the extended rules also
+      // analyze eligible manifests/configuration files. Report the wider coverage.
+      filesScanned: Math.max(report.filesScanned, extendedFilesScanned),
+      checksRun: TOTAL_SECURITY_CHECKS,
     };
     // Validate output, then charge the authenticated account before returning or
     // caching a result. A database failure or exhausted quota must not grant a free scan.
@@ -137,7 +179,7 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
   } catch (error) {
     const status = errorStatus(error);
     const message = errorMessage(error);
-    req.log.error({ err: error, repoUrl: parsed.data.repoUrl, status }, "Repository scan failed");
+    req.log.error({ err: error, repoUrl: repoUrl, status }, "Repository scan failed");
 
     if (status === 429) {
       res.status(429).json({ error: "Scan allowance exhausted. Please check your plan." });
@@ -152,15 +194,15 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
       return;
     }
     if (status === 404 || /Repository not found|does not exist|GitHub API 404/i.test(message)) {
-      res.status(404).json({ error: `Repository not found or inaccessible: ${message}` });
+      res.status(404).json({ error: "Repository not found or inaccessible. Check the GitHub URL and repository permissions. No scan credit was used." });
       return;
     }
     if (status === 403) {
-      res.status(502).json({ error: `GitHub access was denied or rate-limited: ${message}` });
+      res.status(503).json({ error: "GitHub repository access was denied or rate-limited. Verify your GitHub connection and permissions, then retry. No scan credit was used." });
       return;
     }
     if (status === 401) {
-      res.status(502).json({ error: `GitHub authorization failed: ${message}` });
+      res.status(502).json({ error: "GitHub authorization failed. Reconnect GitHub and retry. No scan credit was used." });
       return;
     }
     if (status === 413) {
@@ -168,7 +210,7 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
       return;
     }
     if (status && status >= 500) {
-      res.status(502).json({ error: `Repository download failed: ${message}` });
+      res.status(502).json({ error: "Repository download failed temporarily. No scan credit was used." });
       return;
     }
 

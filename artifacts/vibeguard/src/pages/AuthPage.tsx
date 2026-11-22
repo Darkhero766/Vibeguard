@@ -74,6 +74,7 @@ export default function AuthPage() {
     setError(''); setGoogleLoading(true);
     try {
       if (referralCode.trim()) localStorage.setItem(REFERRAL_STORAGE_KEY, referralCode.trim().toUpperCase());
+      try { window.sessionStorage.removeItem('vs_github_oauth_pending'); } catch { /* Storage may be blocked. */ }
       const redirectTo = window.location.origin + (import.meta.env.BASE_URL ?? '/');
       const { error: err } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
       if (err) throw err;
@@ -86,10 +87,15 @@ export default function AuthPage() {
     setError(''); setGithubLoading(true);
     try {
       if (referralCode.trim()) localStorage.setItem(REFERRAL_STORAGE_KEY, referralCode.trim().toUpperCase());
+      // Record only the provider intent, never the provider's OAuth token.
+      // This survives GitHub's redirect and prevents mistakenly treating a
+      // Google provider_token as a GitHub token on linked accounts.
+      try { window.sessionStorage.setItem('vs_github_oauth_pending', 'github'); } catch { /* OAuth login can proceed even without session storage. */ }
       const redirectTo = window.location.origin + (import.meta.env.BASE_URL ?? '/');
       const { error: err } = await supabase.auth.signInWithOAuth({ provider: 'github', options: { scopes: 'repo', redirectTo } });
       if (err) throw err;
     } catch (err: unknown) {
+      try { window.sessionStorage.removeItem('vs_github_oauth_pending'); } catch { /* Storage may be blocked. */ }
       setError(err instanceof Error ? err.message : 'GitHub sign-in failed.'); setGithubLoading(false);
     }
   };
