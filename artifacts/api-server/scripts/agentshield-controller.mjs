@@ -299,6 +299,9 @@ export async function handleHook(kind, { surface = 'claude' } = {}) {
       const projectRoot = process.env.CURSOR_PROJECT_DIR;
       if (typeof projectRoot === 'string' && projectRoot.length > 0) event.cwd = projectRoot;
       event.session_id = event.session_id || event.conversation_id || event.generation_id || 'cursor-session';
+    } else if (surface === 'codex') {
+      // Codex uses thread_id/turn_id rather than Claude's session_id.
+      event.session_id = event.session_id || event.thread_id || event.turn_id || 'codex-session';
     }
     if (typeof event.cwd !== 'string') throw new Error('Hook workspace is unavailable.');
     const root = await rootOf(event.cwd);
@@ -319,6 +322,14 @@ export async function handleHook(kind, { surface = 'claude' } = {}) {
       const followup = response.reason || response.systemMessage ||
         'VibeSane AgentShield: security status is UNKNOWN. Run a fresh scan before claiming a security pass.';
       printJSON({ followup_message: brief(followup, 3500) });
+      return;
+    }
+    if (surface === 'codex') {
+      // Codex Stop accepts only the explicit decision/reason gate contract; omit
+      // Claude-specific hook payloads and advisory messages from this host adapter.
+      if (response.decision === 'block') {
+        printJSON({ decision: 'block', reason: brief(response.reason || 'VibeSane AgentShield: security status is UNKNOWN.', 3500) });
+      }
       return;
     }
     printJSON(response);
