@@ -29,6 +29,7 @@ const scripts = [
   'agentshield-hybrid.mjs',
   'agentshield-mcp-server.mjs',
   'agentshield-python.mjs',
+  'agentshield-sarif.mjs',
 ];
 async function main() {
   const scanner = path.join(root, 'dist', 'agentshield.mjs');
