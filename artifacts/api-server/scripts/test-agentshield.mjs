@@ -54,6 +54,26 @@ test('hardcoded test credential is detected without echoing its value', async (t
   assert.ok(!result.stdout.includes(fake));
 });
 
+test('JWT detector handles typed declarations and object properties but ignores comments and placeholders', async (t) => {
+  const source = [
+    'const jwtSecret: string = "' + 'A'.repeat(36) + '";',
+    'const config = { JWT_SIGNING_KEY: "' + 'B'.repeat(36) + '" };',
+    '// const JWT_SECRET = "' + 'C'.repeat(36) + '";',
+    'const example = { JWT_SECRET: "replace_me_with_a_real_key" };',
+    'const runtimeSecret = process.env.JWT_SECRET;',
+    'const message = "JWT_SECRET: \\' + 'D'.repeat(36) + '\\'";',
+  ].join('\\n') + '\\n';
+  const { cwd } = await fixture(t, 'src/auth.ts', source);
+  const result = await scan(cwd);
+  assert.equal(result.code, 1);
+  const jwtFindings = result.report.findings.filter((f) => f.ruleId === 'hardcoded_jwt_secret');
+  assert.equal(jwtFindings.length, 2);
+  assert.deepEqual(jwtFindings.map((f) => f.line), [1, 2]);
+  assert.ok(!result.stdout.includes('A'.repeat(36)));
+  assert.ok(!result.stdout.includes('B'.repeat(36)));
+  assert.ok(!result.stdout.includes('C'.repeat(36)));
+});
+
 test('interpolated SQL query is flagged as a potential injection risk', async (t) => {
   const tick = String.fromCharCode(96);
   const sql = 'db.query(' + tick + 'SELECT * FROM users WHERE id = ' + '$' + '{userId}' + tick + ');\n';
