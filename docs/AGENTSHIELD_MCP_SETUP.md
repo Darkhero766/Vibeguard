@@ -44,7 +44,7 @@ Pass the same optional `base_ref` to `scan_changed`, `list_findings`, and `verif
 { "workspace": "/absolute/path/to/repo", "base_ref": "origin/main" }
 ```
 
-Use a local target/upstream branch (commonly `origin/main`), tag, or commit SHA that resolves in the clone and is distinct from the coding branch. Run the agent on a topic/feature branch ahead of that base; using the coding branch itself produces no committed diff. Refresh remote-tracking refs before the session. The base-to-HEAD diff is combined with staged, modified and untracked worktree changes; rename destinations are scanned and deletions fail closed. The same `base_ref` must be supplied for follow-up finding and remediation calls because it forms part of the workspace baseline fingerprint. A missing base ref or unavailable merge base returns an error/UNKNOWN result.
+Use a local target/upstream branch (commonly `origin/main`), tag, or commit SHA that resolves in the clone and is a strict ancestor of the current `HEAD`. A ref that resolves to `HEAD` itself or to unrelated/ahead history is rejected, so the scan cannot silently degrade to dirty-only coverage. Run the agent on a topic/feature branch ahead of that base and refresh remote-tracking refs before the session. The base-to-HEAD diff is combined with staged, modified and untracked worktree changes; rename destinations are scanned and deletions fail closed. The same `base_ref` must be supplied for follow-up finding and remediation calls because it forms part of the workspace baseline fingerprint. A missing base ref or unavailable ancestry returns an error/UNKNOWN result.
 
 ## Safety and coverage
 
