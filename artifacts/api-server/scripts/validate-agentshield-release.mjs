@@ -126,7 +126,16 @@ async function main() {
   const benchmarkItems = results.filter(item => item.name.includes('accuracy-benchmark'));
   const benchmarkTargetsMet = benchmarkItems.length === 2 && benchmarkItems.every(item =>
     item.status === 'passed' && item.evidence?.targetsMet === true);
-  const allRequiredPassed = results.every(item => item.status === 'passed');
+  const testSuite = results.find(item => item.name === 'unit-integration-regression');
+  const testSuiteValid = Boolean(testSuite && testSuite.status === 'passed'
+    && Number.isInteger(testSuite.tests) && testSuite.tests > 0 && testSuite.failed === 0);
+  const packageStep = results.find(item => item.name === 'offline-package-install-cli-mcp-smoke');
+  const packageEvidenceValid = Boolean(packageStep && packageStep.status === 'passed'
+    && packageStep.evidence?.status === 'package_smoke_passed'
+    && packageStep.evidence?.version === '0.7.0-beta.3'
+    && /^[a-f0-9]{64}$/.test(packageStep.evidence?.packageSha256 || ''));
+  const allRequiredPassed = results.every(item => item.status === 'passed')
+    && testSuiteValid && packageEvidenceValid;
   const report = {
     schemaVersion: 1,
     product: 'VibeSane AgentShield',
@@ -144,6 +153,8 @@ async function main() {
     productionTouched: false,
     syntheticFixturesOnly: true,
     benchmarkTargetsMet,
+    testSuiteValid,
+    packageEvidenceValid,
     failedSteps: failed.map(item => item.name),
     skippedSteps: skipped.map(item => item.name),
     steps: results,
@@ -166,6 +177,8 @@ async function main() {
       name, status, tests, passed, failed: testFailed,
     })),
     benchmarkTargetsMet,
+    testSuiteValid,
+    packageEvidenceValid,
     failedSteps: report.failedSteps,
   };
   process.stdout.write(JSON.stringify(summary, null, 2) + '\n');
