@@ -172,3 +172,17 @@ test('completion enforcement blocks when previously flagged files are not covere
   assert.equal(result.decision, 'block');
   assert.match(result.reason, /PARTIAL/);
 });
+
+test('completion enforcement blocks when no changed-file evidence exists', () => {
+  const config = parseConfig({ completionGate: 'enforce' });
+  const result = completionGateDecision({ status: 'no_changed_files', completionGate: config.completionGate });
+  assert.equal(result.decision, 'block');
+  assert.match(result.reason, /No security scan/);
+});
+
+test('advisory mode reports no changed files without claiming a pass', () => {
+  const config = parseConfig({ completionGate: 'advisory' });
+  const result = completionGateDecision({ status: 'no_changed_files', completionGate: config.completionGate });
+  assert.ok(result.systemMessage.includes('No security scan'));
+  assert.equal(result.decision, undefined);
+});
