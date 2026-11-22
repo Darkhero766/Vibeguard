@@ -209,9 +209,15 @@ async function resolveBaseCommit(root, baseRef, signal) {
   if (baseRef == null) return null;
   if (!validBaseRef(baseRef)) throw new Error('Invalid base_ref; provide a safe local Git ref or commit SHA.');
   throwIfAborted(signal);
-  const result = await exec('git', gitArgs(root, ['rev-parse', '--verify', '--end-of-options', baseRef + '^{commit}']), {
-    timeout: 7000, maxBuffer: 10_000, windowsHide: true, env: FIXED_ENV, signal,
-  }).catch(() => { throw new Error('Configured base_ref is unavailable locally; fetch it before scanning.'); });
+  let result;
+  try {
+    result = await exec('git', gitArgs(root, ['rev-parse', '--verify', '--end-of-options', baseRef + '^{commit}']), {
+      timeout: 7000, maxBuffer: 10_000, windowsHide: true, env: FIXED_ENV, signal,
+    });
+  } catch (error) {
+    if (signal?.aborted || error?.name === 'AbortError') throw error;
+    throw new Error('Configured base_ref is unavailable locally; fetch it before scanning.');
+  }
   const sha = result.stdout.trim();
   if (!/^[a-f0-9]{40,64}$/i.test(sha)) throw new Error('Configured base_ref did not resolve to a commit.');
   return sha;
