@@ -316,10 +316,14 @@ export async function handleHook(kind, { surface = 'claude' } = {}) {
     }
     printJSON(response);
   } catch {
+    const reason = 'VibeSane AgentShield: hook execution failed. Security status is UNKNOWN; restore the hook or complete an approved manual scan before delivery.';
     if (surface === 'cursor') {
-      printJSON({ followup_message: 'VibeSane AgentShield: final security scan failed or was incomplete. Status is UNKNOWN; do not claim a security pass.' });
+      printJSON({ followup_message: reason });
+    } else if (kind === 'Stop') {
+      // A broken Stop hook must never convert an enforced or indeterminate gate into a pass.
+      printJSON({ decision: 'block', reason });
     } else {
-      printJSON(resultForHook(kind, 'VibeSane AgentShield: scan or repair coordination failed. Security status is UNKNOWN, not passed.'));
+      printJSON(resultForHook(kind, reason));
     }
   }
 }
