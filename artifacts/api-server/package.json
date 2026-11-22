@@ -34,7 +34,9 @@
     "test:agentshield:phase1:http": "node --test ./scripts/test-phase1-github-http-contract.mjs",
     "benchmark:agentshield:models": "node ./scripts/benchmark-agentshield-models.mjs",
     "test:agentshield:models": "node --test ./scripts/test-agentshield-models.mjs",
-    "test:scan-score": "node --test ./scripts/test-scan-score.mjs"
+    "test:scan-score": "node --test ./scripts/test-scan-score.mjs",
+    "agentshield:mcp": "node ./scripts/agentshield-mcp-server.mjs",
+    "test:agentshield:mcp": "node --test ./scripts/test-agentshield-mcp.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
