@@ -99,6 +99,15 @@ test('finding comparison distinguishes removed, remaining and newly introduced f
   assert.deepEqual(result.removed.map((item) => item.filePath), ['a.js']);
   assert.deepEqual(result.remaining.map((item) => item.filePath), ['b.js']);
   assert.deepEqual(result.newFindings.map((item) => item.filePath), ['c.js']);
+  const duplicates = compareFindings(
+    [make('same.py', 'python_shell_injection', 'Potential command injection')],
+    [
+      { ...make('same.py', 'python_shell_injection', 'Potential command injection'), line: 4 },
+      { ...make('same.py', 'python_shell_injection', 'Potential command injection'), line: 18 },
+    ],
+  );
+  assert.equal(duplicates.removed.length, 1);
+  assert.equal(duplicates.newFindings.length, 2);
 });
 
 test('line decoder handles partial frames, CRLF and UTF-8 boundaries', () => {
