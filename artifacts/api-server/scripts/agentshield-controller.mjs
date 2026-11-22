@@ -340,13 +340,13 @@ export async function handleCursorStop() {
 
 function argsOf(argv) {
   const [action, ...tail] = argv;
-  const opts = { action, cwd: process.cwd(), file: null, changed: false, session: null, format: 'json', mode: null, attempts: null, syntaxCheck: null, threshold: null, completionGate: null, enabled: null, budgetSeconds: null, retentionHours: null, rule: null, reason: null, hours: null };
+  const opts = { action, cwd: process.cwd(), file: null, changed: false, session: null, format: 'json', mode: null, attempts: null, syntaxCheck: null, threshold: null, completionGate: null, baseRef: null, enabled: null, budgetSeconds: null, retentionHours: null, rule: null, reason: null, hours: null };
   for (let i = 0; i < tail.length; i++) {
     const a = tail[i];
     if (a === '--changed') opts.changed = true;
-    else if (['--cwd', '--file', '--session', '--format', '--mode', '--attempts', '--syntax-check', '--threshold', '--completion-gate', '--enabled', '--budget-seconds', '--retention-hours', '--rule', '--reason', '--hours'].includes(a)) {
+    else if (['--cwd', '--file', '--session', '--format', '--mode', '--attempts', '--syntax-check', '--threshold', '--completion-gate', '--base-ref', '--enabled', '--budget-seconds', '--retention-hours', '--rule', '--reason', '--hours'].includes(a)) {
       if (tail[i + 1] == null) throw new Error('Missing option value: ' + a);
-      const key = { '--syntax-check': 'syntaxCheck', '--attempts': 'attempts', '--threshold': 'threshold', '--completion-gate': 'completionGate', '--budget-seconds': 'budgetSeconds', '--retention-hours': 'retentionHours' }[a] || a.slice(2);
+      const key = { '--syntax-check': 'syntaxCheck', '--attempts': 'attempts', '--threshold': 'threshold', '--completion-gate': 'completionGate', '--base-ref': 'baseRef', '--budget-seconds': 'budgetSeconds', '--retention-hours': 'retentionHours' }[a] || a.slice(2);
       opts[key] = tail[++i];
     } else throw new Error('Unsupported option: ' + a);
   }
@@ -393,7 +393,7 @@ async function verifyNow(root, opts, config) {
 }
 export async function command(argv = process.argv.slice(2)) {
   const opts = argsOf(argv);
-  if (!['status', 'verify', 'config', 'acknowledge'].includes(opts.action)) throw new Error('Commands: status, verify --changed|--file PATH, config --mode MODE --completion-gate advisory|enforce, acknowledge --rule ID --file PATH --reason CODE --hours 24.');
+  if (!['status', 'verify', 'config', 'acknowledge'].includes(opts.action)) throw new Error('Commands: status, verify --changed|--file PATH, config --mode MODE --completion-gate advisory|enforce --base-ref REF, acknowledge --rule ID --file PATH --reason CODE --hours 24.');
   const root = await rootOf(opts.cwd);
   const config = await configFor(root);
   if (opts.action === 'acknowledge') {
@@ -417,12 +417,13 @@ export async function command(argv = process.argv.slice(2)) {
     return 0;
   }
   if (opts.action === 'config') {
-    if (opts.mode != null || opts.attempts != null || opts.syntaxCheck != null || opts.threshold != null || opts.completionGate != null || opts.enabled != null || opts.budgetSeconds != null || opts.retentionHours != null) {
+    if (opts.mode != null || opts.attempts != null || opts.syntaxCheck != null || opts.threshold != null || opts.completionGate != null || opts.baseRef != null || opts.enabled != null || opts.budgetSeconds != null || opts.retentionHours != null) {
       const candidate = { ...config };
       if (opts.mode != null) candidate.mode = opts.mode;
       if (opts.attempts != null) candidate.maxAttempts = Number(opts.attempts);
       if (opts.threshold != null) candidate.blockingSeverity = opts.threshold;
       if (opts.completionGate != null) candidate.completionGate = opts.completionGate;
+      if (opts.baseRef != null) candidate.baseRef = opts.baseRef;
       if (opts.enabled != null) {
         if (!['true', 'false'].includes(opts.enabled)) throw new Error('--enabled must be true or false.');
         candidate.enabled = opts.enabled === 'true';
