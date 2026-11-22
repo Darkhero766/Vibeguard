@@ -348,7 +348,9 @@ test('MCP rejects base_ref at HEAD and base refs from unrelated history', async 
       /current HEAD/,
     );
 
-    await exec('git', ['-C', root, 'checkout', '-qb', 'unrelated-base']);
+    await exec('git', ['-C', root, 'checkout', '--orphan', 'unrelated-base']);
+    await exec('git', ['-C', root, 'rm', '-rf', '.']);
+    await mkdir(path.join(root, 'src'), { recursive: true });
     await writeFile(path.join(root, 'src', 'independent.js'), 'export const independent = true;\n');
     await exec('git', ['-C', root, 'add', '.']);
     await exec('git', ['-C', root, 'commit', '-qm', 'unrelated history']);
