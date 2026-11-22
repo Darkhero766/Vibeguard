@@ -140,6 +140,10 @@ async function main() {
     && Number.isInteger(syntaxStep.evidence?.checkedFiles)
     && syntaxStep.evidence.checkedFiles >= 18
     && syntaxStep.evidence.passedFiles === syntaxStep.evidence.checkedFiles
+    && syntaxStep.evidence.fingerprintedSourceInputs >= 4
+    && syntaxStep.evidence.missingSourceInputs?.length === 0
+    && ['src/lib/apiScanner.ts', 'src/lib/extendedScannerV2.ts', 'package.json', 'skills/vibesane-agentshield/SKILL.md']
+      .every(file => syntaxStep.evidence.sourceInputs?.some(input => input.file === file && input.status === 'fingerprinted'))
     && /^[a-f0-9]{64}$/.test(syntaxStep.evidence?.sourceSha256 || ''));
   const testSuite = results.find(item => item.name === 'unit-integration-regression');
   const testSuiteValid = Boolean(testSuite && testSuite.status === 'passed'
@@ -190,8 +194,8 @@ async function main() {
     steps: results,
     limitations: [
       'Passing this runner is not a security certification or proof of application-wide security.',
-      'Claude Code Stop enforcement is host-level and remains bypassable by changing project policy or interrupting the host.',
-      'Codex MCP/skill and Cursor follow-up integrations are not equivalent to a hard delivery gate.',
+      'Claude Code and Codex Stop responses are host-level continuation controls; they can be bypassed by changing project policy, disabling/untrusting hooks or interrupting the host.',
+      'Cursor uses followup_message continuation; none of the integrations is tamper-proof or an immutable delivery lock.',
       'Manual acceptance in actual Codex, Claude Code and Cursor versions is still required.',
       'Release branch dependency consolidation and independent human review are still required.',
     ],
