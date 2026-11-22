@@ -250,7 +250,7 @@ async function atStop(event, root, config) {
   // Every Stop event performs a fresh worktree scan, catching Git-visible Bash edits,
   // staging, and untracked files missed by per-tool PostToolUse notifications.
   const gate = await finalGate(root, config, scan);
-  if (gate.status !== 'complete') return completionGateDecision({ status: gate.status, config });
+  if (gate.status !== 'complete') return completionGateDecision({ status: gate.status, config, completionGate: config.completionGate });
   const session = event.session_id || 'session-unknown';
   const result = await withLockedState(root, session, config, async (state) => {
     let next = state;
