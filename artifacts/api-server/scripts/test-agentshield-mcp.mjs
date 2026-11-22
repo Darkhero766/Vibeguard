@@ -336,9 +336,14 @@ test('MCP committed-diff scan, list and verification retain the same base-ref sc
     assert.equal(first.status, 'complete');
     assert.ok(first.scanId);
     assert.equal(first.baseRef.length, 40);
+    const wrongScopeList = await listFindings(root, first.scanId);
+    assert.equal(wrongScopeList.status, 'rescan_required');
     const listed = await listFindings(root, first.scanId, { baseRef: 'main' });
     assert.equal(listed.status, 'complete');
     assert.equal(listed.scanId, first.scanId);
+    const wrongScopeVerify = await verifyRemediation(root, first.scanId);
+    assert.equal(wrongScopeVerify.status, 'verification_incomplete');
+    assert.match(wrongScopeVerify.note, /base_ref scope differs/i);
 
     await writeFile(source, 'export const version = 3;\n');
     await exec('git', ['-C', root, 'add', '.']);
