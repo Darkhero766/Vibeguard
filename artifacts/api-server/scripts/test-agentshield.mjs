@@ -245,6 +245,26 @@ async function commitFixture(cwd, message) {
     'user.email=agentshield-test@example.invalid', 'commit', '-qm', message]);
 }
 
+test('CLI rejects a base ref at HEAD and a base ref from unrelated history', async (t) => {
+  const { cwd } = await fixture(t, 'src/app.js', 'export const main = true;\n');
+  await run('git', ['-C', cwd, 'config', 'user.name', 'AgentShield Test']);
+  await run('git', ['-C', cwd, 'config', 'user.email', 'agentshield-test@example.invalid']);
+  await run('git', ['-C', cwd, 'add', '.']);
+  await run('git', ['-C', cwd, 'commit', '-qm', 'main base']);
+  await run('git', ['-C', cwd, 'checkout', '-qb', 'unrelated-base']);
+  await writeFile(path.join(cwd, 'src', 'independent.js'), 'export const independent = true;\n');
+  await run('git', ['-C', cwd, 'add', '.']);
+  await run('git', ['-C', cwd, 'commit', '-qm', 'unrelated history']);
+  await run('git', ['-C', cwd, 'checkout', '-q', 'main']);
+
+  for (const baseRef of ['main', 'unrelated-base']) {
+    const result = await scan(cwd, ['--changed', '--base-ref', baseRef]);
+    assert.equal(result.code, 2);
+    assert.equal(result.report.status, 'error');
+    assert.match(result.report.error, /base|ancestor|HEAD/i);
+  }
+});
+
 test('base-ref scan detects committed changes even when the worktree is clean', async (t) => {
   const { cwd, target } = await fixture(t, 'src/auth.ts', 'export const safe = true;\n');
   await commitFixture(cwd, 'synthetic base');
