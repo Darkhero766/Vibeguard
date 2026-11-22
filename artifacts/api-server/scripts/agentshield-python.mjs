@@ -68,7 +68,8 @@ export function scanPythonFiles(files = []) {
         const localTaint = Boolean(firstArgument && taintedVariables.has(firstArgument));
         if (!dynamic && !untrusted && !localTaint) return;
         const confidence = localTaint || (dynamic && untrusted) ? 'medium' : 'low';
-        findings.push(finding(file, 'python_shell_injection', 'High', confidence,
+        const severity = confidence === 'medium' ? 'High' : 'Medium';
+        findings.push(finding(file, 'python_shell_injection', severity, confidence,
           'Potential command injection through shell=True',
           'A subprocess call enables shell interpretation and appears to construct or source part of the command dynamically. Confirm whether the value can be influenced by an untrusted caller.',
           'Prefer an argument array with shell=False. Validate each argument against an allowlist and avoid building shell command strings.',
