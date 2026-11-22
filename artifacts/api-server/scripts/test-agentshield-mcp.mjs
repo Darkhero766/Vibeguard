@@ -64,6 +64,14 @@ test('scanner report requires exact non-empty changed-file coverage', () => {
   assert.throws(() => normalizeReport({ ...valid, scannedPaths: ['src/api.js', 'src/missing.js'], filesScanned: 2 }, ['src/api.js']));
   assert.throws(() => normalizeReport({ ...valid, filesScanned: 0, scannedPaths: [], findings: [] }, []));
   assert.throws(() => normalizeReport({ ...valid, status: 'error' }, ['src/api.js']));
+  const crowded = { ...valid, findings: Array.from({ length: 60 }, (_, index) => ({
+    filePath: 'src/api.js', line: index + 1, ruleId: 'rule-' + index, severity: 'Low', title: 'Finding ' + index,
+  })) };
+  const bounded = normalizeReport(crowded, ['src/api.js']);
+  assert.equal(bounded.status, 'partial_coverage');
+  assert.equal(bounded.findings.length, 50);
+  assert.equal(bounded.totalFindings, 60);
+  assert.equal(bounded.findingsTruncated, true);
   assert.throws(() => normalizeReport({ ...valid, scannedPaths: ['../outside.js'] }, ['../outside.js']));
   assert.throws(() => normalizeReport({ ...valid, scannedPaths: ['src/api.js', 'src/api.js'], filesScanned: 2 }, ['src/api.js']));
 });
