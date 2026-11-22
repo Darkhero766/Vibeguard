@@ -46,7 +46,7 @@ vibesane config --mode assist --completion-gate enforce --base-ref origin/main -
 vibesane status --cwd /absolute/path/to/project
 ```
 
-Use a locally available branch, remote-tracking ref, tag, or commit SHA. Refresh the configured remote-tracking ref before starting a new coding session. If the ref cannot be resolved or has no common merge base with HEAD, the scan fails closed. Shallow clones that do not contain the required base history must fetch the missing history or use a suitable available ref.
+Use a locally available target/base branch (commonly `origin/main`), tag, or commit SHA that is **not the coding branch itself**. Run the agent on a topic/feature branch that is ahead of that pinned base; otherwise committed changes on the base branch are not in the base-to-HEAD diff and an empty scope will block as UNKNOWN. Refresh the configured remote-tracking ref before starting a new coding session. If the ref cannot be resolved or has no common merge base with HEAD, the scan fails closed. Shallow clones that do not contain the required base history must fetch the missing history or use a suitable available ref.
 
 **Current file coverage:** the CLI currently selects JavaScript/TypeScript, Python, SQL, JSON, YAML and `.env` files. Markdown, Dockerfiles, arbitrary configuration formats, lockfiles not matching supported extensions, generated/binary files and other unsupported paths are not analyzed. Because enforcement is fail-closed, an unsupported changed path makes the final result UNKNOWN/blocking. This is intentional rather than treating an uninspected file as safe; teams that routinely modify docs or unsupported manifests need a separately reviewed policy or broader scanner coverage before enabling enforce mode for those changes.
 
