@@ -8,7 +8,7 @@ test('detects request-shaped shell command construction, but not a fixed command
   const vulnerable = scan([
     'import subprocess',
     'def export(request):',
-    '    command = f"convert {request.args.get(\\"file\\")}"',
+    '    command = f"convert {request.args}"',
     '    subprocess.run(command, shell=True)',
   ].join('\n'));
   assert.ok(vulnerable.some((f) => f.check === 'python_shell_injection' && f.severity === 'High'));
