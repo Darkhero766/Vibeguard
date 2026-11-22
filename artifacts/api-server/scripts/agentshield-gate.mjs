@@ -86,6 +86,11 @@ export async function snapshot(root, { baseRef = null } = {}) {
     ? diffChangedPaths(await git(real, ['diff', '--name-status', '-z', '--find-renames', baseCommit + '...HEAD', '--']))
     : [];
   const allPaths = [...new Set([...worktreePaths, ...committedPaths])].sort();
+  const ignoredChangedPaths = allPaths.filter((file) => {
+    const slash = file.replaceAll('\\\\', '/');
+    return !slash.startsWith('/') && !slash.split('/').includes('..')
+      && slash.split('/').some((part) => IGNORE.has(part));
+  });
   const paths = allPaths.filter(supported);
   const unsupportedChangedPaths = allPaths.filter((file) => !ignored(file) && !supported(file));
   if (allPaths.length > 100) throw new Error('Final gate file limit exceeded.');
@@ -134,6 +139,7 @@ export async function snapshot(root, { baseRef = null } = {}) {
   }
   return {
     changedPaths: paths,
+    ignoredChangedPaths,
     unsupportedChangedPaths,
     missingChangedPaths,
     unsafeChangedPaths,
@@ -163,12 +169,17 @@ export async function finalGate(root, config, scan) {
     if (before.unsupportedChangedPaths.length || before.missingChangedPaths.length || before.unsafeChangedPaths.length) {
       throw new Error('Unsupported, deleted, missing, or unsafe changed files prevent complete final coverage.');
     }
+    if (config.completionGate === 'enforce' && before.ignoredChangedPaths.length) {
+      throw new Error('Changed files under intentionally ignored directories prevent enforced completion coverage.');
+    }
     const report = await scan(root, ['--changed', ...(before.baseCommit ? ['--base-ref', before.baseCommit] : [])]);
     if (report.status !== 'complete') throw new Error('Scanner did not return a complete result.');
     const after = await snapshot(root, { baseRef: config.baseRef || null });
     if (before.fingerprint !== after.fingerprint) throw new Error('Files changed while final scan was running.');
     if (after.unsupportedChangedPaths.length || after.missingChangedPaths.length || after.unsafeChangedPaths.length)
       throw new Error('Unsupported, missing, or unsafe changed files appeared during the final scan.');
+    if (config.completionGate === 'enforce' && after.ignoredChangedPaths.length)
+      throw new Error('Changes under intentionally ignored directories appeared during the final scan.');
     if (!Array.isArray(report.scannedPaths) || !Array.isArray(report.findings)
       || !Number.isSafeInteger(report.filesScanned) || report.filesScanned !== before.changedPaths.length
       || report.scannedPaths.length !== before.changedPaths.length
