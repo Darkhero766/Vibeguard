@@ -236,12 +236,12 @@ test('JSON-RPC and tool schemas reject malformed input and unexpected keys', asy
   assert.equal(validateToolArguments('scan_changed', { workspace: '/repo', base_ref: '../main' }), false);
   assert.equal(validateToolArguments('scan_changed', { workspace: '/repo', extra: true }), false);
   assert.equal(validateToolArguments('list_findings', { workspace: '/repo', scan_id: 'scan-identifier-123' }), true);
-  assert.equal(validateToolArguments('list_findings', { workspace: '/repo', scan_id: 'scan-identifier-123', base_ref: 'main' }), true);
+  assert.equal(validateToolArguments('list_findings', { workspace: '/repo', scan_id: 'scan-identifier-123', base_ref: 'agentshield-base' }), true);
   assert.equal(validateToolArguments('list_findings', { workspace: '/repo' }), false);
   assert.equal(validateToolArguments('list_findings', { workspace: '/repo', scan_id: 'short' }), false);
   assert.equal(validateToolArguments('list_findings', { workspace: '/repo', scan_id: 'scan-identifier-123', extra: true }), false);
   assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo', baseline_id: 'scan-identifier-123' }), true);
-  assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo', baseline_id: 'scan-identifier-123', base_ref: 'main' }), true);
+  assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo', baseline_id: 'scan-identifier-123', base_ref: 'agentshield-base' }), true);
   assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo' }), false);
   assert.equal(validateToolArguments('verify_remediation', { workspace: '/repo', baseline_id: 'short' }), false);
   assert.equal(validateToolArguments('explain_finding', { rule_id: 'rls' }), true);
@@ -298,11 +298,12 @@ test('MCP workspace snapshot includes committed base-to-HEAD changes', async (t)
     await writeFile(path.join(root, 'src', 'app.js'), 'export const safe = true;\n');
     await exec('git', ['-C', root, 'add', '.']);
     await exec('git', ['-C', root, 'commit', '-qm', 'synthetic base']);
+    await exec('git', ['-C', root, 'branch', 'agentshield-base']);
     await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\n');
     await exec('git', ['-C', root, 'add', '.']);
     await exec('git', ['-C', root, 'commit', '-qm', 'committed change']);
 
-    const snapshot = await workspaceSnapshot(root, undefined, 'main');
+    const snapshot = await workspaceSnapshot(root, undefined, 'agentshield-base');
     assert.deepEqual(snapshot.changedPaths, ['src/app.js']);
     assert.deepEqual(snapshot.candidatePaths, ['src/app.js']);
     assert.equal(snapshot.baseCommit.length, 40);
@@ -328,17 +329,18 @@ test('MCP committed-diff scan, list and verification retain the same base-ref sc
     await writeFile(source, 'export const version = 1;\n');
     await exec('git', ['-C', root, 'add', '.']);
     await exec('git', ['-C', root, 'commit', '-qm', 'synthetic base']);
+    await exec('git', ['-C', root, 'branch', 'agentshield-base']);
     await writeFile(source, 'export const version = 2;\n');
     await exec('git', ['-C', root, 'add', '.']);
     await exec('git', ['-C', root, 'commit', '-qm', 'committed update']);
 
-    const first = await scanChanged({ workspace: root, base_ref: 'main' });
+    const first = await scanChanged({ workspace: root, base_ref: 'agentshield-base' });
     assert.equal(first.status, 'complete');
     assert.ok(first.scanId);
     assert.equal(first.baseRef.length, 40);
     const wrongScopeList = await listFindings(root, first.scanId);
     assert.equal(wrongScopeList.status, 'rescan_required');
-    const listed = await listFindings(root, first.scanId, { baseRef: 'main' });
+    const listed = await listFindings(root, first.scanId, { baseRef: 'agentshield-base' });
     assert.equal(listed.status, 'complete');
     assert.equal(listed.scanId, first.scanId);
     const wrongScopeVerify = await verifyRemediation(root, first.scanId);
@@ -348,10 +350,10 @@ test('MCP committed-diff scan, list and verification retain the same base-ref sc
     await writeFile(source, 'export const version = 3;\n');
     await exec('git', ['-C', root, 'add', '.']);
     await exec('git', ['-C', root, 'commit', '-qm', 'second committed update']);
-    const verified = await verifyRemediation(root, first.scanId, { baseRef: 'main' });
+    const verified = await verifyRemediation(root, first.scanId, { baseRef: 'agentshield-base' });
     assert.equal(verified.status, 'rescan_clean');
     assert.ok(verified.currentScanId);
-    const currentBaseline = await listFindings(root, verified.currentScanId, { baseRef: 'main' });
+    const currentBaseline = await listFindings(root, verified.currentScanId, { baseRef: 'agentshield-base' });
     assert.equal(currentBaseline.status, 'complete');
     assert.equal(currentBaseline.baseRef.length, 40);
   } finally {
