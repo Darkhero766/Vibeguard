@@ -326,7 +326,8 @@ test('final gate fails closed when configured base ref is missing', async () => 
 test('enforced final gate rejects a base at HEAD or on an unrelated branch', async () => {
   const root = await repoFixture();
   try {
-    await exec('git', ['-C', root, 'checkout', '-qb', 'unrelated-base']);
+    await exec('git', ['-C', root, 'checkout', '--orphan', 'unrelated-base']);
+    await exec('git', ['-C', root, 'rm', '-rf', '.']);
     await writeFile(path.join(root, 'unrelated.txt'), 'independent history\n');
     await exec('git', ['-C', root, 'add', 'unrelated.txt']);
     await exec('git', ['-C', root, 'commit', '-qm', 'unrelated base history']);
