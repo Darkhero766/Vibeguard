@@ -42,6 +42,24 @@ test('final gate refuses mixed supported and unsupported changed files', async (
   }
 });
 
+test('final gate rejects scanner-reported incomplete status even when file counts match', async () => {
+  const root = await repoFixture();
+  try {
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const safe = false;\\n');
+    const result = await finalGate(root, { blockingSeverity: 'High' }, async () => ({
+      status: 'scan_incomplete',
+      filesScanned: 1,
+      scannedPaths: ['src/app.js'],
+      findings: [],
+    }));
+    assert.equal(result.status, 'scan_incomplete');
+    assert.equal(result.blocking, 0);
+    assert.equal(result.securityGuarantee, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('final gate fails closed when a changed supported file was deleted', async () => {
   const root = await repoFixture();
   try {
