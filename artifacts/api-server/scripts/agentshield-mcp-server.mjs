@@ -144,11 +144,17 @@ async function canonicalRoot(workspace) {
   if (await realpath(result.stdout.trim()) !== root) throw new Error('Workspace must be the Git repository root.');
   return root;
 }
+function normalizedPath(file) {
+  return file.replaceAll('\\', '/');
+}
+function ignoredPath(file) {
+  const normalized = normalizedPath(file);
+  return normalized.startsWith('/') || normalized.split('/').includes('..')
+    || normalized.split('/').some((part) => IGNORE_PARTS.has(part));
+}
 function supportedPath(file) {
-  const normalized = file.replaceAll('\\', '/');
-  if (!normalized || normalized.startsWith('/') || normalized.split('/').includes('..')) return false;
-  return !normalized.split('/').some((part) => IGNORE_PARTS.has(part))
-    && (SOURCE_FILE.test(normalized) || ENV_FILE.test(normalized));
+  const normalized = normalizedPath(file);
+  return !ignoredPath(normalized) && (SOURCE_FILE.test(normalized) || ENV_FILE.test(normalized));
 }
 function changedEntries(status) {
   const chunks = status.split('\0');
@@ -176,7 +182,9 @@ async function gitStatus(root) {
 export async function workspaceSnapshot(workspace) {
   const root = await canonicalRoot(workspace);
   const status = await gitStatus(root);
-  const paths = changedEntries(status).filter(supportedPath);
+  const allChangedPaths = changedEntries(status);
+  const paths = allChangedPaths.filter(supportedPath);
+  const unsupportedChangedPaths = allChangedPaths.filter((file) => !ignoredPath(file) && !supportedPath(file));
   if (paths.length > MAX_FILES) throw new Error('Changed-file limit exceeded.');
   let totalBytes = 0;
   const observations = [];
@@ -218,6 +226,7 @@ export async function workspaceSnapshot(workspace) {
   return {
     root,
     changedPaths: paths,
+    unsupportedChangedPaths,
     candidatePaths,
     fingerprint: sha256(status + JSON.stringify(observations)),
   };
@@ -307,13 +316,32 @@ export async function scanChanged({ workspace } = {}) {
   const snapshot = await workspaceSnapshot(workspace);
   if (!snapshot.candidatePaths.length) {
     cache.delete(snapshot.root);
+    if (snapshot.unsupportedChangedPaths.length) {
+      return {
+        status: 'partial_coverage',
+        filesScanned: 0,
+        findings: [],
+        totalFindings: 0,
+        unsupportedChangedFiles: snapshot.unsupportedChangedPaths.slice(0, 30).map((file) => bounded(file, 300)),
+        unsupportedChangedFileCount: snapshot.unsupportedChangedPaths.length,
+        securityGuarantee: false,
+        note: 'Changed files exist, but none are in AgentShield supported scan formats. No security assessment was performed.',
+      };
+    }
     return runScanner(snapshot.root, []);
   }
   const result = await runScanner(snapshot.root, snapshot.candidatePaths);
   const after = await workspaceSnapshot(snapshot.root);
   if (snapshot.fingerprint !== after.fingerprint) throw new Error('Workspace changed during the scan; results are UNKNOWN.');
-  cache.set(snapshot.root, { fingerprint: after.fingerprint, result });
-  return result;
+  const scopedResult = snapshot.unsupportedChangedPaths.length ? {
+    ...result,
+    status: 'partial_coverage',
+    unsupportedChangedFiles: snapshot.unsupportedChangedPaths.slice(0, 30).map((file) => bounded(file, 300)),
+    unsupportedChangedFileCount: snapshot.unsupportedChangedPaths.length,
+    note: 'AgentShield scanned the supported changed-file subset only. Unsupported changed files were not analyzed; do not report a clean security status.',
+  } : result;
+  cache.set(snapshot.root, { fingerprint: after.fingerprint, result: scopedResult });
+  return scopedResult;
 }
 export async function listFindings(workspace) {
   let root;
@@ -341,11 +369,29 @@ export async function verifyRemediation(workspace) {
   }
   if (!before.candidatePaths.length) {
     cache.delete(before.root);
-    return { status: 'scan_incomplete', securityGuarantee: false, note: 'No supported changed source files remain; remediation cannot be verified.' };
+    return {
+      status: 'verification_incomplete',
+      securityGuarantee: false,
+      unsupportedChangedFileCount: before.unsupportedChangedPaths.length,
+      note: 'No supported changed source files remain. Remediation cannot be verified from the available changed-file scope.',
+    };
   }
   const current = await runScanner(before.root, before.candidatePaths);
   const after = await workspaceSnapshot(before.root);
   if (before.fingerprint !== after.fingerprint) throw new Error('Workspace changed during the verification scan; status UNKNOWN.');
+  if (before.unsupportedChangedPaths.length || baseline.result.status !== 'complete') {
+    return {
+      status: 'verification_incomplete',
+      baselineFindings: baseline.result.totalFindings,
+      currentFindings: current.totalFindings,
+      unsupportedChangedFiles: before.unsupportedChangedPaths.slice(0, 30).map((file) => bounded(file, 300)),
+      unsupportedChangedFileCount: before.unsupportedChangedPaths.length,
+      verificationLevel: 'partial_static_rescan',
+      runtimeTestsExecuted: false,
+      securityGuarantee: false,
+      note: 'The baseline or current change set contains unsupported files. AgentShield cannot verify the full changed-file set.',
+    };
+  }
   if (baseline.result.findingsTruncated || current.findingsTruncated) {
     return {
       status: 'verification_incomplete',
