@@ -35,6 +35,16 @@ vibesane doctor --cwd /absolute/path/to/project
 
 The tarball is local and unpublished. The package script checks its file manifest and SHA-256 digest when it is built. This documentation does not imply that the archive has already been built or runtime-tested.
 
+## Completion gate and host enforcement
+
+The default `completionGate` is `advisory` for compatibility. To opt into enforcement in a Claude Code project, run `vibesane config --mode assist --completion-gate enforce --cwd /absolute/path/to/project`, then check the persisted setting with `vibesane status --cwd /absolute/path/to/project`.
+
+With enforcement enabled, the Claude Code Stop hook returns an explicit `decision: block` when the final changed-file scan is incomplete, previously flagged files are not covered, or findings at/above the configured blocking severity remain. The block persists until the scan is complete and blockers are resolved; an exhausted remediation budget does not convert a blocker into a pass. Developers can still interrupt the host or explicitly change local policy, so this is a host-level control, not a tamper-proof boundary.
+
+**Host distinction:** Claude Code's Stop hook has an explicit block response. Cursor's documented `followup_message` is a continuation mechanism, not an equivalent hard delivery gate. Codex MCP + skill guidance is advisory in this beta and does not intercept final delivery. Do not advertise equivalent enforcement across all hosts.
+
+`monitor` reports findings only; `assist` asks the agent to propose a repair; `auto-fix` may request bounded repair under host permissions. `completionGate: enforce` is independent of repair mode and can block even when automatic repair is disabled.
+
 ## Connect the coding agents
 
 ### Codex
