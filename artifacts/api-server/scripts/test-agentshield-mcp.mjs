@@ -1,7 +1,9 @@
-import test from 'node:test';import assert from 'node:assert/strict';import{TOOL_DEFS,explainFinding,listFindings,handleMessage,statusTool}from'./agentshield-mcp-server.mjs';
-test('read-only tool set',()=>{assert.deepEqual(TOOL_DEFS.map(x=>x.name),['scan_changed','list_findings','explain_finding','status']);assert.ok(TOOL_DEFS.every(x=>x.inputSchema.additionalProperties===false));});
+import test from 'node:test';import assert from 'node:assert/strict';import{TOOL_DEFS,explainFinding,listFindings,handleMessage,statusTool,normalizeReport}from'./agentshield-mcp-server.mjs';
+test('only read-only tools exposed and schemas reject extras',()=>{assert.deepEqual(TOOL_DEFS.map(x=>x.name),['scan_changed','list_findings','explain_finding','status']);assert.ok(TOOL_DEFS.every(x=>x.inputSchema.additionalProperties===false));});
 test('guidance is deterministic and bounded',()=>{assert.match(explainFinding('secret_leak').guidance,/rotate/i);assert.equal(explainFinding('unknown').securityGuarantee,false);assert.throws(()=>explainFinding('x'.repeat(101)));});
-test('no scan is not reported as clean',()=>assert.equal(listFindings('/unknown').status,'no_scan'));
-test('MCP init/list',async()=>{assert.equal((await handleMessage({jsonrpc:'2.0',id:1,method:'initialize'})).result.serverInfo.name,'vibesane-agentshield');assert.equal((await handleMessage({jsonrpc:'2.0',id:2,method:'tools/list'})).result.tools.length,4);});
-test('unknown method error',async()=>assert.equal((await handleMessage({jsonrpc:'2.0',id:3,method:'invalid'})).error.code,-32601));
-test('scanner readiness fail closed',async()=>assert.equal((await statusTool('/missing')).status,'not_ready'));
+test('no scan is not reported as clean',async()=>assert.equal((await listFindings('/unknown')).status,'no_scan'));
+test('MCP init/list and protocol error',async()=>{assert.equal((await handleMessage({jsonrpc:'2.0',id:1,method:'initialize'})).result.serverInfo.name,'vibesane-agentshield');assert.equal((await handleMessage({jsonrpc:'2.0',id:2,method:'tools/list'})).result.tools.length,4);assert.equal((await handleMessage({jsonrpc:'2.0',id:3,method:'invalid'})).error.code,-32601);});
+test('scanner readiness fails closed',async()=>assert.equal((await statusTool('/missing')).status,'not_ready'));
+test('normalizes actual CLI schema and suppresses excerpts',()=>{const r=normalizeReport({status:'complete',filesScanned:1,scannedPaths:['a.js'],findings:[{filePath:'a.js',line:2,check:'secret',severity:'High',title:'Secret detected',description:'RAW SECRET'}]});assert.equal(r.findings[0].ruleId,'secret');assert.equal(JSON.stringify(r).includes('RAW SECRET'),false);});
+test('partial/error/malformed reports return UNKNOWN',()=>{for(const x of [{status:'error',findings:[]},{status:'complete',filesScanned:2,scannedPaths:['x'],findings:[]},{status:'complete',filesScanned:0,scannedPaths:[],findings:'bad'}])assert.throws(()=>normalizeReport(x));});
+test('coverage caps are enforced',()=>assert.throws(()=>normalizeReport({status:'complete',filesScanned:201,scannedPaths:Array(201).fill('x'),findings:[]})));
