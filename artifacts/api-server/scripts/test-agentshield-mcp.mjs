@@ -15,6 +15,9 @@ import {
   negotiateProtocol,
   normalizeReport,
   scanChanged,
+  listFindings,
+  verifyRemediation,
+  statusTool,
   validateRpcMessage,
   validateToolArguments,
   workspaceSnapshot,
@@ -304,6 +307,45 @@ test('MCP workspace snapshot includes committed base-to-HEAD changes', async (t)
     assert.deepEqual(snapshot.candidatePaths, ['src/app.js']);
     assert.equal(snapshot.baseCommit.length, 40);
     assert.notEqual(snapshot.fingerprint, (await workspaceSnapshot(root)).fingerprint);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('MCP committed-diff scan, list and verification retain the same base-ref scope', async (t) => {
+  if ((await statusTool()).status !== 'ready') {
+    t.skip('Build the standalone scanner before MCP scan acceptance tests.');
+    return;
+  }
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-base-loop-'));
+  try {
+    await exec('git', ['init', '-q', root]);
+    await exec('git', ['-C', root, 'branch', '-M', 'main']);
+    await exec('git', ['-C', root, 'config', 'user.name', 'AgentShield Test']);
+    await exec('git', ['-C', root, 'config', 'user.email', 'agentshield-test@example.invalid']);
+    await mkdir(path.join(root, 'src'));
+    const source = path.join(root, 'src', 'app.js');
+    await writeFile(source, 'export const version = 1;\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'synthetic base']);
+    await writeFile(source, 'export const version = 2;\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'committed update']);
+
+    const first = await scanChanged({ workspace: root, base_ref: 'main' });
+    assert.equal(first.status, 'complete');
+    assert.ok(first.scanId);
+    assert.equal(first.baseRef.length, 40);
+    const listed = await listFindings(root, first.scanId, { baseRef: 'main' });
+    assert.equal(listed.status, 'complete');
+    assert.equal(listed.scanId, first.scanId);
+
+    await writeFile(source, 'export const version = 3;\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'second committed update']);
+    const verified = await verifyRemediation(root, first.scanId, { baseRef: 'main' });
+    assert.equal(verified.status, 'rescan_clean');
+    assert.ok(verified.currentScanId);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
