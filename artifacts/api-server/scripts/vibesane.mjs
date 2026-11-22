@@ -91,8 +91,13 @@ async function initCodexSkill(args) {
   await ensureSafeDirectory(codexDir);
   const hooksFile = path.join(codexDir, 'hooks.json');
   const config = await readSafeJsonFile(hooksFile);
-  const hooks = config.hooks && typeof config.hooks === 'object' && !Array.isArray(config.hooks)
-    ? config.hooks : {};
+  if (config.hooks != null && (typeof config.hooks !== 'object' || Array.isArray(config.hooks))) {
+    throw new Error('Refusing malformed Codex hooks object.');
+  }
+  const hooks = config.hooks || {};
+  if (hooks.Stop != null && !Array.isArray(hooks.Stop)) {
+    throw new Error('Refusing malformed Codex Stop hook list.');
+  }
   const command = codexHookCommand();
   removeCodexStopEntry(hooks, command);
   const stop = Array.isArray(hooks.Stop) ? hooks.Stop : [];
@@ -143,7 +148,13 @@ async function uninstallCodex(args) {
   const codexDir = path.join(root, '.codex');
   const hooksFile = path.join(codexDir, 'hooks.json');
   const config = await readSafeJsonFile(hooksFile);
-  const hooks = config.hooks && typeof config.hooks === 'object' && !Array.isArray(config.hooks) ? config.hooks : {};
+  if (config.hooks != null && (typeof config.hooks !== 'object' || Array.isArray(config.hooks))) {
+    throw new Error('Refusing malformed Codex hooks object.');
+  }
+  const hooks = config.hooks || {};
+  if (hooks.Stop != null && !Array.isArray(hooks.Stop)) {
+    throw new Error('Refusing malformed Codex Stop hook list.');
+  }
   const changed = removeCodexStopEntry(hooks, codexHookCommand());
   if (Object.keys(hooks).length) config.hooks = hooks;
   else delete config.hooks;
