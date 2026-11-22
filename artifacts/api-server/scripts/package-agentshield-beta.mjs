@@ -115,7 +115,7 @@ async function main() {
   await writeFile(path.join(stage, 'README.md'), [
     '# VibeSane AgentShield (unpublished developer preview)',
     '',
-    'Local static security scanning, Claude Code hooks, Cursor Stop feedback, and a read-only MCP server.',
+    'Local static security scanning, Claude Code and Codex Stop hooks, Cursor Stop feedback, and a read-only MCP server.',
     'Requires Node.js >=20, Git, and macOS/Linux. This is an opt-in beta, not a security certification.',
     '',
     '## Install locally',
@@ -130,7 +130,8 @@ async function main() {
     'Enforce mode scans the target-base-to-HEAD committed diff plus staged, modified, and untracked files. Use a local target/upstream base such as origin/main that is distinct from the coding branch; keep it fetched. Missing history, deleted/unsupported paths, or incomplete scans fail closed.',
     'The gate blocks on unresolved configured-severity findings, incomplete/unknown scans, no changed-path evidence, a disabled scanner, or scan races. A host-level guard is not tamper-proof.',
     'MCP scan_changed also accepts optional base_ref; pass the same value to list_findings and verify_remediation.',
-    'Codex project workflow: vibesane init-codex --cwd /absolute/path/to/project (installs the included skill without overwriting files).',
+    'Codex project workflow and Stop hook: vibesane init-codex --cwd /absolute/path/to/project; then review/trust the project hook in Codex with /hooks.',
+    'Uninstall the Codex Stop hook and unmodified bundled skill: vibesane uninstall-codex --cwd /absolute/path/to/project.',
     'Cursor Stop hook: merge the included cursor-hooks.json into the project .cursor/hooks.json; do not overwrite existing hooks.',
     'For a bounded Cursor remediation loop, explicitly set vibesane config --mode auto-fix --cwd /absolute/path/to/project.',
     'Host hook permissions and user approvals remain authoritative.',
