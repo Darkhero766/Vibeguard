@@ -70,7 +70,7 @@ vibesane config --mode assist --completion-gate enforce --base-ref origin/main -
 
 The current CLI scans JavaScript/TypeScript, Python, SQL, JSON, YAML and `.env` paths. Markdown, Dockerfiles, unsupported manifests, binary/generated files and other unknown extensions are reported as unsupported; enforce mode blocks rather than silently skipping them. This is a known usability limitation that must be addressed with additional analyzers or an explicit, reviewed path-policy feature before broad organizational rollout.
 
-The configured ref must exist locally and should be refreshed before each coding session. Missing history in shallow clones, an unavailable ref or no common merge base results in UNKNOWN. Codex/Cursor still do not have a host-level hard completion gate equivalent to Claude Code Stop.
+The configured ref must exist locally, be the target/upstream of the topic branch (not the current coding branch), and should be refreshed before each coding session. Missing history in shallow clones, an unavailable ref or no common merge base results in UNKNOWN. Codex/Cursor still do not have a host-level hard completion gate equivalent to Claude Code Stop.
 
 The new regression tests cover committed changes after a clean commit, remediation committed after the blocker, renamed files, deleted files, missing refs, dirty worktree paths unioned with committed changes, MCP workspace fingerprints and Claude Stop enforcement over committed changes. These are **test cases added, not test results** until the local qualification runner actually executes.
 
