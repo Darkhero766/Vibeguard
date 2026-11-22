@@ -117,7 +117,7 @@ async function main(args) {
       '  vibesane scan --changed [--cwd PROJECT]',
       '  vibesane verify --changed [--cwd PROJECT]',
       '  vibesane status [--cwd PROJECT]',
-      '  vibesane config [--mode monitor|assist|auto-fix] [--cwd PROJECT]',
+      '  vibesane config [--mode monitor|assist|auto-fix] [--completion-gate advisory|enforce] [--cwd PROJECT]',
       '  vibesane acknowledge --rule RULE --file PATH --reason CODE --hours N [--cwd PROJECT]',
       '  vibesane init [--cwd PROJECT]          Install Claude Code hooks',
       '  vibesane init-codex [--cwd PROJECT]    Install the Codex project skill',
@@ -126,6 +126,8 @@ async function main(args) {
       '  vibesane hybrid --changed [--enable-ast]',
       '  vibesane-mcp                           Start read-only MCP stdio server',
       '',
+      'Completion enforcement is opt-in: vibesane config --completion-gate enforce --cwd PROJECT.',
+      'Claude Code Stop hooks can block on blockers or UNKNOWN scans; Cursor follow-up is not an equivalent hard gate.',
       'Static checks cover supported changed files only. A clean result is not a security certification.',
       '',
     ].join('\n'));
