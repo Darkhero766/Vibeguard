@@ -351,6 +351,9 @@ test('MCP committed-diff scan, list and verification retain the same base-ref sc
     const verified = await verifyRemediation(root, first.scanId, { baseRef: 'main' });
     assert.equal(verified.status, 'rescan_clean');
     assert.ok(verified.currentScanId);
+    const currentBaseline = await listFindings(root, verified.currentScanId, { baseRef: 'main' });
+    assert.equal(currentBaseline.status, 'complete');
+    assert.equal(currentBaseline.baseRef.length, 40);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
