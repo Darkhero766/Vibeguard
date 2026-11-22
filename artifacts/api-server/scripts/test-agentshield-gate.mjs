@@ -109,6 +109,24 @@ test('final gate rejects an invalid blocking threshold instead of silently allow
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test('final gate rejects an invalid completion policy instead of treating it as advisory', async () => {
+  const root = await repoFixture();
+  try {
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const changed = true;\n');
+    let scannerCalled = false;
+    const result = await finalGate(root, {
+      blockingSeverity: 'High',
+      completionGate: 'always',
+    }, async () => {
+      scannerCalled = true;
+      return { status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'], findings: [] };
+    });
+    assert.equal(result.status, 'scan_incomplete');
+    assert.equal(result.securityGuarantee, false);
+    assert.equal(scannerCalled, false);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test('final gate rejects duplicated scan paths even when the numeric file count matches', async () => {
   const root = await repoFixture();
   try {
