@@ -6,6 +6,7 @@ import { readFile, lstat, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { scanApiFiles } from '../src/lib/apiScanner.ts';
 import { scanExtendedFilesV2 } from '../src/lib/extendedScannerV2.ts';
+import { scanPythonFiles } from './agentshield-python.mjs';
 
 const run = promisify(execFile);
 const MAX_FILES = 100;
@@ -133,6 +134,13 @@ function unsafeSqlTemplate(files) {
 }
 
 const fixes = {
+  python_shell_injection: 'Use subprocess argument arrays with shell=False; validate any user-controlled arguments.',
+  python_unsafe_deserialization: 'Do not unpickle untrusted data; use schema-validated JSON or another safe format.',
+  python_unsafe_yaml_load: 'Use yaml.safe_load or SafeLoader and validate the parsed object.',
+  python_tls_verification_disabled: 'Enable TLS certificate verification and configure a trusted CA when needed.',
+  python_insecure_tempfile: 'Use NamedTemporaryFile, TemporaryDirectory, or mkstemp to create files securely.',
+  python_dynamic_code_from_input: 'Remove eval/exec on untrusted data and replace it with a fixed operation map.',
+  python_scan_limit: 'Run a dedicated Python SAST tool or review the file in smaller bounded units.',
   unsafe_sql_template: 'Use parameterized queries or a safe query builder; never interpolate untrusted values into SQL.',
   unauthenticated_write: 'Validate the session and resource ownership before database writes.',
   service_role_client: 'Keep privileged database keys only in server-side configuration.',
@@ -147,7 +155,12 @@ function redact(value, max = 1400) {
 }
 
 function analyze(files) {
-  const combined = [...scanApiFiles(files), ...scanExtendedFilesV2(files), ...unsafeSqlTemplate(files)];
+  const combined = [
+    ...scanApiFiles(files),
+    ...scanExtendedFilesV2(files),
+    ...unsafeSqlTemplate(files),
+    ...scanPythonFiles(files),
+  ];
   const unique = new Map();
   for (const f of combined) {
     const key = [f.filePath, f.line, f.check, f.title].join(':');
