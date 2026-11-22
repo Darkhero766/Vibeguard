@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, writeFile, rm, unlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, unlink, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { snapshot, finalGate } from './agentshield-gate.mjs';
@@ -73,6 +73,27 @@ test('final gate fails closed when a changed supported file was deleted', async 
     assert.equal(result.securityGuarantee, false);
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('final gate refuses symlinked changed paths before scanner execution', async () => {
+  const root = await repoFixture();
+  const outside = path.join(os.tmpdir(), 'agentshield-gate-outside-' + process.pid + '.js');
+  try {
+    await writeFile(outside, 'export const external = true;\n');
+    await symlink(outside, path.join(root, 'src', 'linked.js'));
+    const state = await snapshot(root);
+    assert.deepEqual(state.unsafeChangedPaths, ['src/linked.js']);
+    let called = false;
+    const result = await finalGate(root, { blockingSeverity: 'High' }, async () => {
+      called = true;
+      return { status: 'complete', filesScanned: 1, scannedPaths: ['src/linked.js'], findings: [] };
+    });
+    assert.equal(result.status, 'scan_incomplete');
+    assert.equal(called, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { force: true });
   }
 });
 
