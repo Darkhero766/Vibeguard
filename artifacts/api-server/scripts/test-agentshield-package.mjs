@@ -82,8 +82,10 @@ try {
   archive = packaged.archive;
   const packagedReadme = await run('tar', ['-xOf', archive, 'package/README.md']);
   assert(packagedReadme.stdout.includes('--completion-gate enforce')
-    && packagedReadme.stdout.includes('--base-ref origin/main'),
-    'Packaged README omits commit-aware Claude Code completion enforcement instructions.');
+    && packagedReadme.stdout.includes('--base-ref origin/main')
+    && packagedReadme.stdout.includes('Codex Stop hooks')
+    && packagedReadme.stdout.includes('init-codex'),
+    'Packaged README omits commit-aware Claude/Codex completion enforcement instructions.');
 
   await run('npm', ['install', '--global', '--ignore-scripts', '--offline', '--no-audit', '--no-fund', '--prefix', installPrefix, archive], {
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_offline: 'true' },
@@ -98,6 +100,16 @@ try {
   await writeFile(path.join(fixture, 'src', 'index.js'), 'export const baseline = true;\n');
   await run('git', ['init', '-q', fixture]);
   await run('git', ['-C', fixture, 'branch', '-M', 'main']);
+  const codexInit = await run(cli, ['init-codex', '--cwd', fixture], { cwd: temp });
+  const codexInstall = JSON.parse(codexInit.stdout);
+  assert(codexInstall.status === 'installed'
+    && codexInstall.hook.endsWith(path.join('.codex', 'hooks.json')),
+    'Installed package could not configure Codex project Stop hook.');
+  const codexHooksFile = path.join(fixture, '.codex', 'hooks.json');
+  const codexHooks = JSON.parse(await readFile(codexHooksFile, 'utf8'));
+  assert(codexHooks.hooks.Stop.some(entry => entry.hooks.some(item =>
+    item.command?.includes('agentshield-codex-stop.mjs'))),
+    'Codex Stop hook entry is missing from installed package.');
   await run('git', ['-C', fixture, 'config', 'user.name', 'AgentShield Package Smoke']);
   await run('git', ['-C', fixture, 'config', 'user.email', 'agentshield-smoke@example.invalid']);
   await run('git', ['-C', fixture, 'add', '.']);
@@ -126,6 +138,10 @@ try {
     { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'status', arguments: {} } },
   ];
   const mcpResult = await runMcp(mcp, requests.map(x => JSON.stringify(x)).join('\n') + '\n');
+  const codexUninstall = await run(cli, ['uninstall-codex', '--cwd', fixture], { cwd: temp });
+  const codexUninstallResult = JSON.parse(codexUninstall.stdout);
+  assert(codexUninstallResult.hookRemoved === true && codexUninstallResult.skillRemoved === true,
+    'Installed package could not safely remove its Codex hook and matching skill.');
   const byId = new Map(mcpResult.messages.map(message => [message.id, message]));
   assert(byId.get(1)?.result?.protocolVersion === '2025-11-25', 'MCP initialize did not negotiate the expected protocol.');
   const tools = byId.get(2)?.result?.tools;
@@ -140,7 +156,7 @@ try {
     packageSha256: packaged.sha256,
     packageBytes: packaged.archiveBytes,
     packagedFiles: packaged.fileCount,
-    checks: ['build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor', 'synthetic-scan', 'mcp-initialize', 'mcp-tools-list', 'mcp-status'],
+    checks: ['build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor', 'codex-init-hook', 'synthetic-committed-scan', 'mcp-initialize', 'mcp-tools-list', 'mcp-status', 'codex-uninstall'],
     fixture: 'synthetic-disposable-git-repository',
     published: false,
   }) + '\n');
