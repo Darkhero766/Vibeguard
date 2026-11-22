@@ -44,6 +44,9 @@ const FIXED_ENV = Object.freeze({
 const bounded = (value, max = 300) => typeof value === 'string'
   ? value.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, max) : '';
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+function throwIfAborted(signal) {
+  if (signal?.aborted) { const error = new Error('MCP request cancelled.'); error.name = 'AbortError'; throw error; }
+}
 
 export const TOOL_DEFS = [
   {
@@ -137,7 +140,8 @@ const GUIDANCE = Object.freeze({
 function gitArgs(root, extra) {
   return ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-C', root, ...extra];
 }
-async function canonicalRoot(workspace) {
+async function canonicalRoot(workspace, signal) {
+  throwIfAborted(signal);
   if (typeof workspace !== 'string' || !workspace.trim() || workspace.length > 4096 || !path.isAbsolute(workspace)) {
     throw new Error('Workspace must be an absolute path.');
   }
@@ -146,7 +150,7 @@ async function canonicalRoot(workspace) {
   if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Workspace must be a non-symlink directory.');
   const root = await realpath(input);
   const result = await exec('git', gitArgs(root, ['rev-parse', '--show-toplevel']), {
-    timeout: 5000, maxBuffer: 4096, windowsHide: true, env: FIXED_ENV,
+    timeout: 5000, maxBuffer: 4096, windowsHide: true, env: FIXED_ENV, signal,
   });
   if (await realpath(result.stdout.trim()) !== root) throw new Error('Workspace must be the Git repository root.');
   return root;
@@ -177,18 +181,20 @@ function changedEntries(status) {
   }
   return [...new Set(files)].sort();
 }
-async function gitStatus(root) {
+async function gitStatus(root, signal) {
+  throwIfAborted(signal);
   const result = await exec('git', gitArgs(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']), {
-    timeout: 7000, maxBuffer: MAX_OUTPUT, windowsHide: true, env: FIXED_ENV,
+    timeout: 7000, maxBuffer: MAX_OUTPUT, windowsHide: true, env: FIXED_ENV, signal,
   });
   return result.stdout;
 }
 
 // Hash actual changed-file bytes as well as Git status. This invalidates a cached scan
 // even when an already-dirty file changes again without changing its porcelain status.
-export async function workspaceSnapshot(workspace) {
-  const root = await canonicalRoot(workspace);
-  const status = await gitStatus(root);
+export async function workspaceSnapshot(workspace, signal) {
+  throwIfAborted(signal);
+  const root = await canonicalRoot(workspace, signal);
+  const status = await gitStatus(root, signal);
   const allChangedPaths = changedEntries(status);
   const paths = allChangedPaths.filter(supportedPath);
   const unsupportedChangedPaths = allChangedPaths.filter((file) => !ignoredPath(file) && !supportedPath(file));
@@ -200,6 +206,7 @@ export async function workspaceSnapshot(workspace) {
   // Otherwise an unsupported file could change during a scan without invalidating
   // the snapshot when its Git porcelain status was already dirty.
   for (const relativePath of allChangedPaths.filter((file) => !ignoredPath(file))) {
+    throwIfAborted(signal);
     const fullPath = path.resolve(root, relativePath);
     const relative = path.relative(root, fullPath);
     if (!relative || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
@@ -296,14 +303,15 @@ export function normalizeReport(report, expectedPaths) {
   };
 }
 
-async function runScanner(root, expectedPaths) {
+async function runScanner(root, expectedPaths, signal) {
+  throwIfAborted(signal);
   if (!expectedPaths.length) return { status: 'no_supported_changes', filesScanned: 0, scannedPaths: [], findings: [], totalFindings: 0, securityGuarantee: false, note: 'No supported changed source files were available; no security assessment was performed.' };
   const ready = await statusTool();
   if (!ready.scannerBuilt) throw new Error('AgentShield scanner is not built.');
   let output;
   try {
     output = await exec(process.execPath, [SCANNER, 'scan', '--changed', '--cwd', root, '--format', 'json'], {
-      timeout: 15000, maxBuffer: MAX_OUTPUT, windowsHide: true, env: FIXED_ENV,
+      timeout: 15000, maxBuffer: MAX_OUTPUT, windowsHide: true, env: FIXED_ENV, signal,
     });
   } catch (error) {
     if ((error?.code === 1 || error?.code === 2) && typeof error.stdout === 'string') output = { stdout: error.stdout };
@@ -326,8 +334,9 @@ export function compareFindings(previous, current) {
     newFindings: current.filter((finding) => !previousKeys.has(findingKey(finding))),
   };
 }
-export async function scanChanged({ workspace } = {}) {
-  const snapshot = await workspaceSnapshot(workspace);
+export async function scanChanged({ workspace } = {}, { signal } = {}) {
+  throwIfAborted(signal);
+  const snapshot = await workspaceSnapshot(workspace, signal);
   if (!snapshot.candidatePaths.length) {
     cache.delete(snapshot.root);
     if (snapshot.unsupportedChangedPaths.length) {
@@ -344,8 +353,8 @@ export async function scanChanged({ workspace } = {}) {
     }
     return runScanner(snapshot.root, []);
   }
-  const result = await runScanner(snapshot.root, snapshot.candidatePaths);
-  const after = await workspaceSnapshot(snapshot.root);
+  const result = await runScanner(snapshot.root, snapshot.candidatePaths, signal);
+  const after = await workspaceSnapshot(snapshot.root, signal);
   if (snapshot.fingerprint !== after.fingerprint) throw new Error('Workspace changed during the scan; results are UNKNOWN.');
   const scopedResult = snapshot.unsupportedChangedPaths.length ? {
     ...result,
@@ -357,10 +366,11 @@ export async function scanChanged({ workspace } = {}) {
   cache.set(snapshot.root, { fingerprint: after.fingerprint, result: scopedResult });
   return scopedResult;
 }
-export async function listFindings(workspace) {
+export async function listFindings(workspace, { signal } = {}) {
   let root;
   try {
-    const snapshot = await workspaceSnapshot(workspace);
+    throwIfAborted(signal);
+    const snapshot = await workspaceSnapshot(workspace, signal);
     root = snapshot.root;
     const previous = cache.get(root);
     if (!previous) return { status: 'no_scan', findings: [], note: 'Run scan_changed first; no security assessment has been performed.' };
@@ -370,12 +380,14 @@ export async function listFindings(workspace) {
     }
     return previous.result;
   } catch {
+    throwIfAborted(signal);
     if (root) cache.delete(root);
     return { status: 'unknown', findings: [], note: 'Workspace could not be safely verified; no clean result is available.' };
   }
 }
-export async function verifyRemediation(workspace) {
-  const before = await workspaceSnapshot(workspace);
+export async function verifyRemediation(workspace, { signal } = {}) {
+  throwIfAborted(signal);
+  const before = await workspaceSnapshot(workspace, signal);
   const baseline = cache.get(before.root);
   if (!baseline) return { status: 'no_baseline', securityGuarantee: false, note: 'Run scan_changed before editing; no prior findings are available for comparison.' };
   if (before.fingerprint === baseline.fingerprint) {
@@ -390,8 +402,8 @@ export async function verifyRemediation(workspace) {
       note: 'No supported changed source files remain. Remediation cannot be verified from the available changed-file scope.',
     };
   }
-  const current = await runScanner(before.root, before.candidatePaths);
-  const after = await workspaceSnapshot(before.root);
+  const current = await runScanner(before.root, before.candidatePaths, signal);
+  const after = await workspaceSnapshot(before.root, signal);
   if (before.fingerprint !== after.fingerprint) throw new Error('Workspace changed during the verification scan; status UNKNOWN.');
   if (before.unsupportedChangedPaths.length || baseline.result.status !== 'complete' || current.status !== 'complete') {
     return {
@@ -505,7 +517,7 @@ function withModernMetadata(result, { cacheable = false } = {}) {
 function rpcError(id, code, message, data) {
   return { jsonrpc: '2.0', id, error: { code, message, ...(data ? { data } : {}) } };
 }
-export async function handleMessage(message) {
+export async function handleMessage(message, { signal } = {}) {
   if (!validateRpcMessage(message)) return rpcError(message?.id ?? null, -32600, 'Invalid Request');
   if (message.result !== undefined || message.error !== undefined) return null;
   if (message.id === undefined) return null; // Notifications never trigger a scan.
@@ -582,9 +594,9 @@ export async function handleMessage(message) {
       if (!validateToolArguments(params.name, args)) throw new Error('Invalid tool arguments or unknown tool.');
       let result;
       if (params.name === 'status') result = await statusTool();
-      else if (params.name === 'scan_changed') result = await scanChanged(args);
-      else if (params.name === 'list_findings') result = await listFindings(args.workspace);
-      else if (params.name === 'verify_remediation') result = await verifyRemediation(args.workspace);
+      else if (params.name === 'scan_changed') result = await scanChanged(args, { signal });
+      else if (params.name === 'list_findings') result = await listFindings(args.workspace, { signal });
+      else if (params.name === 'verify_remediation') result = await verifyRemediation(args.workspace, { signal });
       else if (params.name === 'explain_finding') result = explainFinding(args.rule_id);
       else throw new Error('Unknown tool.');
       const toolResult = toolText(result);
