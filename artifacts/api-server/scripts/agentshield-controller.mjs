@@ -290,9 +290,20 @@ async function atStop(event, root, config) {
 }
 const SEVERITY_ORDER = { Critical: 4, High: 3, Medium: 2, Low: 1 };
 
+function stopGatePayload(reason, event) {
+  const safeReason = brief(reason || 'VibeSane AgentShield: security status is UNKNOWN.', 3500);
+  // A first Stop block asks the host to continue once so the agent can remediate.
+  // On the host's recursive Stop event, terminate the turn instead of returning
+  // another block that could create an unbounded continuation loop.
+  return event?.stop_hook_active === true
+    ? { continue: false, stopReason: safeReason }
+    : { decision: 'block', reason: safeReason };
+}
+
 export async function handleHook(kind, { surface = 'claude' } = {}) {
+  let event = {};
   try {
-    const event = await readHookInput();
+    event = await readHookInput();
     if (surface === 'cursor') {
       // Cursor supplies the trusted project root through this documented hook env var.
       // Prefer it over event-provided paths; never accept a workspace path from repository text.
@@ -310,7 +321,7 @@ export async function handleHook(kind, { surface = 'claude' } = {}) {
       if (kind === 'Stop' && config.completionGate === 'enforce') {
         const reason = 'VibeSane AgentShield: enforcement is enabled but the scanner is disabled. Security status is UNKNOWN; restore the scanner or explicitly change the project policy.';
         if (surface === 'cursor') printJSON({ followup_message: reason });
-        else printJSON({ decision: 'block', reason });
+        else printJSON(stopGatePayload(reason, event));
       }
       return;
     }
@@ -328,8 +339,12 @@ export async function handleHook(kind, { surface = 'claude' } = {}) {
       // Codex Stop accepts only the explicit decision/reason gate contract; omit
       // Claude-specific hook payloads and advisory messages from this host adapter.
       if (response.decision === 'block') {
-        printJSON({ decision: 'block', reason: brief(response.reason || 'VibeSane AgentShield: security status is UNKNOWN.', 3500) });
+        printJSON(stopGatePayload(response.reason, event));
       }
+      return;
+    }
+    if (kind === 'Stop' && response.decision === 'block') {
+      printJSON(stopGatePayload(response.reason, event));
       return;
     }
     printJSON(response);
@@ -339,7 +354,8 @@ export async function handleHook(kind, { surface = 'claude' } = {}) {
       printJSON({ followup_message: reason });
     } else if (kind === 'Stop') {
       // A broken Stop hook must never convert an enforced or indeterminate gate into a pass.
-      printJSON({ decision: 'block', reason });
+      // On recursive re-entry, terminate the turn and expose the UNKNOWN status.
+      printJSON(stopGatePayload(reason, event));
     } else {
       printJSON(resultForHook(kind, reason));
     }
