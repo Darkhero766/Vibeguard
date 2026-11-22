@@ -13,11 +13,11 @@ const exec = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const stage = path.join(root, 'dist', 'agentshield-beta-stage');
 const out = path.join(root, 'dist');
-export const PACKAGE_VERSION = '0.7.0-beta.1';
+export const PACKAGE_VERSION = '0.7.0-beta.2';
 const scripts = ['vibesane.mjs', 'agentshield-controller.mjs', 'agentshield-hook.mjs',
   'agentshield-stop.mjs', 'agentshield-policy.mjs', 'agentshield-gate.mjs',
   'agentshield-verifier.mjs', 'agentshield-install.mjs',
-  'agentshield-capabilities.mjs', 'agentshield-hybrid.mjs'];
+  'agentshield-capabilities.mjs', 'agentshield-hybrid.mjs', 'agentshield-mcp-server.mjs'];
 async function main() {
   const scanner = path.join(root, 'dist', 'agentshield.mjs');
   if (!(await stat(scanner).catch(() => null))?.isFile()) {
@@ -49,8 +49,8 @@ async function main() {
   ].join('\\n'));
   const manifest = {
     name: '@vibesane/agentshield', version: PACKAGE_VERSION, private: true,
-    description: 'VibeSane AgentShield local-only Claude Code security preview (unpublished)',
-    type: 'module', bin: { vibesane: './scripts/vibesane.mjs' },
+    description: 'VibeSane AgentShield local security beta with Claude Code hooks and read-only MCP server (unpublished)',
+    type: 'module', bin: { vibesane: './scripts/vibesane.mjs', 'vibesane-mcp': './scripts/agentshield-mcp-server.mjs' },
     engines: { node: '>=20' },
     files: ['dist/agentshield.mjs', 'scripts/*.mjs', 'scripts/*.cjs', 'README.md', 'THIRD_PARTY_NOTICES.txt'],
     license: 'UNLICENSED',
@@ -58,14 +58,14 @@ async function main() {
   await writeFile(path.join(stage, 'package.json'), JSON.stringify(manifest, null, 2) + '\n');
   await writeFile(path.join(stage, 'README.md'), [
     '# VibeSane AgentShield (unpublished developer preview)',
-    'Local static security scanning and Claude Code hook integration.',
+    'Local static security scanning, Claude Code hooks, and read-only MCP server integration.',
     'No application-wide security guarantee. Static checks may be incomplete.',
     'Run vibesane doctor --cwd /absolute/path/to/project, then vibesane init --cwd /absolute/path/to/project.',
     'Use vibesane capabilities --format json to see supported and unsupported languages.',
     'Experimental hybrid: vibesane hybrid --changed --enable-ast --cwd /path/to/project.',
     'Optional local AI requires an explicit --enable-local-ai opt-in and an independently installed local model.',
     'Use vibesane uninstall --cwd /absolute/path/to/project before uninstalling the package.',
-    'Requires Node >=20, Git, and macOS/Linux. Do not publish or distribute without approval.',
+    'MCP: run vibesane-mcp from a built package; MCP tools are advisory and do not enforce a host completion gate.',\n    'Requires Node >=20, Git, and macOS/Linux. Beta: do not treat as a security certification.',
   ].join('\n') + '\n');
   const { stdout } = await exec('npm', ['pack', '--ignore-scripts', '--json',
     '--pack-destination', out, stage], { timeout: 30000, maxBuffer: 250000,
