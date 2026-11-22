@@ -22,8 +22,8 @@ const MAX_TOTAL_BYTES = 8_000_000;
 const cache = new Map();
 const SUPPORTED_PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
 const LATEST_PROTOCOL = SUPPORTED_PROTOCOLS[0];
-const SOURCE_FILE = /\\.(?:[cm]?[jt]sx?|sql|json|ya?ml)$/i;
-const ENV_FILE = /(^|\\/)\\.env(?:\\.[\\w-]+)?$/i;
+const SOURCE_FILE = /\.(?:[cm]?[jt]sx?|sql|json|ya?ml)$/i;
+const ENV_FILE = /(^|\/)\.env(?:\.[\w-]+)?$/i;
 const IGNORE_PARTS = new Set(['.git', 'node_modules', '.next', 'dist', 'build', 'coverage', 'vendor']);
 const FIXED_ENV = Object.freeze({
   PATH: '/usr/bin:/bin:/usr/local/bin',
@@ -35,7 +35,7 @@ const FIXED_ENV = Object.freeze({
 });
 
 const bounded = (value, max = 300) => typeof value === 'string'
-  ? value.replace(/[\\x00-\\x1f\\x7f]/g, ' ').slice(0, max) : '';
+  ? value.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, max) : '';
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
 export const TOOL_DEFS = [
@@ -145,13 +145,13 @@ async function canonicalRoot(workspace) {
   return root;
 }
 function supportedPath(file) {
-  const normalized = file.replaceAll('\\\\', '/');
+  const normalized = file.replaceAll('\\', '/');
   if (!normalized || normalized.startsWith('/') || normalized.split('/').includes('..')) return false;
   return !normalized.split('/').some((part) => IGNORE_PARTS.has(part))
     && (SOURCE_FILE.test(normalized) || ENV_FILE.test(normalized));
 }
 function changedEntries(status) {
-  const chunks = status.split('\\0');
+  const chunks = status.split('\0');
   const files = [];
   for (let i = 0; i < chunks.length; i++) {
     const item = chunks[i];
@@ -291,7 +291,7 @@ async function runScanner(root, expectedPaths) {
   return normalizeReport(report, expectedPaths);
 }
 function findingKey(finding) {
-  return [finding.filePath, finding.ruleId, finding.title].join('\\0');
+  return [finding.filePath, finding.ruleId, finding.title].join('\0');
 }
 export function compareFindings(previous, current) {
   const previousKeys = new Set(previous.map(findingKey));
@@ -472,10 +472,10 @@ export function createLineDecoder() {
     }
     const lines = [];
     let index;
-    while ((index = pending.indexOf('\\n')) >= 0) {
+    while ((index = pending.indexOf('\n')) >= 0) {
       let line = pending.slice(0, index);
       pending = pending.slice(index + 1);
-      if (line.endsWith('\\r')) line = line.slice(0, -1);
+      if (line.endsWith('\r')) line = line.slice(0, -1);
       if (!line.trim()) continue;
       if (Buffer.byteLength(line, 'utf8') > MAX_INPUT) throw new Error('MCP message exceeded its size budget.');
       lines.push(line);
@@ -484,7 +484,7 @@ export function createLineDecoder() {
   };
 }
 function writeMessage(message) {
-  process.stdout.write(JSON.stringify(message) + '\\n');
+  process.stdout.write(JSON.stringify(message) + '\n');
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const decode = createLineDecoder();
@@ -499,7 +499,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         const response = await handleMessage(message);
         if (response) writeMessage(response);
       } catch {
-        process.stderr.write('AgentShield MCP request failed safely.\\n');
+        process.stderr.write('AgentShield MCP request failed safely.\n');
       }
     }
     busy = false;
@@ -509,7 +509,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     let lines;
     try { lines = decode(chunk); }
     catch (error) {
-      process.stderr.write(bounded(error?.message, 160) + '\\n');
+      process.stderr.write(bounded(error?.message, 160) + '\n');
       process.exitCode = 2;
       process.stdin.destroy();
       return;
@@ -530,6 +530,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     void drain();
   });
   process.stdin.on('end', () => {
-    process.stderr.write('AgentShield MCP input closed.\\n');
+    process.stderr.write('AgentShield MCP input closed.\n');
   });
 }
