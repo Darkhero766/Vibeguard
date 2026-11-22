@@ -12,14 +12,14 @@ For repository development, run the server with:
 pnpm --filter @workspace/api-server agentshield:mcp
 ```
 
-The MCP server uses the standard stdio transport: UTF-8 JSON-RPC messages, one JSON object per line. Standard output is reserved for protocol messages; diagnostics are written to standard error. It supports the stateless 2026-07-28 discovery/per-request metadata flow and retains the 2025-11-25 initialize handshake for legacy clients.
+The MCP server uses the standard stdio transport: UTF-8 JSON-RPC messages, one JSON object per line. Standard output is reserved for protocol messages; diagnostics are written to standard error. It supports the stateless 2026-07-28 discovery/per-request metadata flow and retains the 2025-11-25 initialize handshake for legacy clients. Cancellation notifications abort active scanner processes, and each request receives a cancellation-safe response lifecycle.
 
 ## Tools
 
 - `status` — scanner readiness only.
-- `scan_changed` — read-only static scan of supported changed files and baseline cache.
-- `list_findings` — returns the last scan only when file-content fingerprints still match.
-- `verify_remediation` — fresh scan and before/after finding comparison.
+- `scan_changed` — read-only static scan of supported changed files; returns an opaque `scanId` for the exact baseline.
+- `list_findings` — returns a named scan only when its workspace content fingerprint is unchanged; requires `scan_id`.
+- `verify_remediation` — fresh scan and before/after finding comparison; requires the exact `baseline_id` returned as `scanId`, then returns a new `currentScanId` for the next iteration.
 - `explain_finding` — deterministic remediation guidance for known rule IDs.
 
 All tools are annotated read-only. There is no shell, patch, commit, deploy, or network tool. Repository content and finding strings are untrusted data; they must never be treated as instructions.
@@ -42,4 +42,4 @@ The server verifies that the workspace is an absolute Git root, does not follow 
 
 Unsupported changed files, truncated findings, malformed reports, timeouts, missing scanners, and workspace races produce partial or unknown results—not a clean pass. Static scanning covers only supported changed files and is not a security certification.
 
-The server never runs repository scripts or imports customer application code. Only use it against workspaces the host is authorized to access.
+The installed CLI can export findings as SARIF 2.1.0 via `vibesane scan --changed --format sarif`; confidence, engine metadata and selected CWE references are included. The Python extension is limited regex heuristics, not compiler-aware SAST. The server never runs repository scripts or imports customer application code. Only use it against workspaces the host is authorized to access.
