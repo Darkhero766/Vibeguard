@@ -27,7 +27,8 @@ function options(args) {
     else if (arg === '--json') out.format = 'json';
     else if (['--cwd', '--file', '--format', '--base-ref'].includes(arg)) {
       if (!args[i + 1]) throw new Error('Missing value for ' + arg);
-      out[arg.slice(2)] = args[++i];
+      const key = arg === '--base-ref' ? 'baseRef' : arg.slice(2);
+      out[key] = args[++i];
     } else throw new Error('Unknown argument: ' + arg);
   }
   if (out.file && out.changed) throw new Error('Choose --file or --changed, not both.');
