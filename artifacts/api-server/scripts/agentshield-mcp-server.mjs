@@ -442,7 +442,16 @@ export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, 
         note: 'Changed files exist, but none are in AgentShield supported scan formats. No security assessment was performed.',
       };
     }
-    return runScanner(snapshot.root, [], signal, snapshot.baseCommit);
+    return {
+      status: 'no_changed_files',
+      filesScanned: 0,
+      scannedPaths: [],
+      findings: [],
+      totalFindings: 0,
+      unsupportedChangedFileCount: 0,
+      securityGuarantee: false,
+      note: 'No Git-visible changed files exist within the selected base_ref scope. No security scan or clean pass is implied.',
+    };
   }
   const result = await runScanner(snapshot.root, snapshot.candidatePaths, signal, snapshot.baseCommit);
   const after = await workspaceSnapshot(snapshot.root, signal, baseRef);
