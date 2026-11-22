@@ -303,7 +303,12 @@ export async function handleHook(kind, { surface = 'claude' } = {}) {
     if (typeof event.cwd !== 'string') throw new Error('Hook workspace is unavailable.');
     const root = await rootOf(event.cwd);
     const config = await configFor(root);
-    if (!config.enabled) return;
+    if (!config.enabled) {
+      if (kind === 'Stop' && config.completionGate === 'enforce') {
+        printJSON({ decision: 'block', reason: 'VibeSane AgentShield: enforcement is enabled but the scanner is disabled. Security status is UNKNOWN; restore the scanner or explicitly change the project policy.' });
+      }
+      return;
+    }
     const response = kind === 'Stop' ? await atStop(event, root, config) : await postEdit(event, root, config);
     if (!response) return;
     if (surface === 'cursor') {
