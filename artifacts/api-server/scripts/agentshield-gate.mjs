@@ -2,7 +2,8 @@
 // Never executes customer code, Git hooks, project dependencies, or test scripts.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { lstat, readFile, realpath } from 'node:fs/promises';
+import { lstat, realpath, open } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 
@@ -105,16 +106,30 @@ export async function snapshot(root, { baseRef = null } = {}) {
       throw new Error('Unable to inspect changed file.');
     }
     if (!info.isFile() || info.isSymbolicLink()) { unsafeChangedPaths.push(rel); observations.push([rel, 'not_regular']); continue; }
-    if (info.size > 1_000_000) { observations.push([rel, 'oversize']); continue; }
+    if (info.size > 1_000_000) throw new Error('A changed file exceeds the final gate file-size budget.');
     budget += info.size;
     if (budget > 8_000_000) throw new Error('Final gate source budget exceeded.');
     const fileReal = await realpath(full);
     if (fileReal !== full || !fileReal.startsWith(real + path.sep)) {
       unsafeChangedPaths.push(rel); observations.push([rel, 'unsafe_path']); continue;
     }
-    const content = await readFile(full);
-    if (content.length > 1_000_000) throw new Error('Changed file grew beyond its size budget.');
-    observations.push([rel, sha(content)]);
+    const handle = await open(full, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    try {
+      const opened = await handle.stat();
+      if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino) {
+        throw new Error('Changed file identity changed while opening it.');
+      }
+      const content = await handle.readFile();
+      const afterRead = await handle.stat();
+      if (afterRead.dev !== opened.dev || afterRead.ino !== opened.ino
+        || afterRead.size !== opened.size || afterRead.mtimeMs !== opened.mtimeMs
+        || content.byteLength !== opened.size) {
+        throw new Error('Changed file mutated while its content was being fingerprinted.');
+      }
+      observations.push([rel, sha(content)]);
+    } finally {
+      await handle.close();
+    }
     if (supported(rel) && !paths.includes(rel)) throw new Error('Changed file selection became inconsistent.');
   }
   return {
