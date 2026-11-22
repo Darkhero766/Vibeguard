@@ -34,20 +34,57 @@ function supported(file) {
   const slash = file.replaceAll('\\', '/');
   return !ignored(file) && (SOURCE.test(slash) || ENV.test(slash));
 }
-async function gitStatus(root) {
+async function git(root, args) {
   const result = await exec('git', [
-    '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null',
-    '-C', root, 'status', '--porcelain=v1', '-z', '--untracked-files=all',
+    '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-C', root, ...args,
   ], { timeout: 7000, maxBuffer: 2_000_000, windowsHide: true });
   return result.stdout;
+}
+function validBaseRef(value) {
+  return typeof value === 'string' && value.length <= 200
+    && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value)
+    && !value.includes('..') && !value.includes('//') && !value.includes('@{')
+    && !value.endsWith('/') && !value.endsWith('.') && !value.startsWith('-');
+}
+async function resolveBaseCommit(root, baseRef) {
+  if (!baseRef) return null;
+  if (!validBaseRef(baseRef)) throw new Error('Invalid base reference.');
+  const output = await git(root, ['rev-parse', '--verify', '--end-of-options', baseRef + '^{commit}'])
+    .catch(() => { throw new Error('Configured base reference is unavailable locally.'); });
+  const sha = output.trim();
+  if (!/^[a-f0-9]{40,64}$/i.test(sha)) throw new Error('Configured base did not resolve to a commit.');
+  return sha;
+}
+function diffChangedPaths(output) {
+  const chunks = output.split('\\0');
+  const files = [];
+  for (let i = 0; i < chunks.length;) {
+    const status = chunks[i++];
+    if (!status) continue;
+    if (/^[RC][0-9]*$/.test(status)) {
+      const oldPath = chunks[i++], newPath = chunks[i++];
+      if (!oldPath || !newPath) throw new Error('Malformed Git rename/copy diff entry.');
+      files.push(newPath);
+    } else if (/^[AMDTU][0-9]*$/.test(status)) {
+      const file = chunks[i++];
+      if (!file) throw new Error('Malformed Git changed-path diff entry.');
+      files.push(file);
+    } else throw new Error('Unsupported Git diff status.');
+  }
+  return [...new Set(files)].sort();
 }
 
 // Hash local bytes before/after the scan. The fingerprints stay in memory only.
 // A changed Git status or a changed content fingerprint invalidates the result.
-export async function snapshot(root) {
+export async function snapshot(root, { baseRef = null } = {}) {
   const real = await realpath(root);
-  const status = await gitStatus(real);
-  const allPaths = changedEntries(status);
+  const status = await git(real, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+  const worktreePaths = changedEntries(status);
+  const baseCommit = await resolveBaseCommit(real, baseRef);
+  const committedPaths = baseCommit
+    ? diffChangedPaths(await git(real, ['diff', '--name-status', '-z', '--find-renames', baseCommit + '...HEAD', '--']))
+    : [];
+  const allPaths = [...new Set([...worktreePaths, ...committedPaths])].sort();
   const paths = allPaths.filter(supported);
   const unsupportedChangedPaths = allPaths.filter((file) => !ignored(file) && !supported(file));
   if (allPaths.length > 100) throw new Error('Final gate file limit exceeded.');
@@ -81,7 +118,8 @@ export async function snapshot(root) {
   return {
     changedPaths: paths,
     unsupportedChangedPaths,
-    fingerprint: sha(status + JSON.stringify(observations)),
+    baseCommit,
+    fingerprint: sha(status + JSON.stringify(observations) + String(baseCommit || '')),
     observations,
   };
 }
@@ -92,7 +130,7 @@ export async function finalGate(root, config, scan) {
     if (!config || typeof config !== 'object' || !Object.hasOwn(SEVERITY, config.blockingSeverity)) {
       throw new Error('Invalid final-gate configuration.');
     }
-    const before = await snapshot(root);
+    const before = await snapshot(root, { baseRef: config.baseRef || null });
     if (before.changedPaths.length === 0 && before.unsupportedChangedPaths.length === 0) {
       return { status: 'no_changed_files', filesScanned: 0, findings: [], blocking: 0,
         scannedPaths: [], note: 'No Git-visible changed files were available; no security verification was performed.' };
@@ -100,9 +138,9 @@ export async function finalGate(root, config, scan) {
     if (before.unsupportedChangedPaths.length) {
       throw new Error('Unsupported changed files prevent a complete final security gate.');
     }
-    const report = await scan(root, ['--changed']);
+    const report = await scan(root, ['--changed', ...(before.baseCommit ? ['--base-ref', before.baseCommit] : [])]);
     if (report.status !== 'complete') throw new Error('Scanner did not return a complete result.');
-    const after = await snapshot(root);
+    const after = await snapshot(root, { baseRef: config.baseRef || null });
     if (before.fingerprint !== after.fingerprint) throw new Error('Files changed while final scan was running.');
     if (after.unsupportedChangedPaths.length) throw new Error('Unsupported changed files appeared during the final scan.');
     if (!Array.isArray(report.scannedPaths) || !Array.isArray(report.findings)
@@ -131,7 +169,7 @@ export async function finalGate(root, config, scan) {
     }));
     const blocking = findings.filter(f => SEVERITY[f.severity] >= SEVERITY[config.blockingSeverity]).length;
     return { status: 'complete', filesScanned: report.filesScanned, scannedPaths: report.scannedPaths,
-      findings, blocking, changedPaths: before.changedPaths, fingerprint: after.fingerprint,
+      findings, blocking, changedPaths: before.changedPaths, baseRef: before.baseCommit, fingerprint: after.fingerprint,
       securityGuarantee: false, note: 'Static checks of changed files only. Passing does not certify application security.' };
   } catch {
     return { status: 'scan_incomplete', filesScanned: 0, findings: [], blocking: 0,
