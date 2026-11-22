@@ -192,17 +192,18 @@ test('advisory mode reports no changed files without claiming a pass', () => {
 test('final gate includes committed base diff and uncommitted worktree changes', async () => {
   const root = await repoFixture();
   try {
+    await exec('git', ['-C', root, 'branch', 'agentshield-base']);
     await writeFile(path.join(root, 'src', 'app.js'), 'export const safe = false;\n');
     await exec('git', ['-C', root, 'add', '-A']);
     await exec('git', ['-C', root, 'commit', '-qm', 'committed source change']);
     await writeFile(path.join(root, 'src', 'new.ts'), 'export const uncommitted = true;\n');
 
-    const state = await snapshot(root, { baseRef: 'main' });
+    const state = await snapshot(root, { baseRef: 'agentshield-base' });
     assert.deepEqual(state.changedPaths, ['src/app.js', 'src/new.ts']);
     assert.equal(state.baseCommit.length, 40);
 
     let receivedArgs;
-    const result = await finalGate(root, { blockingSeverity: 'High', baseRef: 'main' }, async (_root, args) => {
+    const result = await finalGate(root, { blockingSeverity: 'High', baseRef: 'agentshield-base' }, async (_root, args) => {
       receivedArgs = args;
       return {
         status: 'complete',
@@ -223,13 +224,14 @@ test('final gate includes committed base diff and uncommitted worktree changes',
 test('final gate rejects deleted files in the committed base diff before trusting scanner output', async () => {
   const root = await repoFixture();
   try {
+    await exec('git', ['-C', root, 'branch', 'agentshield-base']);
     await exec('git', ['-C', root, 'rm', '-q', 'src/app.js']);
     await exec('git', ['-C', root, 'commit', '-qm', 'delete source']);
-    const state = await snapshot(root, { baseRef: 'main' });
+    const state = await snapshot(root, { baseRef: 'agentshield-base' });
     assert.deepEqual(state.changedPaths, ['src/app.js']);
     assert.deepEqual(state.missingChangedPaths, ['src/app.js']);
     let called = false;
-    const result = await finalGate(root, { blockingSeverity: 'High', baseRef: 'main' }, async () => {
+    const result = await finalGate(root, { blockingSeverity: 'High', baseRef: 'agentshield-base' }, async () => {
       called = true;
       return { status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'], findings: [] };
     });
