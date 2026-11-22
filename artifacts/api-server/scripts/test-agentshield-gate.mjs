@@ -12,6 +12,7 @@ const exec = promisify(execFile);
 async function repoFixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-gate-test-'));
   await exec('git', ['init', '-q', root]);
+  await exec('git', ['-C', root, 'branch', '-M', 'main']);
   await exec('git', ['-C', root, 'config', 'user.name', 'AgentShield Test']);
   await exec('git', ['-C', root, 'config', 'user.email', 'agentshield-test@example.invalid']);
   await mkdir(path.join(root, 'src'));
@@ -185,4 +186,76 @@ test('advisory mode reports no changed files without claiming a pass', () => {
   const result = completionGateDecision({ status: 'no_changed_files', completionGate: config.completionGate });
   assert.ok(result.systemMessage.includes('No security scan'));
   assert.equal(result.decision, undefined);
+});
+
+
+test('final gate includes committed base diff and uncommitted worktree changes', async () => {
+  const root = await repoFixture();
+  try {
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const safe = false;\n');
+    await exec('git', ['-C', root, 'add', '-A']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'committed source change']);
+    await writeFile(path.join(root, 'src', 'new.ts'), 'export const uncommitted = true;\n');
+
+    const state = await snapshot(root, { baseRef: 'main' });
+    assert.deepEqual(state.changedPaths, ['src/app.js', 'src/new.ts']);
+    assert.equal(state.baseCommit.length, 40);
+
+    let receivedArgs;
+    const result = await finalGate(root, { blockingSeverity: 'High', baseRef: 'main' }, async (_root, args) => {
+      receivedArgs = args;
+      return {
+        status: 'complete',
+        filesScanned: 2,
+        scannedPaths: ['src/app.js', 'src/new.ts'],
+        findings: [],
+      };
+    });
+    assert.equal(result.status, 'complete');
+    assert.deepEqual(receivedArgs.slice(0, 1), ['--changed']);
+    assert.deepEqual(receivedArgs.slice(1, 3), ['--base-ref', state.baseCommit]);
+    assert.equal(result.baseRef, state.baseCommit);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('final gate rejects deleted files in the committed base diff before trusting scanner output', async () => {
+  const root = await repoFixture();
+  try {
+    await exec('git', ['-C', root, 'rm', '-q', 'src/app.js']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'delete source']);
+    const state = await snapshot(root, { baseRef: 'main' });
+    assert.deepEqual(state.changedPaths, ['src/app.js']);
+    assert.deepEqual(state.missingChangedPaths, ['src/app.js']);
+    let called = false;
+    const result = await finalGate(root, { blockingSeverity: 'High', baseRef: 'main' }, async () => {
+      called = true;
+      return { status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'], findings: [] };
+    });
+    assert.equal(result.status, 'scan_incomplete');
+    assert.equal(called, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('final gate fails closed when configured base ref is missing', async () => {
+  const root = await repoFixture();
+  try {
+    const result = await finalGate(root, { blockingSeverity: 'High', baseRef: 'origin/not-fetched' }, async () => {
+      throw new Error('must not run');
+    });
+    assert.equal(result.status, 'scan_incomplete');
+    assert.equal(result.securityGuarantee, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('baseRef config accepts a local branch and rejects unsafe Git ref expressions', () => {
+  assert.equal(parseConfig({ baseRef: 'origin/main' }).baseRef, 'origin/main');
+  assert.equal(parseConfig({ baseRef: 'a'.repeat(40) }).baseRef, 'a'.repeat(40));
+  assert.throws(() => parseConfig({ baseRef: '../main' }), /baseRef/);
+  assert.throws(() => parseConfig({ baseRef: 'main;touch' }), /baseRef/);
 });
