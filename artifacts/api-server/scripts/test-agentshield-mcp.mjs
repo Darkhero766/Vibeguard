@@ -101,10 +101,64 @@ test('line decoder handles partial frames, CRLF and UTF-8 boundaries', () => {
   ]);
 });
 
-test('protocol negotiation selects supported versions and falls back to latest', () => {
+test('legacy protocol negotiation retains compatible handshake-era versions', () => {
   assert.equal(negotiateProtocol('2025-11-25'), '2025-11-25');
   assert.equal(negotiateProtocol('2025-06-18'), '2025-06-18');
   assert.equal(negotiateProtocol('unknown-version'), '2025-11-25');
+});
+
+const modernMeta = {
+  'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+  'io.modelcontextprotocol/clientCapabilities': {},
+  'io.modelcontextprotocol/clientInfo': { name: 'agentshield-test', version: '1.0.0' },
+};
+
+test('modern stateless discovery advertises protocol, tools and server identity', async () => {
+  const response = await handleMessage({
+    jsonrpc: '2.0',
+    id: 'discover-1',
+    method: 'server/discover',
+    params: { _meta: modernMeta },
+  });
+  assert.equal(response.result.resultType, 'complete');
+  assert.equal(response.result.supportedVersions[0], '2026-07-28');
+  assert.equal(response.result.capabilities.tools.listChanged, false);
+  assert.equal(response.result._meta['io.modelcontextprotocol/serverInfo'].name, 'vibesane-agentshield');
+  assert.equal(response.result.cacheScope, 'public');
+  assert.ok(response.result.ttlMs > 0);
+  assert.match(response.result.instructions, /verify_remediation/);
+});
+
+test('modern tools/list and tools/call include required stateless result metadata', async () => {
+  const listed = await handleMessage({
+    jsonrpc: '2.0', id: 'tools-1', method: 'tools/list', params: { _meta: modernMeta },
+  });
+  assert.equal(listed.result.resultType, 'complete');
+  assert.equal(listed.result.cacheScope, 'public');
+  assert.equal(listed.result.tools.some((tool) => tool.name === 'verify_remediation'), true);
+
+  const called = await handleMessage({
+    jsonrpc: '2.0', id: 'call-1', method: 'tools/call',
+    params: { name: 'explain_finding', arguments: { rule_id: 'rls' }, _meta: modernMeta },
+  });
+  assert.equal(called.result.resultType, 'complete');
+  assert.equal(called.result._meta['io.modelcontextprotocol/serverInfo'].version, '0.7.0-beta.3');
+  const payload = JSON.parse(called.result.content[0].text);
+  assert.equal(payload.ruleId, 'rls');
+});
+
+test('modern requests require per-request protocol metadata', async () => {
+  const result = await handleMessage({ jsonrpc: '2.0', id: 8, method: 'tools/list', params: {} });
+  assert.equal(result.error.code, -32602);
+  const wrongEra = await handleMessage({
+    jsonrpc: '2.0', id: 9, method: 'tools/list',
+    params: { _meta: { ...modernMeta, 'io.modelcontextprotocol/protocolVersion': '2025-11-25' } },
+  });
+  assert.equal(wrongEra.error.code, -32001);
+  const modernPing = await handleMessage({
+    jsonrpc: '2.0', id: 10, method: 'ping', params: { _meta: modernMeta },
+  });
+  assert.equal(modernPing.error.code, -32601);
 });
 
 test('initialize responds with instructions and negotiated protocol', async () => {
@@ -158,8 +212,10 @@ test('MCP stdio process speaks newline-delimited JSON-RPC, never Content-Length 
     child.once('close', (code) => resolve(code));
   });
   child.stdin.end([
-    JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } } }),
-    JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
+    JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: modernMeta } }),
+    JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: { _meta: modernMeta } }),
+    JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } } }),
+    JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'tools/list' }),
     JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
     '',
   ].join('\n'));
@@ -168,9 +224,11 @@ test('MCP stdio process speaks newline-delimited JSON-RPC, never Content-Length 
   assert.equal(exitCode, 0, stderr.join(''));
   assert.equal(output.includes('Content-Length:'), false);
   const messages = output.trim().split('\n').map((line) => JSON.parse(line));
-  assert.equal(messages.length, 2);
-  assert.equal(messages[0].result.serverInfo.name, 'vibesane-agentshield');
-  assert.equal(messages[1].result.tools.some((tool) => tool.name === 'verify_remediation'), true);
+  assert.equal(messages.length, 4);
+  assert.equal(messages[0].result.supportedVersions[0], '2026-07-28');
+  assert.equal(messages[1].result.resultType, 'complete');
+  assert.equal(messages[2].result.serverInfo.name, 'vibesane-agentshield');
+  assert.equal(messages[3].result.tools.some((tool) => tool.name === 'verify_remediation'), true);
 });
 
 
