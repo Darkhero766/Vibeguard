@@ -215,10 +215,11 @@ async function commitFixture(cwd, message) {
 test('base-ref scan detects committed changes even when the worktree is clean', async (t) => {
   const { cwd, target } = await fixture(t, 'src/auth.ts', 'export const safe = true;\n');
   await commitFixture(cwd, 'synthetic base');
+  await run('git', ['-C', cwd, 'branch', 'agentshield-base']);
   const secret = 'K'.repeat(40);
   await writeFile(target, 'const MY_API_TOKEN = "' + secret + '";\n');
   await commitFixture(cwd, 'synthetic committed credential');
-  const result = await scan(cwd, ['--changed', '--base-ref', 'main']);
+  const result = await scan(cwd, ['--changed', '--base-ref', 'agentshield-base']);
   assert.equal(result.code, 1);
   assert.equal(result.report.status, 'complete');
   assert.equal(result.report.baseRef.length, 40);
@@ -228,7 +229,7 @@ test('base-ref scan detects committed changes even when the worktree is clean', 
 
   await writeFile(target, 'export const apiTokenIsLoadedFromServerConfig = true;\n');
   await commitFixture(cwd, 'synthetic remediation');
-  const clean = await scan(cwd, ['--changed', '--base-ref', 'main']);
+  const clean = await scan(cwd, ['--changed', '--base-ref', 'agentshield-base']);
   assert.equal(clean.code, 0);
   assert.equal(clean.report.status, 'complete');
   assert.deepEqual(clean.report.scannedPaths, ['src/auth.ts']);
@@ -238,10 +239,11 @@ test('base-ref scan detects committed changes even when the worktree is clean', 
 test('base-ref scan follows a committed rename and scans the destination path', async (t) => {
   const { cwd, target } = await fixture(t, 'src/old.js', 'export const value = true;\n');
   await commitFixture(cwd, 'synthetic base');
+  await run('git', ['-C', cwd, 'branch', 'agentshield-base']);
   const renamed = path.join(cwd, 'src', 'renamed.js');
   await run('git', ['-C', cwd, 'mv', target, renamed]);
   await commitFixture(cwd, 'synthetic rename');
-  const result = await scan(cwd, ['--changed', '--base-ref', 'main']);
+  const result = await scan(cwd, ['--changed', '--base-ref', 'agentshield-base']);
   assert.equal(result.code, 0);
   assert.equal(result.report.status, 'complete');
   assert.deepEqual(result.report.scannedPaths, ['src/renamed.js']);
@@ -250,9 +252,10 @@ test('base-ref scan follows a committed rename and scans the destination path', 
 test('base-ref scan treats committed deletions and missing refs as incomplete', async (t) => {
   const { cwd, target } = await fixture(t, 'src/deleted.js', 'export const value = true;\n');
   await commitFixture(cwd, 'synthetic base');
+  await run('git', ['-C', cwd, 'branch', 'agentshield-base']);
   await run('git', ['-C', cwd, 'rm', '-q', target]);
   await commitFixture(cwd, 'synthetic deletion');
-  const deleted = await scan(cwd, ['--changed', '--base-ref', 'main']);
+  const deleted = await scan(cwd, ['--changed', '--base-ref', 'agentshield-base']);
   assert.equal(deleted.code, 2);
   assert.equal(deleted.report.status, 'scan_incomplete');
   assert.deepEqual(deleted.report.missingChangedPaths, ['src/deleted.js']);
@@ -266,6 +269,7 @@ test('base-ref scan treats committed deletions and missing refs as incomplete', 
 test('Claude Code Stop hook enforces commit-aware base-to-HEAD scope', async (t) => {
   const { cwd, target } = await fixture(t, 'src/auth.ts', 'export const safe = true;\n');
   await commitFixture(cwd, 'synthetic base');
+  await run('git', ['-C', cwd, 'branch', 'agentshield-base']);
   const token = 'P'.repeat(40);
   await writeFile(target, 'const MY_API_TOKEN = "' + token + '";\n');
   await commitFixture(cwd, 'synthetic committed blocker');
@@ -274,7 +278,7 @@ test('Claude Code Stop hook enforces commit-aware base-to-HEAD scope', async (t)
   t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
   const rootHash = createHash('sha256').update(cwd).digest('hex').slice(0, 28);
   await writeFile(path.join(controlHome, rootHash + '.json'), JSON.stringify({
-    completionGate: 'enforce', mode: 'assist', baseRef: 'main', blockingSeverity: 'High',
+    completionGate: 'enforce', mode: 'assist', baseRef: 'agentshield-base', blockingSeverity: 'High',
   }));
   const env = {
     ...process.env,
