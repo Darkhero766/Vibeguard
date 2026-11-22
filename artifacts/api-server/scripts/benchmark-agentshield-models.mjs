@@ -12,8 +12,8 @@ export const MODEL_CATALOG = [
   {key:'openai:sol',provider:'openai',model:'gpt-6.2-sol',env:'OPENAI_API_KEY',tier:'reasoning',input:2,output:10,priceVerifiedOn:'2026-11-22'},
   {key:'anthropic:haiku',provider:'anthropic',model:'claude-haiku-5-5',env:'ANTHROPIC_API_KEY',tier:'cost',input:0.10,output:0.50,priceVerifiedOn:'2026-11-22'},
   {key:'anthropic:sonnet',provider:'anthropic',model:'claude-sonnet-5-5',env:'ANTHROPIC_API_KEY',tier:'reasoning',input:2,output:10,priceVerifiedOn:'2026-11-22'},
-  {key:'google:flash',provider:'google',model:'gemini-3.8-flash',env:'GEMINI_API_KEY',tier:'cost',input:0.75,output:3.75,priceVerifiedOn:'2026-11-22',priceValidThrough:'2026-12-31'},
-  {key:'google:argon',provider:'google',model:'gemini-4-argon',env:'GEMINI_API_KEY',tier:'reasoning',input:2,output:10,priceVerifiedOn:'2026-11-22',priceValidThrough:'2026-11-30'},
+  {key:'google:flash-lite',provider:'google',model:'gemini-2.5-flash-lite',env:'GEMINI_API_KEY',tier:'cost',input:0.10,output:0.40,priceVerifiedOn:'2026-11-22',pricingBasis:'paid_standard',freeTierDataUseWarning:true},
+  {key:'google:argon',provider:'google',model:'gemini-4-argon',env:'GEMINI_API_KEY',tier:'reasoning',input:2,output:10,priceVerifiedOn:'2026-11-22',priceValidThrough:'2026-11-30',priceAfterExpiry:{input:4,output:20}},
 ];
 export const BATCH_SIZE = 20;
 const SYSTEM = [
@@ -157,6 +157,12 @@ export async function runModelEvaluation({cases=BENCHMARK_CASES,models=MODEL_CAT
   for(const model of models){
     if(!live){results.push({key:model.key,provider:model.provider,model:model.model,tier:model.tier,status:'not_run',reason:'explicit_live_flag_required'});continue;}
     const key=apiKeys[model.env];
+    const pricingExpired=Boolean(model.priceValidThrough&&now.toISOString().slice(0,10)>model.priceValidThrough);
+    if(pricingExpired){
+      results.push({key:model.key,provider:model.provider,model:model.model,tier:model.tier,
+        status:'skipped',reason:'pricing_verification_expired',pricingMustBeReverified:true});
+      continue;
+    }
     if(typeof key!=='string'||!key.trim()){results.push({key:model.key,provider:model.provider,model:model.model,tier:model.tier,status:'skipped',reason:'api_key_not_configured'});continue;}
     const started=performance.now(),predictions=[];let input=0,output=0,reason=null;
     try{

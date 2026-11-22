@@ -29,6 +29,9 @@ test('provider requests use provider-specific headers and include only unlabeled
  const modelInput=JSON.stringify(body.input);assert.match(modelInput,/FAKE_SYNTHETIC/);assert.doesNotMatch(modelInput,/"expected":\s*(true|false)/);
  const anth=buildProviderRequest(MODEL_CATALOG[2],cases,'FAKE_KEY');assert.equal(anth.init.headers['x-api-key'],'FAKE_KEY');assert.doesNotMatch(anth.url,/FAKE_KEY/);
  const google=buildProviderRequest(MODEL_CATALOG[4],cases,'FAKE_KEY');assert.equal(google.init.headers['x-goog-api-key'],'FAKE_KEY');assert.doesNotMatch(google.url,/FAKE_KEY/);
+ assert.equal(MODEL_CATALOG[4].model,'gemini-2.5-flash-lite');
+ assert.equal(MODEL_CATALOG[4].input,0.10);assert.equal(MODEL_CATALOG[4].output,0.40);
+ assert.equal(MODEL_CATALOG[5].model,'gemini-4-argon');
 });
 test('model output must contain every known case once with strict types',()=>{
  assert.equal(validatePredictions(predictions,cases).length,2);
@@ -51,6 +54,17 @@ test('OpenAI, Anthropic and Google adapters normalize to the same metrics',async
   assert.ok(!JSON.stringify(r).includes('FAKE_API_KEY'));assert.ok(called.includes(model.provider==='google'?'generateContent':model.provider==='openai'?'/responses':'/messages'));
  }
 });
+
+test('expired model pricing is skipped so estimates do not silently become stale',async()=>{
+ const model=MODEL_CATALOG.find(x=>x.key==='google:argon');
+ let calls=0;
+ const report=await runModelEvaluation({cases,models:[model],apiKeys:{GEMINI_API_KEY:'FAKE_API_KEY'},live:true,
+  now:new Date('2026-12-01T00:00:00Z'),fetchFn:async()=>{calls++;throw Error('should not call after price expiry');}});
+ assert.equal(calls,0);
+ assert.equal(report.results[0].status,'skipped');
+ assert.equal(report.results[0].reason,'pricing_verification_expired');
+});
+
 test('API errors are safely categorized and never echo secrets or provider bodies',async()=>{
  const r=await runModelEvaluation({cases,models:[MODEL_CATALOG[0]],apiKeys:{OPENAI_API_KEY:'FAKE_SECRET'},live:true,fetchFn:async()=>new Response('provider echoed FAKE_SECRET',{status:401})});
  assert.equal(r.results[0].status,'failed');assert.equal(r.results[0].reason,'provider_http_401');assert.doesNotMatch(JSON.stringify(r),/FAKE_SECRET|provider echoed/);
@@ -58,4 +72,14 @@ test('API errors are safely categorized and never echo secrets or provider bodie
 test('missing provider key skips provider without making a request',async()=>{
  let called=0;const r=await runModelEvaluation({cases,models:[MODEL_CATALOG[0]],apiKeys:{},live:true,fetchFn:async()=>{called++;}});
  assert.equal(called,0);assert.equal(r.results[0].reason,'api_key_not_configured');
+});
+
+test('expired model pricing is skipped so estimates do not silently become stale',async()=>{
+ const model=MODEL_CATALOG.find(x=>x.key==='google:argon');
+ let calls=0;
+ const report=await runModelEvaluation({cases,models:[model],apiKeys:{GEMINI_API_KEY:'FAKE_API_KEY'},live:true,
+  now:new Date('2026-12-01T00:00:00Z'),fetchFn:async()=>{calls++;throw Error('should not call after price expiry');}});
+ assert.equal(calls,0);
+ assert.equal(report.results[0].status,'skipped');
+ assert.equal(report.results[0].reason,'pricing_verification_expired');
 });
