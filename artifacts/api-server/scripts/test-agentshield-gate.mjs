@@ -165,4 +165,10 @@ test('completion policy rejects unknown modes and accepts the explicit enforce s
   assert.equal(parseConfig({ completionGate: 'enforce' }).completionGate, 'enforce');
   assert.throws(() => parseConfig({ completionGate: 'always' }), /completionGate/);
 });
-\ntest('completion enforcement blocks when previously flagged files are not covered', () => {\n  const config = parseConfig({ completionGate: 'enforce' });\n  const result = completionGateDecision({ completionGate: config.completionGate, unscannedCount: 1 });\n  assert.equal(result.decision, 'block');\n  assert.match(result.reason, /PARTIAL/);\n});\n
+
+test('completion enforcement blocks when previously flagged files are not covered', () => {
+  const config = parseConfig({ completionGate: 'enforce' });
+  const result = completionGateDecision({ completionGate: config.completionGate, unscannedCount: 1 });
+  assert.equal(result.decision, 'block');
+  assert.match(result.reason, /PARTIAL/);
+});
