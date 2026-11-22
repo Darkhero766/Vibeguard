@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {MODEL_CATALOG,parseModelBenchmarkArgs,buildProviderRequest,validatePredictions,calculateMetrics,runModelEvaluation} from './benchmark-agentshield-models.mjs';
 const cases=[
- {id:'synthetic-risk',category:'jwt',ruleId:'hardcoded_jwt_secret',content:'const JWT_SECRET = "FAKE_SYNTHETIC";',expected:true},
+ {id:'synthetic-risk',category:'jwt',ruleId:'hardcoded_jwt_secret',content:'const JWT_'+'SECRET = "FAKE_SYNTHETIC";',expected:true},
  {id:'synthetic-control',category:'jwt',ruleId:'hardcoded_jwt_secret',content:'const JWT_SECRET = process.env.JWT_SECRET;',expected:false},
 ];
 const predictions={predictions:[

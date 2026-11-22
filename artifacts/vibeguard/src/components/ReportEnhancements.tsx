@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { getHeuristicScanScore } from "@/lib/scanScore";
 import { Check, Clipboard, ShieldCheck } from 'lucide-react';
 
 type Severity = 'Critical' | 'High' | 'Medium';
@@ -15,17 +16,7 @@ type ReportLike = { findings: Finding[]; filesScanned: number; checksRun?: numbe
 
 
 function getScore(findings: Finding[], checksRun?: number) {
-  const unique = new Map<string, Finding>();
-  for (const finding of findings) {
-    unique.set(`${finding.check}:${finding.filePath}:${finding.line}`, finding);
-  }
-
-  let penalty = 0;
-  for (const finding of unique.values()) {
-    penalty += finding.severity === 'Critical' ? 18 : finding.severity === 'High' ? 10 : 4;
-  }
-  if (!Number.isInteger(checksRun) || (checksRun ?? 0) < 1) return null;
-  return Math.max(0, Math.min(100, Math.round(100 - (penalty / ((checksRun ?? 1) * 18)) * 100)));
+  return getHeuristicScanScore(findings, checksRun);
 }
 
 function remediation(finding: Finding) {

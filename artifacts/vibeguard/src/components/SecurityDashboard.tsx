@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { getHeuristicScanScore } from "@/lib/scanScore";
 import { ArrowRight, Check, Crown, GitPullRequest, LoaderCircle, ShieldCheck, Wrench } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { RepositorySecurityCenter } from './RepositorySecurityCenter';
@@ -15,13 +16,7 @@ const PROTECTION_CACHE_TTL_MS = 2 * 60 * 1000;
 const PROTECTION_REFRESH_MS = 2 * 60 * 1000;
 
 function score(scan: Scan | null) {
-  if (!scan) return null;
-  const critical = scan.findings.filter((f) => f.severity === 'Critical').length;
-  const high = scan.findings.filter((f) => f.severity === 'High').length;
-  const medium = scan.findings.filter((f) => f.severity === 'Medium').length;
-  if (!Number.isInteger(scan.checksRun) || (scan.checksRun ?? 0) < 1) return null;
-  const penalty = critical * 18 + high * 10 + medium * 4;
-  return Math.max(0, Math.min(100, Math.round(100 - (penalty / ((scan.checksRun ?? 1) * 18)) * 100)));
+  return scan ? getHeuristicScanScore(scan.findings, scan.checksRun) : null;
 }
 
 export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onViewLastScan, onProtect }: Props) {

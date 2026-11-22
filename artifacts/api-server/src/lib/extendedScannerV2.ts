@@ -63,8 +63,9 @@ function shouldKeepFinding(finding: ExtendedFinding, files: RepoFile[]): boolean
     // intentionally misses variable, aliased and multiline transport calls.
     const networkLiteral = /\b(?:fetch|axios\.(?:get|post|put|patch|delete|request)|request(?:\.(?:get|post|put|patch|delete))?|https?\.(?:get|request))\s*\(\s*['"\x60]http:\/\/([^\s/'"\x60?#]+)/i.exec(sourceLine);
     if (!networkLiteral || insideQuotedLiteral(sourceLine, networkLiteral.index)) return false;
-    const host = networkLiteral[1].toLowerCase();
-    if (/(?:^|\.)example\.(?:com|org|net)(?::\d+)?$|^(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?$|\.invalid(?::\d+)?$/.test(host)) return false;
+    // Loopback is used by local model servers and test fixtures, not remote targets.
+    const host = networkLiteral[1].toLowerCase().replace(/:\d+$/, "").replace(/:$/, "");
+    if (/(?:^|\.)example\.(?:com|org|net)$|^(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$|\.invalid$/.test(host)) return false;
     if (/\.(?:md|mdx|txt)$/i.test(finding.filePath)) return false;
   }
 

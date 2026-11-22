@@ -39,6 +39,17 @@ test('direct explicit HTTP fetch, axios and request calls still warn', () => {
   assert.deepEqual(results.map(f => f.line), [1, 2, 3]);
 });
 
+test('loopback HTTP with fixed or dynamic ports is not insecure external transport', () => {
+  const source = [
+    "fetch('http://127.0.0.1:11434/api/generate');",
+    "fetch('http://127.0.0.1:' + port + '/health');",
+    "request.get('http://localhost:' + server.address().port + '/status');",
+    "fetch('http://public.service.test:' + port + '/api');",
+  ].join('\n');
+  const results = scan(source).filter(f => f.check === 'http_url');
+  assert.deepEqual(results.map(f => f.line), [4]);
+});
+
 test('double-submit CSRF cookie intentionally readable by browser is not misreported', () => {
   const source = [
     'function attachCsrfToken(url, cookie, value) {',
