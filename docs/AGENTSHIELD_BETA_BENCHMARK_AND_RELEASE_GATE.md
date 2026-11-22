@@ -57,9 +57,20 @@ Run `node ./scripts/test-agentshield-package.mjs` from `artifacts/api-server` on
 ## Report template
 Record beta build hash, platform, Node version, package SHA-256, fixture commit/hash, tests executed, test counts, scan time, TP/FP/TN/FN by rule, incomplete-scan behavior, integration host/version, known defects, and release decision. Mark anything not executed as NOT TESTED.
 
-## Known release blocker
+## Commit-aware scope implemented; acceptance still required
 
-The current completion gate consumes Git-visible worktree changes (`--changed`). It does not yet persist a session-start commit or scan a committed branch diff. Under enforce mode, a clean worktree blocks as UNKNOWN; do not commit agent changes before the Stop hook. Before production claims, add a commit-aware scope (session start SHA or configured merge-base) with tests for multiple commits, staged changes, renames, deletions, force-push/missing-base and shallow-clone behavior.
+The scanner, Claude completion gate and MCP tools now accept a configured base reference. They combine the base-to-HEAD committed diff with staged, modified and untracked worktree paths. The gate fingerprints the resolved base SHA and file contents before/after scanning. Renames are mapped to destination paths; committed deletions, unsupported paths, malformed diffs, missing refs and scan races fail closed. MCP clients must pass the same `base_ref` to `scan_changed`, `list_findings` and `verify_remediation`.
+
+Claude project setup example:
+
+```bash
+git fetch origin main
+vibesane config --mode assist --completion-gate enforce --base-ref origin/main --cwd /absolute/path/to/project
+```
+
+The configured ref must exist locally and should be refreshed before each coding session. Missing history in shallow clones, an unavailable ref or no common merge base results in UNKNOWN. Codex/Cursor still do not have a host-level hard completion gate equivalent to Claude Code Stop.
+
+The new regression tests cover committed changes after a clean commit, remediation committed after the blocker, renamed files, deleted files, missing refs, dirty worktree paths unioned with committed changes, MCP workspace fingerprints and Claude Stop enforcement over committed changes. These are **test cases added, not test results** until the local qualification runner actually executes.
 
 ## Release readiness
 A beta distribution requires: local test suite pass, package build/install smoke test, MCP process transport tests, at least one supported host acceptance test, synthetic fixture benchmark, review of package contents, and a dependency-stack consolidation plan. No Actions/CI invocation is permitted for this project validation.
