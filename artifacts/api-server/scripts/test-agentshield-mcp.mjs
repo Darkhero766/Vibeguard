@@ -287,6 +287,25 @@ test('MCP stdio process speaks newline-delimited JSON-RPC, never Content-Length 
 });
 
 
+test('MCP returns UNKNOWN when the workspace has no changed files', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-empty-'));
+  try {
+    await exec('git', ['init', '-q', root]);
+    await exec('git', ['-C', root, 'config', 'user.name', 'AgentShield Test']);
+    await exec('git', ['-C', root, 'config', 'user.email', 'agentshield-test@example.invalid']);
+    await mkdir(path.join(root, 'src'));
+    await writeFile(path.join(root, 'src', 'app.js'), 'export const unchanged = true;\n');
+    await exec('git', ['-C', root, 'add', '.']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'synthetic clean baseline']);
+    const result = await scanChanged({ workspace: root });
+    assert.equal(result.status, 'no_changed_files');
+    assert.equal(result.securityGuarantee, false);
+    assert.deepEqual(result.scannedPaths, []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('MCP workspace snapshot includes committed base-to-HEAD changes', async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-base-ref-'));
   try {
