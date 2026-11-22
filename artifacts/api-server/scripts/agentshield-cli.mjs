@@ -190,7 +190,14 @@ function analyze(files) {
 
 function output(result, format) {
   if (format === 'json') { process.stdout.write(JSON.stringify(result) + '\n'); return; }
-  if (result.status !== 'complete') { process.stdout.write('VibeSane AgentShield: scan not completed. ' + result.error + '\n'); return; }
+  if (result.status !== 'complete') {
+    process.stdout.write('VibeSane AgentShield: ' + result.status + '. ' +
+      (result.error || 'Some changed files were not analyzed; this is not a clean result.') + '\n');
+    for (const file of (result.unsupportedChangedPaths || []).slice(0, 20)) {
+      process.stdout.write('  Unsupported: ' + file + '\n');
+    }
+    return;
+  }
   process.stdout.write('VibeSane AgentShield: ' + result.filesScanned + ' files scanned; ' + result.findings.length + ' findings.\n');
   for (const f of result.findings) {
     process.stdout.write('[' + f.severity + '] ' + f.filePath + ':' + f.line + ' ' + f.title + ' (' + f.ruleId + ')\n');
