@@ -54,7 +54,7 @@ export const TOOL_DEFS = [
   {
     name: 'scan_changed',
     title: 'Scan changed files',
-    description: 'Run a fresh read-only static security scan of supported Git-changed files. Requires an absolute Git workspace path. Incomplete coverage is UNKNOWN, never a pass.',
+    description: 'Run a fresh read-only static security scan of supported Git-changed files. Requires an absolute Git workspace path. A complete scan returns a unique scanId for this baseline. Incomplete coverage or truncated findings is UNKNOWN, never a pass.',
     inputSchema: { type: 'object', properties: { workspace: { type: 'string', minLength: 1, maxLength: 4096 } }, required: ['workspace'], additionalProperties: false },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -298,7 +298,8 @@ export function normalizeReport(report, expectedPaths) {
     recommendation: bounded(finding.recommendation, 300),
   }));
   return {
-    status: report.status === 'partial_coverage' ? 'partial_coverage' : 'complete',
+    status: report.status === 'partial_coverage' || report.findings.length > findings.length
+      ? 'partial_coverage' : 'complete',
     unsupportedChangedFileCount: Number.isSafeInteger(report.unsupportedChangedFileCount)
       ? report.unsupportedChangedFileCount : 0,
     filesScanned: report.filesScanned,
