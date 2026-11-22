@@ -37,11 +37,22 @@ The tarball is local and unpublished. The package script checks its file manifes
 
 ## Completion gate and host enforcement
 
-The default `completionGate` is `advisory` for compatibility. To opt into enforcement in a Claude Code project, install the hooks with `vibesane init --cwd /absolute/path/to/project`, then run `vibesane config --mode assist --completion-gate enforce --cwd /absolute/path/to/project` and confirm the persisted setting with `vibesane status --cwd /absolute/path/to/project`.
+The default `completionGate` is `advisory` for compatibility. To opt into commit-aware enforcement in a Claude Code project, install the hooks and configure a base reference that is present in the local clone:
 
-With enforcement enabled, the Claude Code Stop hook returns an explicit `decision: block` when the final changed-file scan is incomplete, no Git-visible changes are available to evidence a scan, previously flagged files are not covered, AgentShield is disabled, or findings at/above the configured blocking severity remain. The block persists until the scan is complete and blockers are resolved; an exhausted remediation budget does not convert a blocker into a pass. If the Claude Stop hook itself cannot execute or parse its event, it emits a fail-closed block response. Developers can still interrupt the host or explicitly change local policy, so this is a host-level control, not a tamper-proof boundary.
+```bash
+vibesane init --cwd /absolute/path/to/project
+git -C /absolute/path/to/project fetch origin main
+vibesane config --mode assist --completion-gate enforce --base-ref origin/main --cwd /absolute/path/to/project
+vibesane status --cwd /absolute/path/to/project
+```
 
-**Committed-change limitation:** this beta's final gate scans Git-visible staged, modified, and untracked files. It does not yet capture a session-start commit or scan a merge-base diff. Do not commit agent changes before the Stop hook; if the worktree is clean, enforce mode treats the absence of scan evidence as UNKNOWN and blocks. This must be resolved before claiming a complete commit-aware delivery gate.
+Use a locally available branch, remote-tracking ref, tag, or commit SHA. Refresh the configured remote-tracking ref before starting a new coding session. If the ref cannot be resolved or has no common merge base with HEAD, the scan fails closed. Shallow clones that do not contain the required base history must fetch the missing history or use a suitable available ref.
+
+With `baseRef` configured, the final gate scans the base-to-HEAD committed diff plus staged, modified, and untracked worktree changes. Renames are scanned at their destination path. Deleted, unsupported, unsafe, missing, or out-of-budget changed paths prevent a clean result. The base SHA and worktree content are fingerprinted before and after scanning, so moving the base ref or mutating files during the scan invalidates the result.
+
+With enforcement enabled, the Claude Code Stop hook returns an explicit `decision: block` when coverage is incomplete, the base reference is unavailable, no changed paths exist to evidence a scan, previously flagged files are not covered, AgentShield is disabled, or findings at/above the configured blocking severity remain. The block persists until a complete scan has no blockers; an exhausted remediation budget does not convert a blocker into a pass. If the Claude Stop hook itself cannot execute or parse its event, it emits a fail-closed block response. Developers can still interrupt the host or explicitly change local policy, so this remains a host-level control, not a tamper-proof boundary.
+
+For a one-off CLI scan without persisting a policy, use `vibesane scan --changed --base-ref origin/main --cwd /absolute/path/to/project`.
 
 **Host distinction:** Claude Code's Stop hook has an explicit block response. Cursor's documented `followup_message` is a continuation mechanism, not an equivalent hard delivery gate. Codex MCP + skill guidance is advisory in this beta and does not intercept final delivery. Do not advertise equivalent enforcement across all hosts.
 
