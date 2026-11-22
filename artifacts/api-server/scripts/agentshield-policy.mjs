@@ -68,7 +68,8 @@ export function completionGateDecision({
     return enforced ? { decision: 'block', reason } : { systemMessage: reason };
   }
   if (status === 'no_changed_files') {
-    return { systemMessage: 'VibeSane AgentShield: no supported changed files to scan. No security pass is implied.' };
+    const reason = 'VibeSane AgentShield: no Git-visible changed files were available. No security scan or delivery evidence exists; inspect the commit/worktree scope before delivery.';
+    return enforced ? { decision: 'block', reason } : { systemMessage: reason };
   }
   if (unscannedCount > 0) {
     const reason = 'VibeSane AgentShield: final scan did not cover previously flagged files; result PARTIAL, not verified. Review or rescan the previously flagged files before delivery.';
