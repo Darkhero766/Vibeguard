@@ -102,6 +102,7 @@ try {
   await run('git', ['-C', fixture, 'config', 'user.email', 'agentshield-smoke@example.invalid']);
   await run('git', ['-C', fixture, 'add', '.']);
   await run('git', ['-C', fixture, 'commit', '-qm', 'synthetic fixture baseline']);
+  await run('git', ['-C', fixture, 'branch', 'agentshield-base']);
   await writeFile(path.join(fixture, 'src', 'index.js'), 'export const changed = true;\n');
 
   const doctor = await run(cli, ['doctor', '--cwd', fixture], { cwd: temp });
@@ -111,7 +112,7 @@ try {
   await run('git', ['-C', fixture, 'add', '.']);
   await run('git', ['-C', fixture, '-c', 'user.name=AgentShield Package Smoke', '-c',
     'user.email=agentshield-smoke@example.invalid', 'commit', '-qm', 'synthetic committed change']);
-  const scan = await run(cli, ['scan', '--changed', '--base-ref', 'main', '--cwd', fixture, '--format', 'json'], { cwd: temp });
+  const scan = await run(cli, ['scan', '--changed', '--base-ref', 'agentshield-base', '--cwd', fixture, '--format', 'json'], { cwd: temp });
   const report = JSON.parse(scan.stdout);
   assert(report.status === 'complete' && report.filesScanned === 1
     && typeof report.baseRef === 'string' && report.baseRef.length === 40,
