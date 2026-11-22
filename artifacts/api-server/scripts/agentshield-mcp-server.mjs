@@ -332,36 +332,34 @@ async function runScanner(root, expectedPaths, signal) {
   return normalizeReport(report, expectedPaths);
 }
 function findingKey(finding) {
-  return [finding.filePath, finding.ruleId, finding.title, finding.line ?? ''].join('\0');
+  // Rule/title/file identity survives line movement during remediation. Matching
+  // exact lines first preserves distinct duplicate occurrences when possible.
+  return [finding.filePath, finding.ruleId, finding.title].join('\0');
 }
 export function compareFindings(previous, current) {
-  // Use occurrence counts rather than Sets: scanners can legitimately emit
-  // multiple findings with identical identity fields, and a Set silently
-  // collapses them, hiding removals or additions.
-  const counts = new Map();
-  for (const finding of current) {
+  const buckets = new Map();
+  current.forEach((finding, index) => {
     const key = findingKey(finding);
-    counts.set(key, (counts.get(key) || 0) + 1);
-  }
-  const remaining = [];
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push({ finding, index, used: false });
+  });
   const removed = [];
-  for (const finding of previous) {
-    const key = findingKey(finding);
-    const count = counts.get(key) || 0;
-    if (count > 0) {
-      remaining.push(finding);
-      counts.set(key, count - 1);
-    } else removed.push(finding);
+  const remaining = [];
+  for (const baseline of previous) {
+    const candidates = buckets.get(findingKey(baseline)) || [];
+    const available = candidates.filter((item) => !item.used);
+    const exact = available.find((item) => item.finding.line === baseline.line);
+    const match = exact || available[0];
+    if (!match) {
+      removed.push(baseline);
+      continue;
+    }
+    match.used = true;
+    remaining.push(baseline);
   }
-  const consumed = new Map();
   const newFindings = [];
-  for (const finding of current) {
-    const key = findingKey(finding);
-    const total = counts.get(key) || 0;
-    const used = consumed.get(key) || 0;
-    // Counts left after consuming baseline occurrences identify true additions.
-    if (used < total) newFindings.push(finding);
-    consumed.set(key, used + 1);
+  for (const items of buckets.values()) {
+    for (const item of items) if (!item.used) newFindings.push(item.finding);
   }
   return { removed, remaining, newFindings };
 }
