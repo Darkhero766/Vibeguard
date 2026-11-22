@@ -305,6 +305,34 @@ test('final gate fails closed when configured base ref is missing', async () => 
   }
 });
 
+test('enforced final gate rejects a base at HEAD or on an unrelated branch', async () => {
+  const root = await repoFixture();
+  try {
+    await exec('git', ['-C', root, 'checkout', '-qb', 'unrelated-base']);
+    await writeFile(path.join(root, 'unrelated.txt'), 'independent history\n');
+    await exec('git', ['-C', root, 'add', 'unrelated.txt']);
+    await exec('git', ['-C', root, 'commit', '-qm', 'unrelated base history']);
+    await exec('git', ['-C', root, 'checkout', '-q', 'main']);
+
+    for (const baseRef of ['main', 'unrelated-base']) {
+      let scannerCalled = false;
+      const result = await finalGate(root, {
+        blockingSeverity: 'High',
+        completionGate: 'enforce',
+        baseRef,
+      }, async () => {
+        scannerCalled = true;
+        return { status: 'complete', filesScanned: 0, scannedPaths: [], findings: [] };
+      });
+      assert.equal(result.status, 'scan_incomplete');
+      assert.equal(result.securityGuarantee, false);
+      assert.equal(scannerCalled, false);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('baseRef config accepts a local branch and rejects unsafe Git ref expressions', () => {
   assert.equal(parseConfig({ baseRef: 'origin/main' }).baseRef, 'origin/main');
   assert.equal(parseConfig({ baseRef: 'a'.repeat(40) }).baseRef, 'a'.repeat(40));
