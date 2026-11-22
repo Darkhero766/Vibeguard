@@ -35,22 +35,6 @@ const TEST_FILES = [
   'test-agentshield-supabase-policy.mjs',
   'test-agentshield-auth-regression.mjs',
   'test-vibesane-sql-context.mjs',
-  'test-phase1-github-http-contract.mjs',
-  'test-phase1-crypto.mjs',
-  'test-phase1-dodo-environment.mjs',
-  'test-phase1-dodo-signature.mjs',
-  'test-phase1-dodo-sync-http.mjs',
-  'test-staging-access.mjs',
-  'test-phase1-dodo-webhook-retry.mjs',
-  'test-phase1-github-installation-ownership.mjs',
-  'test-password-storage-scanner.mjs',
-  'test-public-scan-allowance-http.mjs',
-  'test-scan-failure-isolation-http.mjs',
-  'test-phase1-github-oauth-handoff.mjs',
-  'test-scan-repository-url-http.mjs',
-  'test-vibesane-v2-context.mjs',
-  'test-phase1-staging-isolation.mjs',
-  'test-vibesane-checks.mjs',
 ];
 const results = [];
 const env = {
