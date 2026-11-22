@@ -63,7 +63,7 @@ export function ReportEnhancements({ report }: { report: ReportLike }) {
   const medium = report.findings.filter((f) => f.severity === 'Medium').length;
   const score = useMemo(() => getScore(report.findings, report.checksRun), [report.findings, report.checksRun]);
   const passed = Number.isInteger(report.checksRun) ? Math.max(0, (report.checksRun ?? 0) - new Set(report.findings.map((f) => f.check)).size) : null;
-  const scoreLabel = score >= 90 ? 'Strong' : score >= 70 ? 'Needs attention' : score >= 40 ? 'At risk' : 'Critical risk';
+  const scoreLabel = score === null ? 'Not available' : score >= 90 ? 'Strong' : score >= 70 ? 'Needs attention' : score >= 40 ? 'At risk' : 'Critical risk';
 
   const copyFixPrompt = async () => {
     try {
@@ -82,7 +82,7 @@ export function ReportEnhancements({ report }: { report: ReportLike }) {
             <span className="text-[54px] font-black leading-none tracking-[-0.07em]">{score ?? '—'}</span>
             <span className="mb-1 font-mono text-[11px] text-muted-foreground">/100</span>
           </div>
-          <p className="mt-2 text-[12px] font-semibold text-foreground">{score === null ? 'Not available' : scoreLabel}</p>
+          <p className="mt-2 text-[12px] font-semibold text-foreground">{scoreLabel}</p>
           <div className="mt-5 h-2 overflow-hidden bg-muted">
             <div className="h-full bg-primary transition-all duration-700" style={{ width: `${score ?? 0}%` }} />
           </div>
