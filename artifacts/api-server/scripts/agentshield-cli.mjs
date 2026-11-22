@@ -128,6 +128,11 @@ async function loadFiles(opts) {
     ? [path.isAbsolute(opts.file) ? path.relative(rootReal, opts.file) : path.relative(rootReal, path.resolve(cwd, opts.file))]
     : [...new Set([...worktreePaths, ...committedPaths])].sort();
   const selected = targets.filter(validFile);
+  const ignoredChangedPaths = opts.file ? [] : targets.filter((file) => {
+    const normalized = file.replaceAll('\\', '/');
+    return !normalized.startsWith('/') && !normalized.split('/').includes('..')
+      && normalized.split('/').some((part) => IGNORE_PARTS.has(part));
+  });
   const unsupportedChangedPaths = opts.file ? [] : targets.filter((file) => !ignoredPath(file) && !validFile(file));
   if (opts.file && selected.length === 0) throw new Error('The specified file is outside the repository or has an unsupported extension.');
   if (targets.length > MAX_FILES) throw new Error('Changed-file limit exceeded (100); narrow the scan.');
@@ -177,6 +182,7 @@ async function loadFiles(opts) {
     files,
     mode: opts.file ? 'file' : 'changed',
     selected: selected.length,
+    ignoredChangedPaths,
     unsupportedChangedPaths,
     missingChangedPaths,
     unsafeChangedPaths,
@@ -267,6 +273,9 @@ function output(result, format) {
   if (result.status !== 'complete') {
     process.stdout.write('VibeSane AgentShield: ' + result.status + '. ' +
       (result.error || 'Some changed files were not analyzed; this is not a clean result.') + '\n');
+    for (const file of (result.ignoredChangedPaths || []).slice(0, 20)) {
+      process.stdout.write('  Ignored (not scanned): ' + file + '\n');
+    }
     for (const file of (result.unsupportedChangedPaths || []).slice(0, 20)) {
       process.stdout.write('  Unsupported: ' + file + '\n');
     }
@@ -291,9 +300,9 @@ export async function main(argv = process.argv.slice(2)) {
   try {
     const opts = options(argv);
     format = opts.format;
-    const { files, mode, selected, unsupportedChangedPaths, missingChangedPaths, unsafeChangedPaths, baseRef } = await loadFiles(opts);
+    const { files, mode, selected, ignoredChangedPaths, unsupportedChangedPaths, missingChangedPaths, unsafeChangedPaths, baseRef } = await loadFiles(opts);
     const findings = analyze(files);
-    const partial = unsupportedChangedPaths.length > 0;
+    const partial = unsupportedChangedPaths.length > 0 || ignoredChangedPaths.length > 0;
     const analysisLimited = findings.some((finding) => finding.ruleId === 'python_scan_limit');
     const incomplete = missingChangedPaths.length > 0 || unsafeChangedPaths.length > 0 || analysisLimited;
     const report = {
@@ -301,6 +310,8 @@ export async function main(argv = process.argv.slice(2)) {
       status: incomplete ? 'scan_incomplete' : partial ? 'partial_coverage' : 'complete', mode,
       filesSelected: selected, filesScanned: files.length, scannedPaths: files.map((f) => f.path), findings,
       ...(baseRef ? { baseRef } : {}),
+      ignoredChangedPaths: ignoredChangedPaths.slice(0, 30),
+      ignoredChangedFileCount: ignoredChangedPaths.length,
       unsupportedChangedPaths: unsupportedChangedPaths.slice(0, 30),
       unsupportedChangedFileCount: unsupportedChangedPaths.length,
       missingChangedPaths: missingChangedPaths.slice(0, 30),
@@ -310,7 +321,7 @@ export async function main(argv = process.argv.slice(2)) {
           ? 'One or more source files exceeded an analyzer budget and were not fully analyzed; security status is UNKNOWN.'
           : 'One or more changed files were deleted or unsafe to read; security status is UNKNOWN.'
         : partial
-          ? 'Partial static heuristic analysis. Unsupported changed files were not analyzed; do not report a clean result.'
+          ? 'Partial static heuristic analysis. Unsupported or intentionally ignored changed files were not analyzed; do not report a clean result.'
           : 'Static heuristic analysis of selected files only; untested vulnerabilities may remain.',
       scannedAt: new Date().toISOString(),
     };
