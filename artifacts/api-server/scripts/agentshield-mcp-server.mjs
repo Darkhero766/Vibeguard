@@ -54,8 +54,8 @@ export const TOOL_DEFS = [
   {
     name: 'scan_changed',
     title: 'Scan changed files',
-    description: 'Run a fresh read-only static security scan of supported Git-changed files. Requires an absolute Git workspace path. A complete scan returns a unique scanId for this baseline. Incomplete coverage or truncated findings is UNKNOWN, never a pass.',
-    inputSchema: { type: 'object', properties: { workspace: { type: 'string', minLength: 1, maxLength: 4096 } }, required: ['workspace'], additionalProperties: false },
+    description: 'Run a fresh read-only static scan of supported staged, modified, untracked and (optionally) base-to-HEAD committed files. Requires an absolute Git workspace path. Pass the same base_ref to list_findings and verify_remediation. Incomplete coverage or truncated findings is UNKNOWN, never a pass.',
+    inputSchema: { type: 'object', properties: { workspace: { type: 'string', minLength: 1, maxLength: 4096 }, base_ref: { type: 'string', minLength: 1, maxLength: 200 } }, required: ['workspace'], additionalProperties: false },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   {
@@ -65,6 +65,7 @@ export const TOOL_DEFS = [
     inputSchema: { type: 'object', properties: {
       workspace: { type: 'string', minLength: 1, maxLength: 4096 },
       scan_id: { type: 'string', minLength: 16, maxLength: 80 },
+      base_ref: { type: 'string', minLength: 1, maxLength: 200 },
     }, required: ['workspace', 'scan_id'], additionalProperties: false },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -75,6 +76,7 @@ export const TOOL_DEFS = [
     inputSchema: { type: 'object', properties: {
       workspace: { type: 'string', minLength: 1, maxLength: 4096 },
       baseline_id: { type: 'string', minLength: 16, maxLength: 80 },
+      base_ref: { type: 'string', minLength: 1, maxLength: 200 },
     }, required: ['workspace', 'baseline_id'], additionalProperties: false },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
@@ -197,13 +199,60 @@ async function gitStatus(root, signal) {
   return result.stdout;
 }
 
+function validBaseRef(value) {
+  return typeof value === 'string' && value.length > 0 && value.length <= 200
+    && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value)
+    && !value.includes('..') && !value.includes('//') && !value.includes('@{')
+    && !value.endsWith('/') && !value.endsWith('.') && !value.startsWith('-');
+}
+async function resolveBaseCommit(root, baseRef, signal) {
+  if (baseRef == null) return null;
+  if (!validBaseRef(baseRef)) throw new Error('Invalid base_ref; provide a safe local Git ref or commit SHA.');
+  throwIfAborted(signal);
+  const result = await exec('git', gitArgs(root, ['rev-parse', '--verify', '--end-of-options', baseRef + '^{commit}']), {
+    timeout: 7000, maxBuffer: 10_000, windowsHide: true, env: FIXED_ENV, signal,
+  }).catch(() => { throw new Error('Configured base_ref is unavailable locally; fetch it before scanning.'); });
+  const sha = result.stdout.trim();
+  if (!/^[a-f0-9]{40,64}$/i.test(sha)) throw new Error('Configured base_ref did not resolve to a commit.');
+  return sha;
+}
+function committedChangedEntries(output) {
+  const chunks = output.split('\\0');
+  const files = [];
+  for (let i = 0; i < chunks.length;) {
+    const status = chunks[i++];
+    if (!status) continue;
+    if (/^[RC][0-9]*$/.test(status)) {
+      const oldPath = chunks[i++], newPath = chunks[i++];
+      if (!oldPath || !newPath) throw new Error('Malformed committed rename/copy entry.');
+      files.push(newPath);
+    } else if (/^[AMDTU][0-9]*$/.test(status)) {
+      const file = chunks[i++];
+      if (!file) throw new Error('Malformed committed changed path.');
+      files.push(file);
+    } else throw new Error('Unsupported committed diff status.');
+  }
+  return [...new Set(files)].sort();
+}
+async function committedStatus(root, baseCommit, signal) {
+  if (!baseCommit) return [];
+  throwIfAborted(signal);
+  const result = await exec('git', gitArgs(root, ['diff', '--name-status', '-z', '--find-renames', baseCommit + '...HEAD', '--']), {
+    timeout: 7000, maxBuffer: MAX_OUTPUT, windowsHide: true, env: FIXED_ENV, signal,
+  });
+  return committedChangedEntries(result.stdout);
+}
+
 // Hash actual changed-file bytes as well as Git status. This invalidates a cached scan
 // even when an already-dirty file changes again without changing its porcelain status.
-export async function workspaceSnapshot(workspace, signal) {
+export async function workspaceSnapshot(workspace, signal, baseRef = null) {
   throwIfAborted(signal);
   const root = await canonicalRoot(workspace, signal);
   const status = await gitStatus(root, signal);
-  const allChangedPaths = changedEntries(status);
+  const worktreePaths = changedEntries(status);
+  const baseCommit = await resolveBaseCommit(root, baseRef, signal);
+  const committedPaths = await committedStatus(root, baseCommit, signal);
+  const allChangedPaths = [...new Set([...worktreePaths, ...committedPaths])].sort();
   const paths = allChangedPaths.filter(supportedPath);
   const unsupportedChangedPaths = allChangedPaths.filter((file) => !ignoredPath(file) && !supportedPath(file));
   if (allChangedPaths.length > MAX_FILES) throw new Error('Changed-file limit exceeded.');
@@ -253,7 +302,8 @@ export async function workspaceSnapshot(workspace, signal) {
     changedPaths: paths,
     unsupportedChangedPaths,
     candidatePaths,
-    fingerprint: sha256(status + JSON.stringify(observations)),
+    baseCommit,
+    fingerprint: sha256(status + JSON.stringify(observations) + String(baseCommit || '')),
   };
 }
 
@@ -312,14 +362,14 @@ export function normalizeReport(report, expectedPaths) {
   };
 }
 
-async function runScanner(root, expectedPaths, signal) {
+async function runScanner(root, expectedPaths, signal, baseCommit = null) {
   throwIfAborted(signal);
   if (!expectedPaths.length) return { status: 'no_supported_changes', filesScanned: 0, scannedPaths: [], findings: [], totalFindings: 0, securityGuarantee: false, note: 'No supported changed source files were available; no security assessment was performed.' };
   const ready = await statusTool();
   if (!ready.scannerBuilt) throw new Error('AgentShield scanner is not built.');
   let output;
   try {
-    output = await exec(process.execPath, [SCANNER, 'scan', '--changed', '--cwd', root, '--format', 'json'], {
+    output = await exec(process.execPath, [SCANNER, 'scan', '--changed', ...(baseCommit ? ['--base-ref', baseCommit] : []), '--cwd', root, '--format', 'json'], {
       timeout: 15000, maxBuffer: MAX_OUTPUT, windowsHide: true, env: FIXED_ENV, signal,
     });
   } catch (error) {
@@ -369,9 +419,9 @@ function rememberBaseline(root, fingerprint, result) {
 function getBaseline(scanId, root) {
   return baselineStore.get(scanId, root);
 }
-export async function scanChanged({ workspace } = {}, { signal } = {}) {
+export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, { signal } = {}) {
   throwIfAborted(signal);
-  const snapshot = await workspaceSnapshot(workspace, signal);
+  const snapshot = await workspaceSnapshot(workspace, signal, baseRef);
   if (!snapshot.candidatePaths.length) {
     if (snapshot.unsupportedChangedPaths.length) {
       return {
@@ -385,10 +435,10 @@ export async function scanChanged({ workspace } = {}, { signal } = {}) {
         note: 'Changed files exist, but none are in AgentShield supported scan formats. No security assessment was performed.',
       };
     }
-    return runScanner(snapshot.root, []);
+    return runScanner(snapshot.root, [], signal, snapshot.baseCommit);
   }
-  const result = await runScanner(snapshot.root, snapshot.candidatePaths, signal);
-  const after = await workspaceSnapshot(snapshot.root, signal);
+  const result = await runScanner(snapshot.root, snapshot.candidatePaths, signal, snapshot.baseCommit);
+  const after = await workspaceSnapshot(snapshot.root, signal, baseRef);
   if (snapshot.fingerprint !== after.fingerprint) throw new Error('Workspace changed during the scan; results are UNKNOWN.');
   const scopedResult = snapshot.unsupportedChangedPaths.length ? {
     ...result,
@@ -399,13 +449,13 @@ export async function scanChanged({ workspace } = {}, { signal } = {}) {
   } : result;
   if (scopedResult.status === 'complete') {
     const scanId = rememberBaseline(snapshot.root, after.fingerprint, scopedResult);
-    return { ...scopedResult, scanId, baselineExpiresInMs: BASELINE_TTL_MS };
+    return { ...scopedResult, ...(after.baseCommit ? { baseRef: after.baseCommit } : {}), scanId, baselineExpiresInMs: BASELINE_TTL_MS };
   }
   return scopedResult;
 }
-export async function listFindings(workspace, scanId, { signal } = {}) {
+export async function listFindings(workspace, scanId, { signal, baseRef = null } = {}) {
   throwIfAborted(signal);
-  const snapshot = await workspaceSnapshot(workspace, signal);
+  const snapshot = await workspaceSnapshot(workspace, signal, baseRef);
   const baseline = getBaseline(scanId, snapshot.root);
   if (!baseline) {
     return { status: 'baseline_not_found', findings: [], note: 'The scan_id is unknown, expired, or belongs to a different workspace. Run scan_changed again.' };
@@ -420,9 +470,9 @@ export async function listFindings(workspace, scanId, { signal } = {}) {
     baselineExpiresInMs: Math.max(0, baseline.expiresAt - Date.now()),
   };
 }
-export async function verifyRemediation(workspace, baselineId, { signal } = {}) {
+export async function verifyRemediation(workspace, baselineId, { signal, baseRef = null } = {}) {
   throwIfAborted(signal);
-  const before = await workspaceSnapshot(workspace, signal);
+  const before = await workspaceSnapshot(workspace, signal, baseRef);
   const baseline = getBaseline(baselineId, before.root);
   if (!baseline) return {
     status: 'no_baseline',
@@ -441,8 +491,8 @@ export async function verifyRemediation(workspace, baselineId, { signal } = {}) 
       note: 'No supported changed source files remain. Remediation cannot be verified from the available changed-file scope.',
     };
   }
-  const current = await runScanner(before.root, before.candidatePaths, signal);
-  const after = await workspaceSnapshot(before.root, signal);
+  const current = await runScanner(before.root, before.candidatePaths, signal, before.baseCommit);
+  const after = await workspaceSnapshot(before.root, signal, baseRef);
   if (before.fingerprint !== after.fingerprint) throw new Error('Workspace changed during the verification scan; status UNKNOWN.');
   if (before.unsupportedChangedPaths.length || baseline.result.status !== 'complete' || current.status !== 'complete') {
     return {
@@ -525,18 +575,21 @@ export function validateToolArguments(name, args) {
   const keys = Object.keys(args);
   if (name === 'status') return keys.length === 0;
   if (name === 'scan_changed') {
-    return keys.length === 1 && typeof args.workspace === 'string'
-      && args.workspace.length > 0 && args.workspace.length <= 4096 && path.isAbsolute(args.workspace);
+    return (keys.length === 1 || keys.length === 2) && typeof args.workspace === 'string'
+      && args.workspace.length > 0 && args.workspace.length <= 4096 && path.isAbsolute(args.workspace)
+      && (args.base_ref === undefined || validBaseRef(args.base_ref));
   }
   if (name === 'list_findings') {
-    return keys.length === 2 && typeof args.workspace === 'string'
+    return (keys.length === 2 || keys.length === 3) && typeof args.workspace === 'string'
       && args.workspace.length > 0 && args.workspace.length <= 4096 && path.isAbsolute(args.workspace)
-      && typeof args.scan_id === 'string' && args.scan_id.length >= 16 && args.scan_id.length <= 80;
+      && typeof args.scan_id === 'string' && args.scan_id.length >= 16 && args.scan_id.length <= 80
+      && (args.base_ref === undefined || validBaseRef(args.base_ref));
   }
   if (name === 'verify_remediation') {
-    return keys.length === 2 && typeof args.workspace === 'string'
+    return (keys.length === 2 || keys.length === 3) && typeof args.workspace === 'string'
       && args.workspace.length > 0 && args.workspace.length <= 4096 && path.isAbsolute(args.workspace)
-      && typeof args.baseline_id === 'string' && args.baseline_id.length >= 16 && args.baseline_id.length <= 80;
+      && typeof args.baseline_id === 'string' && args.baseline_id.length >= 16 && args.baseline_id.length <= 80
+      && (args.base_ref === undefined || validBaseRef(args.base_ref));
   }
   if (name === 'explain_finding') return keys.length === 1
     && typeof args.rule_id === 'string' && args.rule_id.length > 0 && args.rule_id.length <= 100;
@@ -647,8 +700,8 @@ export async function handleMessage(message, { signal } = {}) {
       let result;
       if (params.name === 'status') result = await statusTool();
       else if (params.name === 'scan_changed') result = await scanChanged(args, { signal });
-      else if (params.name === 'list_findings') result = await listFindings(args.workspace, args.scan_id, { signal });
-      else if (params.name === 'verify_remediation') result = await verifyRemediation(args.workspace, args.baseline_id, { signal });
+      else if (params.name === 'list_findings') result = await listFindings(args.workspace, args.scan_id, { signal, baseRef: args.base_ref || null });
+      else if (params.name === 'verify_remediation') result = await verifyRemediation(args.workspace, args.baseline_id, { signal, baseRef: args.base_ref || null });
       else if (params.name === 'explain_finding') result = explainFinding(args.rule_id);
       else throw new Error('Unknown tool.');
       const toolResult = toolText(result);
