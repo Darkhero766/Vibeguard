@@ -185,6 +185,13 @@ test('Claude Code Stop hook enforces blockers then allows a complete clean resca
   assert.equal(blockPayload.decision, 'block');
   assert.match(blockPayload.reason, /ENFORCEMENT/);
 
+  const recursive = await spawnWithInput(process.execPath, [stopHook],
+    JSON.stringify({ ...event, stop_hook_active: true }), env);
+  assert.equal(recursive.code, 0);
+  const terminalPayload = JSON.parse(recursive.stdout);
+  assert.equal(terminalPayload.continue, false);
+  assert.match(terminalPayload.stopReason, /ENFORCEMENT/);
+
   await writeFile(target, 'export const apiTokenIsLoadedFromServerConfig = true;\n');
   const cleared = await spawnWithInput(process.execPath, [stopHook], JSON.stringify(event), env);
   assert.equal(cleared.code, 0);
@@ -236,6 +243,13 @@ test('Claude Code Stop hook blocks if enforcement is enabled but scanner is disa
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.decision, 'block');
   assert.match(payload.reason, /scanner is disabled/i);
+
+  const recursive = await spawnWithInput(process.execPath, [stopHook],
+    JSON.stringify({ hook_event_name: 'Stop', cwd, session_id: 'disabled-scanner-test', stop_hook_active: true }), env);
+  assert.equal(recursive.code, 0);
+  const terminalPayload = JSON.parse(recursive.stdout);
+  assert.equal(terminalPayload.continue, false);
+  assert.match(terminalPayload.stopReason, /scanner is disabled/i);
 });
 
 
@@ -393,6 +407,13 @@ test('Codex Stop hook blocks committed findings and permits a clean remediation 
   const payload = JSON.parse(blocked.stdout);
   assert.equal(payload.decision, 'block');
   assert.match(payload.reason, /ENFORCEMENT/);
+
+  const recursive = await spawnWithInput(process.execPath, [codexStopHook],
+    JSON.stringify({ ...event, stop_hook_active: true }), env);
+  assert.equal(recursive.code, 0);
+  const terminalPayload = JSON.parse(recursive.stdout);
+  assert.equal(terminalPayload.continue, false);
+  assert.match(terminalPayload.stopReason, /ENFORCEMENT/);
 
   await writeFile(target, 'export const apiTokenIsLoadedFromServerConfig = true;\n');
   await commitFixture(cwd, 'synthetic committed remediation');
