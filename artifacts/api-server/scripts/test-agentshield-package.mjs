@@ -27,6 +27,38 @@ async function run(program, args, options = {}) {
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+function runHook(script, cwd, payload, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [script], { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish(new Error('Codex Stop hook process timed out.'));
+    }, 20_000);
+    function finish(error, result) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(result);
+    }
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', chunk => { stdout += chunk; });
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    child.on('error', error => finish(error));
+    child.on('close', code => {
+      if (code !== 0) return finish(new Error('Codex Stop hook exited ' + code + ': ' + stderr.slice(0, 500)));
+      if (!stdout.trim()) return finish(null, null);
+      try { finish(null, JSON.parse(stdout)); }
+      catch { finish(new Error('Codex Stop hook emitted invalid JSON: ' + stdout.slice(0, 500))); }
+    });
+    child.stdin.end(JSON.stringify(payload) + '\\n');
+  });
+}
+
 function runMcp(executable, payload, expectedResponses = 3) {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
@@ -130,6 +162,41 @@ try {
     && typeof report.baseRef === 'string' && report.baseRef.length === 40,
     'Installed package did not complete the synthetic committed base-ref scan.');
 
+  // Exercise the installed Codex Stop adapter as a real child process, not just
+  // the hook-registration JSON. All state/config paths are isolated to this fixture.
+  const packageRoot = path.join(installPrefix, 'lib', 'node_modules', '@vibesane', 'agentshield');
+  const codexStop = path.join(packageRoot, 'scripts', 'agentshield-codex-stop.mjs');
+  const hookEnv = {
+    ...process.env,
+    VIBESANE_AGENTSHIELD_CONFIG_HOME: path.join(temp, 'agent-config'),
+    VIBESANE_AGENTSHIELD_STATE_HOME: path.join(temp, 'agent-state'),
+  };
+  await writeFile(path.join(fixture, 'src', 'auth.js'),
+    'const JWT_SECRET = "' + 'Z'.repeat(36) + '";\\n');
+  await run('git', ['-C', fixture, 'add', 'src/auth.js']);
+  await run('git', ['-C', fixture, '-c', 'user.name=AgentShield Package Smoke', '-c',
+    'user.email=agentshield-smoke@example.invalid', 'commit', '-qm', 'synthetic blocker fixture']);
+  await run(cli, ['config', '--mode', 'assist', '--completion-gate', 'enforce',
+    '--base-ref', 'agentshield-base', '--cwd', fixture], { cwd: temp, env: hookEnv });
+  const blockedStop = await runHook(codexStop, fixture, {
+    cwd: fixture, thread_id: 'agentshield-smoke-thread', turn_id: 'agentshield-smoke-blocker',
+    stop_hook_active: false,
+  }, hookEnv);
+  assert(blockedStop?.decision === 'block' && /blocking finding/i.test(blockedStop.reason || ''),
+    'Installed Codex Stop hook did not return the expected continuation block for a synthetic blocker.');
+
+  await writeFile(path.join(fixture, 'src', 'auth.js'),
+    'const JWT_SECRET = process.env.JWT_SECRET;\\n');
+  await run('git', ['-C', fixture, 'add', 'src/auth.js']);
+  await run('git', ['-C', fixture, '-c', 'user.name=AgentShield Package Smoke', '-c',
+    'user.email=agentshield-smoke@example.invalid', 'commit', '-qm', 'synthetic blocker remediation']);
+  const cleanStop = await runHook(codexStop, fixture, {
+    cwd: fixture, thread_id: 'agentshield-smoke-thread', turn_id: 'agentshield-smoke-remediated',
+    stop_hook_active: true,
+  }, hookEnv);
+  assert(cleanStop === null,
+    'Installed Codex Stop hook continued the turn after the synthetic blocker was remediated.');
+
   const requests = [
     { jsonrpc: '2.0', id: 1, method: 'initialize', params: {
       protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'agentshield-package-smoke', version: '1.0.0' },
@@ -156,7 +223,7 @@ try {
     packageSha256: packaged.sha256,
     packageBytes: packaged.archiveBytes,
     packagedFiles: packaged.fileCount,
-    checks: ['build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor', 'codex-init-hook', 'synthetic-committed-scan', 'mcp-initialize', 'mcp-tools-list', 'mcp-status', 'codex-uninstall'],
+    checks: ['build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-initialize', 'mcp-tools-list', 'mcp-status', 'codex-uninstall'],
     fixture: 'synthetic-disposable-git-repository',
     published: false,
   }) + '\n');
