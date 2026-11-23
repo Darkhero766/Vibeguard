@@ -50,12 +50,14 @@ const FILES = [
   'scripts/agentshield-sarif.mjs',
   'scripts/package-agentshield-beta.mjs',
   'scripts/benchmark-agentshield-accuracy.mjs',
+  'scripts/benchmark-agentshield-adversarial.mjs',
   'scripts/validate-agentshield-release.mjs',
   'scripts/test-agentshield.mjs',
   'scripts/test-agentshield-gate.mjs',
   'scripts/test-agentshield-sarif.mjs',
   'scripts/test-agentshield-baselines.mjs',
   'scripts/test-agentshield-mcp.mjs',
+  'scripts/test-agentshield-adversarial.mjs',
   'scripts/test-agentshield-package.mjs',
 ];
 

@@ -96,7 +96,7 @@ export function scanPythonFiles(files = []) {
     inspectCall(source,
       /\bpickle\.(?:loads?|Unpickler)\s*\(([\s\S]{0,500}?)\)/g,
       (match) => {
-        const untrusted = /\b(?:request|args|argv|query|params?|input|user|payload|upload|body|socket)\b/i.test(match[1]);
+        const untrusted = /\b(?:request|args|argv|query|params?|input|user|payload|upload|body|socket|untrusted\w*)\b/i.test(match[1]);
         if (!untrusted) return;
         findings.push(finding(file, 'python_unsafe_deserialization', 'High', 'medium',
           'Potential unsafe pickle deserialization of externally influenced data',

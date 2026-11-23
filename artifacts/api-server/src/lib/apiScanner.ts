@@ -384,6 +384,42 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
         ));
       }
     }
+    // Recognize straightforward compile-time concatenation as a literal secret
+    // too. The value is used only for placeholder checks and never reported.
+    const joinedJwtAssignments = /\b(?:const|let|var)\s+(JWT_SECRET|JWT_SIGNING_KEY|jwtSecret)\s*(?::\s*[^=;\r\n]+)?=\s*(["'])([^"'\r\n]{8,128})\2\s*\+\s*(["'])([^"'\r\n]{8,128})\4/g;
+    for (const match of file.content.matchAll(joinedJwtAssignments)) {
+      const identifier = match[1];
+      const valueOffset = match[0].indexOf(match[2]);
+      const activeDeclaration = executable.slice(match.index ?? 0, (match.index ?? 0) + valueOffset);
+      const literal = (match[3] + match[5]).trim();
+      if (!activeDeclaration.includes(identifier) || literal.length < 16
+        || /^(?:example|placeholder|changeme|replace|your_|dummy|fake|not_a_secret|test_only)/i.test(literal)) continue;
+      const line = lineAt(file.content, match.index ?? 0);
+      findings.push(finding(
+        "jwt-secret-" + file.path + "-" + line,
+        "High",
+        "JWT signing secret is hardcoded in source",
+        "A JWT signing key name is assigned concatenated string literals in source. This static heuristic does not prove runtime use; move real signing material to protected server-side key management and rotate any key that may have been exposed. The literal is intentionally excluded from this finding.",
+        file.path, line, "hardcoded_jwt_secret" as Finding["check"],
+      ));
+    }
+    const encodedJwtAssignments = /\b(?:const|let|var)\s+(JWT_SECRET|JWT_SIGNING_KEY|jwtSecret)\s*(?::\s*[^=;\r\n]+)?=\s*(?:Buffer\.from|atob)\s*\(\s*(["'])([A-Za-z0-9+/_=-]{24,512})\2/g;
+    for (const match of file.content.matchAll(encodedJwtAssignments)) {
+      const identifier = match[1];
+      const valueOffset = match[0].indexOf(match[2]);
+      const activeDeclaration = executable.slice(match.index ?? 0, (match.index ?? 0) + valueOffset);
+      const decoded = Buffer.from(match[3], 'base64').toString('utf8').trim();
+      if (!activeDeclaration.includes(identifier) || decoded.length < 16
+        || /^(?:example|placeholder|changeme|replace|your_|dummy|fake|not_a_secret|test_only)/i.test(decoded)) continue;
+      const line = lineAt(file.content, match.index ?? 0);
+      findings.push(finding(
+        "jwt-secret-" + file.path + "-" + line,
+        "High",
+        "JWT signing secret is encoded in source",
+        "A JWT signing key is initialized from an encoded source literal. Encoding does not protect a committed signing secret; use protected server-side key management and rotate any key that may have been exposed. The literal is intentionally excluded from this finding.",
+        file.path, line, "hardcoded_jwt_secret" as Finding["check"],
+      ));
+    }
   }
 
   // Detect hardcoded authentication constants, including short passwords
@@ -391,7 +427,7 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
   for (const file of files.filter(f => /\.[cm]?[jt]sx?$/i.test(f.path))) {
     const source = file.content.replace(/\/\*[\s\S]*?\*\//g,
       block => block.replace(/[^\n]/g, " "));
-    const staticAuth = /\b(?:const|let|var)\s+([A-Z][A-Z0-9_]*(?:AUTH_TOKEN|API_TOKEN|API_KEY|PASS|PASSWORD|SECRET|AUTH_KEY))\s*=\s*(['"])([^'"\r\n]{4,128})\2/gi;
+    const staticAuth = /\b(?:const|let|var)\s+([A-Z][A-Z0-9_]*(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY|AUTH_TOKEN|API_TOKEN|API_KEY|PASS|PASSWORD|SECRET|AUTH_KEY))\s*=\s*(['"])([^'"\r\n]{4,128})\2/gi;
     for (const match of source.matchAll(staticAuth)) {
       const identifier = match[1];
       // JWT literals already have a dedicated detector and a narrow repair

@@ -25,6 +25,7 @@ const TEST_FILES = [
   'test-agentshield-models.mjs',
   'test-scan-score.mjs',
   'test-agentshield-mcp.mjs',
+  'test-agentshield-adversarial.mjs',
   'test-agentshield-python.mjs',
   'test-agentshield-gate.mjs',
   'test-agentshield-sarif.mjs',
@@ -103,6 +104,8 @@ async function main() {
       [path.join(scriptsDir, 'benchmark-agentshield-accuracy.mjs')]);
     await runStep('holdout-accuracy-benchmark', process.execPath,
       [path.join(scriptsDir, 'benchmark-agentshield-accuracy.mjs'), '--holdout']);
+    await runStep('additional-adversarial-accuracy-benchmark', process.execPath,
+      [path.join(scriptsDir, 'benchmark-agentshield-adversarial.mjs')]);
     await runStep('offline-package-install-cli-mcp-smoke', process.execPath,
       [path.join(scriptsDir, 'test-agentshield-package.mjs')]);
   } else {
@@ -117,6 +120,7 @@ async function main() {
   const benchmarkItems = results.filter(item => item.name.includes('accuracy-benchmark'));
   const curatedBenchmark = benchmarkItems.find(item => item.name === 'curated-accuracy-benchmark');
   const holdoutBenchmark = benchmarkItems.find(item => item.name === 'holdout-accuracy-benchmark');
+  const additionalBenchmark = benchmarkItems.find(item => item.name === 'additional-adversarial-accuracy-benchmark');
   const benchmarkEvidenceValid = Boolean(
     curatedBenchmark?.status === 'passed'
       && curatedBenchmark.evidence?.benchmarkType === 'synthetic_labeled_target_rule_curated'
@@ -137,7 +141,18 @@ async function main() {
         category.total >= 4 && category.tp + category.fn >= 2 && category.tn + category.fp >= 2)
       && holdoutBenchmark.evidence?.targetsMet === true
   );
-  const benchmarkTargetsMet = benchmarkItems.length === 2 && benchmarkEvidenceValid;
+  const additionalBenchmarkValid = Boolean(
+    additionalBenchmark?.status === 'passed'
+      && additionalBenchmark.evidence?.benchmarkType === 'synthetic_labeled_target_rule_additional_adversarial'
+      && Number.isInteger(additionalBenchmark.evidence?.totalCases)
+      && additionalBenchmark.evidence.totalCases >= 20
+      && additionalBenchmark.evidence.categoryCount >= 6
+      && ['tp', 'tn', 'fp', 'fn'].every(key => Number.isInteger(additionalBenchmark.evidence?.results?.[key]))
+      && additionalBenchmark.evidence.results.tp + additionalBenchmark.evidence.results.tn
+        + additionalBenchmark.evidence.results.fp + additionalBenchmark.evidence.results.fn
+        === additionalBenchmark.evidence.totalCases
+  );
+  const benchmarkTargetsMet = benchmarkItems.length === 3 && benchmarkEvidenceValid && additionalBenchmarkValid;
   const syntaxStep = results.find(item => item.name === 'source-syntax');
   const syntaxEvidenceValid = Boolean(syntaxStep && syntaxStep.status === 'passed'
     && syntaxStep.evidence?.status === 'syntax_passed'
@@ -177,6 +192,7 @@ async function main() {
     ...(!syntaxEvidenceValid ? ['source_syntax_or_source_fingerprint_evidence_missing'] : []),
     ...(!testSuiteValid ? ['regression_suite_missing_tap_counts_failed_cancelled_or_skipped_tests'] : []),
     ...(!benchmarkEvidenceValid ? ['curated_or_holdout_benchmark_evidence_missing_or_below_threshold'] : []),
+    ...(!additionalBenchmarkValid ? ['additional_adversarial_benchmark_evidence_missing_or_malformed'] : []),
     ...(!packageEvidenceValid ? ['offline_package_install_smoke_or_sha256_evidence_missing'] : []),
     ...(!revisionValid ? ['source_git_revision_unavailable_or_invalid'] : []),
   ];
@@ -200,6 +216,7 @@ async function main() {
     syntheticFixturesOnly: true,
     benchmarkTargetsMet,
     benchmarkEvidenceValid,
+    additionalBenchmarkValid,
     syntaxEvidenceValid,
     testSuiteValid,
     packageEvidenceValid,
@@ -228,6 +245,7 @@ async function main() {
     })),
     benchmarkTargetsMet,
     benchmarkEvidenceValid,
+    additionalBenchmarkValid,
     syntaxEvidenceValid,
     testSuiteValid,
     packageEvidenceValid,

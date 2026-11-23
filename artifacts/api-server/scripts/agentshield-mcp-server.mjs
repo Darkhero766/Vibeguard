@@ -354,9 +354,12 @@ export function normalizeReport(report, expectedPaths) {
   if (report.scannedPaths.length > MAX_FILES || report.findings.length > 10000
     || report.filesScanned !== report.scannedPaths.length) throw new Error('Scanner coverage is malformed.');
   const scanned = report.scannedPaths;
-  if (scanned.some((item) => typeof item !== 'string' || !item || item.length > 4096)
+  const unsafeRelativePath = (item) => typeof item !== 'string' || !item || item.length > 4096
+    || path.isAbsolute(item) || /^[A-Za-z]:/.test(item)
+    || item.replaceAll('\\', '/').split('/').includes('..');
+  if (scanned.some(unsafeRelativePath)
     || new Set(scanned).size !== scanned.length) throw new Error('Scanner path list is malformed.');
-  if (!Array.isArray(expectedPaths) || expectedPaths.length === 0
+  if (!Array.isArray(expectedPaths) || expectedPaths.some(unsafeRelativePath) || expectedPaths.length === 0
     || expectedPaths.length !== scanned.length
     || expectedPaths.some((item) => !scanned.includes(item))) {
     throw new Error('Scanner omitted or added changed files; status UNKNOWN.');
