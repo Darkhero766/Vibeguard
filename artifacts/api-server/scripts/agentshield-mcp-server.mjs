@@ -4,7 +4,7 @@
 // Repository data is untrusted. This server is read-only and never executes project code.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { realpath, lstat, open } from 'node:fs/promises';
+import { realpath, lstat, open, stat } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -23,6 +23,7 @@ const MAX_FILE_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 8_000_000;
 const baselineStore = new BaselineStore({ maxEntries: 50, ttlMs: 30 * 60 * 1000 });
 const BASELINE_TTL_MS = 30 * 60 * 1000;
+const authorizedRootIdentities = new Map();
 const MODERN_PROTOCOL = '2026-07-28';
 const LEGACY_PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
 const SUPPORTED_PROTOCOLS = [MODERN_PROTOCOL, ...LEGACY_PROTOCOLS];
@@ -43,6 +44,7 @@ const FIXED_ENV = Object.freeze({
   NODE_OPTIONS: '',
   TMPDIR: '/tmp',
 });
+const AUTHORIZED_ROOTS_ENV = 'VIBESANE_ALLOWED_ROOTS_JSON';
 
 const bounded = (value, max = 300) => typeof value === 'string'
   ? value.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, max) : '';
@@ -91,7 +93,7 @@ export const TOOL_DEFS = [
   {
     name: 'status',
     title: 'Check AgentShield readiness',
-    description: 'Check whether the bundled scanner is present. Readiness does not imply that a workspace has been scanned.',
+    description: 'Check scanner readiness and whether authorized workspace roots are configured. Readiness does not imply that a workspace has been scanned.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -151,20 +153,65 @@ const GUIDANCE = Object.freeze({
 function gitArgs(root, extra) {
   return ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-C', root, ...extra];
 }
+function containedBy(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!path.isAbsolute(relative)
+    && relative !== '..' && !relative.startsWith('..' + path.sep));
+}
+export async function resolveAuthorizedRoots(raw = process.env[AUTHORIZED_ROOTS_ENV]) {
+  // Workspace paths are untrusted tool input and may never define their own authority.
+  // Missing, malformed, or stale configuration denies all workspace-dependent tools.
+  if (typeof raw !== 'string' || !raw || Buffer.byteLength(raw, 'utf8') > 32_768) {
+    throw new Error('Workspace is not authorized. Configure VIBESANE_ALLOWED_ROOTS_JSON.');
+  }
+  let configured;
+  try { configured = JSON.parse(raw); } catch {
+    throw new Error('Workspace is not authorized. Configure VIBESANE_ALLOWED_ROOTS_JSON.');
+  }
+  if (!Array.isArray(configured) || configured.length < 1 || configured.length > 32
+    || configured.some((item) => typeof item !== 'string' || !item || item.length > 4096 || !path.isAbsolute(item))) {
+    throw new Error('Workspace is not authorized. Configure VIBESANE_ALLOWED_ROOTS_JSON.');
+  }
+  try {
+    const roots = [];
+    for (const item of configured) {
+      const canonical = await realpath(item);
+      const info = await stat(canonical);
+      if (!info.isDirectory() || canonical === path.parse(canonical).root) throw new Error('invalid root');
+      const identity = { canonical, dev: String(info.dev), ino: String(info.ino) };
+      const prior = authorizedRootIdentities.get(item);
+      if (prior && (prior.canonical !== identity.canonical || prior.dev !== identity.dev || prior.ino !== identity.ino)) {
+        throw new Error('authorized root changed');
+      }
+      authorizedRootIdentities.set(item, identity);
+      if (!roots.includes(canonical)) roots.push(canonical);
+    }
+    return roots;
+  } catch {
+    throw new Error('Workspace is not authorized. Configure VIBESANE_ALLOWED_ROOTS_JSON.');
+  }
+}
 async function canonicalRoot(workspace, signal) {
   throwIfAborted(signal);
   if (typeof workspace !== 'string' || !workspace.trim() || workspace.length > 4096 || !path.isAbsolute(workspace)) {
     throw new Error('Workspace must be an absolute path.');
   }
-  const input = path.resolve(workspace);
-  const info = await lstat(input);
-  if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Workspace must be a non-symlink directory.');
-  const root = await realpath(input);
-  const result = await exec('git', gitArgs(root, ['rev-parse', '--show-toplevel']), {
-    timeout: 5000, maxBuffer: 4096, windowsHide: true, env: FIXED_ENV, signal,
-  });
-  if (await realpath(result.stdout.trim()) !== root) throw new Error('Workspace must be the Git repository root.');
-  return root;
+  const roots = await resolveAuthorizedRoots();
+  try {
+    const input = path.resolve(workspace);
+    const root = await realpath(input);
+    if (!roots.some((allowed) => containedBy(allowed, root))) throw new Error('unauthorized');
+    const info = await lstat(input);
+    if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('invalid workspace');
+    const result = await exec('git', gitArgs(root, ['rev-parse', '--show-toplevel']), {
+      timeout: 5000, maxBuffer: 4096, windowsHide: true, env: FIXED_ENV, signal,
+    });
+    if (await realpath(result.stdout.trim()) !== root || await realpath(input) !== root) throw new Error('not repository root');
+    return root;
+  } catch {
+    // Do not disclose whether an unauthorized path exists or is a Git repository.
+    throw new Error('Workspace is not authorized or is not an accessible Git repository.');
+  }
 }
 function normalizedPath(file) {
   return file.replaceAll('\\', '/');
@@ -341,7 +388,10 @@ export async function statusTool() {
     if (!info.isFile() || info.isSymbolicLink()) return { status: 'not_ready', scannerBuilt: false, securityGuarantee: false };
     const actual = await realpath(SCANNER);
     if (actual !== SCANNER) return { status: 'not_ready', scannerBuilt: false, securityGuarantee: false };
-    return { status: 'ready', scannerBuilt: true, transport: 'stdio-jsonl', protocolVersion: LATEST_PROTOCOL, securityGuarantee: false };
+    let workspaceAuthorization = 'configured';
+    try { await resolveAuthorizedRoots(); } catch { workspaceAuthorization = 'not_configured'; }
+    return { status: 'ready', scannerBuilt: true, workspaceAuthorization,
+      transport: 'stdio-jsonl', protocolVersion: LATEST_PROTOCOL, securityGuarantee: false };
   } catch {
     return { status: 'not_ready', scannerBuilt: false, securityGuarantee: false, note: 'Build the standalone scanner before starting AgentShield MCP.' };
   }

@@ -16,7 +16,7 @@ The MCP server uses the standard stdio transport: UTF-8 JSON-RPC messages, one J
 
 ## Tools
 
-- `status` — scanner readiness only.
+- `status` — scanner readiness and whether an authorized workspace-root policy is configured.
 - `scan_changed` — read-only static scan of supported staged/modified/untracked files plus an optional `base_ref...HEAD` committed diff; returns an opaque `scanId` for the exact baseline.
 - `list_findings` — returns a named scan only when its workspace/base-ref content fingerprint is unchanged; requires `scan_id` and the same optional `base_ref` used by the original scan.
 - `verify_remediation` — fresh scan and before/after finding comparison; requires the exact `baseline_id` returned as `scanId` and the same optional `base_ref`, then returns a new `currentScanId` for the next iteration.
@@ -36,6 +36,27 @@ args = []
 
 Generic MCP stdio client configuration uses command `vibesane-mcp` with no arguments. Use the absolute executable path if the host does not inherit the global npm PATH.
 
+### Authorized workspace roots (required)
+
+The MCP server denies workspace-dependent tools unless `VIBESANE_ALLOWED_ROOTS_JSON` is set to a JSON array of one to 32 existing absolute directory paths. The server resolves configured roots and caller paths through symlinks, then authorizes only Git repository roots contained inside one of those canonical directories. A sibling with a shared name prefix is outside the root. Nested repositories and linked worktrees are allowed when their canonical roots remain inside an authorized directory. The server pins each configured root's canonical path and filesystem identity for its lifetime; if a configured directory or symlink target is replaced, workspace tools fail closed until the server restarts with the intended configuration. Missing, malformed, or unavailable root configuration fails closed; `status` and `explain_finding` remain available.
+
+Configure the environment on the MCP server process itself. Example for a single checkout:
+
+```sh
+VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/repo"]' vibesane-mcp
+```
+
+For Codex TOML, add the environment under the server entry:
+
+```toml
+[mcp_servers.vibesane_agentshield]
+command = "vibesane-mcp"
+args = []
+env = { VIBESANE_ALLOWED_ROOTS_JSON = '["/absolute/path/to/repo"]' }
+```
+
+Use the narrowest parent directory that contains the intended checkout(s). Do not use `/` or a broad home/workspaces directory unless every Git repository beneath it is authorized for scanning. MCP scan, list, and verification calls independently re-authorize their workspace; baselines remain bound to the canonical repository path and cannot be reused in another repository. The caller-provided workspace never grants authorization by itself.
+
 ## Commit-aware scans
 
 Pass the same optional `base_ref` to `scan_changed`, `list_findings`, and `verify_remediation` when the coding agent may commit before verification. Example arguments for the first call:
@@ -48,7 +69,7 @@ Use a local target/upstream branch (commonly `origin/main`), tag, or commit SHA 
 
 ## Safety and coverage
 
-The server verifies that the workspace is an absolute Git root, does not follow changed-file symlinks, hashes changed-file contents, bounds file counts/bytes/time/output, validates exact supported-file coverage, and checks the workspace did not change during a scan. Cached results are invalidated when content changes even if Git's porcelain status remains unchanged.
+The server verifies that the workspace is an authorized absolute Git root, does not follow changed-file symlinks, hashes changed-file contents, bounds file counts/bytes/time/output, validates exact supported-file coverage, and checks the workspace did not change during a scan. Cached results are invalidated when content changes even if Git's porcelain status remains unchanged.
 
 Unsupported changed files and changes under intentionally ignored directories (`node_modules`, `.next`, `dist`, `build`, `coverage`, or `vendor`) produce partial coverage—not a clean pass—even when supported files were scanned. The snapshot fingerprint includes the complete changed-path set, so a newly committed ignored path invalidates an older baseline rather than allowing stale findings to be returned. Truncated findings, malformed reports, timeouts, missing scanners, and workspace races likewise produce partial or unknown results. Static scanning covers only supported changed files and is not a security certification.
 

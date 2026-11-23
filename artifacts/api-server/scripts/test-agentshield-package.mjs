@@ -59,9 +59,9 @@ function runHook(script, cwd, payload, env) {
   });
 }
 
-function runMcp(executable, payload, expectedResponses = 3) {
+function runMcp(executable, payload, expectedResponses = 3, env = process.env) {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn(executable, [], { env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     let stdout = '';
     let stderr = '';
     let settled = false;
@@ -119,6 +119,7 @@ try {
   const packagedReadme = await run('tar', ['-xOf', archive, 'package/README.md']);
   assert(packagedReadme.stdout.includes('--completion-gate enforce')
     && packagedReadme.stdout.includes('--base-ref origin/main')
+    && packagedReadme.stdout.includes('VIBESANE_ALLOWED_ROOTS_JSON')
     && packagedReadme.stdout.includes('Codex Stop hooks')
     && packagedReadme.stdout.includes('init-codex'),
     'Packaged README omits commit-aware Claude/Codex completion enforcement instructions.');
@@ -211,11 +212,18 @@ try {
     { jsonrpc: '2.0', id: 1, method: 'initialize', params: {
       protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'agentshield-package-smoke', version: '1.0.0' },
     } },
-    { jsonrpc: '2.0', method: 'notifications/initialized' },
     { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
     { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'status', arguments: {} } },
+    { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'scan_changed', arguments: { workspace: fixture } } },
+    { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'list_findings', arguments: { workspace: fixture, scan_id: 'a'.repeat(16) } } },
+    { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'verify_remediation', arguments: { workspace: fixture, baseline_id: 'b'.repeat(16) } } },
+    { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'explain_finding', arguments: { rule_id: 'hardcoded_secret' } } },
+    { jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'scan_changed', arguments: { workspace: path.join(os.tmpdir(), 'agentshield-unauthorized-synthetic-repo') } } },
   ];
-  const mcpResult = await runMcp(mcp, requests.map(x => JSON.stringify(x)).join('\n') + '\n');
+  const mcpResult = await runMcp(mcp, requests.map(x => JSON.stringify(x)).join('\n') + '\n', 8, {
+    ...process.env,
+    VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([temp]),
+  });
   const codexUninstall = await run(cli, ['uninstall-codex', '--cwd', fixture], { cwd: temp });
   const codexUninstallResult = JSON.parse(codexUninstall.stdout);
   assert(codexUninstallResult.hookRemoved === true && codexUninstallResult.skillRemoved === true,
@@ -227,6 +235,15 @@ try {
     && tools.some(tool => tool.name === 'verify_remediation'), 'Packaged MCP tool discovery is incomplete.');
   assert(byId.get(3)?.result?.content?.length > 0 && !byId.get(3)?.result?.isError,
     'Packaged MCP status call failed.');
+  assert(byId.get(4)?.result?.content?.some(x => x.text.includes('no_changed_files')),
+    'Packaged MCP scan call did not return its explicit no-change status.');
+  assert(byId.get(5)?.result?.content?.some(x => x.text.includes('baseline_not_found'))
+    && byId.get(6)?.result?.content?.some(x => x.text.includes('no_baseline')),
+    'Packaged MCP baseline tools did not return workspace-scoped results.');
+  assert(byId.get(7)?.result?.isError === false && byId.get(8)?.result?.isError === true
+    && byId.get(8)?.result?.content?.some(x => x.text.includes('not authorized')),
+    'Packaged MCP finding explanation or denied outside-root scan failed: '
+      + JSON.stringify({ explain: byId.get(7)?.result, boundary: byId.get(8)?.result }));
 
   process.stdout.write(JSON.stringify({
     status: 'package_smoke_passed',
@@ -234,7 +251,7 @@ try {
     packageSha256: packaged.sha256,
     packageBytes: packaged.archiveBytes,
     packagedFiles: packaged.fileCount,
-    checks: ['build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-initialize', 'mcp-tools-list', 'mcp-status', 'codex-uninstall'],
+    checks: ['build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-initialize', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-list-findings', 'mcp-verify-remediation', 'mcp-explain-finding', 'mcp-workspace-boundary', 'codex-uninstall'],
     fixture: 'synthetic-disposable-git-repository',
     published: false,
   }) + '\n');

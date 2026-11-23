@@ -7,13 +7,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  normalizeReport, scanChanged, validateRpcMessage, validateToolArguments,
+  handleMessage, listFindings, normalizeReport, resolveAuthorizedRoots, scanChanged,
+  validateRpcMessage, validateToolArguments, verifyRemediation, workspaceSnapshot,
 } from './agentshield-mcp-server.mjs';
 import { main as scanFile } from '../dist/agentshield.mjs';
 
 const exec = promisify(execFile);
 const scripts = path.dirname(fileURLToPath(import.meta.url));
 const temporary = new Set();
+process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([os.tmpdir()]);
 
 async function tempDir(prefix) {
   const dir = await mkdtemp(path.join(os.tmpdir(), prefix));
@@ -38,6 +40,139 @@ test.after(async () => {
   await Promise.all([...temporary].map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
+test('workspace authorization canonicalizes roots and rejects missing or malformed policy', async () => {
+  const allowed = await tempDir('agentshield-authorized-');
+  const repoPath = await repo();
+  const allowedRepo = path.join(allowed, 'repository');
+  await mkdir(allowedRepo);
+  await git(allowedRepo, 'init', '-q');
+  await writeFile(path.join(allowedRepo, 'app.js'), 'export const safe = true;\n');
+  await git(allowedRepo, 'add', '.');
+  await git(allowedRepo, 'commit', '-qm', 'authorized synthetic repository');
+  const allowedAlias = allowed + '-root-alias';
+  await symlink(allowed, allowedAlias);
+  temporary.add(allowedAlias);
+  const prior = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+  try {
+    process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([allowedAlias]);
+    assert.deepEqual(await resolveAuthorizedRoots(), [allowed]);
+    assert.equal((await workspaceSnapshot(allowedRepo)).root, allowedRepo);
+    await assert.rejects(workspaceSnapshot(repoPath), /not authorized/i);
+    process.env.VIBESANE_ALLOWED_ROOTS_JSON = '';
+    for (const raw of ['', '{bad json', JSON.stringify([]), JSON.stringify(['relative/path']),
+      JSON.stringify([path.join(allowed, 'missing')])]) {
+      process.env.VIBESANE_ALLOWED_ROOTS_JSON = raw;
+      await assert.rejects(workspaceSnapshot(repoPath), /not authorized/i);
+      for (const [name, args] of [
+        ['scan_changed', { workspace: repoPath }],
+        ['list_findings', { workspace: repoPath, scan_id: 'a'.repeat(16) }],
+        ['verify_remediation', { workspace: repoPath, baseline_id: 'b'.repeat(16) }],
+      ]) {
+        const response = await handleMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } });
+        assert.equal(response.result.isError, true, `${name} must reject invalid workspace-root configuration`);
+      }
+    }
+    process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([allowed]);
+  } finally { process.env.VIBESANE_ALLOWED_ROOTS_JSON = prior; }
+});
+
+test('replacement of a configured authorization root fails closed for the server lifetime', async () => {
+  const previous = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+  const root = await tempDir('agentshield-root-identity-');
+  const repoPath = path.join(root, 'repo');
+  await mkdir(repoPath);
+  await git(repoPath, 'init', '-q');
+  await writeFile(path.join(repoPath, 'app.js'), 'export const safe = true;\n');
+  await git(repoPath, 'add', '.');
+  await git(repoPath, 'commit', '-qm', 'synthetic authorized root identity');
+  try {
+    process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([root]);
+    assert.equal((await workspaceSnapshot(repoPath)).root, repoPath);
+    const moved = root + '-moved';
+    await (await import('node:fs/promises')).rename(root, moved);
+    temporary.add(moved);
+    await mkdir(root);
+    await assert.rejects(resolveAuthorizedRoots(), /not authorized/i);
+    await assert.rejects(workspaceSnapshot(path.join(moved, 'repo')), /not authorized/i);
+  } finally { process.env.VIBESANE_ALLOWED_ROOTS_JSON = previous; }
+});
+
+test('authorized root contains nested repositories and Git worktrees but blocks outside and sibling-prefix paths', async () => {
+  const parent = await tempDir('agentshield-root-');
+  const allowed = path.join(parent, 'allowed');
+  const sibling = path.join(parent, 'allowed-sibling');
+  await mkdir(allowed);
+  const nested = path.join(allowed, 'nested');
+  await mkdir(nested);
+  await git(nested, 'init', '-q');
+  await writeFile(path.join(nested, 'x.js'), 'export const clean = true;\n');
+  await git(nested, 'add', '.');
+  await git(nested, 'commit', '-qm', 'nested baseline');
+  const outside = await repo('agentshield-outside-');
+  await mkdir(sibling);
+  const siblingRepo = path.join(sibling, 'repo');
+  await mkdir(siblingRepo);
+  await git(siblingRepo, 'init', '-q');
+  await writeFile(path.join(siblingRepo, 'x.js'), 'export {};\n');
+  await git(siblingRepo, 'add', '.');
+  await git(siblingRepo, 'commit', '-qm', 'sibling baseline');
+  const worktree = path.join(allowed, 'linked-worktree');
+  await git(nested, 'worktree', 'add', '-q', '-b', 'worktree-test', worktree);
+  const previous = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+  try {
+    process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([allowed]);
+    assert.equal((await workspaceSnapshot(nested)).root, nested);
+    assert.equal((await workspaceSnapshot(worktree)).root, worktree);
+    await assert.rejects(workspaceSnapshot(outside), /not authorized/i);
+    await assert.rejects(workspaceSnapshot(siblingRepo), /not authorized/i);
+    const traversal = path.join(allowed, '..', path.basename(sibling), 'repo');
+    await assert.rejects(workspaceSnapshot(traversal), /not authorized/i);
+    const alias = path.join(allowed, 'outside-alias');
+    await symlink(outside, alias);
+    temporary.add(alias);
+    await assert.rejects(workspaceSnapshot(alias), /not authorized/i);
+  } finally { process.env.VIBESANE_ALLOWED_ROOTS_JSON = previous; }
+});
+
+test('every workspace MCP tool enforces authorization and baselines remain repository-bound', async () => {
+  const parent = await tempDir('agentshield-mcp-allowed-');
+  const firstRepo = path.join(parent, 'first');
+  const secondRepo = path.join(parent, 'second');
+  const outsideRepo = await repo('agentshield-mcp-outside-');
+  await mkdir(firstRepo); await mkdir(secondRepo);
+  for (const dir of [firstRepo, secondRepo]) {
+    await git(dir, 'init', '-q');
+    await writeFile(path.join(dir, 'app.js'), 'const JWT_SECRET = "' + 'A'.repeat(36) + '";\n');
+    await git(dir, 'add', '.');
+    await git(dir, 'commit', '-qm', 'synthetic baseline');
+    await writeFile(path.join(dir, 'changed.js'), 'export const changed = true;\n');
+  }
+  const prior = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+  try {
+    delete process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+    const call = (name, args) => handleMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } });
+    for (const [name, args] of [
+      ['scan_changed', { workspace: outsideRepo }],
+      ['list_findings', { workspace: outsideRepo, scan_id: 'a'.repeat(16) }],
+      ['verify_remediation', { workspace: outsideRepo, baseline_id: 'b'.repeat(16) }],
+    ]) assert.equal((await call(name, args)).result.isError, true, `${name} must fail closed without root configuration`);
+    const status = await call('status', {});
+    assert.equal(status.result.isError, false);
+    assert.match(status.result.content[0].text, /not_configured/);
+    assert.equal((await call('explain_finding', { rule_id: 'hardcoded_secret' })).result.isError, false);
+    process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([parent]);
+    const baseline = await scanChanged({ workspace: firstRepo });
+    assert.equal(baseline.status, 'complete');
+    assert.equal((await listFindings(secondRepo, baseline.scanId)).status, 'baseline_not_found');
+    assert.equal((await verifyRemediation(secondRepo, baseline.scanId)).status, 'no_baseline');
+    process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([secondRepo]);
+    await assert.rejects(listFindings(firstRepo, baseline.scanId), /not authorized/i);
+    await assert.rejects(verifyRemediation(firstRepo, baseline.scanId), /not authorized/i);
+    const blockedSwitch = await call('scan_changed', { workspace: firstRepo });
+    assert.equal(blockedSwitch.result.isError, true);
+  } finally { process.env.VIBESANE_ALLOWED_ROOTS_JSON = prior; }
+});
+
 test('outside-repository and nested-repository workspace paths fail closed', async () => {
   const outer = await repo();
   const nested = path.join(outer, 'nested');
@@ -55,7 +190,7 @@ test('symlink repository roots and changed symlink files are rejected', async ()
   const rootAlias = path.join(path.dirname(dir), path.basename(dir) + '-alias');
   await symlink(dir, rootAlias);
   temporary.add(rootAlias);
-  await assert.rejects(callScan(rootAlias), /non-symlink directory/);
+  await assert.rejects(callScan(rootAlias), /not authorized/i);
   const outside = path.join(await tempDir('agentshield-outside-'), 'secret.js');
   await writeFile(outside, 'const token = "synthetic-outside-value";\n');
   await symlink(outside, path.join(dir, 'linked.js'));

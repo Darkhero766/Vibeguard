@@ -24,6 +24,7 @@ import {
 } from './agentshield-mcp-server.mjs';
 
 const exec = promisify(execFile);
+process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([os.tmpdir()]);
 
 test('exposes only documented read-only tools with strict input schemas', () => {
   assert.deepEqual(TOOL_DEFS.map((tool) => tool.name), [
