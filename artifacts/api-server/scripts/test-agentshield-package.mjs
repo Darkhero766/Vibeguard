@@ -233,6 +233,12 @@ try {
     JSON.stringify({ jsonrpc: '2.0', id: 10, method: 'ping' }),
     '',
   ].join('\n'), 1, mcpEnv);
+  const invalidArguments = await runMcp(mcp,
+    JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'tools/call', params: {
+      name: 'status', arguments: { unexpected: true },
+    } }) + '\n', 1, mcpEnv);
+  const malformedRequest = await runMcp(mcp,
+    '{invalid json\n' + JSON.stringify({ jsonrpc: '2.0', id: 12, method: 'ping' }) + '\n', 2, mcpEnv);
   const codexUninstall = await run(cli, ['uninstall-codex', '--cwd', fixture], { cwd: temp });
   const codexUninstallResult = JSON.parse(codexUninstall.stdout);
   assert(codexUninstallResult.hookRemoved === true && codexUninstallResult.skillRemoved === true,
@@ -255,6 +261,13 @@ try {
       + JSON.stringify({ explain: byId.get(7)?.result, boundary: byId.get(8)?.result }));
   assert(cancelledScan.messages.length === 1 && cancelledScan.messages[0]?.id === 10,
     'Installed MCP cancellation did not suppress the queued scan response.');
+  assert(invalidArguments.messages.length === 1 && invalidArguments.messages[0]?.id === 11
+    && invalidArguments.messages[0]?.result?.isError === true,
+    'Installed MCP did not reject unexpected tool arguments.');
+  assert(malformedRequest.messages.length === 2
+    && malformedRequest.messages[0]?.error?.code === -32700
+    && malformedRequest.messages[1]?.id === 12,
+    'Installed MCP did not return a parse error and continue serving valid requests.');
 
   process.stdout.write(JSON.stringify({
     status: 'package_smoke_passed',
@@ -262,7 +275,7 @@ try {
     packageSha256: packaged.sha256,
     packageBytes: packaged.archiveBytes,
     packagedFiles: packaged.fileCount,
-    checks: ['build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-initialize', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-list-findings', 'mcp-verify-remediation', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-cancellation', 'codex-uninstall'],
+    checks: ['build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-initialize', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-list-findings', 'mcp-verify-remediation', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-cancellation', 'mcp-invalid-tool-arguments', 'mcp-invalid-json', 'codex-uninstall'],
     fixture: 'synthetic-disposable-git-repository',
     published: false,
   }) + '\n');
