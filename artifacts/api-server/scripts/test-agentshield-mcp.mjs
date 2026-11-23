@@ -292,6 +292,34 @@ test('MCP stdio process speaks newline-delimited JSON-RPC, never Content-Length 
   assert.equal(messages[3].result.tools.some((tool) => tool.name === 'verify_remediation'), true);
 });
 
+test('MCP stdio cancellation notification suppresses a queued scan response', async () => {
+  const script = fileURLToPath(new URL('./agentshield-mcp-server.mjs', import.meta.url));
+  const child = spawn(process.execPath, [script], {
+    env: { ...process.env, VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([os.tmpdir()]) },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  let output = '';
+  let stderr = '';
+  child.stdout.setEncoding('utf8').on('data', (chunk) => { output += chunk; });
+  child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
+  const closed = new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', (code) => resolve(code));
+  });
+  child.stdin.end([
+    JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'tools/call', params: {
+      name: 'scan_changed', arguments: { workspace: path.join(os.tmpdir(), 'cancelled-synthetic-workspace') },
+    } }),
+    JSON.stringify({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 11 } }),
+    JSON.stringify({ jsonrpc: '2.0', id: 12, method: 'ping' }),
+    '',
+  ].join('\n'));
+  assert.equal(await closed, 0, stderr);
+  const responses = output.trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  assert.deepEqual(responses.map((message) => message.id), [12]);
+  assert.deepEqual(responses[0].result, {});
+});
+
 
 test('MCP returns UNKNOWN when the workspace has no changed files', async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-empty-'));
