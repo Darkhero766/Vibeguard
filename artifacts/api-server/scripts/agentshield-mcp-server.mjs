@@ -5,6 +5,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realpath, lstat, open } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { BaselineStore } from './agentshield-baselines.mjs';
@@ -427,6 +428,14 @@ export function compareFindings(previous, current) {
     const candidates = buckets.get(findingKey(baseline)) || [];
     const available = candidates.filter((item) => !item.used);
     const exact = available.find((item) => item.finding.line === baseline.line);
+    // If a baseline occurrence has no line metadata and now maps to multiple
+    // distinct source locations, identity matching is ambiguous. Keep the old
+    // occurrence removed and expose every current occurrence as new.
+    if (baseline.line == null && available.length > 1
+      && available.every((item) => Number.isSafeInteger(item.finding.line))) {
+      removed.push(baseline);
+      continue;
+    }
     const match = exact || available[0];
     if (!match) {
       removed.push(baseline);
@@ -809,7 +818,7 @@ export function createLineDecoder() {
 function writeMessage(message) {
   process.stdout.write(JSON.stringify(message) + '\n');
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(path.resolve(process.argv[1])) === fileURLToPath(import.meta.url)) {
   const decode = createLineDecoder();
   const queue = [];
   const inflight = new Map();
@@ -870,7 +879,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     void drain();
   });
   process.stdin.on('end', () => {
-    for (const controller of inflight.values()) controller.abort();
-    process.stderr.write('AgentShield MCP input closed.\n');
+    // EOF means the client has no more requests; drain queued and in-flight
+    // responses normally. Cancellation must use notifications/cancelled.
+    process.stderr.write('AgentShield MCP input closed; draining pending requests.\n');
   });
 }

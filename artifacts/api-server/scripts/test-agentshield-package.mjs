@@ -91,7 +91,11 @@ function runMcp(executable, payload, expectedResponses = 3) {
       let messages;
       try { messages = lines.map(line => JSON.parse(line)); }
       catch { return finish(new Error('Packaged MCP process emitted non-JSON stdout.')); }
-      if (messages.length !== expectedResponses) return finish(new Error('Packaged MCP process returned an unexpected response count.'));
+      if (messages.length !== expectedResponses) {
+        const ids = messages.map(message => message.id ?? null);
+        return finish(new Error('Packaged MCP process returned ' + messages.length
+          + ' responses; expected ' + expectedResponses + ' (response IDs: ' + JSON.stringify(ids) + ').'));
+      }
       finish(null, { messages, stderr: stderr.slice(0, 500) });
     });
     child.stdin.write(payload);

@@ -63,9 +63,11 @@ test('scanner runs AST only within separate time-limited worker',async()=>{
  assert.match(hybrid,/timeout:10_000/);
  assert.match(hybrid,/NODE_OPTIONS:''/);
 });
-test('capability registry excludes nonexistent Python and Java deep SAST',()=>{
- assert.ok(CAPABILITIES.staticScanner.unsupportedDedicatedSast.includes('Python'));
- assert.ok(CAPABILITIES.staticScanner.unsupportedDedicatedSast.includes('Java'));
+test('capability registry distinguishes Python heuristics from dedicated language-aware SAST',()=>{
+ assert.equal(CAPABILITIES.staticScanner.codeLanguages.find(x=>x.name==='Python').coverage,'limited_pattern_heuristics_not_ast');
+ assert.ok(!CAPABILITIES.staticScanner.unsupportedDedicatedSast.includes('Python'));
+ assert.ok(CAPABILITIES.staticScanner.partialLanguageHeuristics.Java);
+ assert.ok(!CAPABILITIES.staticScanner.codeLanguages.some(x=>x.name==='Java'));
  assert.equal(CAPABILITIES.securityGuarantee,false);
 });
 test('production hardening release typechecks are mandatory in CI',async()=>{

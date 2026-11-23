@@ -98,7 +98,7 @@ async function main() {
   if (build.status === 'skipped') results.push(build);
   if (build.status === 'passed') {
     await runStep('unit-integration-regression', process.execPath,
-      ['--test', ...TEST_FILES.map(file => path.join(scriptsDir, file))]);
+      ['--test', '--test-reporter=tap', ...TEST_FILES.map(file => path.join(scriptsDir, file))]);
     await runStep('curated-accuracy-benchmark', process.execPath,
       [path.join(scriptsDir, 'benchmark-agentshield-accuracy.mjs')]);
     await runStep('holdout-accuracy-benchmark', process.execPath,

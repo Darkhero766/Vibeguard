@@ -42,6 +42,45 @@ function inSimpleLiteralInitializer(content: string, index: number): boolean {
   return /\b(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*=\s*(['"])(?:\\.|(?!\1)[^\\])*$/u.test(prefix);
 }
 
+// Keep offsets stable while excluding JavaScript comments and quoted text from
+// rules that look for executable identifiers. This lexer is deliberately
+// conservative: template literals are treated as text because the JWT literal
+// rule does not support them as assignments.
+function maskJavaScriptInert(source: string): string {
+  let mode: 'code' | 'line' | 'block' | 'single' | 'double' | 'template' = 'code';
+  let out = '';
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i], next = source[i + 1];
+    if (mode === 'code') {
+      if (ch === '/' && next === '/') { mode = 'line'; out += '  '; i++; continue; }
+      if (ch === '/' && next === '*') { mode = 'block'; out += '  '; i++; continue; }
+      if (ch === "'") { mode = 'single'; out += ' '; continue; }
+      if (ch === '"') { mode = 'double'; out += ' '; continue; }
+      if (ch === '`') { mode = 'template'; out += ' '; continue; }
+      out += ch;
+      continue;
+    }
+    if (mode === 'line') {
+      if (ch === '\n') { mode = 'code'; out += '\n'; } else out += ' ';
+      continue;
+    }
+    if (mode === 'block') {
+      if (ch === '*' && next === '/') { mode = 'code'; out += '  '; i++; }
+      else out += ch === '\n' ? '\n' : ' ';
+      continue;
+    }
+    if (ch === '\\') {
+      out += ch === '\n' ? '\n' : ' ';
+      if (i + 1 < source.length) { out += source[i + 1] === '\n' ? '\n' : ' '; i++; }
+      continue;
+    }
+    if ((mode === 'single' && ch === "'") || (mode === 'double' && ch === '"')
+      || (mode === 'template' && ch === '`')) mode = 'code';
+    out += ch === '\n' ? '\n' : ' ';
+  }
+  return out;
+}
+
 /**
  * Only suppress a missing HttpOnly heuristic when the third argument is a
  * directly preceding constant object with an explicit literal true value.
@@ -66,12 +105,20 @@ function regexFindings(
   const findings: ExtendedFinding[] = [];
   for (const file of files) {
     if (rule.extensions && !rule.extensions.test(file.path)) continue;
+    const executable = rule.id === 'hardcoded_jwt_secret' && /\.[cm]?[jt]sx?$/i.test(file.path)
+      ? maskJavaScriptInert(file.content)
+      : null;
     // A block comment may contain runnable-looking examples across many lines.
     // Preserve offsets so reports keep the original source line numbers.
     const matchingContent = rule.id === "cookie_missing_httponly"
       ? file.content.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, " "))
       : file.content;
     for (const match of matchingContent.matchAll(rule.pattern)) {
+      if (executable && executable[match.index ?? 0] === ' ') continue;
+      if (rule.id === 'hardcoded_jwt_secret') {
+        const literal = /["']([^"']*)["']$/.exec(match[0])?.[1]?.trim() ?? '';
+        if (/^(?:example|placeholder|changeme|replace|your_|dummy|fake|not_a_secret|test_only)/i.test(literal)) continue;
+      }
       // Explicit HttpOnly:true is not evidence of a missing cookie protection.
       if (rule.id === "cookie_missing_httponly" &&
           (/\bhttpOnly\s*:\s*true\b/i.test(match[0]) ||

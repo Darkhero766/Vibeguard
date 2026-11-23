@@ -191,12 +191,17 @@ test('modern tools/list and tools/call include required stateless result metadat
   assert.equal(payload.ruleId, 'rls');
 });
 
-test('modern requests require per-request protocol metadata', async () => {
-  const result = await handleMessage({ jsonrpc: '2.0', id: 8, method: 'tools/list', params: {} });
-  assert.equal(result.error.code, -32602);
+test('legacy requests retain compatibility and modern requests require valid per-request metadata', async () => {
+  const legacy = await handleMessage({ jsonrpc: '2.0', id: 8, method: 'tools/list', params: {} });
+  assert.equal(legacy.result.tools.length, TOOL_DEFS.length);
+  const missingCapabilities = await handleMessage({
+    jsonrpc: '2.0', id: 11, method: 'tools/list',
+    params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' } },
+  });
+  assert.equal(missingCapabilities.error.code, -32602);
   const wrongEra = await handleMessage({
     jsonrpc: '2.0', id: 9, method: 'tools/list',
-    params: { _meta: { ...modernMeta, 'io.modelcontextprotocol/protocolVersion': '2025-11-25' } },
+    params: { _meta: { ...modernMeta, 'io.modelcontextprotocol/protocolVersion': '2024-11-05' } },
   });
   assert.equal(wrongEra.error.code, -32022);
   assert.deepEqual(wrongEra.error.data.supported, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);

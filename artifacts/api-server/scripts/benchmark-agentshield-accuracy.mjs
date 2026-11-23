@@ -58,16 +58,21 @@ export async function benchmark({ cases = BENCHMARK_CASES, kind = 'curated' } = 
     }
     const minimums = kind === 'holdout'
       ? { cases: 24, categories: 6, perCategory: 4, positivesPerCategory: 2, negativesPerCategory: 2 }
-      : { cases: 120, categories: 12, perCategory: 10, positivesPerCategory: 5, negativesPerCategory: 5 };
-    if (cases.length < minimums.cases) throw new Error('Benchmark corpus is below its required minimum case count.');
+      : kind === 'curated'
+        ? { cases: 120, categories: 12, perCategory: 10, positivesPerCategory: 5, negativesPerCategory: 5 }
+        : null;
+    if (!cases.length) throw new Error('Benchmark corpus must contain at least one case.');
+    if (minimums && cases.length < minimums.cases) throw new Error('Benchmark corpus is below its required minimum case count.');
     const categoryEntries = Object.entries(categories);
-    if (categoryEntries.length < minimums.categories) throw new Error('Benchmark corpus is missing required category coverage.');
-    for (const [category, counts] of categoryEntries) {
-      const positives = counts.tp + counts.fn;
-      const negatives = counts.tn + counts.fp;
-      if (positives < minimums.positivesPerCategory || negatives < minimums.negativesPerCategory
-        || positives + negatives < minimums.perCategory) {
-        throw new Error('Benchmark category has insufficient positive/negative challenge cases: ' + category);
+    if (minimums) {
+      if (categoryEntries.length < minimums.categories) throw new Error('Benchmark corpus is missing required category coverage.');
+      for (const [category, counts] of categoryEntries) {
+        const positives = counts.tp + counts.fn;
+        const negatives = counts.tn + counts.fp;
+        if (positives < minimums.positivesPerCategory || negatives < minimums.negativesPerCategory
+          || positives + negatives < minimums.perCategory) {
+          throw new Error('Benchmark category has insufficient positive/negative challenge cases: ' + category);
+        }
       }
     }
     const categoryResults = Object.fromEntries(

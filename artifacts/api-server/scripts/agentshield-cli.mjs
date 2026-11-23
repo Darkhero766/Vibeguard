@@ -258,16 +258,26 @@ function analyze(files) {
   ];
   const unique = new Map();
   for (const f of combined) {
-    const key = [f.filePath, f.line, f.check, f.title].join(':');
-    if (unique.has(key)) continue;
-    unique.set(key, {
+    const key = f.check === 'hardcoded_jwt_secret'
+      ? [f.filePath, f.line, f.check].join(':')
+      : [f.filePath, f.line, f.check, f.title].join(':');
+    const normalized = {
       id: redact(f.id, 300), ruleId: redact(f.check, 80), severity: f.severity,
       confidence: ['high', 'medium', 'low'].includes(f.confidence) ? f.confidence : 'unrated',
       engine: redact(f.engine || 'core_heuristics', 80),
       title: redact(f.title, 240), description: redact(f.description, 900),
       recommendation: fixes[f.check] || 'Review the finding and follow the mitigation in its description.',
       filePath: redact(f.filePath, 500), line: Number(f.line) || 1,
-    });
+    };
+    const existing = unique.get(key);
+    if (existing) {
+      if (f.check === 'hardcoded_jwt_secret'
+        && (severities[f.severity] || 0) > (severities[existing.severity] || 0)) {
+        unique.set(key, normalized);
+      }
+      continue;
+    }
+    unique.set(key, normalized);
   }
   return [...unique.values()].sort((a, b) =>
     (severities[b.severity] || 0) - (severities[a.severity] || 0) ||

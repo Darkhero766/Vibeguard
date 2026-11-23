@@ -162,6 +162,14 @@ test('hook installer preserves existing config and uninstalls reversibly', async
 test('Claude Code Stop hook enforces blockers then allows a complete clean rescan', async (t) => {
   const secret = 'S'.repeat(38);
   const { cwd, target } = await fixture(t, 'src/auth.ts', 'const MY_API_TOKEN = "' + secret + '";\n');
+  await writeFile(target, 'export const baseline = true;\n');
+  await run('git', ['-C', cwd, 'add', '.']);
+  await run('git', ['-C', cwd, '-c', 'user.name=AgentShield Test', '-c',
+    'user.email=agentshield-test@example.invalid', 'commit', '-qm', 'synthetic clean baseline']);
+  await run('git', ['-C', cwd, 'branch', 'agentshield-base']);
+  await run('git', ['-C', cwd, '-c', 'user.name=AgentShield Test', '-c',
+    'user.email=agentshield-test@example.invalid', 'commit', '--allow-empty', '-qm', 'distinct synthetic HEAD']);
+  await writeFile(target, 'const MY_API_TOKEN = "' + secret + '";\n');
   const controlHome = await mkdtemp(path.join(os.tmpdir(), 'agentshield-stop-control-'));
   const stateHome = path.join(controlHome, 'state');
   t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
@@ -171,6 +179,7 @@ test('Claude Code Stop hook enforces blockers then allows a complete clean resca
     completionGate: 'enforce',
     mode: 'assist',
     blockingSeverity: 'High',
+    baseRef: 'agentshield-base',
   }));
 
   const env = {
@@ -204,12 +213,15 @@ test('Claude Code Stop hook blocks enforce mode when there are no changed files 
   await run('git', ['-C', cwd, 'add', '.']);
   await run('git', ['-C', cwd, '-c', 'user.name=AgentShield Test', '-c',
     'user.email=agentshield-test@example.invalid', 'commit', '-qm', 'synthetic clean baseline']);
+  await run('git', ['-C', cwd, 'branch', 'agentshield-base']);
+  await run('git', ['-C', cwd, '-c', 'user.name=AgentShield Test', '-c',
+    'user.email=agentshield-test@example.invalid', 'commit', '--allow-empty', '-qm', 'distinct synthetic HEAD']);
 
   const controlHome = await mkdtemp(path.join(os.tmpdir(), 'agentshield-empty-control-'));
   t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
   const rootHash = createHash('sha256').update(cwd).digest('hex').slice(0, 28);
   await writeFile(path.join(controlHome, rootHash + '.json'), JSON.stringify({
-    completionGate: 'enforce', mode: 'assist', enabled: true,
+    completionGate: 'enforce', mode: 'assist', enabled: true, baseRef: 'agentshield-base',
   }));
   const env = {
     ...process.env,
