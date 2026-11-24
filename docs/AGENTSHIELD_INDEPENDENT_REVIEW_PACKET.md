@@ -36,7 +36,7 @@ Run the local test/qualification commands documented in `docs/AGENTSHIELD_BETA_B
 
 ## Evidence provided by this candidate
 
-- The local `artifacts/api-server/dist/agentshield-release-validation.json` is generated qualification evidence for the commit recorded inside it; verify its revision matches the reviewed source commit before relying on it.
+- `artifacts/api-server/agentshield-beta/qualification-report-2026-11-24.json` is the preserved qualification evidence; its `gitRevision` should match the source candidate being reviewed.
 - Actual Codex CLI MCP, authorization-boundary, remediation, and Stop-hook results are recorded in `docs/AGENTSHIELD_BETA_READINESS_EVIDENCE.md`. They apply only to the recorded client version, Linux x64, and synthetic scenarios.
 - Claude Code was not available in the maintainer environment during this review preparation. No Claude verdict is claimed.
 

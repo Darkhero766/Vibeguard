@@ -1,0 +1,801 @@
+{
+  "schemaVersion": 1,
+  "product": "VibeSane AgentShield",
+  "packageVersion": "0.7.0-beta.3",
+  "status": "validation_passed_review_required",
+  "releaseDecision": "candidate_for_independent_human_review",
+  "createdAt": "2026-11-24T09:20:42.899Z",
+  "gitRevision": "ab51b79f2f702da15608267d8ba725bb994914a8",
+  "revisionValid": true,
+  "platform": "linux",
+  "architecture": "x64",
+  "nodeVersion": "v24.22.2",
+  "githubActionsUsed": false,
+  "productionTouched": false,
+  "syntheticFixturesOnly": true,
+  "benchmarkTargetsMet": true,
+  "benchmarkEvidenceValid": true,
+  "additionalBenchmarkValid": true,
+  "syntaxEvidenceValid": true,
+  "testSuiteValid": true,
+  "packageEvidenceValid": true,
+  "qualificationFailures": [],
+  "failedSteps": [],
+  "skippedSteps": [],
+  "steps": [
+    {
+      "name": "source-syntax",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 1922,
+      "evidence": {
+        "status": "syntax_passed",
+        "checkedFiles": 48,
+        "fingerprintedSourceInputs": 6,
+        "missingSourceInputs": [],
+        "sourceInputs": [
+          {
+            "file": "src/lib/apiScanner.ts",
+            "status": "fingerprinted",
+            "bytes": 29440
+          },
+          {
+            "file": "src/lib/extendedScannerV2.ts",
+            "status": "fingerprinted",
+            "bytes": 10490
+          },
+          {
+            "file": "scripts/agentshield-accuracy-corpus.mjs",
+            "status": "fingerprinted",
+            "bytes": 9887
+          },
+          {
+            "file": "scripts/agentshield-holdout-corpus.mjs",
+            "status": "fingerprinted",
+            "bytes": 4731
+          },
+          {
+            "file": "package.json",
+            "status": "fingerprinted",
+            "bytes": 4830
+          },
+          {
+            "file": "skills/vibesane-agentshield/SKILL.md",
+            "status": "fingerprinted",
+            "bytes": 3496
+          }
+        ],
+        "passedFiles": 48,
+        "failedFiles": [],
+        "sourceSha256": "9acf4291883e80b5206560904c51b1a96aa05870b14f70a77a431b2baf7a84f7",
+        "nodeVersion": "v24.22.2",
+        "platform": "linux",
+        "checks": [
+          {
+            "file": "scripts/check-agentshield-source-syntax.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/build-agentshield.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-week2.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-week3.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-week4.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-week5.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-hybrid.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-ast.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-taint.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-release.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-models.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-scan-score.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-phase12.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-crossfile.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-route-auth.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-supabase-policy.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-auth-regression.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-vibesane-sql-context.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-python.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-hook.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-verifier.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-install.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-capabilities.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-hybrid.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-ast-worker.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-cli.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-gate.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-policy.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-controller.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-mcp-server.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-cursor-stop.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-stop.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-codex-stop.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/vibesane.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-baselines.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-python.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/agentshield-sarif.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/package-agentshield-beta.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/benchmark-agentshield-accuracy.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/benchmark-agentshield-adversarial.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/validate-agentshield-release.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-gate.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-sarif.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-baselines.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-mcp.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-adversarial.mjs",
+            "status": "passed"
+          },
+          {
+            "file": "scripts/test-agentshield-package.mjs",
+            "status": "passed"
+          }
+        ]
+      },
+      "output": "{\n  \"status\": \"syntax_passed\",\n  \"checkedFiles\": 48,\n  \"fingerprintedSourceInputs\": 6,\n  \"missingSourceInputs\": [],\n  \"sourceInputs\": [\n    {\n      \"file\": \"src/lib/apiScanner.ts\",\n      \"status\": \"fingerprinted\",\n      \"bytes\": 29440\n    },\n    {\n      \"file\": \"src/lib/extendedScannerV2.ts\",\n      \"status\": \"fingerprinted\",\n      \"bytes\": 10490\n    },\n    {\n      \"file\": \"scripts/agentshield-accuracy-corpus.mjs\",\n      \"status\": \"fingerprinted\",\n      \"bytes\": 9887\n    },\n    {\n      \"file\": \"scripts/agentshield-holdout-corpus.mjs\",\n      \"status\": \"fingerprinted\",\n      \"bytes\": 4731\n    },\n    {\n      \"file\": \"package.json\",\n      \"status\": \"fingerprinted\",\n      \"bytes\": 4830\n    },\n    {\n      \"file\": \"skills/vibesane-agentshield/SKILL.md\",\n      \"status\": \"fingerprinted\",\n      \"bytes\": 3496\n    }\n  ],\n  \"passedFiles\": 48,\n  \"failedFiles\": [],\n  \"sourceSha256\": \"9acf4291883e80b5206560904c51b1a96aa05870b14f70a77a431b2baf7a84f7\",\n  \"nodeVersion\": \"v24.22.2\",\n  \"platform\": \"linux\",\n  \"checks\": [\n    {\n      \"file\": \"scripts/check-agentshield-source-syntax.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/build-agentshield.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-week2.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-week3.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-week4.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-week5.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-hybrid.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-ast.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-taint.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-release.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-models.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-scan-score.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-phase12.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-crossfile.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-route-auth.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-supabase-policy.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-auth-regression.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-vibesane-sql-context.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-python.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-hook.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-verifier.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-install.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-capabilities.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-hybrid.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-ast-worker.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-cli.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-gate.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-policy.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-controller.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-mcp-server.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-cursor-stop.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-stop.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-codex-stop.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/vibesane.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-baselines.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-python.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/agentshield-sarif.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/package-agentshield-beta.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/benchmark-agentshield-accuracy.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/benchmark-agentshield-adversarial.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/validate-agentshield-release.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-gate.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-sarif.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-baselines.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-mcp.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-adversarial.mjs\",\n      \"status\": \"passed\"\n    },\n    {\n      \"file\": \"scripts/test-agentshield-package.mjs\",\n      \"status\": \"passed\"\n    }\n  ]\n}\n"
+    },
+    {
+      "name": "build-scanner",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 86,
+      "output": "AgentShield CLI built at artifacts/api-server/dist/agentshield.mjs\n"
+    },
+    {
+      "name": "unit-integration-regression",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 60695,
+      "tests": 369,
+      "passed": 369,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "output": "32 - existing GitHub scan API and auth/rate limits are preserved\n  ---\n  duration_ms: 2.965183\n  type: 'test'\n  ...\n# Subtest: current Claude Stop protocol is used without a permission bypass\nok 333 - current Claude Stop protocol is used without a permission bypass\n  ---\n  duration_ms: 1.650232\n  type: 'test'\n  ...\n# Subtest: local scanner handles a synthetic credential with redacted findings\nok 334 - local scanner handles a synthetic credential with redacted findings\n  ---\n  duration_ms: 91.590585\n  type: 'test'\n  ...\n# Subtest: existing beta package production boundary is explicit\nok 335 - existing beta package production boundary is explicit\n  ---\n  duration_ms: 2.488409\n  type: 'test'\n  ...\n# Subtest: nonproduction demo and private-beta review checklist remain available\nok 336 - nonproduction demo and private-beta review checklist remain available\n  ---\n  duration_ms: 4.455841\n  type: 'test'\n  ...\n# Subtest: hardcoded test credential is detected without echoing its value\nok 337 - hardcoded test credential is detected without echoing its value\n  ---\n  duration_ms: 114.636081\n  type: 'test'\n  ...\n# Subtest: JWT detector handles typed declarations and object properties but ignores comments and placeholders\nok 338 - JWT detector handles typed declarations and object properties but ignores comments and placeholders\n  ---\n  duration_ms: 129.19916\n  type: 'test'\n  ...\n# Subtest: interpolated SQL query is flagged as a potential injection risk\nok 339 - interpolated SQL query is flagged as a potential injection risk\n  ---\n  duration_ms: 119.452045\n  type: 'test'\n  ...\n# Subtest: missing auth before an API database write is detected\nok 340 - missing auth before an API database write is detected\n  ---\n  duration_ms: 102.02035\n  type: 'test'\n  ...\n# Subtest: CLI reports partial coverage when ignored directories change alongside supported source\nok 341 - CLI reports partial coverage when ignored directories change alongside supported source\n  ---\n  duration_ms: 102.511496\n  type: 'test'\n  ...\n# Subtest: clean JavaScript returns a completed scan with no findings\nok 342 - clean JavaScript returns a completed scan with no findings\n  ---\n  duration_ms: 95.459102\n  type: 'test'\n  ...\n# Subtest: invalid Git working directory reports an error, never a clean scan\nok 343 - invalid Git working directory reports an error, never a clean scan\n  ---\n  duration_ms: 59.851244\n  type: 'test'\n  ...\n# Subtest: oversized source returns incomplete scan status\nok 344 - oversized source returns incomplete scan status\n  ---\n  duration_ms: 98.042058\n  type: 'test'\n  ...\n# Subtest: Claude Code PostToolUse hook injects security findings\nok 345 - Claude Code PostToolUse hook injects security findings\n  ---\n  duration_ms: 173.635277\n  type: 'test'\n  ...\n# Subtest: Claude Code hook reports scan failures as unknown\nok 346 - Claude Code hook reports scan failures as unknown\n  ---\n  duration_ms: 92.631756\n  type: 'test'\n  ...\n# Subtest: hook installer preserves existing config and uninstalls reversibly\nok 347 - hook installer preserves existing config and uninstalls reversibly\n  ---\n  duration_ms: 126.399102\n  type: 'test'\n  ...\n# Subtest: Claude Code Stop hook enforces blockers then allows a complete clean rescan\nok 348 - Claude Code Stop hook enforces blockers then allows a complete clean rescan\n  ---\n  duration_ms: 860.036379\n  type: 'test'\n  ...\n# Subtest: Claude Code Stop hook blocks enforce mode when there are no changed files to scan\nok 349 - Claude Code Stop hook blocks enforce mode when there are no changed files to scan\n  ---\n  duration_ms: 163.490314\n  type: 'test'\n  ...\n# Subtest: Claude Code Stop hook blocks if enforcement is enabled but scanner is disabled\nok 350 - Claude Code Stop hook blocks if enforcement is enabled but scanner is disabled\n  ---\n  duration_ms: 159.706202\n  type: 'test'\n  ...\n# Subtest: CLI rejects a base ref at HEAD and a base ref from unrelated history\nok 351 - CLI rejects a base ref at HEAD and a base ref from unrelated history\n  ---\n  duration_ms: 252.862395\n  type: 'test'\n  ...\n# Subtest: base-ref scan detects committed changes even when the worktree is clean\nok 352 - base-ref scan detects committed changes even when the worktree is clean\n  ---\n  duration_ms: 283.140693\n  type: 'test'\n  ...\n# Subtest: base-ref scan follows a committed rename and scans the destination path\nok 353 - base-ref scan follows a committed rename and scans the destination path\n  ---\n  duration_ms: 198.455521\n  type: 'test'\n  ...\n# Subtest: base-ref scan treats committed deletions and missing refs as incomplete\nok 354 - base-ref scan treats committed deletions and missing refs as incomplete\n  ---\n  duration_ms: 226.85914\n  type: 'test'\n  ...\n# Subtest: Claude Code Stop hook enforces commit-aware base-to-HEAD scope\nok 355 - Claude Code Stop hook enforces commit-aware base-to-HEAD scope\n  ---\n  duration_ms: 654.290629\n  type: 'test'\n  ...\n# Subtest: CLI refuses a changed-file symlink instead of following it\nok 356 - CLI refuses a changed-file symlink instead of following it\n  ---\n  duration_ms: 93.001535\n  type: 'test'\n  ...\n# Subtest: Codex Stop hook blocks committed findings and permits a clean remediation commit\nok 357 - Codex Stop hook blocks committed findings and permits a clean remediation commit\n  ---\n  duration_ms: 870.327889\n  type: 'test'\n  ...\n# Subtest: Codex installer preserves existing hooks, installs idempotently, and uninstalls only its own entry\nok 358 - Codex installer preserves existing hooks, installs idempotently, and uninstalls only its own entry\n  ---\n  duration_ms: 242.531789\n  type: 'test'\n  ...\n# Subtest: Codex installer refuses to overwrite a customized skill or malformed hooks config\nok 359 - Codex installer refuses to overwrite a customized skill or malformed hooks config\n  ---\n  duration_ms: 91.508111\n  type: 'test'\n  ...\n# Subtest: heuristic score uses stable severity penalties and deduplicates the same location\nok 360 - heuristic score uses stable severity penalties and deduplicates the same location\n  ---\n  duration_ms: 0.994518\n  type: 'test'\n  ...\n# Subtest: many Critical findings clamp the indicator to zero\nok 361 - many Critical findings clamp the indicator to zero\n  ---\n  duration_ms: 0.28869\n  type: 'test'\n  ...\n# Subtest: unexplained missing RLS policy is still a High finding\nok 362 - unexplained missing RLS policy is still a High finding\n  ---\n  duration_ms: 27.75532\n  type: 'test'\n  ...\n# Subtest: explicit revoke for all client roles is intentional deny-by-default\nok 363 - explicit revoke for all client roles is intentional deny-by-default\n  ---\n  duration_ms: 2.844033\n  type: 'test'\n  ...\n# Subtest: a missing client role in the revoke does not suppress the warning\nok 364 - a missing client role in the revoke does not suppress the warning\n  ---\n  duration_ms: 0.447797\n  type: 'test'\n  ...\n# Subtest: regrant after deny-by-default restores the missing-policy warning\nok 365 - regrant after deny-by-default restores the missing-policy warning\n  ---\n  duration_ms: 0.463536\n  type: 'test'\n  ...\n# Subtest: SECURITY DEFINER with header SET search_path after security clause is pinned\nok 366 - SECURITY DEFINER with header SET search_path after security clause is pinned\n  ---\n  duration_ms: 0.638523\n  type: 'test'\n  ...\n# Subtest: SECURITY DEFINER without search_path pin remains a High finding\nok 367 - SECURITY DEFINER without search_path pin remains a High finding\n  ---\n  duration_ms: 0.466762\n  type: 'test'\n  ...\n# Subtest: search_path mentioned only in function body cannot masquerade as pinned\nok 368 - search_path mentioned only in function body cannot masquerade as pinned\n  ---\n  duration_ms: 1.152092\n  type: 'test'\n  ...\n# Subtest: actual versioned hardened staging schema has zero High or Critical deltas\nok 369 - actual versioned hardened staging schema has zero High or Critical deltas\n  ---\n  duration_ms: 9.313759\n  type: 'test'\n  ...\n1..369\n# tests 369\n# suites 0\n# pass 369\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 60645.443364\n"
+    },
+    {
+      "name": "curated-accuracy-benchmark",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 9153,
+      "evidence": {
+        "tool": "VibeSane AgentShield accuracy benchmark",
+        "schemaVersion": 1,
+        "corpusVersion": "2026-11-19-1",
+        "benchmarkType": "synthetic_labeled_target_rule_curated",
+        "labelLimitations": "Curated heuristic expectations, not independent exploit validation. Each case evaluates only its named target rule; holdout labels are challenge expectations, not exploit proof.",
+        "totalCases": 120,
+        "categoryCount": 12,
+        "results": {
+          "tp": 60,
+          "tn": 59,
+          "fp": 1,
+          "fn": 0,
+          "total": 120,
+          "precision": 0.9836065573770492,
+          "recall": 1,
+          "falsePositiveRate": 0.016666666666666666,
+          "accuracy": 0.9916666666666667
+        },
+        "categories": {
+          "github_tokens": {
+            "tp": 5,
+            "tn": 5,
+            "fp": 0,
+            "fn": 0,
+            "total": 10,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "google_api_key": {
+            "tp": 5,
+            "tn": 5,
+            "fp": 0,
+            "fn": 0,
+            "total": 10,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "hardcoded_jwt": {
+            "tp": 5,
+            "tn": 5,
+            "fp": 0,
+            "fn": 0,
+            "total": 10,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "hardcoded_password": {
+            "tp": 5,
+            "tn": 5,
+            "fp": 0,
+            "fn": 0,
+            "total": 10,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "missing_api_auth": {
+            "tp": 5,
+            "tn": 4,
+            "fp": 1,
+            "fn": 0,
+            "total": 10,
+            "precision": 0.8333333333333334,
+            "recall": 1,
+            "falsePositiveRate": 0.2,
+            "accuracy": 0.9
+          },
+          "rls_missing": {
+            "tp": 5,
+            "tn": 5,
+            "fp": 0,
+            "fn": 0,
+            "total": 10,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "rls_policy_missing": {
+            "tp": 5,
+            "tn": 5,
+            "fp": 0,
+            "fn": 0,
+            "total": 10,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "service_role_client": {
+            "tp": 5,
+            "tn": 5,
+            "fp": 0,
+            "fn": 0,
+            "total": 10,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "sql_grant_public": {
+            "tp": 5,
+            "tn": 5,
+            "fp": 0,
+            "fn": 0,
+            "total": 10,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "unsafe_sql_templates": {
+            "tp": 5,
+            "tn": 5,
+            "fp": 0,
+            "fn": 0,
+            "total": 10,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "weak_random_security": {
+            "tp": 5,
+            "tn": 5,
+            "fp": 0,
+            "fn": 0,
+            "total": 10,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "xss_innerhtml": {
+            "tp": 5,
+            "tn": 5,
+            "fp": 0,
+            "fn": 0,
+            "total": 10,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          }
+        },
+        "categoryCaseCounts": {
+          "github_tokens": 10,
+          "google_api_key": 10,
+          "hardcoded_jwt": 10,
+          "hardcoded_password": 10,
+          "missing_api_auth": 10,
+          "rls_missing": 10,
+          "rls_policy_missing": 10,
+          "service_role_client": 10,
+          "sql_grant_public": 10,
+          "unsafe_sql_templates": 10,
+          "weak_random_security": 10,
+          "xss_innerhtml": 10
+        },
+        "offTargetFindings": 5,
+        "misclassifications": [
+          {
+            "caseId": "missing_api_auth_negative_1",
+            "category": "missing_api_auth",
+            "ruleId": "unauthenticated_write",
+            "expected": false,
+            "detected": true,
+            "errorType": "fp",
+            "rationale": "Synthetic benign or protected counterexample for unauthenticated_write"
+          }
+        ],
+        "measuredElapsedMs": 9096,
+        "nodeVersion": "v24.22.2",
+        "platform": "linux",
+        "targets": {
+          "precision": 0.9,
+          "recall": 0.85,
+          "perCategory": {
+            "precision": 0.6,
+            "recall": 0.6
+          }
+        },
+        "overallTargetsMet": true,
+        "categoryResultsMet": true,
+        "targetsMet": true
+      },
+      "output": "{\n  \"tool\": \"VibeSane AgentShield accuracy benchmark\",\n  \"schemaVersion\": 1,\n  \"corpusVersion\": \"2026-11-19-1\",\n  \"benchmarkType\": \"synthetic_labeled_target_rule_curated\",\n  \"labelLimitations\": \"Curated heuristic expectations, not independent exploit validation. Each case evaluates only its named target rule; holdout labels are challenge expectations, not exploit proof.\",\n  \"totalCases\": 120,\n  \"categoryCount\": 12,\n  \"results\": {\n    \"tp\": 60,\n    \"tn\": 59,\n    \"fp\": 1,\n    \"fn\": 0,\n    \"total\": 120,\n    \"precision\": 0.9836065573770492,\n    \"recall\": 1,\n    \"falsePositiveRate\": 0.016666666666666666,\n    \"accuracy\": 0.9916666666666667\n  },\n  \"categories\": {\n    \"github_tokens\": {\n      \"tp\": 5,\n      \"tn\": 5,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 10,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"google_api_key\": {\n      \"tp\": 5,\n      \"tn\": 5,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 10,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"hardcoded_jwt\": {\n      \"tp\": 5,\n      \"tn\": 5,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 10,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"hardcoded_password\": {\n      \"tp\": 5,\n      \"tn\": 5,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 10,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"missing_api_auth\": {\n      \"tp\": 5,\n      \"tn\": 4,\n      \"fp\": 1,\n      \"fn\": 0,\n      \"total\": 10,\n      \"precision\": 0.8333333333333334,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0.2,\n      \"accuracy\": 0.9\n    },\n    \"rls_missing\": {\n      \"tp\": 5,\n      \"tn\": 5,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 10,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"rls_policy_missing\": {\n      \"tp\": 5,\n      \"tn\": 5,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 10,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"service_role_client\": {\n      \"tp\": 5,\n      \"tn\": 5,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 10,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"sql_grant_public\": {\n      \"tp\": 5,\n      \"tn\": 5,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 10,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"unsafe_sql_templates\": {\n      \"tp\": 5,\n      \"tn\": 5,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 10,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"weak_random_security\": {\n      \"tp\": 5,\n      \"tn\": 5,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 10,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"xss_innerhtml\": {\n      \"tp\": 5,\n      \"tn\": 5,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 10,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    }\n  },\n  \"categoryCaseCounts\": {\n    \"github_tokens\": 10,\n    \"google_api_key\": 10,\n    \"hardcoded_jwt\": 10,\n    \"hardcoded_password\": 10,\n    \"missing_api_auth\": 10,\n    \"rls_missing\": 10,\n    \"rls_policy_missing\": 10,\n    \"service_role_client\": 10,\n    \"sql_grant_public\": 10,\n    \"unsafe_sql_templates\": 10,\n    \"weak_random_security\": 10,\n    \"xss_innerhtml\": 10\n  },\n  \"offTargetFindings\": 5,\n  \"misclassifications\": [\n    {\n      \"caseId\": \"missing_api_auth_negative_1\",\n      \"category\": \"missing_api_auth\",\n      \"ruleId\": \"unauthenticated_write\",\n      \"expected\": false,\n      \"detected\": true,\n      \"errorType\": \"fp\",\n      \"rationale\": \"Synthetic benign or protected counterexample for unauthenticated_write\"\n    }\n  ],\n  \"measuredElapsedMs\": 9096,\n  \"nodeVersion\": \"v24.22.2\",\n  \"platform\": \"linux\",\n  \"targets\": {\n    \"precision\": 0.9,\n    \"recall\": 0.85,\n    \"perCategory\": {\n      \"precision\": 0.6,\n      \"recall\": 0.6\n    }\n  },\n  \"overallTargetsMet\": true,\n  \"categoryResultsMet\": true,\n  \"targetsMet\": true\n}\n"
+    },
+    {
+      "name": "holdout-accuracy-benchmark",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 1815,
+      "evidence": {
+        "tool": "VibeSane AgentShield accuracy benchmark",
+        "schemaVersion": 1,
+        "corpusVersion": "2026-11-19-holdout-1",
+        "benchmarkType": "synthetic_labeled_target_rule_holdout",
+        "labelLimitations": "Curated heuristic expectations, not independent exploit validation. Each case evaluates only its named target rule; holdout labels are challenge expectations, not exploit proof.",
+        "totalCases": 24,
+        "categoryCount": 6,
+        "results": {
+          "tp": 12,
+          "tn": 11,
+          "fp": 1,
+          "fn": 0,
+          "total": 24,
+          "precision": 0.9230769230769231,
+          "recall": 1,
+          "falsePositiveRate": 0.08333333333333333,
+          "accuracy": 0.9583333333333334
+        },
+        "categories": {
+          "auth_challenge": {
+            "tp": 2,
+            "tn": 1,
+            "fp": 1,
+            "fn": 0,
+            "total": 4,
+            "precision": 0.6666666666666666,
+            "recall": 1,
+            "falsePositiveRate": 0.5,
+            "accuracy": 0.75
+          },
+          "environment_challenge": {
+            "tp": 2,
+            "tn": 2,
+            "fp": 0,
+            "fn": 0,
+            "total": 4,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "jwt_challenge": {
+            "tp": 2,
+            "tn": 2,
+            "fp": 0,
+            "fn": 0,
+            "total": 4,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "rls_challenge": {
+            "tp": 2,
+            "tn": 2,
+            "fp": 0,
+            "fn": 0,
+            "total": 4,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "service_challenge": {
+            "tp": 2,
+            "tn": 2,
+            "fp": 0,
+            "fn": 0,
+            "total": 4,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "sql_challenge": {
+            "tp": 2,
+            "tn": 2,
+            "fp": 0,
+            "fn": 0,
+            "total": 4,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          }
+        },
+        "categoryCaseCounts": {
+          "auth_challenge": 4,
+          "environment_challenge": 4,
+          "jwt_challenge": 4,
+          "rls_challenge": 4,
+          "service_challenge": 4,
+          "sql_challenge": 4
+        },
+        "offTargetFindings": 1,
+        "misclassifications": [
+          {
+            "caseId": "auth_challenge_custom_guard",
+            "category": "auth_challenge",
+            "ruleId": "unauthenticated_write",
+            "expected": false,
+            "detected": true,
+            "errorType": "fp",
+            "rationale": "Application-specific checked auth function may be a detector FP; manual review required."
+          }
+        ],
+        "measuredElapsedMs": 1761,
+        "nodeVersion": "v24.22.2",
+        "platform": "linux",
+        "targets": {
+          "precision": 0.9,
+          "recall": 0.85,
+          "perCategory": {
+            "precision": 0.5,
+            "recall": 0.5
+          }
+        },
+        "overallTargetsMet": true,
+        "categoryResultsMet": true,
+        "targetsMet": true
+      },
+      "output": "{\n  \"tool\": \"VibeSane AgentShield accuracy benchmark\",\n  \"schemaVersion\": 1,\n  \"corpusVersion\": \"2026-11-19-holdout-1\",\n  \"benchmarkType\": \"synthetic_labeled_target_rule_holdout\",\n  \"labelLimitations\": \"Curated heuristic expectations, not independent exploit validation. Each case evaluates only its named target rule; holdout labels are challenge expectations, not exploit proof.\",\n  \"totalCases\": 24,\n  \"categoryCount\": 6,\n  \"results\": {\n    \"tp\": 12,\n    \"tn\": 11,\n    \"fp\": 1,\n    \"fn\": 0,\n    \"total\": 24,\n    \"precision\": 0.9230769230769231,\n    \"recall\": 1,\n    \"falsePositiveRate\": 0.08333333333333333,\n    \"accuracy\": 0.9583333333333334\n  },\n  \"categories\": {\n    \"auth_challenge\": {\n      \"tp\": 2,\n      \"tn\": 1,\n      \"fp\": 1,\n      \"fn\": 0,\n      \"total\": 4,\n      \"precision\": 0.6666666666666666,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0.5,\n      \"accuracy\": 0.75\n    },\n    \"environment_challenge\": {\n      \"tp\": 2,\n      \"tn\": 2,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 4,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"jwt_challenge\": {\n      \"tp\": 2,\n      \"tn\": 2,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 4,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"rls_challenge\": {\n      \"tp\": 2,\n      \"tn\": 2,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 4,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"service_challenge\": {\n      \"tp\": 2,\n      \"tn\": 2,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 4,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"sql_challenge\": {\n      \"tp\": 2,\n      \"tn\": 2,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 4,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    }\n  },\n  \"categoryCaseCounts\": {\n    \"auth_challenge\": 4,\n    \"environment_challenge\": 4,\n    \"jwt_challenge\": 4,\n    \"rls_challenge\": 4,\n    \"service_challenge\": 4,\n    \"sql_challenge\": 4\n  },\n  \"offTargetFindings\": 1,\n  \"misclassifications\": [\n    {\n      \"caseId\": \"auth_challenge_custom_guard\",\n      \"category\": \"auth_challenge\",\n      \"ruleId\": \"unauthenticated_write\",\n      \"expected\": false,\n      \"detected\": true,\n      \"errorType\": \"fp\",\n      \"rationale\": \"Application-specific checked auth function may be a detector FP; manual review required.\"\n    }\n  ],\n  \"measuredElapsedMs\": 1761,\n  \"nodeVersion\": \"v24.22.2\",\n  \"platform\": \"linux\",\n  \"targets\": {\n    \"precision\": 0.9,\n    \"recall\": 0.85,\n    \"perCategory\": {\n      \"precision\": 0.5,\n      \"recall\": 0.5\n    }\n  },\n  \"overallTargetsMet\": true,\n  \"categoryResultsMet\": true,\n  \"targetsMet\": true\n}\n"
+    },
+    {
+      "name": "additional-adversarial-accuracy-benchmark",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 356,
+      "evidence": {
+        "tool": "VibeSane AgentShield additional adversarial benchmark",
+        "schemaVersion": 1,
+        "benchmarkType": "synthetic_labeled_target_rule_additional_adversarial",
+        "corpusVersion": "2026-11-23-independent-audit-1",
+        "totalCases": 30,
+        "categoryCount": 9,
+        "results": {
+          "tp": 16,
+          "tn": 14,
+          "fp": 0,
+          "fn": 0,
+          "total": 30,
+          "precision": 1,
+          "recall": 1,
+          "falsePositiveRate": 0,
+          "accuracy": 1
+        },
+        "categories": {
+          "jwt_variants": {
+            "tp": 4,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0,
+            "total": 7,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "github_token_variants": {
+            "tp": 2,
+            "tn": 2,
+            "fp": 0,
+            "fn": 0,
+            "total": 4,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "aws_credentials": {
+            "tp": 2,
+            "tn": 1,
+            "fp": 0,
+            "fn": 0,
+            "total": 3,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "sql_context": {
+            "tp": 2,
+            "tn": 2,
+            "fp": 0,
+            "fn": 0,
+            "total": 4,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "dynamic_code": {
+            "tp": 2,
+            "tn": 2,
+            "fp": 0,
+            "fn": 0,
+            "total": 4,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "shell_invocation": {
+            "tp": 1,
+            "tn": 1,
+            "fp": 0,
+            "fn": 0,
+            "total": 2,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "supabase_keys": {
+            "tp": 1,
+            "tn": 1,
+            "fp": 0,
+            "fn": 0,
+            "total": 2,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "unsafe_yaml": {
+            "tp": 1,
+            "tn": 1,
+            "fp": 0,
+            "fn": 0,
+            "total": 2,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          },
+          "unsafe_deserialization": {
+            "tp": 1,
+            "tn": 1,
+            "fp": 0,
+            "fn": 0,
+            "total": 2,
+            "precision": 1,
+            "recall": 1,
+            "falsePositiveRate": 0,
+            "accuracy": 1
+          }
+        },
+        "misclassifications": [],
+        "measuredElapsedMs": 306,
+        "nodeVersion": "v24.22.2",
+        "platform": "linux",
+        "labelLimitations": "Independently authored synthetic rule-expectation challenges only; labels are not exploit validation, real-world precision/recall, or security certification. Each case evaluates only its named target rule. False positives need manual review.",
+        "thresholds": null
+      },
+      "output": "{\n  \"tool\": \"VibeSane AgentShield additional adversarial benchmark\",\n  \"schemaVersion\": 1,\n  \"benchmarkType\": \"synthetic_labeled_target_rule_additional_adversarial\",\n  \"corpusVersion\": \"2026-11-23-independent-audit-1\",\n  \"totalCases\": 30,\n  \"categoryCount\": 9,\n  \"results\": {\n    \"tp\": 16,\n    \"tn\": 14,\n    \"fp\": 0,\n    \"fn\": 0,\n    \"total\": 30,\n    \"precision\": 1,\n    \"recall\": 1,\n    \"falsePositiveRate\": 0,\n    \"accuracy\": 1\n  },\n  \"categories\": {\n    \"jwt_variants\": {\n      \"tp\": 4,\n      \"tn\": 3,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 7,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"github_token_variants\": {\n      \"tp\": 2,\n      \"tn\": 2,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 4,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"aws_credentials\": {\n      \"tp\": 2,\n      \"tn\": 1,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 3,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"sql_context\": {\n      \"tp\": 2,\n      \"tn\": 2,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 4,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"dynamic_code\": {\n      \"tp\": 2,\n      \"tn\": 2,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 4,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"shell_invocation\": {\n      \"tp\": 1,\n      \"tn\": 1,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 2,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"supabase_keys\": {\n      \"tp\": 1,\n      \"tn\": 1,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 2,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"unsafe_yaml\": {\n      \"tp\": 1,\n      \"tn\": 1,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 2,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    },\n    \"unsafe_deserialization\": {\n      \"tp\": 1,\n      \"tn\": 1,\n      \"fp\": 0,\n      \"fn\": 0,\n      \"total\": 2,\n      \"precision\": 1,\n      \"recall\": 1,\n      \"falsePositiveRate\": 0,\n      \"accuracy\": 1\n    }\n  },\n  \"misclassifications\": [],\n  \"measuredElapsedMs\": 306,\n  \"nodeVersion\": \"v24.22.2\",\n  \"platform\": \"linux\",\n  \"labelLimitations\": \"Independently authored synthetic rule-expectation challenges only; labels are not exploit validation, real-world precision/recall, or security certification. Each case evaluates only its named target rule. False positives need manual review.\",\n  \"thresholds\": null\n}\n"
+    },
+    {
+      "name": "offline-package-install-cli-mcp-smoke",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 4671,
+      "evidence": {
+        "status": "package_smoke_passed",
+        "version": "0.7.0-beta.3",
+        "packageSha256": "9c2ec6013126b0f6ddb864ce32d1919b78df6104f0e34e82ac9af4c14ebb67ba",
+        "packageBytes": 1107853,
+        "packagedFiles": 23,
+        "checks": [
+          "build",
+          "npm-pack-manifest",
+          "isolated-install",
+          "cli-help",
+          "doctor",
+          "mcp-doctor-valid-config",
+          "mcp-doctor-malformed-config-denial",
+          "codex-init-hook",
+          "synthetic-committed-scan",
+          "codex-stop-block",
+          "codex-stop-remediation",
+          "mcp-initialize",
+          "mcp-tools-list",
+          "mcp-status",
+          "mcp-scan",
+          "mcp-list-findings",
+          "mcp-verify-remediation",
+          "mcp-explain-finding",
+          "mcp-workspace-boundary",
+          "mcp-cancellation",
+          "mcp-invalid-tool-arguments",
+          "mcp-invalid-json",
+          "codex-uninstall"
+        ],
+        "fixture": "synthetic-disposable-git-repository",
+        "published": false
+      },
+      "output": "{\"status\":\"package_smoke_passed\",\"version\":\"0.7.0-beta.3\",\"packageSha256\":\"9c2ec6013126b0f6ddb864ce32d1919b78df6104f0e34e82ac9af4c14ebb67ba\",\"packageBytes\":1107853,\"packagedFiles\":23,\"checks\":[\"build\",\"npm-pack-manifest\",\"isolated-install\",\"cli-help\",\"doctor\",\"mcp-doctor-valid-config\",\"mcp-doctor-malformed-config-denial\",\"codex-init-hook\",\"synthetic-committed-scan\",\"codex-stop-block\",\"codex-stop-remediation\",\"mcp-initialize\",\"mcp-tools-list\",\"mcp-status\",\"mcp-scan\",\"mcp-list-findings\",\"mcp-verify-remediation\",\"mcp-explain-finding\",\"mcp-workspace-boundary\",\"mcp-cancellation\",\"mcp-invalid-tool-arguments\",\"mcp-invalid-json\",\"codex-uninstall\"],\"fixture\":\"synthetic-disposable-git-repository\",\"published\":false}\n"
+    }
+  ],
+  "limitations": [
+    "Passing this runner is not a security certification or proof of application-wide security.",
+    "Claude Code and Codex Stop responses are host-level continuation controls; they can be bypassed by changing project policy, disabling/untrusting hooks or interrupting the host.",
+    "Cursor uses followup_message continuation; none of the integrations is tamper-proof or an immutable delivery lock.",
+    "Manual acceptance in actual Codex, Claude Code and Cursor versions is still required.",
+    "Release branch dependency consolidation and independent human review are still required."
+  ]
+}
