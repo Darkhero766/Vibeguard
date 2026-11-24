@@ -191,6 +191,10 @@ export async function resolveAuthorizedRoots(raw = process.env[AUTHORIZED_ROOTS_
     throw new Error('Workspace is not authorized. Configure VIBESANE_ALLOWED_ROOTS_JSON.');
   }
 }
+// Capture valid authorization-root identities before the stdio server can accept a
+// client request. Otherwise replacing a configured path before its first use could
+// silently substitute a different repository under the same allowlisted pathname.
+const startupAuthorization = resolveAuthorizedRoots().catch(() => null);
 async function canonicalRoot(workspace, signal) {
   throwIfAborted(signal);
   if (typeof workspace !== 'string' || !workspace.trim() || workspace.length > 4096 || !path.isAbsolute(workspace)) {
@@ -879,6 +883,7 @@ if (process.argv[1] && realpathSync(path.resolve(process.argv[1])) === fileURLTo
   const drain = async () => {
     if (busy) return;
     busy = true;
+    await startupAuthorization;
     while (queue.length) {
       const { message, controller } = queue.shift();
       try {

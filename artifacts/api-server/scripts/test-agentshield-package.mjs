@@ -120,6 +120,7 @@ try {
   assert(packagedReadme.stdout.includes('--completion-gate enforce')
     && packagedReadme.stdout.includes('--base-ref origin/main')
     && packagedReadme.stdout.includes('VIBESANE_ALLOWED_ROOTS_JSON')
+    && packagedReadme.stdout.includes('mcp-doctor')
     && packagedReadme.stdout.includes('Codex Stop hooks')
     && packagedReadme.stdout.includes('init-codex'),
     'Packaged README omits commit-aware Claude/Codex completion enforcement instructions.');
@@ -133,6 +134,24 @@ try {
 
   const help = await run(cli, ['--help'], { cwd: temp });
   assert(help.stdout.includes('VibeSane AgentShield'), 'Installed CLI help did not execute.');
+  const mcpDoctor = await run(cli, ['mcp-doctor'], { cwd: temp, env: {
+    ...process.env,
+    VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([temp, temp]),
+  } });
+  const mcpHealth = JSON.parse(mcpDoctor.stdout);
+  assert(mcpHealth.status === 'ready' && mcpHealth.configuredRootCount === 2
+    && mcpHealth.canonicalRootCount === 1 && !mcpDoctor.stdout.includes(temp),
+  'Installed MCP doctor did not validate/deduplicate roots without printing their paths.');
+  let invalidMcpDoctorRejected = false;
+  try {
+    await run(cli, ['mcp-doctor'], { cwd: temp, env: {
+      ...process.env,
+      VIBESANE_ALLOWED_ROOTS_JSON: 'not-json',
+    } });
+  } catch (error) {
+    invalidMcpDoctorRejected = error?.code === 2 && String(error?.stdout || '').includes('"status":"not_ready"');
+  }
+  assert(invalidMcpDoctorRejected, 'Installed MCP doctor did not fail closed on malformed authorization configuration.');
   await mkdir(path.join(fixture, 'src'), { recursive: true });
   await writeFile(path.join(fixture, 'src', 'index.js'), 'export const baseline = true;\n');
   await run('git', ['init', '-q', fixture]);
@@ -156,7 +175,9 @@ try {
 
   const doctor = await run(cli, ['doctor', '--cwd', fixture], { cwd: temp });
   const health = JSON.parse(doctor.stdout);
-  assert(health.status === 'ready', 'Installed CLI doctor did not report ready.');
+  assert(health.status === 'ready' && health.checks.codexStopHookInstalled === true
+    && health.checks.hooksInstalled === true,
+  'Installed CLI doctor did not report the configured Codex Stop hook.');
   await writeFile(path.join(fixture, 'src', 'index.js'), 'export const committedChange = true;\n');
   await run('git', ['-C', fixture, 'add', '.']);
   await run('git', ['-C', fixture, '-c', 'user.name=AgentShield Package Smoke', '-c',
@@ -275,7 +296,7 @@ try {
     packageSha256: packaged.sha256,
     packageBytes: packaged.archiveBytes,
     packagedFiles: packaged.fileCount,
-    checks: ['build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-initialize', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-list-findings', 'mcp-verify-remediation', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-cancellation', 'mcp-invalid-tool-arguments', 'mcp-invalid-json', 'codex-uninstall'],
+    checks: ['build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-initialize', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-list-findings', 'mcp-verify-remediation', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-cancellation', 'mcp-invalid-tool-arguments', 'mcp-invalid-json', 'codex-uninstall'],
     fixture: 'synthetic-disposable-git-repository',
     published: false,
   }) + '\n');

@@ -1,5 +1,104 @@
 # AgentShield MCP (read-only beta 0.7.0-beta.3)
 
+## One-time beta setup (macOS/Linux)
+
+Requirements: Node.js 20+, Git, pnpm, and a trusted VibeSane checkout. Use a disposable Git repository for the first scan. Windows is not supported by the beta CLI/hooks yet.
+
+From the VibeSane checkout root, build and create the local, unpublished package:
+
+```sh
+pnpm --filter @workspace/api-server run build:agentshield
+node artifacts/api-server/scripts/package-agentshield-beta.mjs
+```
+
+The second command prints the local archive path and SHA-256. Install it into a user-owned prefix (this does not publish it):
+
+```sh
+npm install --global --prefix "$HOME/.local" --ignore-scripts \
+  "$PWD/artifacts/api-server/dist/vibesane-agentshield-0.7.0-beta.3.tgz"
+"$HOME/.local/bin/vibesane" --help
+```
+
+Use the absolute executable paths below so the coding-agent host does not depend on shell `PATH`. Set the allowlist on the MCP server process. Start with the single synthetic or intended repository path, not a broad parent:
+
+```sh
+export VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/disposable-repo"]'
+"$HOME/.local/bin/vibesane" mcp-doctor
+"$HOME/.local/bin/vibesane" doctor --cwd /absolute/path/to/disposable-repo
+```
+
+`mcp-doctor` checks the current process environment, canonicalizes and deduplicates existing directories, and never prints configured paths. The MCP `status` tool is the final check that the host actually passed the environment to its server process. The workspace must be a Git repository root under one of the allowlisted directories.
+
+### Connect Codex
+
+Add this to `~/.codex/config.toml`, replacing the executable and workspace paths. Keep the JSON array as TOML single-quoted text so the inner JSON quotes remain literal:
+
+```toml
+[mcp_servers.vibesane_agentshield]
+command = "/home/you/.local/bin/vibesane-mcp"
+args = []
+env = { VIBESANE_ALLOWED_ROOTS_JSON = '["/absolute/path/to/disposable-repo"]' }
+```
+
+Restart Codex. Ask it to call `status`; verify `workspaceAuthorization` is `configured`, then ask it to discover the five AgentShield tools. Review the project hook before enabling it:
+
+```sh
+"$HOME/.local/bin/vibesane" init-codex --cwd /absolute/path/to/disposable-repo
+"$HOME/.local/bin/vibesane" doctor --cwd /absolute/path/to/disposable-repo
+```
+
+In Codex, inspect and trust the hook with `/hooks`; `doctor` should report `checks.codexStopHookInstalled: true`. Verify the completion-gate policy with `vibesane status --cwd ...`. For completion enforcement, configure a local target ref that is a strict ancestor of `HEAD`:
+
+```sh
+git -C /absolute/path/to/disposable-repo fetch origin main
+"$HOME/.local/bin/vibesane" config --mode assist --completion-gate enforce \
+  --base-ref origin/main --cwd /absolute/path/to/disposable-repo
+"$HOME/.local/bin/vibesane" status --cwd /absolute/path/to/disposable-repo
+```
+
+### Connect Claude Code
+
+For project scope, add this `mcpServers` entry to the project-root `.mcp.json` (replace both absolute paths):
+
+```json
+{
+  "mcpServers": {
+    "vibesane-agentshield": {
+      "command": "/home/you/.local/bin/vibesane-mcp",
+      "args": [],
+      "env": {
+        "VIBESANE_ALLOWED_ROOTS_JSON": "[\"/absolute/path/to/disposable-repo\"]"
+      }
+    }
+  }
+}
+```
+
+Open Claude Code in the project, approve the project MCP server when prompted, then run `/mcp` and confirm the five AgentShield tools are connected. Install and inspect lifecycle hooks separately:
+
+```sh
+"$HOME/.local/bin/vibesane" init --cwd /absolute/path/to/disposable-repo
+"$HOME/.local/bin/vibesane" doctor --cwd /absolute/path/to/disposable-repo
+```
+
+`doctor` should report `checks.claudeHooksInstalled: true`. Verify the completion-gate policy with `vibesane status --cwd ...`.
+
+Completion enforcement is opt-in and requires a fetched strict-ancestor target ref, configured with the same `vibesane config --mode assist --completion-gate enforce --base-ref origin/main --cwd ...` command shown above. Claude Code was unavailable in the maintainer environment for this beta qualification; this configuration was cross-checked against the current Claude Code MCP documentation, but not host-executed here.
+
+### Remove, upgrade, or roll back
+
+Remove the matching project hooks/skills before uninstalling the package:
+
+```sh
+"$HOME/.local/bin/vibesane" uninstall-codex --cwd /absolute/path/to/disposable-repo
+"$HOME/.local/bin/vibesane" uninstall --cwd /absolute/path/to/disposable-repo
+npm uninstall --global --prefix "$HOME/.local" @vibesane/agentshield
+```
+
+The uninstall commands preserve unrelated host configuration and leave customized Codex skills untouched. To upgrade, build and install a new local archive over the existing prefix with the same `npm install --global --prefix ... --ignore-scripts ./archive.tgz` command, then restart the host and rerun `doctor`, `mcp-doctor`, and MCP `status`. To roll back, reinstall the previous locally retained archive and restart the host. Do not remove configuration manually unless you have reviewed its unrelated entries.
+
+Troubleshooting: check `vibesane doctor` for Node/Git/scanner/hook readiness; run `mcp-doctor` with the exact MCP environment to validate roots; use host MCP status (`codex mcp list`/`/mcp`) to identify launch or approval failures; use absolute binary paths; ensure the target ref exists and is ancestral to `HEAD`; and restart the host after configuration, package, or allowlist changes. Never place credentials in the allowlist or diagnostic output.
+
 Build the standalone scanner first from a trusted VibeSane checkout:
 
 ```bash

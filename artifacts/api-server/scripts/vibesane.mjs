@@ -2,7 +2,7 @@
 // AgentShield local developer commands; a repository checkout is required (no npm publishing).
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { lstat, readFile, realpath, mkdir, writeFile, rename, unlink } from 'node:fs/promises';
+import { lstat, readFile, realpath, stat, mkdir, writeFile, rename, unlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -184,7 +184,8 @@ async function doctor(args) {
   const cwd = cwdFrom(args);
   const checks = { node: Number(process.versions.node.split('.')[0]) >= 20,
     platform: process.platform !== 'win32', builtScanner: await isFile(dist),
-    gitRepository: false, hooksInstalled: false, settingsReadable: true };
+    gitRepository: false, hooksInstalled: false, claudeHooksInstalled: false,
+    codexStopHookInstalled: false, settingsReadable: true };
   let root = null;
   try {
     const r = await exec('git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null',
@@ -198,17 +199,58 @@ async function doctor(args) {
         const d = JSON.parse(await readFile(settings, 'utf8'));
         const hooks = d?.hooks || {};
         const entries = [...(hooks.PostToolUse || []), ...(hooks.Stop || [])];
-        checks.hooksInstalled = entries.some(x => x?.hooks?.some(y =>
+        checks.claudeHooksInstalled = entries.some(x => x?.hooks?.some(y =>
           typeof y?.command === 'string' && y.command.includes('agentshield-hook.mjs'))) &&
           entries.some(x => x?.hooks?.some(y => typeof y?.command === 'string' &&
             y.command.includes('agentshield-stop.mjs')));
       }
     } catch { checks.settingsReadable = false; }
+    try {
+      const config = await readSafeJsonFile(path.join(root, '.codex', 'hooks.json'));
+      const stop = config?.hooks?.Stop;
+      if (stop != null && !Array.isArray(stop)) throw new Error('Malformed Codex Stop hook list.');
+      checks.codexStopHookInstalled = (stop || []).some(entry => entry?.hooks?.some(hook =>
+        typeof hook?.command === 'string' && hook.command.includes('agentshield-codex-stop.mjs')));
+    } catch { checks.settingsReadable = false; }
+    checks.hooksInstalled = checks.claudeHooksInstalled || checks.codexStopHookInstalled;
   }
   const ready = checks.node && checks.platform && checks.builtScanner && checks.gitRepository && checks.settingsReadable;
   process.stdout.write(JSON.stringify({ status: ready ? 'ready' : 'not_ready',
-    root: root || null, checks, note: 'Hooks must be installed separately. No customer code was executed.' }) + '\n');
+    root: root || null, checks, note: 'Hooks must be installed separately; Codex and Claude Code hook status is reported when the project config is readable. No repository code was executed.' }) + '\n');
   return ready ? 0 : 2;
+}
+async function mcpDoctor() {
+  const raw = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+  let roots;
+  try {
+    if (typeof raw !== 'string' || !raw || Buffer.byteLength(raw, 'utf8') > 32768) throw new Error();
+    roots = JSON.parse(raw);
+    if (!Array.isArray(roots) || roots.length < 1 || roots.length > 32
+      || roots.some(root => typeof root !== 'string' || !root || root.length > 4096 || !path.isAbsolute(root))) {
+      throw new Error();
+    }
+    const canonical = [];
+    for (const root of roots) {
+      const resolved = await realpath(root);
+      const info = await stat(resolved);
+      if (!info.isDirectory() || resolved === path.parse(resolved).root) throw new Error();
+      if (!canonical.includes(resolved)) canonical.push(resolved);
+    }
+    process.stdout.write(JSON.stringify({
+      status: 'ready',
+      configuredRootCount: roots.length,
+      canonicalRootCount: canonical.length,
+      note: 'Authorized root configuration is valid. Paths are intentionally omitted; run MCP status from the coding-agent host to verify its server environment.',
+    }) + '\n');
+    return 0;
+  } catch {
+    process.stdout.write(JSON.stringify({
+      status: 'not_ready',
+      check: 'VIBESANE_ALLOWED_ROOTS_JSON',
+      note: 'Set this variable to a JSON array of 1 to 32 existing absolute non-filesystem-root directories. Paths and environment values are not printed.',
+    }) + '\n');
+    return 2;
+  }
 }
 async function child(program, args) {
   return new Promise((resolve, reject) => {
@@ -225,6 +267,7 @@ async function main(args) {
       '',
       'Commands:',
       '  vibesane doctor [--cwd PROJECT]',
+      '  vibesane mcp-doctor  Validate MCP workspace authorization without printing paths',
       '  vibesane scan --changed [--base-ref REF] [--cwd PROJECT]',
       '  vibesane verify --changed [--cwd PROJECT]',
       '  vibesane status [--cwd PROJECT]',
@@ -247,6 +290,7 @@ async function main(args) {
     return 0;
   }
   if (command === 'doctor') return doctor(tail);
+  if (command === 'mcp-doctor' && tail.length === 0) return mcpDoctor();
   if (command === 'capabilities') {
     if (tail.length > 2 || (tail.length === 2 && tail[0] !== '--format') || (tail.length === 1 && !['json','text'].includes(tail[0]))) throw Error('Use capabilities --format json|text');
     return child(capabilities, [tail.length === 2 ? tail[1] : (tail[0] || 'json')]);

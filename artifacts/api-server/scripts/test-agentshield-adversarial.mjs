@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, mkdir, writeFile, symlink, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -54,7 +54,7 @@ test('workspace authorization canonicalizes roots and rejects missing or malform
   temporary.add(allowedAlias);
   const prior = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
   try {
-    process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([allowedAlias]);
+    process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([allowedAlias, allowed, allowedAlias]);
     assert.deepEqual(await resolveAuthorizedRoots(), [allowed]);
     assert.equal((await workspaceSnapshot(allowedRepo)).root, allowedRepo);
     await assert.rejects(workspaceSnapshot(repoPath), /not authorized/i);
@@ -97,8 +97,88 @@ test('replacement of a configured authorization root fails closed for the server
   } finally { process.env.VIBESANE_ALLOWED_ROOTS_JSON = previous; }
 });
 
+test('MCP server pins configured roots before its first workspace request', async (t) => {
+  const parent = await tempDir('agentshield-startup-root-');
+  const allowed = path.join(parent, 'authorized');
+  const original = path.join(parent, 'original');
+  const replacement = path.join(parent, 'replacement');
+  await mkdir(original);
+  await mkdir(replacement);
+  for (const [directory, label] of [[original, 'original'], [replacement, 'replacement']]) {
+    const project = path.join(directory, 'repo');
+    await mkdir(project);
+    await git(project, 'init', '-q');
+    await writeFile(path.join(project, 'app.js'), `export const label = ${JSON.stringify(label)};\n`);
+    await git(project, 'add', '.');
+    await git(project, 'commit', '-qm', `synthetic ${label} repository`);
+  }
+  await (await import('node:fs/promises')).rename(original, allowed);
+  const server = spawn(process.execPath, [path.join(scripts, 'agentshield-mcp-server.mjs')], {
+    env: { ...process.env, VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([allowed]) },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  t.after(() => { if (!server.killed) server.kill(); });
+  await new Promise(resolve => setTimeout(resolve, 100));
+  const moved = path.join(parent, 'authorized-original');
+  await (await import('node:fs/promises')).rename(allowed, moved);
+  await (await import('node:fs/promises')).rename(replacement, allowed);
+
+  const result = new Promise((resolve, reject) => {
+    let buffer = '';
+    server.stdout.setEncoding('utf8');
+    server.stdout.on('data', chunk => {
+      buffer += chunk;
+      for (;;) {
+        const newline = buffer.indexOf('\n');
+        if (newline < 0) break;
+        const line = buffer.slice(0, newline);
+        buffer = buffer.slice(newline + 1);
+        try {
+          const message = JSON.parse(line);
+          if (message.id === 2) resolve(message);
+        } catch { reject(new Error('MCP server returned malformed JSON-RPC output.')); }
+      }
+    });
+    server.once('error', reject);
+    server.once('close', code => reject(new Error(`MCP server exited before replying (${code}).`)));
+  });
+  const initialize = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {
+    protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'authorization-test', version: '1' },
+  } };
+  server.stdin.write(JSON.stringify(initialize) + '\n');
+  server.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
+  server.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: {
+    name: 'scan_changed', arguments: { workspace: path.join(allowed, 'repo') },
+  } }) + '\n');
+  const response = await Promise.race([
+    result,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('MCP authorization test timed out.')), 5000)),
+  ]);
+  assert.equal(response.result.isError, true);
+  assert.match(JSON.stringify(response.result), /not authorized/i);
+});
+
+test('deletion of a configured authorization root after server use fails closed', async () => {
+  const previous = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+  const root = await tempDir('agentshield-deleted-root-');
+  const repoPath = path.join(root, 'repo');
+  await mkdir(repoPath);
+  await git(repoPath, 'init', '-q');
+  await writeFile(path.join(repoPath, 'app.js'), 'export const safe = true;\n');
+  await git(repoPath, 'add', '.');
+  await git(repoPath, 'commit', '-qm', 'synthetic authorized root before deletion');
+  try {
+    process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([root]);
+    assert.equal((await workspaceSnapshot(repoPath)).root, repoPath);
+    await rm(root, { recursive: true, force: true });
+    await assert.rejects(resolveAuthorizedRoots(), /not authorized/i);
+    await assert.rejects(workspaceSnapshot(repoPath), /not authorized/i);
+  } finally { process.env.VIBESANE_ALLOWED_ROOTS_JSON = previous; }
+});
+
 test('authorized root contains nested repositories and Git worktrees but blocks outside and sibling-prefix paths', async () => {
   const parent = await tempDir('agentshield-root-');
+  await git(parent, 'init', '-q');
   const allowed = path.join(parent, 'allowed');
   const sibling = path.join(parent, 'allowed-sibling');
   await mkdir(allowed);
@@ -121,7 +201,9 @@ test('authorized root contains nested repositories and Git worktrees but blocks 
   const previous = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
   try {
     process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([allowed]);
+    await assert.rejects(workspaceSnapshot(parent), /not authorized/i);
     assert.equal((await workspaceSnapshot(nested)).root, nested);
+    assert.equal((await workspaceSnapshot(path.join(allowed, 'nested', '..', 'nested'))).root, nested);
     assert.equal((await workspaceSnapshot(worktree)).root, worktree);
     await assert.rejects(workspaceSnapshot(outside), /not authorized/i);
     await assert.rejects(workspaceSnapshot(siblingRepo), /not authorized/i);

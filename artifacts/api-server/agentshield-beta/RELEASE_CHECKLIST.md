@@ -1,19 +1,19 @@
-# AgentShield Week 4 private-beta release gate
+# AgentShield private-beta release gate
 
 **Engineering completion is not approval to distribute.** Keep this gate fail-closed and update with real evidence.
 
-- [ ] Draft PR reviewed and approved by owner / security reviewer
-- [ ] All Week 1–4 AgentShield tests pass on target commit
-- [ ] Existing SUE tests pass and GitHub scanner unchanged except explicitly reviewed detector updates
-- [ ] Accuracy benchmark includes 100+ labeled cases, real TP/TN/FP/FN, category metrics and limitations
-- [ ] Detector regressions run on realistic hold-out fixtures beyond the benchmark corpus
-- [ ] Offline beta tarball installed and removed successfully in CI with lifecycle scripts disabled
-- [ ] No source data or private secrets included in package or uploaded by local scanning
-- [ ] Real authenticated Claude Code PostToolUse, Stop and Bash-file acceptance scenario passed
-- [ ] Mac and Linux environment checks passed on actual intended platforms
-- [ ] Existing API-wide TypeScript errors resolved or explicitly isolated from the supported shipping architecture
-- [ ] Threat model and false-positive caveats reviewed with engineer
-- [ ] Documentation, rollback and pilot report templates complete
-- [ ] Owner explicitly approves distribution to 3–5 consenting users
+- [ ] Current feature commit independently reviewed; all Critical/High issues resolved
+- [ ] Local release qualification passes on the exact candidate commit; preserve its JSON report
+- [ ] Accuracy benchmark category results and known false positives reviewed
+- [ ] Local unpublished tarball installed, exercised, removed and reinstalled in an isolated prefix
+- [ ] At least one real coding-agent MCP client (Codex CLI or Claude Code) completes discovery, scan, explain, remediation and verification
+- [ ] Authorized and unauthorized synthetic workspace tests pass through the actual client
+- [ ] Completion hook behavior is validated on each host that will be supported to pilot participants (Codex Stop and Claude Code Stop where applicable)
+- [ ] Linux and macOS installation checks pass on actual intended versions; Windows support remains disabled until qualified
+- [ ] Package contents, checksum, Node requirement and third-party notices reviewed
+- [ ] Allowlist is narrow, validated, and host MCP status reports it configured
+- [ ] Beta limitations, troubleshooting, rollback, feedback and private vulnerability-reporting instructions are supplied
+- [ ] Security reviewer reports no unresolved Critical/High findings
+- [ ] Owner explicitly approves distribution to named consenting testers
 
-No beta invitations, telemetry, npm publication or default-branch merge occur automatically.
+No beta invitations, telemetry, npm publication, production deployment, GitHub Actions run or default-branch merge occur automatically. Engineering qualification alone does not authorize distribution.
