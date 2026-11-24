@@ -40,6 +40,18 @@ Run the local test/qualification commands documented in `docs/AGENTSHIELD_BETA_B
 - Actual Codex CLI MCP, authorization-boundary, remediation, and Stop-hook results are recorded in `docs/AGENTSHIELD_BETA_READINESS_EVIDENCE.md`. They apply only to the recorded client version, Linux x64, and synthetic scenarios.
 - Claude Code was not available in the maintainer environment during this review preparation. No Claude verdict is claimed.
 
+## Validation delta for revision 631057ba82161827156c20675ee326a7e9c8c2dc
+
+Treat the earlier `ab51b79...` qualification report and Codex acceptance notes as historical evidence for that exact revision and package checksum only. A fresh release-qualification attempt on `631057ba82161827156c20675ee326a7e9c8c2dc` rebuilt the scanner but ended `not_qualified`. In this managed sandbox, tests that spawn Node children through pipes receive empty child stdout; the MCP `scan_changed` call consequently returned `Scanner returned malformed JSON.` A direct CLI scan worked and returned `partial_coverage`. The current actual VibeSane changed-file scan is documented in [`REAL_REPOSITORY_SCAN_2026-11-24.md`](../artifacts/api-server/agentshield-beta/REAL_REPOSITORY_SCAN_2026-11-24.md). Do not treat the earlier Codex client run as a host run on this revision.
+
+Current-attempt evidence: source syntax and scanner build passed; the full TAP run covering 23 test files reported 10 files passed and 13 failed (process-level child stdout/transport failures were observed; individual affected tests need reproduction outside this sandbox); MCP’s direct test file reported 20/24 cases passed and 4 failed; current curated and holdout benchmark scripts could not capture child scanner JSON; the in-process adversarial corpus passed 30 synthetic cases (16 TP, 14 TN, 0 FP, 0 FN; 463 ms measured). Package install smoke did not pass in the qualification runner. These are not release-qualification results.
+
+The package source version remains `0.7.0-beta.3`. Current source HEAD is not qualified by the attempted run. The exact relevant change set can be generated for independent inspection with:
+
+```sh
+git diff --find-renames 56222e39d30b7f5280eaacac99c28c34c10a45b0..631057ba82161827156c20675ee326a7e9c8c2dc
+```
+
 ## Required reviewer report format
 
 For each finding:
