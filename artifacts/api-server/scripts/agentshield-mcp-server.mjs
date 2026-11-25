@@ -574,7 +574,7 @@ async function fullWorkspaceSnapshot(workspace, signal) {
   const listed = await exec('git', gitArgs(root, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']), {
     timeout: 7000, maxBuffer: MAX_OUTPUT, windowsHide: true, env: FIXED_ENV, signal,
   });
-  const paths = [...new Set(listed.stdout.split('\\0').filter(Boolean))].sort();
+  const paths = [...new Set(listed.stdout.split('\0').filter(Boolean))].sort();
   const boundedPaths = paths.slice(0, MAX_FILES);
   const expectedPaths = boundedPaths.filter(supportedPath);
   const ignoredPaths = paths.filter((file) => {
