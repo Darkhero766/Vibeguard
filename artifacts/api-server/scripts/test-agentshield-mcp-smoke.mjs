@@ -31,6 +31,45 @@ let client;
 let transport;
 let stderr = '';
 async function connectFoxy() {
+  transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [path.join(scripts, 'agentshield-mcp-stdio.mjs')],
+    cwd: api,
+    env,
+    stderr: 'pipe',
+  });
+  transport.stderr?.on('data', (chunk) => { stderr += String(chunk); });
+  client = new Client({ name: 'foxy-qualification-client', version: '1.0.0' }, {
+    versionNegotiation: { mode: { pin: '2026-07-28' }, probe: { timeoutMs: 3000 } },
+  });
+  await client.connect(transport, { timeout: 15_000 });
+}
+async function restartFoxy() {
+  await client?.close().catch(() => {});
+  await transport?.close().catch(() => {});
+  client = null;
+  transport = null;
+  await connectFoxy();
+}
+try {
+  await exec('git', ['init', '-q', repo]);
+  await exec('git', ['-C', repo, 'config', 'user.name', 'Foxy Smoke']);
+  await exec('git', ['-C', repo, 'config', 'user.email', 'foxy-smoke@example.invalid']);
+  for (let i = 0; i < 12; i++) {
+    await writeFile(path.join(repo, 'src', `fixture-${i}.js`), i === 0
+      ? 'export function render(value) { return eval(value); }\\n'
+      : `export const fixture${i} = ${i};\\n`);
+  }
+  await exec('git', ['-C', repo, 'add', '.']);
+  await exec('git', ['-C', repo, 'commit', '-qm', 'synthetic scanner fixture']);
+
+  await exec('git', ['init', '-q', cancelRepo]);
+  await exec('git', ['-C', cancelRepo, 'config', 'user.name', 'Foxy Smoke']);
+  await exec('git', ['-C', cancelRepo, 'config', 'user.email', 'foxy-smoke@example.invalid']);
+  await writeFile(path.join(cancelRepo, 'src', 'cancel.js'), 'export const cancelFixture = true;\\n');
+  await exec('git', ['-C', cancelRepo, 'add', '.']);
+  await exec('git', ['-C', cancelRepo, 'commit', '-qm', 'synthetic cancellation fixture']);
+
   await connectFoxy();
   const deniedStart = await client.callTool({ name: 'scan_start', arguments: {
     workspace: tmpdir(), scope: 'full',
