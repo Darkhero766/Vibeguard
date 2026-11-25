@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { ScanJobQueue } from './agentshield-jobs.mjs';
@@ -428,4 +428,22 @@ test('queue does not expose baseline IDs when persisted finding metadata is malf
     assert.equal(result.baseline_unavailable, true);
     assert.equal(queue.getRestorableBaselines().length, 0);
   } finally { await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
+});
+
+
+test('queue refuses a symlinked process lock without modifying its target', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-lock-symlink-'));
+  const target = path.join(storeDir, 'attacker-controlled-target');
+  const lockPath = path.join(storeDir, 'jobs.lock');
+  await writeFile(target, 'do-not-modify');
+  await symlink(target, lockPath);
+  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  try {
+    await assert.rejects(queue.init(), /Job store lock is unreadable/);
+    assert.equal(await readFile(target, 'utf8'), 'do-not-modify');
+    assert.equal(queue.initialized, false);
+  } finally {
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
 });
