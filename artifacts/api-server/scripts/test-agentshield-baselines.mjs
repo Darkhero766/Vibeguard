@@ -50,3 +50,32 @@ test('baseline store validates identifiers and content inputs', () => {
   assert.throws(() => store.remember('/repo', '', { status: 'complete' }));
   assert.throws(() => new BaselineStore({ maxEntries: 0 }));
 });
+
+
+test('restored baselines retain their ID, workspace binding and original expiry', () => {
+  let now = 10_000;
+  const source = new BaselineStore({ ttlMs: 5_000, now: () => now, makeId: () => 'persisted-baseline-0001' });
+  const original = source.remember('/workspace/repo', 'a'.repeat(64), {
+    status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'],
+    findings: [], totalFindings: 0, findingsTruncated: false,
+  });
+  const restored = new BaselineStore({ ttlMs: 5_000, now: () => now });
+  assert.equal(restored.restore(original), true);
+  assert.equal(restored.get(original.scanId, '/workspace/repo').fingerprint, 'a'.repeat(64));
+  assert.equal(restored.get(original.scanId, '/other/repo'), null);
+  now = original.expiresAt;
+  assert.equal(restored.get(original.scanId, '/workspace/repo'), null);
+});
+
+test('restored baselines reject altered, incomplete and over-lifetime records', () => {
+  const source = new BaselineStore({ ttlMs: 1000, now: () => 100 });
+  const record = source.remember('/workspace/repo', 'b'.repeat(64), {
+    status: 'complete', filesScanned: 1, scannedPaths: ['src/app.js'],
+    findings: [], totalFindings: 0, findingsTruncated: false,
+  });
+  const target = new BaselineStore({ ttlMs: 1000, now: () => 100 });
+  assert.throws(() => target.restore({ ...record, fingerprint: 'bad' }), /invalid/i);
+  assert.throws(() => target.restore({ ...record, expiresAt: record.createdAt + 1001 }), /invalid/i);
+  assert.throws(() => target.restore({ ...record, result: { ...record.result, status: 'partial_coverage' } }), /invalid/i);
+  assert.equal(target.size, 0);
+});

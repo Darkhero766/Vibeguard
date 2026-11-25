@@ -42,6 +42,31 @@ export class BaselineStore {
     this.prune();
     return record;
   }
+  restore(record) {
+    if (!record || typeof record !== 'object' || Array.isArray(record)) {
+      throw new TypeError('A baseline record is required.');
+    }
+    const { scanId, workspace, fingerprint, result, createdAt, expiresAt } = record;
+    if (typeof scanId !== 'string' || scanId.length < 16 || scanId.length > 80
+      || typeof workspace !== 'string' || !workspace || workspace.length > 4096
+      || typeof fingerprint !== 'string' || !/^[a-f0-9]{64}$/i.test(fingerprint)
+      || !Number.isSafeInteger(createdAt) || !Number.isSafeInteger(expiresAt)
+      || expiresAt <= createdAt || expiresAt - createdAt > this.ttlMs
+      || !result || typeof result !== 'object' || Array.isArray(result)
+      || result.status !== 'complete' || !Array.isArray(result.findings)
+      || result.findings.length > 50 || result.findingsTruncated === true
+      || !Array.isArray(result.scannedPaths) || !Number.isSafeInteger(result.filesScanned)
+      || result.filesScanned !== result.scannedPaths.length
+      || !Number.isSafeInteger(result.totalFindings) || result.totalFindings < result.findings.length) {
+      throw new TypeError('Persisted baseline record is invalid.');
+    }
+    if (expiresAt <= this.now()) return false;
+    this.prune();
+    if (this.records.has(scanId)) return false;
+    this.records.set(scanId, { scanId, workspace, fingerprint, result, createdAt, expiresAt });
+    this.prune();
+    return this.records.has(scanId);
+  }
   get(scanId, workspace) {
     this.prune();
     if (typeof scanId !== 'string' || scanId.length < 16 || scanId.length > 80) return null;
