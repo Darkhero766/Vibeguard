@@ -179,6 +179,7 @@ Prioritize real vulnerabilities and correctness over feature quantity. Build at 
 6. Finish with a concise report: changes, files, research decisions, findings fixed/remaining, actual tests and benchmark results, limitations, release readiness and exact continuation checkpoint if unfinished.
 
 No merge, push or deployment. Begin immediately and maximize meaningful functional improvements within the available session. static security gate that rescans supported Git-visible changes, including staged/unstaged/untracked files and Bash-created sources.
+clear
 - Added explicit incomplete/no-changes results, final-report coverage checks, bounded Auto-fix continuations and nonblocking Monitor/Assist behavior.
 - Hardened session locks with conservative abandoned-lock recovery, retention-based local cleanup and a 200-file metadata cap that reports partial coverage.
 - Added a unified local developer command, diagnostics, idempotent installation checks, and new safety/acceptance tests.
