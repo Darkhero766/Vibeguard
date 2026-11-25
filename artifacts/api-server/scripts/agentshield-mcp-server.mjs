@@ -564,24 +564,94 @@ export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, 
   return scopedResult;
 }
 
-export async function scanFull({ workspace } = {}, { signal, progress = () => {} } = {}) {
+async function fullWorkspaceSnapshot(workspace, signal) {
   throwIfAborted(signal);
   const root = await canonicalRoot(workspace, signal);
+  const head = (await exec('git', gitArgs(root, ['rev-parse', '--verify', 'HEAD']), {
+    timeout: 7000, maxBuffer: 10_000, windowsHide: true, env: FIXED_ENV, signal,
+  })).stdout.trim();
+  if (!/^[a-f0-9]{40,64}$/i.test(head)) throw new Error('Full scan could not identify the workspace HEAD; coverage is UNKNOWN.');
   const listed = await exec('git', gitArgs(root, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']), {
     timeout: 7000, maxBuffer: MAX_OUTPUT, windowsHide: true, env: FIXED_ENV, signal,
   });
-  const paths = [...new Set(listed.stdout.split('\0').filter(Boolean))].sort();
+  const paths = [...new Set(listed.stdout.split('\\0').filter(Boolean))].sort();
+  const boundedPaths = paths.slice(0, MAX_FILES);
+  const expectedPaths = boundedPaths.filter(supportedPath);
+  const ignoredPaths = paths.filter((file) => {
+    const normalized = normalizedPath(file);
+    return !normalized.startsWith('/') && !normalized.split('/').includes('..')
+      && normalized.split('/').some((part) => IGNORE_PARTS.has(part));
+  });
+  const unsupportedPaths = paths.filter((file) => !ignoredPath(file) && !supportedPath(file));
+  let totalBytes = 0;
+  const observations = [];
+  for (const relativePath of expectedPaths) {
+    throwIfAborted(signal);
+    const absolutePath = path.resolve(root, relativePath);
+    const relative = path.relative(root, absolutePath);
+    if (!relative || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
+      throw new Error('Full-scan path escaped the workspace; coverage is UNKNOWN.');
+    }
+    const before = await lstat(absolutePath);
+    if (!before.isFile() || before.isSymbolicLink()) throw new Error('Full-scan source is not a regular file; coverage is UNKNOWN.');
+    if (before.size > MAX_FILE_BYTES) throw new Error('A full-scan file exceeds the scanner file-size budget.');
+    totalBytes += before.size;
+    if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Full-scan files exceed the aggregate scanner size budget.');
+    const canonicalFile = await realpath(absolutePath);
+    if (canonicalFile !== absolutePath || !canonicalFile.startsWith(root + path.sep)) {
+      throw new Error('Full-scan source resolves outside the authorized workspace.');
+    }
+    const handle = await open(absolutePath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    try {
+      const opened = await handle.stat();
+      if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino) {
+        throw new Error('Full-scan source identity changed while opening it.');
+      }
+      const bytes = await handle.readFile();
+      const afterRead = await handle.stat();
+      if (afterRead.dev !== opened.dev || afterRead.ino !== opened.ino
+        || afterRead.size !== opened.size || afterRead.mtimeMs !== opened.mtimeMs
+        || bytes.byteLength !== opened.size) {
+        throw new Error('Full-scan source changed while its content was fingerprinted.');
+      }
+      observations.push([relativePath, sha256(bytes), bytes.byteLength, opened.mtimeMs]);
+    } finally {
+      await handle.close();
+    }
+  }
+  return {
+    root,
+    head,
+    paths,
+    expectedPaths,
+    ignoredPaths,
+    unsupportedPaths,
+    fingerprint: sha256(JSON.stringify([head, paths, observations])),
+  };
+}
+
+export async function scanFull({ workspace } = {}, { signal, progress = () => {} } = {}) {
+  throwIfAborted(signal);
+  const before = await fullWorkspaceSnapshot(workspace, signal);
   progress(10);
-  if (!paths.length) return { status: 'partial_coverage', scope: 'full', filesScanned: 0, scannedPaths: [], findings: [], totalFindings: 0, securityGuarantee: false, note: 'No Git-visible project files were available; no clean result is implied.' };
-  const cliScope = paths.slice(0, MAX_FILES);
-  const expected = cliScope.filter(supportedPath);
-  if (!expected.length) return { status: 'partial_coverage', scope: 'full', filesScanned: 0, scannedPaths: [], findings: [], totalFindings: 0, securityGuarantee: false, unsupportedChangedFileCount: paths.length, note: 'No supported source files were available; no clean result is implied.' };
+  if (!before.paths.length) {
+    return { status: 'partial_coverage', scope: 'full', filesScanned: 0, scannedPaths: [], findings: [],
+      totalFindings: 0, securityGuarantee: false,
+      note: 'No Git-visible project files were available; no clean result is implied.' };
+  }
+  if (!before.expectedPaths.length) {
+    return { status: 'partial_coverage', scope: 'full', filesScanned: 0, scannedPaths: [], findings: [],
+      totalFindings: 0, securityGuarantee: false,
+      unsupportedChangedFileCount: before.unsupportedPaths.length,
+      ignoredChangedFileCount: before.ignoredPaths.length,
+      note: 'No supported source files were available; no clean result is implied.' };
+  }
   const ready = await statusTool();
   if (!ready.scannerBuilt) throw new Error('AgentShield scanner is not built.');
   progress(20);
   let output;
   try {
-    output = await exec(process.execPath, [SCANNER, 'scan', '--all', '--cwd', root, '--format', 'json'], {
+    output = await exec(process.execPath, [SCANNER, 'scan', '--all', '--cwd', before.root, '--format', 'json'], {
       timeout: 45_000, maxBuffer: MAX_OUTPUT, windowsHide: true, env: FIXED_ENV, signal,
     });
   } catch (error) {
@@ -591,11 +661,27 @@ export async function scanFull({ workspace } = {}, { signal, progress = () => {}
   let report;
   try { report = JSON.parse(output.stdout); } catch { throw new Error('Full scanner returned malformed JSON.'); }
   progress(90);
-  const normalized = normalizeReport(report, expected, { maxFindings: MAX_JOB_FINDINGS });
+  const normalized = normalizeReport(report, before.expectedPaths, { maxFindings: MAX_JOB_FINDINGS });
+  const after = await fullWorkspaceSnapshot(before.root, signal);
+  if (before.fingerprint !== after.fingerprint) {
+    throw new Error('Workspace changed during the full scan; results are UNKNOWN and must be resubmitted.');
+  }
   progress(98);
-  return { ...normalized, scope: 'full', status: paths.length > MAX_FILES || normalized.status !== 'complete' ? 'partial_coverage' : 'complete',
-    unsupportedChangedFileCount: Math.max(normalized.unsupportedChangedFileCount, paths.length - expected.length),
-    coverage: 'Bounded full scan of Git-visible supported source files; unsupported files and static-analysis limits prevent a security guarantee.' };
+  const incomplete = before.paths.length > MAX_FILES
+    || before.ignoredPaths.length > 0
+    || before.unsupportedPaths.length > 0
+    || normalized.status !== 'complete';
+  return {
+    ...normalized,
+    scope: 'full',
+    status: incomplete ? 'partial_coverage' : 'complete',
+    unsupportedChangedFileCount: before.unsupportedPaths.length,
+    ignoredChangedFileCount: before.ignoredPaths.length,
+    unsupportedChangedFiles: before.unsupportedPaths.slice(0, 30).map((file) => bounded(file, 300)),
+    ignoredChangedFiles: before.ignoredPaths.slice(0, 30).map((file) => bounded(file, 300)),
+    coverage: 'Bounded Git-visible full scan with before/after HEAD, path and source-content verification; unsupported files and static-analysis limits prevent a security guarantee.',
+    securityGuarantee: false,
+  };
 }
 export async function listFindings(workspace, scanId, { signal, baseRef = null } = {}) {
   throwIfAborted(signal);
