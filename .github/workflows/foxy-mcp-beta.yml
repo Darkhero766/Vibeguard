@@ -52,7 +52,7 @@ jobs:
       - name: Backend strict typecheck
         run: pnpm --filter @workspace/api-server run typecheck
 
-      - name: Validate Foxy MCP runtime module syntax
+      - name: Validate Foxy MCP runtime and smoke harness syntax
         run: |
           node --check artifacts/api-server/scripts/agentshield-jobs.mjs
           node --check artifacts/api-server/scripts/agentshield-baselines.mjs
