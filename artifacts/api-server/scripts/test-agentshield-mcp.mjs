@@ -137,6 +137,29 @@ test('line decoder handles partial frames, CRLF and UTF-8 boundaries', () => {
   ]);
 });
 
+test('line decoder budgets each frame rather than rejecting a valid large message burst', () => {
+  const decode = createLineDecoder();
+  const burst = Array.from({ length: 30_000 }, (_, index) =>
+    JSON.stringify({ jsonrpc: '2.0', method: 'ping', params: { index } })).join('\n') + '\n';
+  assert.ok(Buffer.byteLength(burst) > 1_000_000);
+  const frames = decode(burst);
+  assert.equal(frames.length, 30_000);
+  assert.equal(JSON.parse(frames[0]).params.index, 0);
+  assert.equal(JSON.parse(frames.at(-1)).params.index, 29_999);
+  assert.doesNotThrow(() => decode.end());
+});
+
+test('line decoder rejects an oversized individual frame and detects truncated EOF frames', () => {
+  const oversized = createLineDecoder();
+  assert.throws(() => oversized('x'.repeat(1_000_001)), /message exceeded its size budget/);
+  const truncated = createLineDecoder();
+  assert.deepEqual(truncated('{"jsonrpc":"2.0"'), []);
+  assert.throws(() => truncated.end(), /incomplete JSON-RPC frame/);
+  const whitespaceTail = createLineDecoder();
+  whitespaceTail(' \r\n  ');
+  assert.doesNotThrow(() => whitespaceTail.end());
+});
+
 test('already-cancelled scan requests fail before touching a workspace', async () => {
   const controller = new AbortController();
   controller.abort();
@@ -259,9 +282,10 @@ test('unknown methods return JSON-RPC method-not-found errors', async () => {
   assert.equal(result.error.code, -32601);
 });
 
-test('MCP stdio process speaks newline-delimited JSON-RPC, never Content-Length frames', async () => {
-  const script = fileURLToPath(new URL('./agentshield-mcp-server.mjs', import.meta.url));
-  const child = spawn(process.execPath, [script], { stdio: ['pipe', 'pipe', 'pipe'] });
+test('MCP SDK stdio process speaks newline-delimited JSON-RPC after a legacy initialize handshake', async () => {
+  const script = fileURLToPath(new URL('./agentshield-mcp-stdio.mjs', import.meta.url));
+  const store = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-protocol-state-'));
+  const child = spawn(process.execPath, [script], { env: { ...process.env, VIBESANE_JOB_STORE_DIR: store }, stdio: ['pipe', 'pipe', 'pipe'] });
   const stdout = [];
   const stderr = [];
   child.stdout.setEncoding('utf8');
@@ -273,29 +297,31 @@ test('MCP stdio process speaks newline-delimited JSON-RPC, never Content-Length 
     child.once('close', (code) => resolve(code));
   });
   child.stdin.end([
-    JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: modernMeta } }),
-    JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: { _meta: modernMeta } }),
-    JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } } }),
-    JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'tools/list' }),
+    JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } } }),
     JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
+    JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
     '',
   ].join('\n'));
+  try {
   const exitCode = await closed;
   const output = stdout.join('');
   assert.equal(exitCode, 0, stderr.join(''));
   assert.equal(output.includes('Content-Length:'), false);
   const messages = output.trim().split('\n').map((line) => JSON.parse(line));
-  assert.equal(messages.length, 4);
-  assert.equal(messages[0].result.supportedVersions[0], '2026-07-28');
-  assert.equal(messages[1].result.resultType, 'complete');
-  assert.equal(messages[2].result.serverInfo.name, 'vibesane-agentshield');
-  assert.equal(messages[3].result.tools.some((tool) => tool.name === 'verify_remediation'), true);
+  assert.equal(messages.length, 2);
+  assert.equal(messages[0].result.protocolVersion, '2025-11-25');
+  assert.equal(messages[0].result.serverInfo.name, 'vibesane-agentshield');
+  assert.equal(messages[1].result.tools.some((tool) => tool.name === 'verify_remediation'), true);
+  assert.equal(messages[1].result.tools.some((tool) => tool.name === 'scan_start'), true);
+  } finally { await rm(store, { recursive: true, force: true }); }
 });
 
 test('MCP stdio cancellation notification suppresses a queued scan response', async () => {
-  const script = fileURLToPath(new URL('./agentshield-mcp-server.mjs', import.meta.url));
+  const script = fileURLToPath(new URL('./agentshield-mcp-stdio.mjs', import.meta.url));
+  const store = await mkdtemp(path.join(os.tmpdir(), 'agentshield-mcp-cancel-state-'));
   const child = spawn(process.execPath, [script], {
-    env: { ...process.env, VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([os.tmpdir()]) },
+    env: { ...process.env, VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([os.tmpdir()]),
+      VIBESANE_JOB_STORE_DIR: store },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   let output = '';
@@ -307,6 +333,8 @@ test('MCP stdio cancellation notification suppresses a queued scan response', as
     child.once('close', (code) => resolve(code));
   });
   child.stdin.end([
+    JSON.stringify({ jsonrpc: '2.0', id: 10, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } } }),
+    JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
     JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'tools/call', params: {
       name: 'scan_changed', arguments: { workspace: path.join(os.tmpdir(), 'cancelled-synthetic-workspace') },
     } }),
@@ -314,10 +342,13 @@ test('MCP stdio cancellation notification suppresses a queued scan response', as
     JSON.stringify({ jsonrpc: '2.0', id: 12, method: 'ping' }),
     '',
   ].join('\n'));
+  try {
   assert.equal(await closed, 0, stderr);
   const responses = output.trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
-  assert.deepEqual(responses.map((message) => message.id), [12]);
-  assert.deepEqual(responses[0].result, {});
+  assert.deepEqual(responses.map((message) => message.id), [10, 12]);
+  assert.equal(responses[0].result.protocolVersion, '2025-11-25');
+  assert.deepEqual(responses[1].result, {});
+  } finally { await rm(store, { recursive: true, force: true }); }
 });
 
 

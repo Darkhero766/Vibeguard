@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, mkdir, writeFile, symlink, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Client } from '@modelcontextprotocol/client';
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import {
   handleMessage, listFindings, normalizeReport, resolveAuthorizedRoots, scanChanged,
   validateRpcMessage, validateToolArguments, verifyRemediation, workspaceSnapshot,
@@ -97,7 +99,7 @@ test('replacement of a configured authorization root fails closed for the server
   } finally { process.env.VIBESANE_ALLOWED_ROOTS_JSON = previous; }
 });
 
-test('MCP server pins configured roots before its first workspace request', async (t) => {
+test('MCP server rejects a configured root replaced after an authorized workspace request', async (t) => {
   const parent = await tempDir('agentshield-startup-root-');
   const allowed = path.join(parent, 'authorized');
   const original = path.join(parent, 'original');
@@ -113,49 +115,24 @@ test('MCP server pins configured roots before its first workspace request', asyn
     await git(project, 'commit', '-qm', `synthetic ${label} repository`);
   }
   await (await import('node:fs/promises')).rename(original, allowed);
-  const server = spawn(process.execPath, [path.join(scripts, 'agentshield-mcp-server.mjs')], {
-    env: { ...process.env, VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([allowed]) },
-    stdio: ['pipe', 'pipe', 'pipe'],
+  const transport = new StdioClientTransport({ command: process.execPath,
+    args: [path.join(scripts, 'agentshield-mcp-stdio.mjs')], cwd: path.resolve(scripts, '..'),
+    env: { ...process.env, VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([allowed]),
+      VIBESANE_JOB_STORE_DIR: path.join(parent, 'job-state') }, stderr: 'pipe' });
+  const client = new Client({ name: 'authorization-test', version: '1' }, {
+    versionNegotiation: { mode: { pin: '2026-07-28' }, probe: { timeoutMs: 3000 } },
   });
-  t.after(() => { if (!server.killed) server.kill(); });
-  await new Promise(resolve => setTimeout(resolve, 100));
+  t.after(async () => { await client.close().catch(() => {}); await transport.close().catch(() => {}); });
+  await client.connect(transport, { timeout: 15_000 });
+  const initial = await client.callTool({ name: 'scan_changed', arguments: { workspace: path.join(allowed, 'repo') } });
+  assert.match(initial.content?.[0]?.text || '', /no_changed_files/i);
   const moved = path.join(parent, 'authorized-original');
   await (await import('node:fs/promises')).rename(allowed, moved);
   await (await import('node:fs/promises')).rename(replacement, allowed);
 
-  const result = new Promise((resolve, reject) => {
-    let buffer = '';
-    server.stdout.setEncoding('utf8');
-    server.stdout.on('data', chunk => {
-      buffer += chunk;
-      for (;;) {
-        const newline = buffer.indexOf('\n');
-        if (newline < 0) break;
-        const line = buffer.slice(0, newline);
-        buffer = buffer.slice(newline + 1);
-        try {
-          const message = JSON.parse(line);
-          if (message.id === 2) resolve(message);
-        } catch { reject(new Error('MCP server returned malformed JSON-RPC output.')); }
-      }
-    });
-    server.once('error', reject);
-    server.once('close', code => reject(new Error(`MCP server exited before replying (${code}).`)));
-  });
-  const initialize = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {
-    protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'authorization-test', version: '1' },
-  } };
-  server.stdin.write(JSON.stringify(initialize) + '\n');
-  server.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
-  server.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: {
-    name: 'scan_changed', arguments: { workspace: path.join(allowed, 'repo') },
-  } }) + '\n');
-  const response = await Promise.race([
-    result,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('MCP authorization test timed out.')), 5000)),
-  ]);
-  assert.equal(response.result.isError, true);
-  assert.match(JSON.stringify(response.result), /not authorized/i);
+  const response = await client.callTool({ name: 'scan_changed', arguments: { workspace: path.join(allowed, 'repo') } });
+  assert.equal(response.isError, true, JSON.stringify(response));
+  assert.match(JSON.stringify(response), /not authorized/i);
 });
 
 test('deletion of a configured authorization root after server use fails closed', async () => {

@@ -29,6 +29,9 @@ const scripts = [
   'agentshield-capabilities.mjs',
   'agentshield-hybrid.mjs',
   'agentshield-mcp-server.mjs',
+  'agentshield-mcp-sdk.mjs',
+  'agentshield-mcp-stdio.mjs',
+  'agentshield-jobs.mjs',
   'agentshield-baselines.mjs',
   'agentshield-python.mjs',
   'agentshield-sarif.mjs',
@@ -51,6 +54,19 @@ async function main() {
     await cp(path.join(root, 'scripts', file), path.join(stage, 'scripts', file));
   }
 
+  // The source checkout uses the official SDK packages, while the local beta
+  // archive stays self-contained so install and smoke qualification work offline.
+  await build({
+    entryPoints: [path.join(root, 'scripts/agentshield-mcp-stdio.mjs')],
+    outfile: path.join(stage, 'scripts/agentshield-mcp-stdio.mjs'),
+    platform: 'node',
+    format: 'esm',
+    bundle: true,
+    target: 'node20',
+    sourcemap: false,
+    legalComments: 'eof',
+  });
+
   // Bundle TypeScript plus the AST worker; the installed CLI has no runtime npm dependencies.
   await build({
     entryPoints: [path.join(root, 'scripts/agentshield-ast-worker.mjs')],
@@ -68,10 +84,34 @@ async function main() {
     path.join(path.dirname(require.resolve('typescript/package.json')), 'LICENSE.txt'),
     'utf8',
   );
+  const bundledPackages = ['@modelcontextprotocol/server', '@modelcontextprotocol/core', 'zod'];
+  const sdkRequire = createRequire(require.resolve('@modelcontextprotocol/server'));
+  const bundledLicenses = [];
+  for (const name of bundledPackages) {
+    let packageRoot = path.dirname(sdkRequire.resolve(name));
+    let manifest = null;
+    for (let depth = 0; depth < 8; depth++, packageRoot = path.dirname(packageRoot)) {
+      manifest = await readFile(path.join(packageRoot, 'package.json'), 'utf8')
+        .then(JSON.parse).catch(() => null);
+      if (manifest?.name === name) break;
+      manifest = null;
+    }
+    if (!manifest) throw new Error('Could not locate bundled dependency metadata for ' + name + '.');
+    const licenseFile = ['LICENSE', 'LICENSE.txt'].map((file) => path.join(packageRoot, file));
+    let licenseText = null;
+    for (const file of licenseFile) {
+      licenseText = await readFile(file, 'utf8').catch(() => null);
+      if (licenseText) break;
+    }
+    if (!licenseText) throw new Error('Missing bundled dependency license for ' + name + '.');
+    bundledLicenses.push(`${name} ${manifest.version} (${manifest.license})\n\n${licenseText}`);
+  }
   await writeFile(path.join(stage, 'THIRD_PARTY_NOTICES.txt'), [
     'VibeSane AgentShield internal beta — third-party component notice',
+    'The MCP STDIO entry bundles the official Model Context Protocol TypeScript SDK and Zod.',
     'The bundled JS/TS AST worker includes the TypeScript compiler by Microsoft.',
-    'TypeScript is licensed under the MIT license. Copyright Microsoft Corporation.',
+    ...bundledLicenses,
+    'TypeScript (bundled AST worker) is licensed under the MIT license. Copyright Microsoft Corporation.',
     '',
     tsLicense,
   ].join('\n'));
@@ -84,10 +124,11 @@ async function main() {
     type: 'module',
     bin: {
       vibesane: './scripts/vibesane.mjs',
-      'vibesane-mcp': './scripts/agentshield-mcp-server.mjs',
+      'vibesane-mcp': './scripts/agentshield-mcp-stdio.mjs',
       'vibesane-cursor-stop': './scripts/agentshield-cursor-stop.mjs',
     },
     engines: { node: '>=20' },
+    dependencies: {},
     files: [
       'dist/agentshield.mjs',
       'scripts/*.mjs',
@@ -134,6 +175,7 @@ async function main() {
     'Enforce mode scans the target-base-to-HEAD committed diff plus staged, modified, and untracked files. The configured target/upstream base such as origin/main must resolve locally to a commit strictly ancestral to HEAD; a base at HEAD or on unrelated/ahead history fails closed. Keep the ref fetched. Missing history, deleted/unsupported paths, or incomplete scans fail closed.',
     'The gate blocks on unresolved configured-severity findings, incomplete/unknown scans, no changed-path evidence, a disabled scanner, or scan races. Claude Code and Codex receive one continuation opportunity; if the host re-enters Stop and the condition remains unresolved, AgentShield terminates that turn with continue:false and a visible stop reason instead of creating an unbounded loop. A host-level guard is not tamper-proof.',
     'MCP scan_changed also accepts optional base_ref; pass the same value to list_findings and verify_remediation.',
+    'For full-repository scans use asynchronous MCP tools: scan_start with scope full returns job_id; poll with scan_wait or scan_status; retrieve at most 50 findings per scan_results page; cancel queued/running work with scan_cancel. Jobs persist locally and are marked interrupted after restart; partial_coverage is never a clean result.',
     'Codex project workflow and Stop hook: vibesane init-codex --cwd /absolute/path/to/project; then review/trust the project hook in Codex with /hooks.',
     'MCP workspace authorization is required: set VIBESANE_ALLOWED_ROOTS_JSON on the vibesane-mcp process to a JSON array of canonical authorized directory roots, for example ["/absolute/path/to/project"]. Missing or invalid configuration denies workspace tools; status and explain_finding remain available. Caller-supplied workspace paths never authorize themselves. Configured filesystem root identities are pinned for the server lifetime; restart MCP after intentionally replacing a root.',
     'Uninstall the Codex Stop hook and unmodified bundled skill: vibesane uninstall-codex --cwd /absolute/path/to/project.',

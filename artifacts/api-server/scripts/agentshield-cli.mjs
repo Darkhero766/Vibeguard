@@ -20,11 +20,12 @@ const IGNORE_PARTS = new Set(['.git', 'node_modules', '.next', 'dist', 'build', 
 const severities = { Critical: 4, High: 3, Medium: 2, Low: 1 };
 
 function options(args) {
-  if (args[0] !== 'scan') throw new Error('Usage: vibesane scan --changed [--base-ref REF] [--format json|text] [--cwd PATH]');
-  const out = { changed: false, file: null, baseRef: null, cwd: process.cwd(), format: 'text' };
+  if (args[0] !== 'scan') throw new Error('Usage: vibesane scan (--changed | --all | --file PATH) [--base-ref REF] [--format json|text] [--cwd PATH]');
+  const out = { changed: false, all: false, file: null, baseRef: null, cwd: process.cwd(), format: 'text' };
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--changed') out.changed = true;
+    else if (arg === '--all') out.all = true;
     else if (arg === '--json') out.format = 'json';
     else if (['--cwd', '--file', '--format', '--base-ref'].includes(arg)) {
       if (!args[i + 1]) throw new Error('Missing value for ' + arg);
@@ -32,8 +33,8 @@ function options(args) {
       out[key] = args[++i];
     } else throw new Error('Unknown argument: ' + arg);
   }
-  if (out.file && out.changed) throw new Error('Choose --file or --changed, not both.');
-  if (!out.file && !out.changed) throw new Error('Specify --changed or --file PATH.');
+  if ([out.file !== null, out.changed, out.all].filter(Boolean).length > 1) throw new Error('Choose --file, --changed or --all.');
+  if (!out.file && !out.changed && !out.all) throw new Error('Specify --changed, --all or --file PATH.');
   if (out.baseRef && !out.changed) throw new Error('--base-ref can only be used with --changed.');
   if (out.baseRef && !validBaseRef(out.baseRef)) throw new Error('Invalid --base-ref. Use a local branch, remote-tracking ref, tag, or commit SHA.');
   if (!['json', 'text', 'sarif'].includes(out.format)) throw new Error('Format must be json, text or sarif.');
@@ -126,23 +127,27 @@ async function loadFiles(opts) {
   const cwd = path.resolve(opts.cwd);
   const root = (await git(cwd, ['rev-parse', '--show-toplevel'])).trim();
   const rootReal = await realpath(root);
-  const worktreePaths = opts.file ? [] : changedPaths(await git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all']));
+  const worktreePaths = opts.file || opts.all ? [] : changedPaths(await git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all']));
   const baseCommit = opts.baseRef ? await resolveBaseCommit(rootReal, opts.baseRef) : null;
   const committedPaths = baseCommit
     ? diffChangedPaths(await git(cwd, ['diff', '--name-status', '-z', '--find-renames', baseCommit + '...HEAD', '--']))
     : [];
   const targets = opts.file
     ? [path.isAbsolute(opts.file) ? path.relative(rootReal, opts.file) : path.relative(rootReal, path.resolve(cwd, opts.file))]
-    : [...new Set([...worktreePaths, ...committedPaths])].sort();
-  const selected = targets.filter(validFile);
-  const ignoredChangedPaths = opts.file ? [] : targets.filter((file) => {
+    : opts.all
+      ? (await git(cwd, ['ls-files', '--cached', '--others', '--exclude-standard', '-z'])).split('\0').filter(Boolean).sort()
+      : [...new Set([...worktreePaths, ...committedPaths])].sort();
+  const boundedTargets = opts.all ? targets.slice(0, MAX_FILES) : targets;
+  const overLimitPaths = opts.all ? targets.slice(MAX_FILES) : [];
+  const selected = boundedTargets.filter(validFile);
+  const ignoredChangedPaths = opts.file ? [] : boundedTargets.filter((file) => {
     const normalized = file.replaceAll('\\', '/');
     return !normalized.startsWith('/') && !normalized.split('/').includes('..')
       && normalized.split('/').some((part) => IGNORE_PARTS.has(part));
   });
-  const unsupportedChangedPaths = opts.file ? [] : targets.filter((file) => !ignoredPath(file) && !validFile(file));
+  const unsupportedChangedPaths = opts.file ? [] : [...boundedTargets.filter((file) => !ignoredPath(file) && !validFile(file)), ...overLimitPaths];
   if (opts.file && selected.length === 0) throw new Error('The specified file is outside the repository or has an unsupported extension.');
-  if (targets.length > MAX_FILES) throw new Error('Changed-file limit exceeded (100); narrow the scan.');
+  if (!opts.all && targets.length > MAX_FILES) throw new Error('Changed-file limit exceeded (100); narrow the scan.');
   const files = [];
   const missingChangedPaths = [];
   const unsafeChangedPaths = [];
@@ -187,7 +192,7 @@ async function loadFiles(opts) {
   if (opts.file && files.length === 0) throw new Error('The selected file was not safely readable.');
   return {
     files,
-    mode: opts.file ? 'file' : 'changed',
+    mode: opts.file ? 'file' : opts.all ? 'full' : 'changed',
     selected: selected.length,
     ignoredChangedPaths,
     unsupportedChangedPaths,

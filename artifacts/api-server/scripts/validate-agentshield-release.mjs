@@ -25,6 +25,8 @@ const TEST_FILES = [
   'test-agentshield-models.mjs',
   'test-scan-score.mjs',
   'test-agentshield-mcp.mjs',
+  'test-agentshield-jobs.mjs',
+  'test-agentshield-mcp-smoke.mjs',
   'test-agentshield-adversarial.mjs',
   'test-agentshield-python.mjs',
   'test-agentshield-gate.mjs',
@@ -171,9 +173,12 @@ async function main() {
     && testSuite.failed === 0 && testSuite.cancelled === 0 && testSuite.skipped === 0);
   const packageStep = results.find(item => item.name === 'offline-package-install-cli-mcp-smoke');
   const expectedPackageChecks = [
-    'build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor',
-    'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block',
-    'codex-stop-remediation', 'mcp-initialize', 'mcp-tools-list', 'mcp-status',
+    'build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'doctor',
+    'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook',
+    'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation',
+    'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan',
+    'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary',
+    'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments',
     'codex-uninstall',
   ];
   const packageEvidenceValid = Boolean(packageStep && packageStep.status === 'passed'

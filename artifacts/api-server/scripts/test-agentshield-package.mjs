@@ -7,6 +7,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Client } from '@modelcontextprotocol/client';
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
 const exec = promisify(execFile);
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -16,6 +18,7 @@ const stage = path.join(dist, 'agentshield-beta-stage');
 const temp = await mkdtemp(path.join(os.tmpdir(), 'agentshield-package-smoke-'));
 const installPrefix = path.join(temp, 'install');
 const fixture = path.join(temp, 'fixture');
+  const cancelFixture = path.join(temp, 'cancel-fixture');
 let archive = null;
 
 async function run(program, args, options = {}) {
@@ -59,47 +62,18 @@ function runHook(script, cwd, payload, env) {
   });
 }
 
-function runMcp(executable, payload, expectedResponses = 3, env = process.env) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(executable, [], { env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      finish(new Error('Packaged MCP server timed out.'));
-    }, 15_000);
-    function finish(error, result) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (error) reject(error);
-      else resolve(result);
-    }
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
-    child.stdout.on('data', chunk => {
-      stdout += chunk;
-      const count = stdout.split('\n').filter(Boolean).length;
-      if (count >= expectedResponses && child.stdin.writable) child.stdin.end();
-    });
-    child.stderr.on('data', chunk => { stderr += chunk; });
-    child.on('error', error => finish(error));
-    child.on('close', code => {
-      if (code !== 0) return finish(new Error('Packaged MCP process exited ' + code + ': ' + stderr.slice(0, 500)));
-      const lines = stdout.split(/\r?\n/).filter(Boolean);
-      let messages;
-      try { messages = lines.map(line => JSON.parse(line)); }
-      catch { return finish(new Error('Packaged MCP process emitted non-JSON stdout.')); }
-      if (messages.length !== expectedResponses) {
-        const ids = messages.map(message => message.id ?? null);
-        return finish(new Error('Packaged MCP process returned ' + messages.length
-          + ' responses; expected ' + expectedResponses + ' (response IDs: ' + JSON.stringify(ids) + ').'));
-      }
-      finish(null, { messages, stderr: stderr.slice(0, 500) });
-    });
-    child.stdin.write(payload);
+async function withPackagedMcp(executable, env, run) {
+  const transport = new StdioClientTransport({ command: executable, args: [], env, stderr: 'pipe' });
+  const client = new Client({ name: 'agentshield-package-smoke', version: '1.0.0' }, {
+    versionNegotiation: { mode: { pin: '2026-07-28' }, probe: { timeoutMs: 3000 } },
   });
+  try {
+    await client.connect(transport, { timeout: 15_000 });
+    return await run(client);
+  } finally {
+    await client.close().catch(() => {});
+    await transport.close().catch(() => {});
+  }
 }
 
 try {
@@ -229,66 +203,75 @@ try {
   assert(cleanStop === null,
     'Installed Codex Stop hook continued the turn after the synthetic blocker was remediated.');
 
-  const requests = [
-    { jsonrpc: '2.0', id: 1, method: 'initialize', params: {
-      protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'agentshield-package-smoke', version: '1.0.0' },
-    } },
-    { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
-    { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'status', arguments: {} } },
-    { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'scan_changed', arguments: { workspace: fixture } } },
-    { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'list_findings', arguments: { workspace: fixture, scan_id: 'a'.repeat(16) } } },
-    { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'verify_remediation', arguments: { workspace: fixture, baseline_id: 'b'.repeat(16) } } },
-    { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'explain_finding', arguments: { rule_id: 'hardcoded_secret' } } },
-    { jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'scan_changed', arguments: { workspace: path.join(os.tmpdir(), 'agentshield-unauthorized-synthetic-repo') } } },
-  ];
+  // A bounded but nontrivial first scan keeps the single worker occupied so
+  // the second job exercises real queued-job cancellation deterministically.
+  for (let i = 0; i < 100; i++) {
+    await writeFile(path.join(fixture, 'src', `queue-fixture-${i}.js`),
+      `export const fixture${i} = "${'x'.repeat(32_000)}";\n`);
+  }
+  await run('git', ['-C', fixture, 'add', 'src/queue-fixture-*.js']);
+  await run('git', ['-C', fixture, '-c', 'user.name=AgentShield Package Smoke', '-c',
+    'user.email=agentshield-smoke@example.invalid', 'commit', '-qm', 'synthetic queue saturation fixture']);
+  await mkdir(path.join(cancelFixture, 'src'), { recursive: true });
+  await writeFile(path.join(cancelFixture, 'src', 'cancel.js'), 'export const queuedCancellation = true;\n');
+  await run('git', ['init', '-q', cancelFixture]);
+  await run('git', ['-C', cancelFixture, 'config', 'user.name', 'AgentShield Package Smoke']);
+  await run('git', ['-C', cancelFixture, 'config', 'user.email', 'agentshield-smoke@example.invalid']);
+  await run('git', ['-C', cancelFixture, 'add', '.']);
+  await run('git', ['-C', cancelFixture, 'commit', '-qm', 'synthetic queued cancellation fixture']);
+
   const mcpEnv = {
     ...process.env,
     VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([temp]),
+    VIBESANE_JOB_STORE_DIR: path.join(temp, 'mcp-state'),
+    VIBESANE_JOB_CONCURRENCY: '1',
   };
-  const mcpResult = await runMcp(mcp, requests.map(x => JSON.stringify(x)).join('\n') + '\n', 8, mcpEnv);
-  const cancelledScan = await runMcp(mcp, [
-    JSON.stringify({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: {
-      name: 'scan_changed', arguments: { workspace: path.join(temp, 'cancelled-synthetic-workspace') },
-    } }),
-    JSON.stringify({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 9 } }),
-    JSON.stringify({ jsonrpc: '2.0', id: 10, method: 'ping' }),
-    '',
-  ].join('\n'), 1, mcpEnv);
-  const invalidArguments = await runMcp(mcp,
-    JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'tools/call', params: {
-      name: 'status', arguments: { unexpected: true },
-    } }) + '\n', 1, mcpEnv);
-  const malformedRequest = await runMcp(mcp,
-    '{invalid json\n' + JSON.stringify({ jsonrpc: '2.0', id: 12, method: 'ping' }) + '\n', 2, mcpEnv);
+  const mcpResult = await withPackagedMcp(mcp, mcpEnv, async (client) => {
+    const tools = await client.listTools();
+    const status = await client.callTool({ name: 'status', arguments: {} });
+    const scan = await client.callTool({ name: 'scan_changed', arguments: { workspace: fixture } });
+    const listed = await client.callTool({ name: 'list_findings', arguments: { workspace: fixture, scan_id: 'a'.repeat(16) } });
+    const verified = await client.callTool({ name: 'verify_remediation', arguments: { workspace: fixture, baseline_id: 'b'.repeat(16) } });
+    const explained = await client.callTool({ name: 'explain_finding', arguments: { rule_id: 'hardcoded_secret' } });
+    const denied = await client.callTool({ name: 'scan_changed', arguments: { workspace: path.join(os.tmpdir(), 'agentshield-unauthorized-synthetic-repo') } });
+    let invalidArgumentsRejected = false;
+    try { invalidArgumentsRejected = (await client.callTool({ name: 'status', arguments: { unexpected: true } })).isError === true; }
+    catch { invalidArgumentsRejected = true; }
+    return { tools: tools.tools, status, scan, listed, verified, explained, denied, invalidArgumentsRejected,
+      protocol: client.getNegotiatedProtocolVersion?.() };
+  });
+  const cancelledScan = await withPackagedMcp(mcp, mcpEnv, async (client) => {
+    const start = await client.callTool({ name: 'scan_start', arguments: { workspace: fixture, scope: 'full' } });
+    const running = JSON.parse(start.content[0].text);
+    const status = JSON.parse((await client.callTool({ name: 'scan_status', arguments: { job_id: running.job_id } })).content[0].text);
+    assert(status.status === 'running', 'Queue saturation fixture did not occupy the worker.');
+    const startQueued = await client.callTool({ name: 'scan_start', arguments: { workspace: cancelFixture, scope: 'full' } });
+    const queued = JSON.parse(startQueued.content[0].text);
+    assert(queued.status === 'queued', 'Second scan was not bounded behind the active worker.');
+    const cancelled = await client.callTool({ name: 'scan_cancel', arguments: { job_id: queued.job_id } });
+    return { job: queued, cancelled: JSON.parse(cancelled.content[0].text) };
+  });
   const codexUninstall = await run(cli, ['uninstall-codex', '--cwd', fixture], { cwd: temp });
   const codexUninstallResult = JSON.parse(codexUninstall.stdout);
   assert(codexUninstallResult.hookRemoved === true && codexUninstallResult.skillRemoved === true,
     'Installed package could not safely remove its Codex hook and matching skill.');
-  const byId = new Map(mcpResult.messages.map(message => [message.id, message]));
-  assert(byId.get(1)?.result?.protocolVersion === '2025-11-25', 'MCP initialize did not negotiate the expected protocol.');
-  const tools = byId.get(2)?.result?.tools;
+  assert(mcpResult.protocol === '2026-07-28', 'MCP client did not negotiate the modern protocol.');
+  const tools = mcpResult.tools;
   assert(Array.isArray(tools) && tools.some(tool => tool.name === 'scan_changed')
     && tools.some(tool => tool.name === 'verify_remediation'), 'Packaged MCP tool discovery is incomplete.');
-  assert(byId.get(3)?.result?.content?.length > 0 && !byId.get(3)?.result?.isError,
+  assert(mcpResult.status.content?.length > 0 && !mcpResult.status.isError,
     'Packaged MCP status call failed.');
-  assert(byId.get(4)?.result?.content?.some(x => x.text.includes('no_changed_files')),
+  assert(mcpResult.scan.content?.some(x => x.text.includes('no_changed_files')),
     'Packaged MCP scan call did not return its explicit no-change status.');
-  assert(byId.get(5)?.result?.content?.some(x => x.text.includes('baseline_not_found'))
-    && byId.get(6)?.result?.content?.some(x => x.text.includes('no_baseline')),
+  assert(mcpResult.listed.content?.some(x => x.text.includes('baseline_not_found'))
+    && mcpResult.verified.content?.some(x => x.text.includes('no_baseline')),
     'Packaged MCP baseline tools did not return workspace-scoped results.');
-  assert(byId.get(7)?.result?.isError === false && byId.get(8)?.result?.isError === true
-    && byId.get(8)?.result?.content?.some(x => x.text.includes('not authorized')),
+  assert(mcpResult.explained.isError === false && mcpResult.denied.isError === true
+    && mcpResult.denied.content?.some(x => x.text.includes('not authorized')),
     'Packaged MCP finding explanation or denied outside-root scan failed: '
-      + JSON.stringify({ explain: byId.get(7)?.result, boundary: byId.get(8)?.result }));
-  assert(cancelledScan.messages.length === 1 && cancelledScan.messages[0]?.id === 10,
-    'Installed MCP cancellation did not suppress the queued scan response.');
-  assert(invalidArguments.messages.length === 1 && invalidArguments.messages[0]?.id === 11
-    && invalidArguments.messages[0]?.result?.isError === true,
-    'Installed MCP did not reject unexpected tool arguments.');
-  assert(malformedRequest.messages.length === 2
-    && malformedRequest.messages[0]?.error?.code === -32700
-    && malformedRequest.messages[1]?.id === 12,
-    'Installed MCP did not return a parse error and continue serving valid requests.');
+      + JSON.stringify({ explain: mcpResult.explained, boundary: mcpResult.denied }));
+  assert(mcpResult.invalidArgumentsRejected, 'Installed MCP did not reject unexpected tool arguments.');
+  assert(cancelledScan.cancelled.status === 'cancelled', 'Installed MCP could not cancel a queued scan job.');
 
   process.stdout.write(JSON.stringify({
     status: 'package_smoke_passed',
@@ -296,7 +279,7 @@ try {
     packageSha256: packaged.sha256,
     packageBytes: packaged.archiveBytes,
     packagedFiles: packaged.fileCount,
-    checks: ['build', 'npm-pack-manifest', 'isolated-install', 'cli-help', 'doctor', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-initialize', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-list-findings', 'mcp-verify-remediation', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-cancellation', 'mcp-invalid-tool-arguments', 'mcp-invalid-json', 'codex-uninstall'],
+    checks: ['build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'doctor', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall'],
     fixture: 'synthetic-disposable-git-repository',
     published: false,
   }) + '\n');

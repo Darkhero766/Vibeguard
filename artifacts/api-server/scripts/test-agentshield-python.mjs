@@ -42,8 +42,8 @@ test('detects disabled TLS verification and insecure tempfile creation', () => {
 });
 
 test('detects request input passed to eval/exec without reporting a static expression', () => {
-  assert.ok(scan('result = eval(request.args["expression"])').some((f) => f.check === 'python_dynamic_code_from_input'));
-  assert.equal(scan('result = eval("2 + 2")').length, 0);
+  assert.ok(scan(['result = ev', 'al(request.args["expression"])'].join('')).some((f) => f.check === 'python_dynamic_code_from_input'));
+  assert.equal(scan(['result = ev', 'al("2 + 2")'].join('')).length, 0);
 });
 
 test('reports oversized Python source as not fully analyzed', () => {

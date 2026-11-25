@@ -1,3 +1,130 @@
+
+# FOXY BY VIBESANE — AUTONOMOUS SECURITY ENGINEERING MISSION
+
+Act as a senior AI security, MCP, SAST, software engineering and QA lead for Foxy by VibeSane.
+
+Repository: Darkhero766/Vibeguard
+Work on the current feature branch associated with PR #69.
+
+Your mission is to deeply research, implement substantial improvements, test, debug, benchmark and qualify Foxy. Do not merely audit, write documentation or create a plan.
+
+## SAFETY
+- No production deployments, merges or production configuration changes.
+- Do not push unless explicitly authorized.
+- Preserve all existing user changes; never reset or discard work.
+- Never execute untrusted MCP servers or code without explicit authorization and isolation.
+- Do not weaken security rules or tests to achieve passing results.
+- Report only tests and results actually verified.
+- Maintain backward compatibility wherever feasible.
+
+## 1. CHECKPOINT & AUDIT
+Inspect repository, branch, commit, working tree, PR #69, Foxy/MCP code, hooks, scanners, controllers, tests and benchmarks.
+
+Run baseline tests. Investigate the actual VibeSane-reported 2 Critical and 2 High findings, retrieve evidence and determine whether they are genuine, false positives or uncertain. Do not rely on previous summaries without verification.
+
+## 2. RESEARCH
+Research current MCP security, AI coding agents, Codex hooks, Claude, Cursor, agent permissions, skills, tool poisoning, prompt injection, SAST, AST/taint analysis, OWASP, Semgrep, CodeQL, Snyk and competing tools.
+
+Use research to inform implementation, not just produce documents.
+
+Foxy's differentiation: local-first, evidence-driven security for AI coding agents.
+
+Target lifecycle:
+DETECT → EXPLAIN → REMEDIATE → VERIFY → ENFORCE.
+
+## 3. HEAVY FUNCTIONAL IMPLEMENTATION
+Implement approximately 4–6 meaningful improvements where feasible, prioritizing depth over quantity. Do not finish with documentation-only work or minor fixes.
+
+Focus on:
+
+**Protocol and reliability**
+- Fix JSONL framing, partial/multiple messages, size limits and buffer management.
+- Improve malformed input handling, cancellation, timeouts and resource limits.
+- Investigate sequential processing and implement safe bounded concurrency if beneficial.
+- Keep stdout protocol-clean and preserve MCP compatibility.
+- Evaluate protocol conformance against current MCP specifications.
+
+**Filesystem and state security**
+- Investigate symlinks, TOCTOU races, path traversal, state corruption and unsafe writes.
+- Harden controller/state handling, safe file access, atomic writes and identity validation.
+
+**Detection quality**
+- Improve JavaScript/TypeScript AST and source-to-sink analysis.
+- Improve Python AST/lexical analysis, including comments, strings and docstrings.
+- Improve sanitizer recognition, evidence, confidence and false-positive reduction.
+- Cover SQL injection, command injection, SSRF, XSS, path traversal, unsafe deserialization, insecure cryptography, dangerous execution and other relevant risks where supported.
+
+**Finding identity and remediation**
+- Improve fingerprints and matching across code movement and similar findings.
+- Detect new, resolved, modified and reintroduced findings.
+- Avoid claiming vulnerabilities fixed without meaningful revalidation.
+- Clearly distinguish resolved, unresolved, uncertain and unverified.
+
+**Agent and MCP security**
+Analyze MCP configs, tools, schemas, skills, hooks, agent instructions, Codex/Claude/Cursor configurations, permissions, credentials, dangerous commands, filesystem/network access, tool poisoning and prompt injection.
+Implement practical static detection improvements. Never execute untrusted configurations by default.
+
+**Coding agent integration**
+Investigate Codex PostToolUse and Stop hooks.
+Improve incremental feedback, changed-file scanning, final security gating, duplicate suppression, loop prevention and performance where feasible.
+Investigate compatibility with Claude Code and Cursor without unnecessarily breaking existing identifiers.
+
+**Performance**
+Improve incremental scanning, caching, content hashing, bounded concurrency, cancellation, memory usage and repeated-scan performance.
+Review existing limits such as 100 files, 1 MB per file and 8 MB aggregate.
+Incomplete scans must never silently report clean.
+
+## 4. TESTING & BENCHMARKS
+Create or improve realistic labelled vulnerable/safe/adversarial fixtures.
+
+Test:
+- Protocol framing and malformed messages.
+- Multiple and partial JSONL messages.
+- Oversized input.
+- Cancellation and concurrency.
+- State/filesystem security.
+- AST and taint detection.
+- Sanitization.
+- Agent/MCP configurations.
+- Prompt injection and tool poisoning.
+- Baselines and finding identity.
+- Remediation verification.
+- Incomplete scans.
+- Performance and incremental scanning.
+- Packaging, build, type checks, lint and compatibility.
+
+Measure precision, recall, false positives, false negatives and performance where feasible. Clearly identify synthetic benchmark limitations.
+
+Implement → test → debug → fix → retest throughout. Do not postpone all testing until the end.
+
+## 5. AUTONOMOUS EXECUTION
+Operate autonomously on safe, reversible engineering decisions. Research, implement, debug, test and benchmark. Do not stop after producing a plan, audit or minor fixes.
+
+Aim for 4–6 meaningful functional improvements and at least one genuinely new capability if feasible. If blocked on one task, continue other independent work. If limits are reached, validate completed work and leave an exact continuation checkpoint.
+
+Priorities:
+P0: Critical/High findings, protocol reliability, state security.
+P1: Detection quality, agent/MCP security, remediation and adversarial testing.
+P2: Incremental scanning, performance and agent lifecycle integration.
+P3: Additional ecosystem support and documentation.
+
+## 6. FINAL REPORT
+Report:
+1. Starting and ending commit, branch and working tree.
+2. Research findings and architecture decisions.
+3. Major functional improvements and files changed.
+4. Minor fixes separately.
+5. Critical/High findings investigated and resolved or remaining.
+6. Actual tests, failures, benchmarks and performance results.
+7. Security limitations and untested areas.
+8. Remaining risks and release-readiness verdict.
+9. Exact continuation checkpoint if unfinished.
+
+Do not fabricate results or overstate security coverage.
+
+SUCCESS means meaningful functional engineering improvements, reproducible testing and measurable progress toward a dependable AI-agent security product.
+
+Start with the checkpoint, then proceed autonomously. No merging, pushing or deployment.
 ## 2026-11-19 — AgentShield Week 5 launch readiness (feature branch, not deployed)
 
 - Added a dedicated AgentShield developer-preview page to the existing VibeSane web app, with desktop/mobile navigation, crawlable metadata, and explicit separation of local Claude Code integration from GitHub web scanning.
@@ -21,7 +148,37 @@
 
 ### AgentShield Week 3 — local final gate and reliability hardening (feature branch only)
 
-- Added a Stop-time, race-aware static security gate that rescans supported Git-visible changes, including staged/unstaged/untracked files and Bash-created sources.
+- Added a Stop-time, race-awareFoxy by VibeSane — Autonomous Engineering Mission
+
+Repository: Darkhero766/Vibeguard. Work on the current PR #69 feature branch.
+
+Act as my autonomous senior security engineer and researcher. Your goal is to substantially upgrade Foxy into a reliable security layer for AI coding agents and MCP, not merely audit or write documentation.
+
+SAFETY: Do not merge, deploy, push or modify production. Preserve existing work. Never reset or discard changes. Never execute untrusted servers/code. Do not weaken security checks or fabricate test results.
+
+1. Audit the current branch, architecture, tests and benchmark. Reproduce and investigate the actual 2 Critical and 2 High VibeSane findings; verify their evidence before fixing.
+
+2. Research current MCP/agent security, OWASP, Codex/Claude/Cursor hooks, Semgrep, CodeQL, Snyk and competitors. Use research to guide implementation, not produce lengthy reports.
+
+3. Implement 4–6 substantial improvements, prioritizing:
+
+- MCP protocol reliability: JSONL framing, buffering, malformed input, cancellation, limits and concurrency.
+- Filesystem/state security: symlinks, TOCTOU, path traversal, atomic writes and state integrity.
+- Detection: stronger JS/TS AST and taint analysis, Python analysis, source-to-sink evidence, sanitizer recognition and fewer false positives.
+- Agent/MCP security: configuration, tools, schemas, permissions, skills, hooks, secrets, dangerous commands, prompt injection and tool poisoning.
+- Finding identity and remediation: stable fingerprints, code movement, baseline accuracy and genuine fix verification.
+- Coding-agent integration: investigate/improve Codex PostToolUse and Stop hooks, incremental feedback and final security gating.
+- Performance: caching, incremental scans, bounded concurrency and resource control.
+
+Prioritize real vulnerabilities and correctness over feature quantity. Build at least one new meaningful capability if feasible. Do not make superficial changes just to meet a count.
+
+4. Create realistic safe, vulnerable and adversarial fixtures. Run targeted and regression tests continuously; debug and retest. At final qualification, run relevant unit, integration, protocol, security, hook, build, lint, type, packaging and benchmark tests. Measure detection quality and performance where feasible. Incomplete scans must never silently report clean.
+
+5. Work autonomously: research → implement → test → debug → benchmark → improve. Do not stop at a plan, audit, documentation or minor fixes. Continue across independent tasks if blocked. Prioritize Critical/High fixes, protocol/state security, detection, agent security, remediation verification and performance.
+
+6. Finish with a concise report: changes, files, research decisions, findings fixed/remaining, actual tests and benchmark results, limitations, release readiness and exact continuation checkpoint if unfinished.
+
+No merge, push or deployment. Begin immediately and maximize meaningful functional improvements within the available session. static security gate that rescans supported Git-visible changes, including staged/unstaged/untracked files and Bash-created sources.
 - Added explicit incomplete/no-changes results, final-report coverage checks, bounded Auto-fix continuations and nonblocking Monitor/Assist behavior.
 - Hardened session locks with conservative abandoned-lock recovery, retention-based local cleanup and a 200-file metadata cap that reports partial coverage.
 - Added a unified local developer command, diagnostics, idempotent installation checks, and new safety/acceptance tests.

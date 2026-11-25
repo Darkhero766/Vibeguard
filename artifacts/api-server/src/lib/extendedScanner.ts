@@ -70,8 +70,11 @@ function maskJavaScriptInert(source: string): string {
       continue;
     }
     if (ch === '\\') {
-      out += ch === '\n' ? '\n' : ' ';
-      if (i + 1 < source.length) { out += source[i + 1] === '\n' ? '\n' : ' '; i++; }
+      out += ' ';
+      if (i + 1 < source.length) {
+        out += source[i + 1] === '\n' ? '\n' : ' ';
+        i++;
+      }
       continue;
     }
     if ((mode === 'single' && ch === "'") || (mode === 'double' && ch === '"')

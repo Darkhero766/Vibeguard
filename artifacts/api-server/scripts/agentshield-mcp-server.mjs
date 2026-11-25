@@ -5,7 +5,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realpath, lstat, open, stat } from 'node:fs/promises';
-import { realpathSync } from 'node:fs';
 import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { BaselineStore } from './agentshield-baselines.mjs';
@@ -18,6 +17,7 @@ const SCANNER = path.resolve(HERE, '../dist/agentshield.mjs');
 const MAX_OUTPUT = 1_500_000;
 const MAX_INPUT = 1_000_000;
 const MAX_FINDINGS = 50;
+const MAX_JOB_FINDINGS = 1000;
 const MAX_FILES = 100;
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 8_000_000;
@@ -191,10 +191,6 @@ export async function resolveAuthorizedRoots(raw = process.env[AUTHORIZED_ROOTS_
     throw new Error('Workspace is not authorized. Configure VIBESANE_ALLOWED_ROOTS_JSON.');
   }
 }
-// Capture valid authorization-root identities before the stdio server can accept a
-// client request. Otherwise replacing a configured path before its first use could
-// silently substitute a different repository under the same allowlisted pathname.
-const startupAuthorization = resolveAuthorizedRoots().catch(() => null);
 async function canonicalRoot(workspace, signal) {
   throwIfAborted(signal);
   if (typeof workspace !== 'string' || !workspace.trim() || workspace.length > 4096 || !path.isAbsolute(workspace)) {
@@ -401,7 +397,7 @@ export async function statusTool() {
   }
 }
 
-export function normalizeReport(report, expectedPaths) {
+export function normalizeReport(report, expectedPaths, { maxFindings = MAX_FINDINGS } = {}) {
   if (!report || !['complete', 'partial_coverage'].includes(report.status) || !Array.isArray(report.findings)
     || !Array.isArray(report.scannedPaths) || !Number.isSafeInteger(report.filesScanned)
     || report.filesScanned < 0) throw new Error('Incomplete scanner report; status UNKNOWN.');
@@ -422,7 +418,7 @@ export function normalizeReport(report, expectedPaths) {
     && typeof finding.filePath === 'string' && scanned.includes(finding.filePath))) {
     throw new Error('Scanner returned malformed or out-of-scope findings.');
   }
-  const findings = report.findings.slice(0, MAX_FINDINGS).map((finding) => ({
+  const findings = report.findings.slice(0, maxFindings).map((finding) => ({
     filePath: bounded(finding.filePath, 400),
     line: Number.isSafeInteger(finding.line) && finding.line > 0 ? finding.line : null,
     ruleId: bounded(finding.ruleId || finding.check, 100),
@@ -513,7 +509,7 @@ function rememberBaseline(root, fingerprint, result) {
 function getBaseline(scanId, root) {
   return baselineStore.get(scanId, root);
 }
-export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, { signal } = {}) {
+export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, { signal, progress = () => {} } = {}) {
   throwIfAborted(signal);
   const snapshot = await workspaceSnapshot(workspace, signal, baseRef);
   if (!snapshot.candidatePaths.length) {
@@ -542,8 +538,13 @@ export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, 
       note: 'No Git-visible changed files exist within the selected base_ref scope. No security scan or clean pass is implied.',
     };
   }
+  progress(10);
+  throwIfAborted(signal);
+  progress(20);
   const result = await runScanner(snapshot.root, snapshot.candidatePaths, signal, snapshot.baseCommit);
+  progress(90);
   const after = await workspaceSnapshot(snapshot.root, signal, baseRef);
+  progress(98);
   if (snapshot.fingerprint !== after.fingerprint) throw new Error('Workspace changed during the scan; results are UNKNOWN.');
   const scopedResult = snapshot.unsupportedChangedPaths.length || snapshot.ignoredChangedPaths.length ? {
     ...result,
@@ -561,6 +562,40 @@ export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, 
     return { ...baselineResult, scanId, baselineExpiresInMs: BASELINE_TTL_MS };
   }
   return scopedResult;
+}
+
+export async function scanFull({ workspace } = {}, { signal, progress = () => {} } = {}) {
+  throwIfAborted(signal);
+  const root = await canonicalRoot(workspace, signal);
+  const listed = await exec('git', gitArgs(root, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']), {
+    timeout: 7000, maxBuffer: MAX_OUTPUT, windowsHide: true, env: FIXED_ENV, signal,
+  });
+  const paths = [...new Set(listed.stdout.split('\0').filter(Boolean))].sort();
+  progress(10);
+  if (!paths.length) return { status: 'partial_coverage', scope: 'full', filesScanned: 0, scannedPaths: [], findings: [], totalFindings: 0, securityGuarantee: false, note: 'No Git-visible project files were available; no clean result is implied.' };
+  const cliScope = paths.slice(0, MAX_FILES);
+  const expected = cliScope.filter(supportedPath);
+  if (!expected.length) return { status: 'partial_coverage', scope: 'full', filesScanned: 0, scannedPaths: [], findings: [], totalFindings: 0, securityGuarantee: false, unsupportedChangedFileCount: paths.length, note: 'No supported source files were available; no clean result is implied.' };
+  const ready = await statusTool();
+  if (!ready.scannerBuilt) throw new Error('AgentShield scanner is not built.');
+  progress(20);
+  let output;
+  try {
+    output = await exec(process.execPath, [SCANNER, 'scan', '--all', '--cwd', root, '--format', 'json'], {
+      timeout: 45_000, maxBuffer: MAX_OUTPUT, windowsHide: true, env: FIXED_ENV, signal,
+    });
+  } catch (error) {
+    if ((error?.code === 1 || error?.code === 2) && typeof error.stdout === 'string') output = { stdout: error.stdout };
+    else throw new Error('Full scanner failed, timed out or exceeded its output budget.');
+  }
+  let report;
+  try { report = JSON.parse(output.stdout); } catch { throw new Error('Full scanner returned malformed JSON.'); }
+  progress(90);
+  const normalized = normalizeReport(report, expected, { maxFindings: MAX_JOB_FINDINGS });
+  progress(98);
+  return { ...normalized, scope: 'full', status: paths.length > MAX_FILES || normalized.status !== 'complete' ? 'partial_coverage' : 'complete',
+    unsupportedChangedFileCount: Math.max(normalized.unsupportedChangedFileCount, paths.length - expected.length),
+    coverage: 'Bounded full scan of Git-visible supported source files; unsupported files and static-analysis limits prevent a security guarantee.' };
 }
 export async function listFindings(workspace, scanId, { signal, baseRef = null } = {}) {
   throwIfAborted(signal);
@@ -853,92 +888,34 @@ export async function handleMessage(message, { signal } = {}) {
 // not Content-Length framed. A UTF-8 stream decoder is supplied by Node's setEncoding.
 export function createLineDecoder() {
   let pending = '';
-  return (chunk) => {
-    pending += chunk;
+  const decode = (chunk) => {
+    if (typeof chunk !== 'string') throw new TypeError('MCP input chunks must be decoded UTF-8 strings.');
+    const lines = [];
+    let start = 0;
+    let index;
+    while ((index = chunk.indexOf('\n', start)) >= 0) {
+      pending += chunk.slice(start, index);
+      if (Buffer.byteLength(pending, 'utf8') > MAX_INPUT) {
+        pending = '';
+        throw new Error('MCP message exceeded its size budget.');
+      }
+      let line = pending;
+      pending = '';
+      if (line.endsWith('\r')) line = line.slice(0, -1);
+      if (line.trim()) lines.push(line);
+      start = index + 1;
+    }
+    pending += chunk.slice(start);
     if (Buffer.byteLength(pending, 'utf8') > MAX_INPUT) {
       pending = '';
-      throw new Error('MCP input buffer exceeded its size budget.');
-    }
-    const lines = [];
-    let index;
-    while ((index = pending.indexOf('\n')) >= 0) {
-      let line = pending.slice(0, index);
-      pending = pending.slice(index + 1);
-      if (line.endsWith('\r')) line = line.slice(0, -1);
-      if (!line.trim()) continue;
-      if (Buffer.byteLength(line, 'utf8') > MAX_INPUT) throw new Error('MCP message exceeded its size budget.');
-      lines.push(line);
+      throw new Error('MCP message exceeded its size budget.');
     }
     return lines;
   };
-}
-function writeMessage(message) {
-  process.stdout.write(JSON.stringify(message) + '\n');
-}
-if (process.argv[1] && realpathSync(path.resolve(process.argv[1])) === fileURLToPath(import.meta.url)) {
-  const decode = createLineDecoder();
-  const queue = [];
-  const inflight = new Map();
-  let busy = false;
-  const drain = async () => {
-    if (busy) return;
-    busy = true;
-    await startupAuthorization;
-    while (queue.length) {
-      const { message, controller } = queue.shift();
-      try {
-        if (controller?.signal.aborted) continue;
-        const response = await handleMessage(message, { signal: controller?.signal });
-        // A cancelled request must not produce a late JSON-RPC response.
-        if (response && !controller?.signal.aborted) writeMessage(response);
-      } catch {
-        if (!controller?.signal.aborted) process.stderr.write('AgentShield MCP request failed safely.\n');
-      } finally {
-        if (message?.id !== undefined && inflight.get(message.id) === controller) inflight.delete(message.id);
-      }
-    }
-    busy = false;
+  decode.end = () => {
+    const trailing = pending;
+    pending = '';
+    if (trailing.trim()) throw new Error('MCP input ended with an incomplete JSON-RPC frame.');
   };
-  process.stdin.setEncoding('utf8');
-  process.stdin.on('data', (chunk) => {
-    let lines;
-    try { lines = decode(chunk); }
-    catch (error) {
-      process.stderr.write(bounded(error?.message, 160) + '\n');
-      process.exitCode = 2;
-      process.stdin.destroy();
-      return;
-    }
-    for (const line of lines) {
-      let message;
-      try { message = JSON.parse(line); }
-      catch {
-        writeMessage({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } });
-        continue;
-      }
-      // Cancellation is processed immediately rather than queued behind a scan.
-      if (message?.jsonrpc === '2.0' && message.method === 'notifications/cancelled' && message.id === undefined) {
-        const requestId = message.params?.requestId;
-        if (typeof requestId === 'string' || Number.isSafeInteger(requestId)) inflight.get(requestId)?.abort();
-        continue;
-      }
-      if (queue.length >= 8) {
-        if (message && message.id !== undefined) writeMessage({ jsonrpc: '2.0', id: message.id, error: { code: -32000, message: 'Server busy' } });
-        continue;
-      }
-      const controller = message && message.id !== undefined ? new AbortController() : null;
-      if (controller && inflight.has(message.id)) {
-        writeMessage({ jsonrpc: '2.0', id: message.id, error: { code: -32600, message: 'Duplicate request ID' } });
-        continue;
-      }
-      if (controller) inflight.set(message.id, controller);
-      queue.push({ message, controller });
-    }
-    void drain();
-  });
-  process.stdin.on('end', () => {
-    // EOF means the client has no more requests; drain queued and in-flight
-    // responses normally. Cancellation must use notifications/cancelled.
-    process.stderr.write('AgentShield MCP input closed; draining pending requests.\n');
-  });
+  return decode;
 }

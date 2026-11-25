@@ -40,7 +40,7 @@ args = []
 env = { VIBESANE_ALLOWED_ROOTS_JSON = '["/absolute/path/to/disposable-repo"]' }
 ```
 
-Restart Codex. Ask it to call `status`; verify `workspaceAuthorization` is `configured`, then ask it to discover the five AgentShield tools. Review the project hook before enabling it:
+Restart Codex. Ask it to call `status`; verify `workspaceAuthorization` is `configured`, then discover the ten Foxy tools. Review the project hook before enabling it:
 
 ```sh
 "$HOME/.local/bin/vibesane" init-codex --cwd /absolute/path/to/disposable-repo
@@ -74,7 +74,7 @@ For project scope, add this `mcpServers` entry to the project-root `.mcp.json` (
 }
 ```
 
-Open Claude Code in the project, approve the project MCP server when prompted, then run `/mcp` and confirm the five AgentShield tools are connected. Install and inspect lifecycle hooks separately:
+Open Claude Code in the project, approve the project MCP server when prompted, then run `/mcp` and confirm the ten AgentShield tools are connected. Install and inspect lifecycle hooks separately:
 
 ```sh
 "$HOME/.local/bin/vibesane" init --cwd /absolute/path/to/disposable-repo
@@ -111,7 +111,7 @@ For repository development, run the server with:
 pnpm --filter @workspace/api-server agentshield:mcp
 ```
 
-The MCP server uses the standard stdio transport: UTF-8 JSON-RPC messages, one JSON object per line. Standard output is reserved for protocol messages; diagnostics are written to standard error. It supports the stateless 2026-07-28 discovery/per-request metadata flow and retains the 2025-11-25 initialize handshake for legacy clients. Cancellation notifications abort active scanner processes, and each request receives a cancellation-safe response lifecycle.
+The MCP server uses the official MCP TypeScript SDK v2 stdio transport. Standard output is reserved for protocol messages; diagnostics are written to standard error. It negotiates protocol revision 2026-07-28 with modern clients and retains legacy initialize compatibility. Cancellation notifications abort active scanner processes.
 
 ## Tools
 
@@ -122,6 +122,19 @@ The MCP server uses the standard stdio transport: UTF-8 JSON-RPC messages, one J
 - `explain_finding` — deterministic remediation guidance for known rule IDs.
 
 All tools are annotated read-only. There is no shell, patch, commit, deploy, or network tool. Repository content and finding strings are untrusted data; they must never be treated as instructions.
+
+### Asynchronous scan workflow
+
+Use `scan_changed` for fast feedback on the current diff. For a broader repository scan, call `scan_start` with `scope: "full"`, then use `scan_wait` or `scan_status` with the returned `job_id`; fetch findings with `scan_results` in pages of up to 50. After remediation, start a fresh scan to verify the result. Jobs are bounded and persisted locally; work still active during a server restart is reported as `interrupted` and must be resubmitted. A completed job can still have `scan_status: "partial_coverage"`; that is not a clean scan. `scan_cancel` cancels queued work or signals a running scan to stop between analysis stages.
+
+For a checkout used directly from Codespaces, the exact Codex CLI setup is:
+
+```sh
+codex mcp add foxy --env "VIBESANE_ALLOWED_ROOTS_JSON=$(node -p 'JSON.stringify([process.cwd()])')" -- "$(command -v node)" "$PWD/artifacts/api-server/scripts/agentshield-mcp-stdio.mjs"
+codex mcp list
+```
+
+This authorizes only the current checkout and launches the actual STDIO server from this trusted source tree. Restart/reopen Codex after adding it, then ask Foxy to run `scan_changed` and follow with the asynchronous workflow above. For a disposable test checkout, replace `$PWD` with that repository’s absolute path and use the absolute path to the server script. Do not point the allowlist at a broad parent directory.
 
 ## Client configuration
 
