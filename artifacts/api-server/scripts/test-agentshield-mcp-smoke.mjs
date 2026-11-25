@@ -32,6 +32,11 @@ let transport;
 let stderr = '';
 async function connectFoxy() {
   await connectFoxy();
+  const deniedStart = await client.callTool({ name: 'scan_start', arguments: {
+    workspace: tmpdir(), scope: 'full',
+  } });
+  assert.equal(deniedStart.isError, true, 'unauthorized workspace must be rejected before queue admission');
+
   const tools = await client.listTools();
   const names = tools.tools.map((tool) => tool.name);
   for (const name of ['scan_changed', 'scan_start', 'scan_status', 'scan_wait', 'scan_results', 'scan_cancel']) {

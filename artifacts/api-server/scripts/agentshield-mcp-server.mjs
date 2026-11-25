@@ -213,6 +213,10 @@ async function canonicalRoot(workspace, signal) {
     throw new Error('Workspace is not authorized or is not an accessible Git repository.');
   }
 }
+
+export async function authorizeWorkspace(workspace, { signal } = {}) {
+  return canonicalRoot(workspace, signal);
+}
 function normalizedPath(file) {
   return file.replaceAll('\\', '/');
 }
