@@ -86,7 +86,7 @@ async function connectFoxy() {
   // A repository over the 100-path budget must disclose exactly what was left unscanned.
   for (let i = 0; i < 90; i++) {
     await writeFile(path.join(repo, 'src', `overflow-${String(i).padStart(3, '0')}.js`),
-      `export const overflow${i} = ${i};\\n`);
+      `export const overflow${i} = ${i};\n`);
   }
   await exec('git', ['-C', repo, 'add', '.']);
   await exec('git', ['-C', repo, 'commit', '-qm', 'synthetic full-scan overflow fixtures']);
