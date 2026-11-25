@@ -21,7 +21,7 @@ const MAX_JOB_FINDINGS = 1000;
 const MAX_FILES = 100;
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 8_000_000;
-const baselineStore = new BaselineStore({ maxEntries: 50, ttlMs: 30 * 60 * 1000 });
+const baselineStore = new BaselineStore({ maxEntries: 200, ttlMs: 30 * 60 * 1000 });
 const BASELINE_TTL_MS = 30 * 60 * 1000;
 const authorizedRootIdentities = new Map();
 const MODERN_PROTOCOL = '2026-07-28';
@@ -504,7 +504,10 @@ export function compareFindings(previous, current) {
   return { removed, remaining, newFindings };
 }
 function rememberBaseline(root, fingerprint, result) {
-  return baselineStore.remember(root, fingerprint, result).scanId;
+  return baselineStore.remember(root, fingerprint, result);
+}
+export function restoreBaseline(record) {
+  return baselineStore.restore(record);
 }
 function getBaseline(scanId, root) {
   return baselineStore.get(scanId, root);
@@ -558,8 +561,11 @@ export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, 
   if (scopedResult.status === 'complete') {
     // Persist the resolved scope (not just a symbolic ref) with the baseline.
     const baselineResult = { ...scopedResult, ...(after.baseCommit ? { baseRef: after.baseCommit } : {}) };
-    const scanId = rememberBaseline(snapshot.root, after.fingerprint, baselineResult);
-    return { ...baselineResult, scanId, baselineExpiresInMs: BASELINE_TTL_MS };
+    const baseline = rememberBaseline(snapshot.root, after.fingerprint, baselineResult);
+    const baselineContext = { scanId: baseline.scanId, workspace: baseline.workspace,
+      fingerprint: baseline.fingerprint, createdAt: baseline.createdAt, expiresAt: baseline.expiresAt };
+    return { ...baselineResult, scanId: baseline.scanId,
+      baselineExpiresInMs: Math.max(0, baseline.expiresAt - Date.now()), baselineContext };
   }
   return scopedResult;
 }
@@ -766,7 +772,7 @@ export async function verifyRemediation(workspace, baselineId, { signal, baseRef
   const delta = compareFindings(baseline.result.findings, current.findings);
   const status = delta.remaining.length ? 'findings_remain'
     : delta.newFindings.length ? 'new_findings_detected' : 'rescan_clean';
-  const currentScanId = rememberBaseline(before.root, after.fingerprint, current);
+  const currentScanId = rememberBaseline(before.root, after.fingerprint, current).scanId;
   return {
     status,
     baselineId,
@@ -951,7 +957,9 @@ export async function handleMessage(message, { signal } = {}) {
       else if (params.name === 'verify_remediation') result = await verifyRemediation(args.workspace, args.baseline_id, { signal, baseRef: args.base_ref || null });
       else if (params.name === 'explain_finding') result = explainFinding(args.rule_id);
       else throw new Error('Unknown tool.');
-      const toolResult = toolText(result);
+      const publicResult = result && typeof result === 'object'
+        ? Object.fromEntries(Object.entries(result).filter(([key]) => key !== 'baselineContext')) : result;
+      const toolResult = toolText(publicResult);
       if (isModern) return {
         jsonrpc: '2.0',
         id: message.id,
