@@ -313,6 +313,19 @@ export class ScanJobQueue extends EventEmitter {
     }
   }
 
+  getRestorableBaselines() {
+    return [...this.jobs.values()]
+      .filter((job) => job.status === 'completed' && job.scope === 'changed'
+        && job.result?.baselineContext
+        && job.result.baselineContext.scanId === job.result.scanId
+        && job.result.baselineContext.workspace === job.workspace)
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((job) => {
+        const { baselineContext, ...result } = job.result;
+        return { ...baselineContext, result };
+      });
+  }
+
   getStatus(id) {
     const job = this.jobs.get(id);
     if (!job) return null;
@@ -341,11 +354,20 @@ export class ScanJobQueue extends EventEmitter {
     if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error('Use offset >= 0 and limit from 1 to 50.');
     if (job.status !== 'completed') return { job_id: id, status: job.status, findings: [], note: job.error || 'Results are not complete yet.' };
     const findings = job.result.findings || [];
+    const context = job.result.baselineContext;
+    const baselineRemaining = Number.isSafeInteger(context?.expiresAt)
+      ? Math.max(0, context.expiresAt - Date.now()) : null;
+    const baselineAvailable = Boolean(context
+      && typeof context.scanId === 'string'
+      && context.scanId === job.result.scanId
+      && context.workspace === job.workspace
+      && baselineRemaining > 0);
     return { job_id: id, status: job.status, summary: { scanStatus: job.result.status, filesScanned: job.result.filesScanned,
       totalFindings: job.result.totalFindings ?? findings.length, coverage: job.result.coverage,
       findingsTruncated: job.result.findingsTruncated === true },
-    scan_id: typeof job.result.scanId === 'string' ? job.result.scanId : null,
-    baseline_expires_in_ms: Number.isFinite(job.result.baselineExpiresInMs) ? job.result.baselineExpiresInMs : null,
+    scan_id: baselineAvailable ? context.scanId : null,
+    baseline_expires_in_ms: baselineAvailable ? baselineRemaining : context ? 0 : null,
+    baseline_expired: Boolean(context && !baselineAvailable),
     offset, limit, findings: findings.slice(offset, offset + limit),
     next_offset: offset + limit < findings.length ? offset + limit : null };
   }

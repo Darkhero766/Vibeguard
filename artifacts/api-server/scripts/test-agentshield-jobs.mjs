@@ -265,3 +265,46 @@ test('concurrent close calls share one shutdown and release the process lock', a
     await rm(storeDir, { recursive: true, force: true });
   }
 });
+
+
+test('completed changed-scan jobs expose recoverable baseline records after restart', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-baseline-recovery-'));
+  const createdAt = Date.now();
+  const baselineContext = {
+    scanId: 'baseline-persisted-0001',
+    workspace: '/tmp/foxy-baseline-recovery',
+    fingerprint: 'c'.repeat(64),
+    createdAt,
+    expiresAt: createdAt + 60_000,
+  };
+  const queue = new ScanJobQueue({
+    storeDir,
+    runner: async () => ({
+      ...complete([{ id: 'finding-1' }]),
+      scanId: baselineContext.scanId,
+      baselineExpiresInMs: 60_000,
+      baselineContext,
+    }),
+  });
+  try {
+    const { job_id: id } = await queue.submit({ workspace: baselineContext.workspace, scope: 'changed' });
+    for (let i = 0; i < 80 && queue.getStatus(id)?.status !== 'completed'; i++) await tick();
+    assert.equal(queue.getStatus(id).status, 'completed');
+    const results = queue.getResults(id);
+    assert.equal(results.scan_id, baselineContext.scanId);
+    assert.equal(results.baseline_expired, false);
+    assert.equal(Object.hasOwn(results, 'baselineContext'), false);
+    const recoverable = queue.getRestorableBaselines();
+    assert.equal(recoverable.length, 1);
+    assert.equal(recoverable[0].scanId, baselineContext.scanId);
+    assert.equal(recoverable[0].workspace, baselineContext.workspace);
+    assert.equal(recoverable[0].result.findings.length, 1);
+  } finally {
+    await queue.close();
+    const restored = new ScanJobQueue({ storeDir, runner: async () => complete() });
+    try {
+      await restored.init();
+      assert.equal(restored.getRestorableBaselines().length, 1);
+    } finally { await restored.close(); await rm(storeDir, { recursive: true, force: true }); }
+  }
+});
