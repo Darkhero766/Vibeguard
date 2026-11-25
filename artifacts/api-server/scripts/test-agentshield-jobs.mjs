@@ -308,3 +308,29 @@ test('completed changed-scan jobs expose recoverable baseline records after rest
     } finally { await restored.close(); await rm(storeDir, { recursive: true, force: true }); }
   }
 });
+
+
+test('queued cancellation persistence failure fails closed instead of pretending it was durable', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-cancel-persist-failure-'));
+  const statePath = path.join(storeDir, 'jobs.json');
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const queue = new ScanJobQueue({ storeDir, concurrency: 1, runner: async () => { await gate; return complete(); } });
+  try {
+    const first = await queue.submit({ workspace: '/tmp/foxy-cancel-running' });
+    for (let i = 0; i < 40 && queue.getStatus(first.job_id)?.status !== 'running'; i++) await tick();
+    const queued = await queue.submit({ workspace: '/tmp/foxy-cancel-queued' });
+    await rm(statePath, { force: true });
+    await mkdir(statePath);
+    await assert.rejects(queue.cancel(queued.job_id), /could not persist cancellation/i);
+    assert.equal(queue.storageFault, true);
+    assert.equal(queue.getStatus(queued.job_id).status, 'failed');
+    assert.match(queue.getStatus(queued.job_id).error, /UNKNOWN/);
+    assert.equal(queue.active, 1);
+  } finally {
+    release();
+    await queue.close();
+    await rm(statePath, { recursive: true, force: true });
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});

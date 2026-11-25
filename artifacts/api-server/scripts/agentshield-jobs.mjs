@@ -101,9 +101,29 @@ export class ScanJobQueue extends EventEmitter {
         this.lockToken = JSON.parse(owner).token;
         return;
       } catch (error) {
+        // If this process created the lock but failed while writing/syncing its
+        // owner record, remove only that just-created lock so it cannot poison
+        // all subsequent starts as an unreadable stale lock.
+        if (this.lockHandle) {
+          const handle = this.lockHandle;
+          this.lockHandle = null;
+          this.lockToken = null;
+          await handle.close().catch(() => {});
+          await unlink(this.lockPath).catch(() => {});
+          throw new Error('Unable to initialize Foxy job-store lock; no scan was started.');
+        }
         if (error?.code !== 'EEXIST' || attempt) throw new Error('Another Foxy MCP process owns this job store.');
         let prior;
-        try { prior = JSON.parse(await readFile(this.lockPath, 'utf8')); } catch { throw new Error('Job store lock is unreadable; refusing concurrent access.'); }
+        try {
+          const info = await lstat(this.lockPath);
+          if (!info.isFile() || info.isSymbolicLink() || info.size > 4096) throw new Error('unsafe lock');
+          const handle = await open(this.lockPath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+          try {
+            const opened = await handle.stat();
+            if (opened.dev !== info.dev || opened.ino !== info.ino) throw new Error('lock changed');
+            prior = JSON.parse(await handle.readFile('utf8'));
+          } finally { await handle.close(); }
+        } catch { throw new Error('Job store lock is unreadable; refusing concurrent access.'); }
         if (prior.host !== hostname() || !Number.isInteger(prior.pid) || !prior.token) throw new Error('Job store lock belongs to another host or is invalid.');
         try { process.kill(prior.pid, 0); throw new Error('Another Foxy MCP process owns this job store.'); }
         catch (probe) { if (probe?.code !== 'ESRCH') throw probe; }
@@ -398,8 +418,24 @@ export class ScanJobQueue extends EventEmitter {
     await this.init();
     const job = this.jobs.get(id);
     if (!job) return null;
-    if (job.status === 'queued') { job.status = 'cancelled'; job.error = 'Scan was cancelled before it started.'; job.finishedAt = this.now(); job.updatedAt = this.now(); await this.#persist(); this.#notify(job); }
-    else if (job.status === 'running') this.controllers.get(id)?.abort();
+    if (job.status === 'queued') {
+      job.status = 'cancelled';
+      job.error = 'Scan was cancelled before it started.';
+      job.finishedAt = this.now();
+      job.updatedAt = this.now();
+      try { await this.#persist(); }
+      catch {
+        this.#markStorageFault();
+        job.status = 'failed';
+        job.result = null;
+        job.error = 'Cancellation could not be durably recorded; scan outcome is UNKNOWN.';
+        job.finishedAt = this.now();
+        job.updatedAt = this.now();
+        this.#notify(job);
+        throw new Error('Foxy could not persist cancellation; the queue has been placed in fail-closed mode.');
+      }
+      this.#notify(job);
+    } else if (job.status === 'running') this.controllers.get(id)?.abort();
     return this.getStatus(id);
   }
 
