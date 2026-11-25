@@ -11,11 +11,11 @@ const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const MAX_STATE_BYTES = 8_000_000;
 const MAX_RECORDS = 200;
 const BASELINE_TTL_MS = 30 * 60 * 1000;
-    || /[\x00-\x1f\x7f]/.test(value)) return false;
+const bounded = (value, max = 300) => String(value ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, max);
 function safeBaselinePath(value) {
   if (typeof value !== 'string' || !value || value.length > 400
     || path.isAbsolute(value) || /^[A-Za-z]:/.test(value)
-    || /[\\x00-\\x1f\\x7f]/.test(value)) return false;
+    || /[\x00-\x1f\x7f]/.test(value)) return false;
   const normalized = value.replaceAll('\\', '/');
   return !normalized.split('/').includes('..') && !normalized.startsWith('/');
 }
