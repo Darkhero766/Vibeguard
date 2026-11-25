@@ -59,6 +59,7 @@ jobs:
           node --check artifacts/api-server/scripts/agentshield-mcp-server.mjs
           node --check artifacts/api-server/scripts/agentshield-mcp-sdk.mjs
           node --check artifacts/api-server/scripts/agentshield-mcp-stdio.mjs
+          node --check artifacts/api-server/scripts/test-agentshield-mcp-smoke.mjs
 
       - name: MCP protocol, queue and real STDIO client smoke
         run: pnpm --filter @workspace/api-server run validate:agentshield:mcp
