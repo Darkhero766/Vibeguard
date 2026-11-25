@@ -54,6 +54,7 @@ export class ScanJobQueue extends EventEmitter {
         let raw;
         try { raw = await handle.readFile('utf8'); } finally { await handle.close(); }
         const parsed = JSON.parse(raw);
+        await chmod(this.statePath, 0o600);
         if (parsed?.version !== 1 || !Array.isArray(parsed.jobs) || parsed.jobs.length > MAX_RECORDS) throw new Error('Job state format is invalid.');
         for (const job of parsed.jobs) {
           if (!job || typeof job.id !== 'string' || !/^[a-f0-9-]{36}$/.test(job.id)
@@ -120,7 +121,12 @@ export class ScanJobQueue extends EventEmitter {
 
   async #persist() {
     const write = async () => {
-    const records = [...this.jobs.values()].sort((a, b) => a.createdAt - b.createdAt).slice(-MAX_RECORDS);
+    // Active work must remain addressable even when old history is trimmed.
+    const all = [...this.jobs.values()].sort((a, b) => a.createdAt - b.createdAt);
+    const active = all.filter((job) => job.status === 'queued' || job.status === 'running');
+    const terminal = all.filter((job) => job.status !== 'queued' && job.status !== 'running');
+    const records = [...terminal.slice(-Math.max(0, MAX_RECORDS - active.length)), ...active]
+      .sort((a, b) => a.createdAt - b.createdAt);
     this.jobs = new Map(records.map((job) => [job.id, job]));
     const data = JSON.stringify({ version: 1, jobs: records });
     if (Buffer.byteLength(data) > MAX_STATE_BYTES) throw new Error('Job state exceeds its storage budget.');
@@ -143,6 +149,15 @@ export class ScanJobQueue extends EventEmitter {
   }
 
   async submit({ workspace, base_ref: baseRef = null, idempotency_key: idempotencyKey = null, priority = 0, scope = 'changed' } = {}) {
+    const prior = this.submitting || Promise.resolve();
+    let release;
+    this.submitting = new Promise((resolve) => { release = resolve; });
+    await prior;
+    try { return await this.#submit({ workspace, base_ref: baseRef, idempotency_key: idempotencyKey, priority, scope }); }
+    finally { release(); }
+  }
+
+  async #submit({ workspace, base_ref: baseRef = null, idempotency_key: idempotencyKey = null, priority = 0, scope = 'changed' } = {}) {
     await this.init();
     if (typeof workspace !== 'string' || !path.isAbsolute(workspace) || workspace.length > 4096) throw new Error('Workspace must be an absolute path.');
     if (baseRef !== null && (typeof baseRef !== 'string' || baseRef.length > 200)) throw new Error('Invalid base_ref.');
@@ -150,7 +165,14 @@ export class ScanJobQueue extends EventEmitter {
     if (!['changed', 'full'].includes(scope)) throw new Error('scope must be changed or full.');
     if (scope === 'full' && baseRef !== null) throw new Error('base_ref is supported only for changed-file scans.');
     if (!Number.isInteger(priority) || priority < 0 || priority > 3) throw new Error('Priority must be from 0 to 3.');
-    const fingerprint = createHash('sha256').update(JSON.stringify([path.resolve(workspace), baseRef, scope])).digest('hex');
+    // Canonicalize existing roots for alias-safe deduplication, while rejecting
+    // a symlink as the supplied workspace itself. The runner repeats allowlist
+    // and repository checks immediately before reading project files.
+    const resolvedWorkspace = path.resolve(workspace);
+    const inputInfo = await lstat(resolvedWorkspace).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+    if (inputInfo && (!inputInfo.isDirectory() || inputInfo.isSymbolicLink())) throw new Error('Workspace must be a real directory.');
+    const canonicalWorkspace = inputInfo ? await realpath(resolvedWorkspace) : resolvedWorkspace;
+    const fingerprint = createHash('sha256').update(JSON.stringify([canonicalWorkspace, baseRef, scope])).digest('hex');
     const idempotent = idempotencyKey ? [...this.jobs.values()].find((job) => job.idempotencyKey === idempotencyKey) : null;
     if (idempotent && idempotent.fingerprint !== fingerprint) throw new Error('idempotency_key was already used for a different scan.');
     const existing = idempotent || [...this.jobs.values()].find((job) =>
@@ -160,7 +182,7 @@ export class ScanJobQueue extends EventEmitter {
     if (queued >= this.maxQueued) throw new Error('Scan queue is full; wait for a slot and retry.');
     const now = this.now();
     const job = { id: randomUUID(), type: scope === 'full' ? 'scan_full' : 'scan_changed', scope, status: 'queued', priority, sequence: now,
-      workspace: path.resolve(workspace), baseRef, idempotencyKey, fingerprint, progress: 0,
+      workspace: canonicalWorkspace, baseRef, idempotencyKey, fingerprint, progress: 0,
       createdAt: now, updatedAt: now, retries: 0, result: null, error: null };
     this.jobs.set(job.id, job);
     await this.#persist();
@@ -203,6 +225,9 @@ export class ScanJobQueue extends EventEmitter {
         || !Number.isSafeInteger(result.totalFindings) || result.totalFindings < result.findings.length) {
         throw new Error('Scan coverage is incomplete; no clean result was recorded.');
       }
+      let resultBytes;
+      try { resultBytes = Buffer.byteLength(JSON.stringify(result)); } catch { resultBytes = Infinity; }
+      if (resultBytes > 1_500_000) throw new Error('Scan result exceeded its output budget; coverage is unknown.');
       job.status = 'completed'; job.progress = 100; job.result = result; job.error = null;
     } catch (error) {
       if (this.closing) { job.status = 'interrupted'; job.error = 'Server stopped before this scan completed.'; }
@@ -215,9 +240,12 @@ export class ScanJobQueue extends EventEmitter {
       this.controllers.delete(job.id);
       job.updatedAt = this.now();
       if (TERMINAL.has(job.status)) job.finishedAt = this.now();
-      await this.#persist(); this.#notify(job);
-      this.active--;
-      this.#pump();
+      try { await this.#persist(); }
+      finally {
+        this.#notify(job);
+        this.active--;
+        this.#pump();
+      }
     }
   }
 
@@ -248,7 +276,15 @@ export class ScanJobQueue extends EventEmitter {
     if (!timeoutMs) return current;
     await new Promise((resolve) => {
       const set = this.waiters.get(id) || new Set(); set.add(resolve); this.waiters.set(id, set);
-      const timer = setTimeout(() => { set.delete(resolve); resolve(); }, timeoutMs);
+      const finish = () => {
+        clearTimeout(timer);
+        set.delete(resolve);
+        if (!set.size) this.waiters.delete(id);
+        resolve();
+      };
+      const timer = setTimeout(finish, timeoutMs);
+      // Replace the waiter callback so notifications also release the timer.
+      set.delete(resolve); set.add(finish);
       timer.unref?.();
     });
     return this.getStatus(id);

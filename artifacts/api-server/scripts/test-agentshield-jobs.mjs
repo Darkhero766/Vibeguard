@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { ScanJobQueue } from './agentshield-jobs.mjs';
@@ -19,6 +19,7 @@ test('queue coalesces duplicate jobs, enforces backpressure, and paginates findi
     const first = await queue.submit({ workspace: '/tmp/repo-one' });
     for (let i = 0; i < 40 && queue.getStatus(first.job_id)?.status !== 'running'; i++) await tick();
     assert.equal(queue.getStatus(first.job_id).status, 'running');
+    const waiting = queue.wait(first.job_id, 10_000);
     const duplicate = await queue.submit({ workspace: '/tmp/repo-one' });
     assert.equal(duplicate.job_id, first.job_id);
     assert.equal(duplicate.deduplicated, true);
@@ -26,6 +27,8 @@ test('queue coalesces duplicate jobs, enforces backpressure, and paginates findi
     await assert.rejects(queue.submit({ workspace: '/tmp/repo-three' }), /queue is full/);
     assert.equal((await queue.cancel(second.job_id)).status, 'cancelled');
     release();
+    await waiting;
+    assert.equal(queue.waiters.has(first.job_id), false, 'state notification removes its waiter and timer');
     for (let i = 0; i < 40 && queue.getStatus(first.job_id)?.status !== 'completed'; i++) await tick();
     assert.equal(queue.getStatus(first.job_id).status, 'completed');
     assert.deepEqual(queue.getResults(first.job_id, { offset: 1, limit: 1 }).findings, [{ id: 1 }]);
@@ -144,4 +147,61 @@ test('partial scan coverage remains visible in completed job results', async () 
     assert.equal(queue.getStatus(id).status, 'completed');
     assert.equal(queue.getResults(id).summary.scanStatus, 'partial_coverage');
   } finally { await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
+});
+
+test('simultaneous idempotent submissions create exactly one job', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-idempotency-'));
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const queue = new ScanJobQueue({ storeDir, runner: async () => { await gate; return complete(); } });
+  try {
+    const submissions = await Promise.all(Array.from({ length: 12 }, () => queue.submit({
+      workspace: '/tmp/idempotent-repo', idempotency_key: 'same-request',
+    })));
+    assert.equal(new Set(submissions.map((item) => item.job_id)).size, 1);
+    assert.equal(submissions.filter((item) => !item.deduplicated).length, 1);
+    await assert.rejects(queue.submit({ workspace: '/tmp/other-repo', idempotency_key: 'same-request' }), /different scan/);
+    release();
+  } finally { release(); await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
+});
+
+test('workspace canonicalization coalesces aliases and rejects a symlink root', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-canonical-'));
+  const parent = await mkdtemp(path.join(os.tmpdir(), 'foxy-workspace-'));
+  const workspace = path.join(parent, 'repo');
+  await mkdir(workspace);
+  const alias = `${parent}-link`;
+  await symlink(parent, alias);
+  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  try {
+    await assert.rejects(queue.submit({ workspace: alias }), /real directory/);
+    const first = await queue.submit({ workspace });
+    const second = await queue.submit({ workspace: path.join(alias, 'repo') });
+    assert.equal(second.job_id, first.job_id);
+    assert.equal(second.deduplicated, true);
+  } finally {
+    await queue.close();
+    await rm(alias, { force: true });
+    await rm(parent, { recursive: true, force: true });
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
+test('persistence retention never evicts an active job', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-retention-'));
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const queue = new ScanJobQueue({ storeDir, concurrency: 1, runner: async () => { await gate; return complete(); } });
+  try {
+    const { job_id: activeId } = await queue.submit({ workspace: '/tmp/long-running-repo' });
+    for (let i = 0; i < 40 && queue.getStatus(activeId)?.status !== 'running'; i++) await tick();
+    for (let i = 0; i < 205; i++) {
+      const submitted = await queue.submit({ workspace: `/tmp/history-${i}` });
+      await queue.cancel(submitted.job_id);
+    }
+    assert.equal(queue.getStatus(activeId)?.status, 'running');
+    assert.ok(JSON.parse(await (await import('node:fs/promises')).readFile(path.join(storeDir, 'jobs.json'), 'utf8'))
+      .jobs.some((job) => job.id === activeId && job.status === 'running'));
+    release();
+  } finally { release(); await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
 });

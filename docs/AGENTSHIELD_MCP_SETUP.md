@@ -125,7 +125,20 @@ All tools are annotated read-only. There is no shell, patch, commit, deploy, or 
 
 ### Asynchronous scan workflow
 
-Use `scan_changed` for fast feedback on the current diff. For a broader repository scan, call `scan_start` with `scope: "full"`, then use `scan_wait` or `scan_status` with the returned `job_id`; fetch findings with `scan_results` in pages of up to 50. After remediation, start a fresh scan to verify the result. Jobs are bounded and persisted locally; work still active during a server restart is reported as `interrupted` and must be resubmitted. A completed job can still have `scan_status: "partial_coverage"`; that is not a clean scan. `scan_cancel` cancels queued work or signals a running scan to stop between analysis stages.
+Use `scan_changed` for fast feedback on the current diff. For a broader repository scan, call `scan_start` with `scope: "full"`, then use `scan_wait` or `scan_status` with the returned `job_id`; fetch findings with `scan_results` in pages of up to 50. After remediation, start a fresh `scan_changed` scan and call `verify_remediation` with the original `baseline_id` and the same optional `base_ref`. Jobs are bounded and persisted locally; work still active during a server restart is reported as `interrupted` and must be resubmitted. A completed job can still have `scan_status: "partial_coverage"`; that is not a clean scan. `scan_cancel` cancels queued work or signals a running scan to stop between analysis stages.
+
+Typical MCP call sequence (replace the absolute workspace path and IDs with returned values):
+
+```json
+{"name":"scan_changed","arguments":{"workspace":"/absolute/path/to/repo"}}
+{"name":"scan_start","arguments":{"workspace":"/absolute/path/to/repo","scope":"full","idempotency_key":"review-2026-11-25"}}
+{"name":"scan_wait","arguments":{"job_id":"<job_id>","wait_ms":10000}}
+{"name":"scan_results","arguments":{"job_id":"<job_id>","offset":0,"limit":20}}
+{"name":"scan_cancel","arguments":{"job_id":"<job_id>"}}
+{"name":"verify_remediation","arguments":{"workspace":"/absolute/path/to/repo","baseline_id":"<scanId-from-scan_changed>"}}
+```
+
+`scan_wait` returns the current status after a state change or its timeout; repeat it while the status is `queued` or `running`. `scan_results` returns no findings until completion; advance using `next_offset`. A failed, cancelled, interrupted, truncated, or `partial_coverage` result is UNKNOWN and must not be described as a clean pass. Use `scan_changed`'s `scanId` as `verify_remediation.baseline_id`; queued job IDs are not remediation baselines.
 
 For a checkout used directly from Codespaces, the exact Codex CLI setup is:
 
