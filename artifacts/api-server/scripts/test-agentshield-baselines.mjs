@@ -79,3 +79,32 @@ test('restored baselines reject altered, incomplete and over-lifetime records', 
   assert.throws(() => target.restore({ ...record, result: { ...record.result, status: 'partial_coverage' } }), /invalid/i);
   assert.equal(target.size, 0);
 });
+
+test('restored baselines reject Windows traversal and control characters in scanned paths', () => {
+  const now = 1000;
+  const store = new BaselineStore({ ttlMs: 5000, now: () => now });
+  const base = {
+    scanId: 'baseline-safe-path-0001',
+    workspace: '/workspace/repo',
+    fingerprint: 'e'.repeat(64),
+    createdAt: 1000,
+    expiresAt: 5000,
+    result: {
+      status: 'complete',
+      filesScanned: 1,
+      scannedPaths: ['src/app.js'],
+      findings: [],
+      totalFindings: 0,
+      findingsTruncated: false,
+    },
+  };
+  const traversalPath = '..' + String.fromCharCode(92) + 'outside.js';
+  assert.throws(() => store.restore({
+    ...base, result: { ...base.result, scannedPaths: [traversalPath] },
+  }), /invalid/i);
+  const controlPath = 'src/' + String.fromCharCode(0) + 'app.js';
+  assert.throws(() => store.restore({
+    ...base, result: { ...base.result, scannedPaths: [controlPath] },
+  }), /invalid/i);
+  assert.equal(store.size, 0);
+});

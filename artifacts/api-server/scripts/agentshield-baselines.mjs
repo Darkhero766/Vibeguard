@@ -51,8 +51,8 @@ export class BaselineStore {
     const now = this.now();
     const safePath = (value) => typeof value === 'string' && value.length > 0 && value.length <= 400
       && !path.isAbsolute(value) && !/^[A-Za-z]:/.test(value)
-      && !/[\\x00-\\x1f\\x7f]/.test(value)
-      && !value.replaceAll('\\\\', '/').split('/').includes('..');
+      && !/[\x00-\x1f\x7f]/.test(value)
+      && !value.replaceAll('\\', '/').split('/').includes('..');
     if (typeof scanId !== 'string' || scanId.length < 16 || scanId.length > 80
       || typeof workspace !== 'string' || !path.isAbsolute(workspace) || workspace.length > 4096
       || typeof fingerprint !== 'string' || !/^[a-f0-9]{64}$/i.test(fingerprint)
