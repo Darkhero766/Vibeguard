@@ -417,7 +417,8 @@ test('queue does not expose baseline IDs when persisted finding metadata is malf
     assert.equal(queue.getStatus(id).status, 'completed');
     const result = queue.getResults(id);
     assert.equal(result.scan_id, null);
-    assert.equal(result.baseline_expired, true);
+    assert.equal(result.baseline_expired, false);
+    assert.equal(result.baseline_unavailable, true);
     assert.equal(queue.getRestorableBaselines().length, 0);
   } finally { await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
 });

@@ -11,12 +11,12 @@ const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const MAX_STATE_BYTES = 8_000_000;
 const MAX_RECORDS = 200;
 const BASELINE_TTL_MS = 30 * 60 * 1000;
-const bounded = (value, max = 300) => String(value ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, max);
+    || /[\x00-\x1f\x7f]/.test(value)) return false;
 function safeBaselinePath(value) {
   if (typeof value !== 'string' || !value || value.length > 400
     || path.isAbsolute(value) || /^[A-Za-z]:/.test(value)
     || /[\\x00-\\x1f\\x7f]/.test(value)) return false;
-  const normalized = value.replaceAll('\\\\', '/');
+  const normalized = value.replaceAll('\\', '/');
   return !normalized.split('/').includes('..') && !normalized.startsWith('/');
 }
 function validBaselineContext(context, job, now) {
@@ -413,13 +413,15 @@ export class ScanJobQueue extends EventEmitter {
     const context = job.result.baselineContext;
     const now = this.now();
     const baselineAvailable = validBaselineContext(context, job, now);
+    const baselineExpired = Boolean(context && Number.isSafeInteger(context.expiresAt) && context.expiresAt <= now);
     const baselineRemaining = baselineAvailable ? context.expiresAt - now : context ? 0 : null;
     return { job_id: id, status: job.status, summary: { scanStatus: job.result.status, filesScanned: job.result.filesScanned,
       totalFindings: job.result.totalFindings ?? findings.length, coverage: job.result.coverage,
       findingsTruncated: job.result.findingsTruncated === true },
     scan_id: baselineAvailable ? context.scanId : null,
     baseline_expires_in_ms: baselineAvailable ? baselineRemaining : context ? 0 : null,
-    baseline_expired: Boolean(context && !baselineAvailable),
+    baseline_expired: baselineExpired,
+    baseline_unavailable: Boolean(context && !baselineAvailable && !baselineExpired),
     offset, limit, findings: findings.slice(offset, offset + limit),
     next_offset: offset + limit < findings.length ? offset + limit : null };
   }
