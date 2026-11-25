@@ -57,8 +57,8 @@ try {
   await exec('git', ['-C', repo, 'config', 'user.email', 'foxy-smoke@example.invalid']);
   for (let i = 0; i < 12; i++) {
     await writeFile(path.join(repo, 'src', `fixture-${i}.js`), i === 0
-      ? 'export function render(value) { return eval(value); }\\n'
-      : `export const fixture${i} = ${i};\\n`);
+      ? 'export function render(value) { return eval(value); }\n'
+      : `export const fixture${i} = ${i};\n`);
   }
   await exec('git', ['-C', repo, 'add', '.']);
   await exec('git', ['-C', repo, 'commit', '-qm', 'synthetic scanner fixture']);
@@ -66,7 +66,7 @@ try {
   await exec('git', ['init', '-q', cancelRepo]);
   await exec('git', ['-C', cancelRepo, 'config', 'user.name', 'Foxy Smoke']);
   await exec('git', ['-C', cancelRepo, 'config', 'user.email', 'foxy-smoke@example.invalid']);
-  await writeFile(path.join(cancelRepo, 'src', 'cancel.js'), 'export const cancelFixture = true;\\n');
+  await writeFile(path.join(cancelRepo, 'src', 'cancel.js'), 'export const cancelFixture = true;\n');
   await exec('git', ['-C', cancelRepo, 'add', '.']);
   await exec('git', ['-C', cancelRepo, 'commit', '-qm', 'synthetic cancellation fixture']);
 
