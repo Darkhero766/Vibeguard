@@ -1,0 +1,67 @@
+name: Foxy MCP Beta Qualification
+
+on:
+  push:
+    branches:
+      - feat/agentshield-beta-coding-agent-install
+  pull_request:
+    branches:
+      - feat/codex-mcp-validation-handoff
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foxy-mcp-beta-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: MCP, queue, package and release qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: "true"
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      npm_config_update_notifier: "false"
+    steps:
+      - name: Checkout exact candidate revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install frozen workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Backend strict typecheck
+        run: pnpm --filter @workspace/api-server run typecheck
+
+      - name: MCP protocol, queue and real STDIO client smoke
+        run: pnpm --filter @workspace/api-server run validate:agentshield:mcp
+
+      - name: Complete AgentShield release qualification
+        run: pnpm --filter @workspace/api-server run test:agentshield:release-qualification
+
+      - name: Upload source-matched qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: foxy-mcp-qualification-${{ github.sha }}
+          path: artifacts/api-server/dist/agentshield-release-validation.json
+          if-no-files-found: warn
+          retention-days: 14
