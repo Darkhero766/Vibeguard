@@ -33,6 +33,7 @@ export class ScanJobQueue extends EventEmitter {
     this.waiters = new Map();
     this.active = 0;
     this.initialized = false;
+    this.storageFault = false;
   }
 
   async init() {
@@ -125,17 +126,24 @@ export class ScanJobQueue extends EventEmitter {
     const all = [...this.jobs.values()].sort((a, b) => a.createdAt - b.createdAt);
     const active = all.filter((job) => job.status === 'queued' || job.status === 'running');
     const terminal = all.filter((job) => job.status !== 'queued' && job.status !== 'running');
-    const records = [...terminal.slice(-Math.max(0, MAX_RECORDS - active.length)), ...active]
-      .sort((a, b) => a.createdAt - b.createdAt);
-    this.jobs = new Map(records.map((job) => [job.id, job]));
-    const data = JSON.stringify({ version: 1, jobs: records });
-    if (Buffer.byteLength(data) > MAX_STATE_BYTES) throw new Error('Job state exceeds its storage budget.');
+    if (active.length > MAX_RECORDS) throw new Error('Active job count exceeds the persistent record budget.');
+    let retainedTerminal = terminal.slice(-Math.max(0, MAX_RECORDS - active.length));
+    let records = [...retainedTerminal, ...active].sort((a, b) => a.createdAt - b.createdAt);
+    let data = JSON.stringify({ version: 1, jobs: records });
+    while (Buffer.byteLength(data) > MAX_STATE_BYTES && retainedTerminal.length) {
+      retainedTerminal = retainedTerminal.slice(1);
+      records = [...retainedTerminal, ...active].sort((a, b) => a.createdAt - b.createdAt);
+      data = JSON.stringify({ version: 1, jobs: records });
+    }
+    if (Buffer.byteLength(data) > MAX_STATE_BYTES) throw new Error('Active job state exceeds its storage budget.');
     const temp = `${this.statePath}.${process.pid}.${randomUUID()}.tmp`;
     const handle = await open(temp, 'wx', 0o600);
     try { await handle.writeFile(data); await handle.sync(); } finally { await handle.close(); }
     await rename(temp, this.statePath);
     const directory = await open(this.storeDir, constants.O_RDONLY);
     try { await directory.sync(); } finally { await directory.close(); }
+    // Publish retention only after the durable replacement succeeds.
+    this.jobs = new Map(records.map((job) => [job.id, job]));
     };
     const next = (this.persisting || Promise.resolve()).then(write);
     this.persisting = next.catch(() => {});
@@ -159,6 +167,7 @@ export class ScanJobQueue extends EventEmitter {
 
   async #submit({ workspace, base_ref: baseRef = null, idempotency_key: idempotencyKey = null, priority = 0, scope = 'changed' } = {}) {
     await this.init();
+    if (this.storageFault) throw new Error('Foxy job storage is unhealthy; restart the MCP server after repairing its state directory.');
     if (typeof workspace !== 'string' || !path.isAbsolute(workspace) || workspace.length > 4096) throw new Error('Workspace must be an absolute path.');
     if (baseRef !== null && (typeof baseRef !== 'string' || baseRef.length > 200)) throw new Error('Invalid base_ref.');
     if (idempotencyKey !== null && (typeof idempotencyKey !== 'string' || !idempotencyKey || idempotencyKey.length > 120)) throw new Error('Invalid idempotency_key.');
@@ -185,7 +194,15 @@ export class ScanJobQueue extends EventEmitter {
       workspace: canonicalWorkspace, baseRef, idempotencyKey, fingerprint, progress: 0,
       createdAt: now, updatedAt: now, retries: 0, result: null, error: null };
     this.jobs.set(job.id, job);
-    await this.#persist();
+    try {
+      await this.#persist();
+    } catch (error) {
+      job.status = 'failed';
+      job.error = 'Job submission could not be durably recorded; no scan was started.';
+      job.finishedAt = this.now();
+      this.storageFault = true;
+      throw new Error('Foxy could not persist the scan job; the queue has been placed in fail-closed mode.');
+    }
     this.#notify(job);
     this.#pump();
     return { job_id: job.id, status: job.status, deduplicated: false };
@@ -208,15 +225,27 @@ export class ScanJobQueue extends EventEmitter {
     const controller = new AbortController();
     this.controllers.set(job.id, controller);
     job.status = 'running'; job.startedAt = this.now(); job.updatedAt = this.now(); job.progress = 1;
-    await this.#persist(); this.#notify(job);
     const timeout = AbortSignal.timeout(this.timeoutMs);
     const signal = AbortSignal.any([controller.signal, timeout]);
     try {
+      try { await this.#persist(); }
+      catch {
+        this.storageFault = true;
+        throw Object.assign(new Error('Job state could not be durably persisted; scan outcome is UNKNOWN.'), { code: 'FOXY_STATE_PERSISTENCE' });
+      }
+      this.#notify(job);
       if (signal.aborted) throw signal.reason || new Error('Scan cancelled.');
       const result = await this.runner({ workspace: job.workspace, base_ref: job.baseRef, scope: job.scope }, { signal,
         progress: (value) => {
           const progress = Math.max(job.progress, Math.min(99, Math.floor(Number(value) || 0)));
-          if (progress - job.progress >= 5) { job.progress = progress; job.updatedAt = this.now(); this.#persist().then(() => this.#notify(job)).catch(() => {}); }
+          if (progress - job.progress >= 5) {
+            job.progress = progress;
+            job.updatedAt = this.now();
+            this.#persist().then(() => this.#notify(job)).catch(() => {
+              this.storageFault = true;
+              controller.abort(new Error('Job state persistence failed; scan outcome is UNKNOWN.'));
+            });
+          }
         },
       });
       if (signal.aborted) throw signal.reason || new Error('Scan cancelled.');
@@ -230,7 +259,10 @@ export class ScanJobQueue extends EventEmitter {
       if (resultBytes > 1_500_000) throw new Error('Scan result exceeded its output budget; coverage is unknown.');
       job.status = 'completed'; job.progress = 100; job.result = result; job.error = null;
     } catch (error) {
-      if (this.closing) { job.status = 'interrupted'; job.error = 'Server stopped before this scan completed.'; }
+      if (this.storageFault || error?.code === 'FOXY_STATE_PERSISTENCE') {
+        job.status = 'failed'; job.result = null; job.error = 'Job state persistence failed; scan outcome is UNKNOWN.';
+      }
+      else if (this.closing) { job.status = 'interrupted'; job.error = 'Server stopped before this scan completed.'; }
       else if (controller.signal.aborted) { job.status = 'cancelled'; job.error = 'Scan was cancelled.'; }
       else if (timeout.aborted) { job.status = 'failed'; job.error = 'Scan exceeded its time limit; coverage is unknown.'; }
       else if (job.retries < this.maxRetries && ['EAGAIN', 'EMFILE', 'ETIMEDOUT'].includes(error?.code)) {
@@ -241,7 +273,12 @@ export class ScanJobQueue extends EventEmitter {
       job.updatedAt = this.now();
       if (TERMINAL.has(job.status)) job.finishedAt = this.now();
       try { await this.#persist(); }
-      finally {
+      catch {
+        this.storageFault = true;
+        job.status = 'failed';
+        job.result = null;
+        job.error = 'Job state persistence failed; scan outcome is UNKNOWN.';
+      } finally {
         this.#notify(job);
         this.active--;
         this.#pump();
@@ -252,9 +289,23 @@ export class ScanJobQueue extends EventEmitter {
   getStatus(id) {
     const job = this.jobs.get(id);
     if (!job) return null;
-    const { result, ...summary } = job;
-    return { ...summary, scan_status: result?.status ?? null,
-      findings_count: result?.totalFindings ?? result?.findings?.length ?? null };
+    const result = job.result;
+    return {
+      job_id: job.id,
+      type: job.type,
+      scope: job.scope,
+      status: job.status,
+      priority: job.priority,
+      progress: job.progress,
+      created_at: job.createdAt,
+      updated_at: job.updatedAt,
+      started_at: job.startedAt ?? null,
+      finished_at: job.finishedAt ?? null,
+      retries: job.retries,
+      scan_status: result?.status ?? null,
+      findings_count: result?.totalFindings ?? result?.findings?.length ?? null,
+      error: job.error ? bounded(job.error, 240) : null,
+    };
   }
 
   getResults(id, { offset = 0, limit = 20 } = {}) {
@@ -265,8 +316,11 @@ export class ScanJobQueue extends EventEmitter {
     const findings = job.result.findings || [];
     return { job_id: id, status: job.status, summary: { scanStatus: job.result.status, filesScanned: job.result.filesScanned,
       totalFindings: job.result.totalFindings ?? findings.length, coverage: job.result.coverage,
-      findingsTruncated: job.result.findingsTruncated === true }, offset, limit,
-    findings: findings.slice(offset, offset + limit), next_offset: offset + limit < findings.length ? offset + limit : null };
+      findingsTruncated: job.result.findingsTruncated === true },
+    scan_id: typeof job.result.scanId === 'string' ? job.result.scanId : null,
+    baseline_expires_in_ms: Number.isFinite(job.result.baselineExpiresInMs) ? job.result.baselineExpiresInMs : null,
+    offset, limit, findings: findings.slice(offset, offset + limit),
+    next_offset: offset + limit < findings.length ? offset + limit : null };
   }
 
   async wait(id, timeoutMs = 10_000) {
@@ -275,16 +329,17 @@ export class ScanJobQueue extends EventEmitter {
     if (!Number.isInteger(timeoutMs) || timeoutMs < 0 || timeoutMs > 30_000) throw new Error('wait_ms must be from 0 to 30000.');
     if (!timeoutMs) return current;
     await new Promise((resolve) => {
-      const set = this.waiters.get(id) || new Set(); set.add(resolve); this.waiters.set(id, set);
+      const set = this.waiters.get(id) || new Set();
+      let timer;
       const finish = () => {
-        clearTimeout(timer);
-        set.delete(resolve);
+        if (timer) clearTimeout(timer);
+        set.delete(finish);
         if (!set.size) this.waiters.delete(id);
         resolve();
       };
-      const timer = setTimeout(finish, timeoutMs);
-      // Replace the waiter callback so notifications also release the timer.
-      set.delete(resolve); set.add(finish);
+      set.add(finish);
+      this.waiters.set(id, set);
+      timer = setTimeout(finish, timeoutMs);
       timer.unref?.();
     });
     return this.getStatus(id);
