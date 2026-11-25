@@ -150,6 +150,13 @@ export class ScanJobQueue extends EventEmitter {
     return next;
   }
 
+  #markStorageFault() {
+    this.storageFault = true;
+    for (const controller of this.controllers.values()) {
+      if (!controller.signal.aborted) controller.abort(new Error('Job storage is unhealthy; scan outcome is UNKNOWN.'));
+    }
+  }
+
   #notify(job) {
     this.emit('job', { ...job });
     for (const resolve of this.waiters.get(job.id) || []) resolve();
@@ -197,10 +204,8 @@ export class ScanJobQueue extends EventEmitter {
     try {
       await this.#persist();
     } catch (error) {
-      job.status = 'failed';
-      job.error = 'Job submission could not be durably recorded; no scan was started.';
-      job.finishedAt = this.now();
-      this.storageFault = true;
+      this.jobs.delete(job.id);
+      this.#markStorageFault();
       throw new Error('Foxy could not persist the scan job; the queue has been placed in fail-closed mode.');
     }
     this.#notify(job);
@@ -230,7 +235,7 @@ export class ScanJobQueue extends EventEmitter {
     try {
       try { await this.#persist(); }
       catch {
-        this.storageFault = true;
+        this.#markStorageFault();
         throw Object.assign(new Error('Job state could not be durably persisted; scan outcome is UNKNOWN.'), { code: 'FOXY_STATE_PERSISTENCE' });
       }
       this.#notify(job);
@@ -242,8 +247,7 @@ export class ScanJobQueue extends EventEmitter {
             job.progress = progress;
             job.updatedAt = this.now();
             this.#persist().then(() => this.#notify(job)).catch(() => {
-              this.storageFault = true;
-              controller.abort(new Error('Job state persistence failed; scan outcome is UNKNOWN.'));
+              this.#markStorageFault();
             });
           }
         },
@@ -274,7 +278,7 @@ export class ScanJobQueue extends EventEmitter {
       if (TERMINAL.has(job.status)) job.finishedAt = this.now();
       try { await this.#persist(); }
       catch {
-        this.storageFault = true;
+        this.#markStorageFault();
         job.status = 'failed';
         job.result = null;
         job.error = 'Job state persistence failed; scan outcome is UNKNOWN.';
