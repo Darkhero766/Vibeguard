@@ -148,8 +148,12 @@ export class ScanJobQueue extends EventEmitter {
       await unlink(temp).catch(() => {});
       throw error;
     }
-    // Publish retention only after the durable replacement succeeds.
-    this.jobs = new Map(records.map((job) => [job.id, job]));
+    // Prune only terminal history from the live map. Replacing the Map with
+    // this snapshot could erase jobs submitted while the write was in flight.
+    const retainedIds = new Set(records.map((job) => job.id));
+    for (const [id, job] of this.jobs) {
+      if (!retainedIds.has(id) && job.status !== 'queued' && job.status !== 'running') this.jobs.delete(id);
+    }
     };
     const next = (this.persisting || Promise.resolve()).then(write);
     this.persisting = next.catch(() => {});
