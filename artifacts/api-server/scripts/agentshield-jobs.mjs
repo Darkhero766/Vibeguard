@@ -228,6 +228,9 @@ export class ScanJobQueue extends EventEmitter {
       this.#markStorageFault();
       throw new Error('Foxy could not persist the scan job; the queue has been placed in fail-closed mode.');
     }
+    if (this.storageFault || this.jobs.get(job.id) !== job || job.status !== 'queued') {
+      throw new Error('Foxy queue entered fail-closed mode before accepting the scan; reconnect after storage is healthy.');
+    }
     this.#notify(job);
     this.#pump();
     return { job_id: job.id, status: job.status, deduplicated: false };
