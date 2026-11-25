@@ -152,6 +152,15 @@ export class ScanJobQueue extends EventEmitter {
 
   #markStorageFault() {
     this.storageFault = true;
+    for (const job of this.jobs.values()) {
+      if (job.status === 'queued') {
+        job.status = 'failed';
+        job.result = null;
+        job.error = 'Queue storage failed; this scan was not started.';
+        job.finishedAt = this.now();
+        job.updatedAt = this.now();
+      }
+    }
     for (const controller of this.controllers.values()) {
       if (!controller.signal.aborted) controller.abort(new Error('Job storage is unhealthy; scan outcome is UNKNOWN.'));
     }
@@ -214,7 +223,7 @@ export class ScanJobQueue extends EventEmitter {
   }
 
   #pump() {
-    if (!this.initialized || this.closing) return;
+    if (!this.initialized || this.closing || this.storageFault) return;
     while (this.active < this.concurrency) {
       const job = [...this.jobs.values()].filter((item) => item.status === 'queued')
         .sort((a, b) => b.priority - a.priority || a.sequence - b.sequence)[0];
