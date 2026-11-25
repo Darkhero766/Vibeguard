@@ -2,6 +2,8 @@
 // Official MCP client SDK against the real Foxy stdio process and a disposable Git repo.
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { writeFileSync } from 'node:fs';
+import { scanFull } from './agentshield-mcp-server.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -82,9 +84,26 @@ try {
   assert.ok(results.findings.some((finding) => finding.ruleId === 'eval_usage'));
   assert.equal(results.summary.filesScanned, 12);
 
+  // A full scan must fail UNKNOWN if an in-scope file changes after analysis.
+  const previousRoots = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+  process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([root]);
+  try {
+    await assert.rejects(scanFull({ workspace: repo }, {
+      progress: (value) => {
+        if (value === 90) writeFileSync(path.join(repo, 'src', 'fixture-0.js'),
+          'export function render(value) { return String(value); }');
+      },
+    }), /Workspace changed during the full scan/);
+  } finally {
+    if (previousRoots === undefined) delete process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+    else process.env.VIBESANE_ALLOWED_ROOTS_JSON = previousRoots;
+    await writeFile(path.join(repo, 'src', 'fixture-0.js'),
+      'export function render(value) { return eval(value); }');
+  }
+
   // Exercise the changed-file job path and carry its baseline into remediation verification.
   const changedPath = path.join(repo, 'src', 'fixture-1.js');
-  await writeFile(changedPath, 'export function render(value) { return eval(value); }\\n');
+  await writeFile(changedPath, 'export function render(value) { return eval(value); }');
   const changedStart = await client.callTool({ name: 'scan_start', arguments: {
     workspace: repo, scope: 'changed', idempotency_key: 'smoke-changed-1',
   } });
@@ -105,7 +124,7 @@ try {
   assert.ok(changedResults.baseline_expires_in_ms > 0);
   assert.ok(changedResults.findings.some((finding) => finding.ruleId === 'eval_usage'));
 
-  await writeFile(changedPath, 'export function render(value) { return String(value); }\\n');
+  await writeFile(changedPath, 'export function render(value) { return String(value); }');
   const verifyResponse = await client.callTool({ name: 'verify_remediation', arguments: {
     workspace: repo, baseline_id: changedResults.scan_id,
   } });
