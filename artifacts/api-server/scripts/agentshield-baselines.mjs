@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 
 export class BaselineStore {
   constructor({
@@ -47,20 +48,36 @@ export class BaselineStore {
       throw new TypeError('A baseline record is required.');
     }
     const { scanId, workspace, fingerprint, result, createdAt, expiresAt } = record;
+    const now = this.now();
+    const safePath = (value) => typeof value === 'string' && value.length > 0 && value.length <= 400
+      && !path.isAbsolute(value) && !/^[A-Za-z]:/.test(value)
+      && !/[\\x00-\\x1f\\x7f]/.test(value)
+      && !value.replaceAll('\\\\', '/').split('/').includes('..');
     if (typeof scanId !== 'string' || scanId.length < 16 || scanId.length > 80
-      || typeof workspace !== 'string' || !workspace || workspace.length > 4096
+      || typeof workspace !== 'string' || !path.isAbsolute(workspace) || workspace.length > 4096
       || typeof fingerprint !== 'string' || !/^[a-f0-9]{64}$/i.test(fingerprint)
       || !Number.isSafeInteger(createdAt) || !Number.isSafeInteger(expiresAt)
+      || createdAt > now || expiresAt <= now
       || expiresAt <= createdAt || expiresAt - createdAt > this.ttlMs
       || !result || typeof result !== 'object' || Array.isArray(result)
       || result.status !== 'complete' || !Array.isArray(result.findings)
       || result.findings.length > 50 || result.findingsTruncated === true
-      || !Array.isArray(result.scannedPaths) || !Number.isSafeInteger(result.filesScanned)
+      || !Array.isArray(result.scannedPaths) || !result.scannedPaths.length
+      || result.scannedPaths.some((item) => !safePath(item))
+      || new Set(result.scannedPaths).size !== result.scannedPaths.length
+      || !Number.isSafeInteger(result.filesScanned)
       || result.filesScanned !== result.scannedPaths.length
-      || !Number.isSafeInteger(result.totalFindings) || result.totalFindings < result.findings.length) {
+      || !Number.isSafeInteger(result.totalFindings) || result.totalFindings < result.findings.length
+      || result.findings.some((finding) => !finding || typeof finding !== 'object' || Array.isArray(finding)
+        || !safePath(finding.filePath) || !result.scannedPaths.includes(finding.filePath)
+        || typeof finding.ruleId !== 'string' || finding.ruleId.length > 100
+        || !['Critical', 'High', 'Medium', 'Low', 'Unknown'].includes(finding.severity)
+        || !['high', 'medium', 'low', 'unrated'].includes(finding.confidence)
+        || !Number.isSafeInteger(finding.line) && finding.line !== null
+        || typeof finding.title !== 'string' || finding.title.length > 180
+        || typeof finding.recommendation !== 'string' || finding.recommendation.length > 300)) {
       throw new TypeError('Persisted baseline record is invalid.');
     }
-    if (expiresAt <= this.now()) return false;
     this.prune();
     if (this.records.has(scanId)) return false;
     this.records.set(scanId, { scanId, workspace, fingerprint, result, createdAt, expiresAt });

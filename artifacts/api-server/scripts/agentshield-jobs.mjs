@@ -23,7 +23,16 @@ function validBaselineContext(context, job, now) {
     && context.expiresAt - context.createdAt <= BASELINE_TTL_MS
     && job.result?.status === 'complete'
     && Array.isArray(job.result.findings) && job.result.findings.length <= 50
-    && job.result.findingsTruncated !== true);
+    && job.result.findingsTruncated !== true
+    && Array.isArray(job.result.scannedPaths) && job.result.scannedPaths.length > 0
+    && Number.isSafeInteger(job.result.filesScanned)
+    && job.result.filesScanned === job.result.scannedPaths.length
+    && Number.isSafeInteger(job.result.totalFindings)
+    && job.result.totalFindings >= job.result.findings.length
+    && job.result.findings.every((finding) => finding && typeof finding === 'object'
+      && typeof finding.filePath === 'string' && job.result.scannedPaths.includes(finding.filePath)
+      && typeof finding.ruleId === 'string' && typeof finding.title === 'string'
+      && typeof finding.recommendation === 'string'));
 }
 
 export class ScanJobQueue extends EventEmitter {
