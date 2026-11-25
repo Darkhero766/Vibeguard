@@ -14,7 +14,7 @@ test('queue coalesces duplicate jobs, enforces backpressure, and paginates findi
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
   const queue = new ScanJobQueue({ storeDir, concurrency: 1, maxQueued: 1,
-    runner: async () => { await gate; return { ...complete(Array.from({ length: 123 }, (_, i) => ({ id: i }))), scanId: 'scan-baseline-123', baselineExpiresInMs: 60000 }; } });
+    runner: async () => { await gate; return complete(Array.from({ length: 123 }, (_, i) => ({ id: i }))); } });
   try {
     const first = await queue.submit({ workspace: '/tmp/repo-one' });
     for (let i = 0; i < 40 && queue.getStatus(first.job_id)?.status !== 'running'; i++) await tick();
@@ -37,8 +37,9 @@ test('queue coalesces duplicate jobs, enforces backpressure, and paginates findi
     assert.equal(queue.getStatus(first.job_id).status, 'completed');
     assert.deepEqual(queue.getResults(first.job_id, { offset: 1, limit: 1 }).findings, [{ id: 1 }]);
     assert.equal(queue.getResults(first.job_id, { offset: 0, limit: 1 }).next_offset, 1);
-    assert.equal(queue.getResults(first.job_id).scan_id, 'scan-baseline-123');
-    assert.equal(queue.getResults(first.job_id).baseline_expires_in_ms, 60000);
+    assert.equal(queue.getResults(first.job_id).scan_id, null,
+      'oversized finding sets must not create remediation baselines');
+    assert.equal(queue.getResults(first.job_id).baseline_expires_in_ms, null);
     const lastPage = queue.getResults(first.job_id, { offset: 100, limit: 50 });
     assert.equal(lastPage.findings.length, 23);
     assert.equal(lastPage.next_offset, null);
@@ -131,7 +132,7 @@ test('configured concurrency is enforced while independent jobs run in parallel'
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-concurrency-'));
   let running = 0;
   let peak = 0;
-  const queue = new ScanJobQueue({ storeDir, concurrency: 2, maxQueued: 3,
+  const queue = new ScanJobQueue({ storeDir, concurrency: 2, maxQueued: 12,
     runner: async () => { running++; peak = Math.max(peak, running); await tick(); await tick(); running--; return complete(); } });
   try {
     const ids = [];
