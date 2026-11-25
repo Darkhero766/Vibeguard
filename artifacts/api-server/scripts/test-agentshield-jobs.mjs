@@ -334,3 +334,36 @@ test('queued cancellation persistence failure fails closed instead of pretending
     await rm(storeDir, { recursive: true, force: true });
   }
 });
+
+
+test('expired or malformed persisted baseline contexts never return usable scan IDs', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-expired-baseline-'));
+  const fixedNow = 50_000;
+  const context = {
+    scanId: 'baseline-expired-0001',
+    workspace: '/tmp/foxy-expired-baseline',
+    fingerprint: 'd'.repeat(64),
+    createdAt: 1000,
+    expiresAt: 2000,
+  };
+  const queue = new ScanJobQueue({
+    storeDir,
+    now: () => fixedNow,
+    runner: async () => ({
+      ...complete(),
+      scanId: context.scanId,
+      baselineContext: context,
+      baselineExpiresInMs: 0,
+    }),
+  });
+  try {
+    const { job_id: id } = await queue.submit({ workspace: context.workspace, scope: 'changed' });
+    for (let i = 0; i < 80 && queue.getStatus(id)?.status !== 'completed'; i++) await tick();
+    assert.equal(queue.getStatus(id).status, 'completed');
+    const results = queue.getResults(id);
+    assert.equal(results.scan_id, null);
+    assert.equal(results.baseline_expires_in_ms, 0);
+    assert.equal(results.baseline_expired, true);
+    assert.equal(queue.getRestorableBaselines().length, 0);
+  } finally { await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
+});
