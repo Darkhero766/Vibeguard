@@ -82,6 +82,37 @@ try {
   assert.ok(results.findings.some((finding) => finding.ruleId === 'eval_usage'));
   assert.equal(results.summary.filesScanned, 12);
 
+  // Exercise the changed-file job path and carry its baseline into remediation verification.
+  const changedPath = path.join(repo, 'src', 'fixture-1.js');
+  await writeFile(changedPath, 'export function render(value) { return eval(value); }\\n');
+  const changedStart = await client.callTool({ name: 'scan_start', arguments: {
+    workspace: repo, scope: 'changed', idempotency_key: 'smoke-changed-1',
+  } });
+  const changedJob = JSON.parse(changedStart.content[0].text);
+  assert.match(changedJob.job_id, /^[a-f0-9-]{36}$/);
+  let changedStatus;
+  for (let i = 0; i < 40; i++) {
+    const response = await client.callTool({ name: 'scan_wait', arguments: { job_id: changedJob.job_id, wait_ms: 500 } });
+    changedStatus = JSON.parse(response.content[0].text);
+    if (['completed', 'failed', 'interrupted', 'cancelled'].includes(changedStatus.status)) break;
+  }
+  assert.equal(changedStatus.status, 'completed', JSON.stringify(changedStatus));
+  const changedPage = await client.callTool({ name: 'scan_results', arguments: {
+    job_id: changedJob.job_id, offset: 0, limit: 10,
+  } });
+  const changedResults = JSON.parse(changedPage.content[0].text);
+  assert.ok(changedResults.scan_id, 'changed scan must return its remediation baseline ID');
+  assert.ok(changedResults.baseline_expires_in_ms > 0);
+  assert.ok(changedResults.findings.some((finding) => finding.ruleId === 'eval_usage'));
+
+  await writeFile(changedPath, 'export function render(value) { return String(value); }\\n');
+  const verifyResponse = await client.callTool({ name: 'verify_remediation', arguments: {
+    workspace: repo, baseline_id: changedResults.scan_id,
+  } });
+  const verification = JSON.parse(verifyResponse.content[0].text);
+  assert.equal(verification.status, 'rescan_clean', JSON.stringify(verification));
+  assert.ok(verification.currentScanId);
+
   const version = client.getNegotiatedProtocolVersion?.() || 'SDK negotiated';
   assert.equal(version, '2026-07-28');
   process.stdout.write(JSON.stringify({ status: 'passed', protocol: version, tools: names.length,
