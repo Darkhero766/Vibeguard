@@ -14,11 +14,15 @@ test('queue coalesces duplicate jobs, enforces backpressure, and paginates findi
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
   const queue = new ScanJobQueue({ storeDir, concurrency: 1, maxQueued: 1,
-    runner: async () => { await gate; return complete(Array.from({ length: 123 }, (_, i) => ({ id: i }))); } });
+    runner: async () => { await gate; return { ...complete(Array.from({ length: 123 }, (_, i) => ({ id: i }))), scanId: 'scan-baseline-123', baselineExpiresInMs: 60000 }; } });
   try {
     const first = await queue.submit({ workspace: '/tmp/repo-one' });
     for (let i = 0; i < 40 && queue.getStatus(first.job_id)?.status !== 'running'; i++) await tick();
     assert.equal(queue.getStatus(first.job_id).status, 'running');
+    const publicStatus = queue.getStatus(first.job_id);
+    assert.equal(Object.hasOwn(publicStatus, 'workspace'), false);
+    assert.equal(Object.hasOwn(publicStatus, 'fingerprint'), false);
+    assert.equal(Object.hasOwn(publicStatus, 'idempotencyKey'), false);
     const waiting = queue.wait(first.job_id, 10_000);
     const duplicate = await queue.submit({ workspace: '/tmp/repo-one' });
     assert.equal(duplicate.job_id, first.job_id);
@@ -33,6 +37,8 @@ test('queue coalesces duplicate jobs, enforces backpressure, and paginates findi
     assert.equal(queue.getStatus(first.job_id).status, 'completed');
     assert.deepEqual(queue.getResults(first.job_id, { offset: 1, limit: 1 }).findings, [{ id: 1 }]);
     assert.equal(queue.getResults(first.job_id, { offset: 0, limit: 1 }).next_offset, 1);
+    assert.equal(queue.getResults(first.job_id).scan_id, 'scan-baseline-123');
+    assert.equal(queue.getResults(first.job_id).baseline_expires_in_ms, 60000);
     const lastPage = queue.getResults(first.job_id, { offset: 100, limit: 50 });
     assert.equal(lastPage.findings.length, 23);
     assert.equal(lastPage.next_offset, null);
@@ -204,4 +210,57 @@ test('persistence retention never evicts an active job', async () => {
       .jobs.some((job) => job.id === activeId && job.status === 'running'));
     release();
   } finally { release(); await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
+});
+
+
+test('wait timeout removes its waiter instead of retaining stale callbacks', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-wait-timeout-'));
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const queue = new ScanJobQueue({ storeDir, runner: async () => { await gate; return complete(); } });
+  try {
+    const { job_id: id } = await queue.submit({ workspace: '/tmp/foxy-wait-timeout' });
+    for (let i = 0; i < 40 && queue.getStatus(id)?.status !== 'running'; i++) await tick();
+    const status = await queue.wait(id, 25);
+    assert.equal(status.status, 'running');
+    assert.equal(queue.waiters.has(id), false);
+  } finally {
+    release();
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
+test('failed durable submission rolls back the unaccepted job and fails closed', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-persist-failure-'));
+  const statePath = path.join(storeDir, 'jobs.json');
+  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  try {
+    await queue.init();
+    await rm(statePath, { force: true });
+    await mkdir(statePath);
+    await assert.rejects(queue.submit({ workspace: '/tmp/foxy-persist-failure' }), /could not persist the scan job/i);
+    assert.equal(queue.jobs.size, 0);
+    assert.equal(queue.active, 0);
+    assert.equal(queue.storageFault, true);
+    await assert.rejects(queue.submit({ workspace: '/tmp/foxy-next-submit' }), /storage is unhealthy/i);
+  } finally {
+    await rm(statePath, { recursive: true, force: true });
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
+test('concurrent close calls share one shutdown and release the process lock', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-close-once-'));
+  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  await queue.init();
+  try {
+    await Promise.all([queue.close(), queue.close(), queue.close()]);
+    assert.equal(queue.initialized, false);
+    assert.equal(queue.closingPromise, null);
+  } finally {
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
 });

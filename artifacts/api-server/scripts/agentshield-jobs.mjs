@@ -34,6 +34,7 @@ export class ScanJobQueue extends EventEmitter {
     this.active = 0;
     this.initialized = false;
     this.storageFault = false;
+    this.closingPromise = null;
   }
 
   async init() {
@@ -137,11 +138,16 @@ export class ScanJobQueue extends EventEmitter {
     }
     if (Buffer.byteLength(data) > MAX_STATE_BYTES) throw new Error('Active job state exceeds its storage budget.');
     const temp = `${this.statePath}.${process.pid}.${randomUUID()}.tmp`;
-    const handle = await open(temp, 'wx', 0o600);
-    try { await handle.writeFile(data); await handle.sync(); } finally { await handle.close(); }
-    await rename(temp, this.statePath);
-    const directory = await open(this.storeDir, constants.O_RDONLY);
-    try { await directory.sync(); } finally { await directory.close(); }
+    try {
+      const handle = await open(temp, 'wx', 0o600);
+      try { await handle.writeFile(data); await handle.sync(); } finally { await handle.close(); }
+      await rename(temp, this.statePath);
+      const directory = await open(this.storeDir, constants.O_RDONLY);
+      try { await directory.sync(); } finally { await directory.close(); }
+    } catch (error) {
+      await unlink(temp).catch(() => {});
+      throw error;
+    }
     // Publish retention only after the durable replacement succeeds.
     this.jobs = new Map(records.map((job) => [job.id, job]));
     };
@@ -159,6 +165,7 @@ export class ScanJobQueue extends EventEmitter {
         job.error = 'Queue storage failed; this scan was not started.';
         job.finishedAt = this.now();
         job.updatedAt = this.now();
+        this.#notify(job);
       }
     }
     for (const controller of this.controllers.values()) {
@@ -368,15 +375,27 @@ export class ScanJobQueue extends EventEmitter {
   }
 
   async close() {
+    if (this.closingPromise) return this.closingPromise;
     if (!this.initialized) return;
-    this.closing = true;
-    for (const controller of this.controllers.values()) controller.abort(new Error('Server shutting down.'));
-    await Promise.allSettled([...this.tasks]);
-    for (const job of this.jobs.values()) if (job.status === 'queued') { job.status = 'interrupted'; job.error = 'Server stopped before this scan started.'; }
-    for (const job of this.jobs.values()) if (job.status === 'running') { job.status = 'interrupted'; job.error = 'Server stopped before this scan completed.'; }
-    await this.#persist();
-    await this.#releaseLock();
-    this.initialized = false;
-    this.closing = false;
+    this.closingPromise = (async () => {
+      this.closing = true;
+      for (const controller of this.controllers.values()) controller.abort(new Error('Server shutting down.'));
+      await Promise.allSettled([...this.tasks]);
+      for (const job of this.jobs.values()) if (job.status === 'queued') {
+        job.status = 'interrupted'; job.error = 'Server stopped before this scan started.';
+      }
+      for (const job of this.jobs.values()) if (job.status === 'running') {
+        job.status = 'interrupted'; job.error = 'Server stopped before this scan completed.';
+      }
+      try { await this.#persist(); }
+      catch { this.#markStorageFault(); }
+      finally {
+        await this.#releaseLock();
+        this.initialized = false;
+        this.closing = false;
+      }
+    })();
+    try { await this.closingPromise; }
+    finally { this.closingPromise = null; }
   }
 }
