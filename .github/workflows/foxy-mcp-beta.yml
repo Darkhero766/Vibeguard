@@ -64,6 +64,9 @@ jobs:
       - name: MCP protocol, queue and real STDIO client smoke
         run: pnpm --filter @workspace/api-server run validate:agentshield:mcp
 
+      - name: Build web static assets required by SEO regression suite
+        run: pnpm --filter @workspace/vibeguard run build
+
       - name: Complete AgentShield release qualification
         run: pnpm --filter @workspace/api-server run test:agentshield:release-qualification
 
