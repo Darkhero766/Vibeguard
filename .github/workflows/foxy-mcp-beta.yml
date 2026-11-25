@@ -1,10 +1,8 @@
 name: Foxy MCP Beta Qualification
 
 on:
-  push:
-    branches:
-      - feat/agentshield-beta-coding-agent-install
   pull_request:
+    types: [opened, synchronize, reopened]
     branches:
       - feat/codex-mcp-validation-handoff
   workflow_dispatch:
@@ -53,6 +51,14 @@ jobs:
 
       - name: Backend strict typecheck
         run: pnpm --filter @workspace/api-server run typecheck
+
+      - name: Validate Foxy MCP runtime module syntax
+        run: |
+          node --check artifacts/api-server/scripts/agentshield-jobs.mjs
+          node --check artifacts/api-server/scripts/agentshield-baselines.mjs
+          node --check artifacts/api-server/scripts/agentshield-mcp-server.mjs
+          node --check artifacts/api-server/scripts/agentshield-mcp-sdk.mjs
+          node --check artifacts/api-server/scripts/agentshield-mcp-stdio.mjs
 
       - name: MCP protocol, queue and real STDIO client smoke
         run: pnpm --filter @workspace/api-server run validate:agentshield:mcp
