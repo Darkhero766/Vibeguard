@@ -129,7 +129,15 @@ try {
   }
   await exec('git', ['-C', repo, 'add', '.']);
   await exec('git', ['-C', repo, 'commit', '-qm', 'synthetic full-scan overflow fixtures']);
-  const boundedFull = await scanFull({ workspace: repo });
+  const overflowPreviousRoots = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+  process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([root]);
+  let boundedFull;
+  try {
+    boundedFull = await scanFull({ workspace: repo });
+  } finally {
+    if (overflowPreviousRoots === undefined) delete process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+    else process.env.VIBESANE_ALLOWED_ROOTS_JSON = overflowPreviousRoots;
+  }
   assert.equal(boundedFull.status, 'partial_coverage');
   assert.equal(boundedFull.scannedSourceFileCount, 100);
   assert.equal(boundedFull.supportedSourceFileCount, 102);
