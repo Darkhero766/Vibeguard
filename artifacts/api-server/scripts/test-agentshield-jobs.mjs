@@ -382,3 +382,42 @@ test('expired or malformed persisted baseline contexts never return usable scan 
     assert.equal(queue.getRestorableBaselines().length, 0);
   } finally { await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
 });
+
+
+test('queue does not expose baseline IDs when persisted finding metadata is malformed', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-baseline-invalid-findings-'));
+  const createdAt = Date.now();
+  const context = {
+    scanId: 'baseline-invalid-findings-01',
+    workspace: '/tmp/foxy-invalid-findings',
+    fingerprint: 'f'.repeat(64),
+    createdAt,
+    expiresAt: createdAt + 60_000,
+  };
+  const queue = new ScanJobQueue({
+    storeDir,
+    runner: async () => ({
+      status: 'complete',
+      filesScanned: 1,
+      scannedPaths: ['src/app.js'],
+      findings: [{
+        filePath: '../outside.js', ruleId: 'unsafe_rule', severity: 'High',
+        confidence: 'high', line: 1, title: 'Invalid path', recommendation: 'Fix',
+      }],
+      totalFindings: 1,
+      coverage: 'synthetic complete fixture',
+      findingsTruncated: false,
+      scanId: context.scanId,
+      baselineContext: context,
+    }),
+  });
+  try {
+    const { job_id: id } = await queue.submit({ workspace: context.workspace, scope: 'changed' });
+    for (let i = 0; i < 80 && queue.getStatus(id)?.status !== 'completed'; i++) await tick();
+    assert.equal(queue.getStatus(id).status, 'completed');
+    const result = queue.getResults(id);
+    assert.equal(result.scan_id, null);
+    assert.equal(result.baseline_expired, true);
+    assert.equal(queue.getRestorableBaselines().length, 0);
+  } finally { await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
+});

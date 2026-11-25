@@ -12,27 +12,41 @@ const MAX_STATE_BYTES = 8_000_000;
 const MAX_RECORDS = 200;
 const BASELINE_TTL_MS = 30 * 60 * 1000;
 const bounded = (value, max = 300) => String(value ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, max);
+function safeBaselinePath(value) {
+  if (typeof value !== 'string' || !value || value.length > 400
+    || path.isAbsolute(value) || /^[A-Za-z]:/.test(value)
+    || /[\\x00-\\x1f\\x7f]/.test(value)) return false;
+  const normalized = value.replaceAll('\\\\', '/');
+  return !normalized.split('/').includes('..') && !normalized.startsWith('/');
+}
 function validBaselineContext(context, job, now) {
+  const result = job?.result;
   return Boolean(context && job && typeof context.scanId === 'string'
     && context.scanId.length >= 16 && context.scanId.length <= 80
-    && context.scanId === job.result?.scanId
+    && context.scanId === result?.scanId
     && context.workspace === job.workspace
     && typeof context.fingerprint === 'string' && /^[a-f0-9]{64}$/i.test(context.fingerprint)
     && Number.isSafeInteger(context.createdAt) && Number.isSafeInteger(context.expiresAt)
-    && context.expiresAt > now && context.expiresAt > context.createdAt
+    && context.createdAt <= now && context.expiresAt > now && context.expiresAt > context.createdAt
     && context.expiresAt - context.createdAt <= BASELINE_TTL_MS
-    && job.result?.status === 'complete'
-    && Array.isArray(job.result.findings) && job.result.findings.length <= 50
-    && job.result.findingsTruncated !== true
-    && Array.isArray(job.result.scannedPaths) && job.result.scannedPaths.length > 0
-    && Number.isSafeInteger(job.result.filesScanned)
-    && job.result.filesScanned === job.result.scannedPaths.length
-    && Number.isSafeInteger(job.result.totalFindings)
-    && job.result.totalFindings >= job.result.findings.length
-    && job.result.findings.every((finding) => finding && typeof finding === 'object'
-      && typeof finding.filePath === 'string' && job.result.scannedPaths.includes(finding.filePath)
-      && typeof finding.ruleId === 'string' && typeof finding.title === 'string'
-      && typeof finding.recommendation === 'string'));
+    && result?.status === 'complete'
+    && Array.isArray(result.findings) && result.findings.length <= 50
+    && result.findingsTruncated !== true
+    && Array.isArray(result.scannedPaths) && result.scannedPaths.length > 0
+    && result.scannedPaths.every(safeBaselinePath)
+    && new Set(result.scannedPaths).size === result.scannedPaths.length
+    && Number.isSafeInteger(result.filesScanned)
+    && result.filesScanned === result.scannedPaths.length
+    && Number.isSafeInteger(result.totalFindings)
+    && result.totalFindings >= result.findings.length
+    && result.findings.every((finding) => finding && typeof finding === 'object' && !Array.isArray(finding)
+      && safeBaselinePath(finding.filePath) && result.scannedPaths.includes(finding.filePath)
+      && typeof finding.ruleId === 'string' && finding.ruleId.length <= 100
+      && ['Critical', 'High', 'Medium', 'Low', 'Unknown'].includes(finding.severity)
+      && ['high', 'medium', 'low', 'unrated'].includes(finding.confidence)
+      && (Number.isSafeInteger(finding.line) && finding.line > 0 || finding.line === null)
+      && typeof finding.title === 'string' && finding.title.length <= 180
+      && typeof finding.recommendation === 'string' && finding.recommendation.length <= 300));
 }
 
 export class ScanJobQueue extends EventEmitter {
