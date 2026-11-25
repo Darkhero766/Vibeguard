@@ -30,31 +30,8 @@ const env = { ...process.env,
 let client;
 let transport;
 let stderr = '';
-try {
-  await exec('git', ['init', '-q', repo]);
-  await exec('git', ['-C', repo, 'config', 'user.name', 'Foxy Smoke']);
-  await exec('git', ['-C', repo, 'config', 'user.email', 'foxy-smoke@example.invalid']);
-  for (let i = 0; i < 12; i++) {
-    await writeFile(path.join(repo, 'src', `fixture-${i}.js`), i === 0
-      ? 'export function render(value) { return eval(value); }\n'
-      : `export const fixture${i} = ${i};\n`);
-  }
-  await exec('git', ['-C', repo, 'add', '.']);
-  await exec('git', ['-C', repo, 'commit', '-qm', 'synthetic scanner fixture']);
-  await exec('git', ['init', '-q', cancelRepo]);
-  await exec('git', ['-C', cancelRepo, 'config', 'user.name', 'Foxy Smoke']);
-  await exec('git', ['-C', cancelRepo, 'config', 'user.email', 'foxy-smoke@example.invalid']);
-  await writeFile(path.join(cancelRepo, 'src', 'cancel.js'), 'export const cancelFixture = true;\n');
-  await exec('git', ['-C', cancelRepo, 'add', '.']);
-  await exec('git', ['-C', cancelRepo, 'commit', '-qm', 'synthetic cancellation fixture']);
-
-  transport = new StdioClientTransport({ command: process.execPath,
-    args: [path.join(scripts, 'agentshield-mcp-stdio.mjs')], cwd: api, env, stderr: 'pipe' });
-  transport.stderr?.on('data', (chunk) => { stderr += String(chunk); });
-  client = new Client({ name: 'foxy-qualification-client', version: '1.0.0' }, {
-    versionNegotiation: { mode: { pin: '2026-07-28' }, probe: { timeoutMs: 3000 } },
-  });
-  await client.connect(transport, { timeout: 15_000 });
+async function connectFoxy() {
+  await connectFoxy();
   const tools = await client.listTools();
   const names = tools.tools.map((tool) => tool.name);
   for (const name of ['scan_changed', 'scan_start', 'scan_status', 'scan_wait', 'scan_results', 'scan_cancel']) {
@@ -124,9 +101,24 @@ try {
   assert.ok(changedResults.baseline_expires_in_ms > 0);
   assert.ok(changedResults.findings.some((finding) => finding.ruleId === 'eval_usage'));
 
+  assert.equal(Object.hasOwn(changedResults, 'baselineContext'), false,
+    'internal baseline storage metadata must never be exposed to MCP callers');
   await writeFile(changedPath, 'export function render(value) { return String(value); }');
+
+  // Restart the real STDIO server. The completed job and its baseline must be
+  // recovered from the protected local state store before remediation is verified.
+  await restartFoxy();
+  const recoveredStatus = await client.callTool({ name: 'scan_status', arguments: { job_id: changedJob.job_id } });
+  assert.equal(JSON.parse(recoveredStatus.content[0].text).status, 'completed');
+  const recoveredPage = await client.callTool({ name: 'scan_results', arguments: {
+    job_id: changedJob.job_id, offset: 0, limit: 10,
+  } });
+  const recoveredResults = JSON.parse(recoveredPage.content[0].text);
+  assert.equal(recoveredResults.scan_id, changedResults.scan_id);
+  assert.ok(recoveredResults.baseline_expires_in_ms > 0);
+
   const verifyResponse = await client.callTool({ name: 'verify_remediation', arguments: {
-    workspace: repo, baseline_id: changedResults.scan_id,
+    workspace: repo, baseline_id: recoveredResults.scan_id,
   } });
   const verification = JSON.parse(verifyResponse.content[0].text);
   assert.equal(verification.status, 'rescan_clean', JSON.stringify(verification));
