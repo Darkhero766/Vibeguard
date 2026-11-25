@@ -593,6 +593,9 @@ async function fullWorkspaceSnapshot(workspace, signal) {
       && normalized.split('/').some((part) => IGNORE_PARTS.has(part));
   });
   const unsupportedPaths = paths.filter((file) => !ignoredPath(file) && !supportedPath(file));
+  const expectedSet = new Set(expectedPaths);
+  const unscannedPaths = paths.filter((file) => !expectedSet.has(file));
+  const supportedPathCount = paths.filter(supportedPath).length;
   let totalBytes = 0;
   const observations = [];
   for (const relativePath of expectedPaths) {
@@ -634,6 +637,8 @@ async function fullWorkspaceSnapshot(workspace, signal) {
     head,
     paths,
     expectedPaths,
+    supportedPathCount,
+    unscannedPaths,
     ignoredPaths,
     unsupportedPaths,
     fingerprint: sha256(JSON.stringify([head, paths, observations])),
@@ -646,7 +651,8 @@ export async function scanFull({ workspace } = {}, { signal, progress = () => {}
   progress(10);
   if (!before.paths.length) {
     return { status: 'partial_coverage', scope: 'full', filesScanned: 0, scannedPaths: [], findings: [],
-      totalFindings: 0, securityGuarantee: false,
+      totalFindings: 0, scannedSourceFileCount: 0, supportedSourceFileCount: 0,
+      unscannedFileCount: 0, unscannedPaths: [], securityGuarantee: false,
       note: 'No Git-visible project files were available; no clean result is implied.' };
   }
   if (!before.expectedPaths.length) {
@@ -654,6 +660,10 @@ export async function scanFull({ workspace } = {}, { signal, progress = () => {}
       totalFindings: 0, securityGuarantee: false,
       unsupportedChangedFileCount: before.unsupportedPaths.length,
       ignoredChangedFileCount: before.ignoredPaths.length,
+      scannedSourceFileCount: 0,
+      supportedSourceFileCount: before.supportedPathCount,
+      unscannedFileCount: before.unscannedPaths.length,
+      unscannedPaths: before.unscannedPaths.slice(0, 30).map((file) => bounded(file, 300)),
       note: 'No supported source files were available; no clean result is implied.' };
   }
   const ready = await statusTool();
@@ -677,7 +687,7 @@ export async function scanFull({ workspace } = {}, { signal, progress = () => {}
     throw new Error('Workspace changed during the full scan; results are UNKNOWN and must be resubmitted.');
   }
   progress(98);
-  const incomplete = before.paths.length > MAX_FILES
+  const incomplete = before.unscannedPaths.length > 0
     || before.ignoredPaths.length > 0
     || before.unsupportedPaths.length > 0
     || normalized.status !== 'complete';
@@ -687,9 +697,13 @@ export async function scanFull({ workspace } = {}, { signal, progress = () => {}
     status: incomplete ? 'partial_coverage' : 'complete',
     unsupportedChangedFileCount: before.unsupportedPaths.length,
     ignoredChangedFileCount: before.ignoredPaths.length,
+    scannedSourceFileCount: normalized.filesScanned,
+    supportedSourceFileCount: before.supportedPathCount,
+    unscannedFileCount: before.unscannedPaths.length,
+    unscannedPaths: before.unscannedPaths.slice(0, 30).map((file) => bounded(file, 300)),
     unsupportedChangedFiles: before.unsupportedPaths.slice(0, 30).map((file) => bounded(file, 300)),
     ignoredChangedFiles: before.ignoredPaths.slice(0, 30).map((file) => bounded(file, 300)),
-    coverage: 'Bounded Git-visible full scan with before/after HEAD, path and source-content verification; unsupported files and static-analysis limits prevent a security guarantee.',
+    coverage: 'Bounded Git-visible full scan with before/after HEAD, path and source-content verification; explicit scanned and unscanned path counts; unsupported files and static-analysis limits prevent a security guarantee.',
     securityGuarantee: false,
   };
 }
