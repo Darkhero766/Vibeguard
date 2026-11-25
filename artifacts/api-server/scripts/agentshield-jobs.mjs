@@ -10,7 +10,21 @@ import { constants } from 'node:fs';
 const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const MAX_STATE_BYTES = 8_000_000;
 const MAX_RECORDS = 200;
+const BASELINE_TTL_MS = 30 * 60 * 1000;
 const bounded = (value, max = 300) => String(value ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, max);
+function validBaselineContext(context, job, now) {
+  return Boolean(context && job && typeof context.scanId === 'string'
+    && context.scanId.length >= 16 && context.scanId.length <= 80
+    && context.scanId === job.result?.scanId
+    && context.workspace === job.workspace
+    && typeof context.fingerprint === 'string' && /^[a-f0-9]{64}$/i.test(context.fingerprint)
+    && Number.isSafeInteger(context.createdAt) && Number.isSafeInteger(context.expiresAt)
+    && context.expiresAt > now && context.expiresAt > context.createdAt
+    && context.expiresAt - context.createdAt <= BASELINE_TTL_MS
+    && job.result?.status === 'complete'
+    && Array.isArray(job.result.findings) && job.result.findings.length <= 50
+    && job.result.findingsTruncated !== true);
+}
 
 export class ScanJobQueue extends EventEmitter {
   constructor({ storeDir, runner, concurrency = 2, maxQueued = 16, timeoutMs = 60_000, maxRetries = 1, now = Date.now } = {}) {
@@ -334,11 +348,10 @@ export class ScanJobQueue extends EventEmitter {
   }
 
   getRestorableBaselines() {
+    const now = this.now();
     return [...this.jobs.values()]
       .filter((job) => job.status === 'completed' && job.scope === 'changed'
-        && job.result?.baselineContext
-        && job.result.baselineContext.scanId === job.result.scanId
-        && job.result.baselineContext.workspace === job.workspace)
+        && validBaselineContext(job.result?.baselineContext, job, now))
       .sort((a, b) => a.createdAt - b.createdAt)
       .map((job) => {
         const { baselineContext, ...result } = job.result;
@@ -375,13 +388,9 @@ export class ScanJobQueue extends EventEmitter {
     if (job.status !== 'completed') return { job_id: id, status: job.status, findings: [], note: job.error || 'Results are not complete yet.' };
     const findings = job.result.findings || [];
     const context = job.result.baselineContext;
-    const baselineRemaining = Number.isSafeInteger(context?.expiresAt)
-      ? Math.max(0, context.expiresAt - Date.now()) : null;
-    const baselineAvailable = Boolean(context
-      && typeof context.scanId === 'string'
-      && context.scanId === job.result.scanId
-      && context.workspace === job.workspace
-      && baselineRemaining > 0);
+    const now = this.now();
+    const baselineAvailable = validBaselineContext(context, job, now);
+    const baselineRemaining = baselineAvailable ? context.expiresAt - now : context ? 0 : null;
     return { job_id: id, status: job.status, summary: { scanStatus: job.result.status, filesScanned: job.result.filesScanned,
       totalFindings: job.result.totalFindings ?? findings.length, coverage: job.result.coverage,
       findingsTruncated: job.result.findingsTruncated === true },
