@@ -280,7 +280,22 @@ test('completed changed-scan jobs expose recoverable baseline records after rest
   const queue = new ScanJobQueue({
     storeDir,
     runner: async () => ({
-      ...complete([{ id: 'finding-1' }]),
+      status: 'complete',
+      filesScanned: 1,
+      scannedPaths: ['src/app.js'],
+      findings: [{
+        filePath: 'src/app.js',
+        line: 1,
+        ruleId: 'synthetic_rule',
+        severity: 'Low',
+        confidence: 'high',
+        engine: 'synthetic_fixture',
+        title: 'Synthetic finding',
+        recommendation: 'Use a safe implementation.',
+      }],
+      totalFindings: 1,
+      coverage: 'synthetic complete fixture',
+      findingsTruncated: false,
       scanId: baselineContext.scanId,
       baselineExpiresInMs: 60_000,
       baselineContext,
