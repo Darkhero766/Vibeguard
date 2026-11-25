@@ -55,18 +55,23 @@ export function createFoxyServer(queue) {
         else {
           const timeout = args.wait_ms ?? 10_000;
           const token = context.mcpReq._meta?.progressToken;
-          let progress = 0;
-          const until = Date.now() + timeout;
-          do {
-            result = await queue.wait(args.job_id, Math.min(1000, Math.max(0, until - Date.now())));
-            if (!result || !token || result.status === 'completed' || result.status === 'failed'
-              || result.status === 'cancelled' || result.status === 'interrupted') break;
-            const next = Math.max(progress, Math.min(99, result.progress || 1));
-            if (next > progress) {
-              progress = next;
-              await context.mcpReq.notify({ method: 'notifications/progress', params: { progressToken: token, progress, total: 100 } }).catch(() => {});
-            }
-          } while (Date.now() < until);
+          if (!token) {
+            // Clients without progress notifications still receive the requested wait interval.
+            result = await queue.wait(args.job_id, timeout);
+          } else {
+            let progress = 0;
+            const until = Date.now() + timeout;
+            do {
+              result = await queue.wait(args.job_id, Math.min(1000, Math.max(0, until - Date.now())));
+              if (!result || result.status === 'completed' || result.status === 'failed'
+                || result.status === 'cancelled' || result.status === 'interrupted') break;
+              const next = Math.max(progress, Math.min(99, result.progress || 1));
+              if (next > progress) {
+                progress = next;
+                await context.mcpReq.notify({ method: 'notifications/progress', params: { progressToken: token, progress, total: 100 } }).catch(() => {});
+              }
+            } while (Date.now() < until);
+          }
         }
         if (result === null) return textResult({ status: 'not_found', note: 'Unknown scan job.' }, true);
         return textResult(result, result.status === 'failed' || result.status === 'interrupted');
