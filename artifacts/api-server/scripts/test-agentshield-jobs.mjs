@@ -135,12 +135,13 @@ test('configured concurrency is enforced while independent jobs run in parallel'
     runner: async () => { running++; peak = Math.max(peak, running); await tick(); await tick(); running--; return complete(); } });
   try {
     const ids = [];
-    for (const workspace of ['/tmp/parallel-a', '/tmp/parallel-b', '/tmp/parallel-c']) {
-      ids.push((await queue.submit({ workspace })).job_id);
+    for (let i = 0; i < 12; i++) {
+      ids.push((await queue.submit({ workspace: `/tmp/parallel-${i}` })).job_id);
     }
-    for (let i = 0; i < 100 && ids.some((id) => queue.getStatus(id)?.status !== 'completed'); i++) await tick();
+    for (let i = 0; i < 160 && ids.some((id) => queue.getStatus(id)?.status !== 'completed'); i++) await tick();
     assert.equal(peak, 2);
-    assert.ok(ids.every((id) => queue.getStatus(id)?.status === 'completed'));
+    assert.ok(ids.every((id) => queue.getStatus(id)?.status === 'completed'),
+      'concurrent persistence must not evict accepted jobs from the live queue');
   } finally { await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
 });
 
