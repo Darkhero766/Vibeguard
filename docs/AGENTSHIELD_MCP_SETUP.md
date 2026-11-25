@@ -125,17 +125,17 @@ All tools are annotated read-only. There is no shell, patch, commit, deploy, or 
 
 ### Asynchronous scan workflow
 
-Use `scan_changed` for fast feedback and to create a remediation baseline. For background changed-file work, call `scan_start` with `scope: "changed"`; after completion, `scan_results` returns `scan_id` and `baseline_expires_in_ms`. Use that `scan_id` as `baseline_id` when calling `verify_remediation` after edits. For a broader repository scan, call `scan_start` with `scope: "full"`, then use `scan_wait` or `scan_status` and fetch findings with `scan_results` in pages of up to 50. Full scans do not create a changed-file remediation baseline; run `scan_changed` after edits before verification. Jobs are bounded and persisted locally; work still active during a server restart is reported as `interrupted` and must be resubmitted. Completed, complete-coverage changed-scan baselines are rehydrated from the protected job store after restart and remain usable for the remainder of their original 30-minute TTL, subject to the 200-record retention limit. Full scans and partial-coverage scans do not create remediation baselines. A completed job can still have `scan_status: "partial_coverage"`; that is not a clean scan. `scan_cancel` cancels queued work or signals a running scan to stop between analysis stages.
+For an agent-managed workflow, prefer `scan_start` with `scope: "changed"`; after completion, `scan_results` returns `scan_id` and `baseline_expires_in_ms`. That completed changed-scan baseline is restored after an MCP server restart for the remainder of its original 30-minute TTL. Use the `scan_id` as `baseline_id` when calling `verify_remediation` after edits. `scan_changed` remains available for immediate synchronous feedback, but its in-memory baseline is not restored after a server restart. For a broader repository scan, call `scan_start` with `scope: "full"`, then use `scan_wait` or `scan_status` and fetch findings with `scan_results` in pages of up to 50. Full scans do not create a changed-file remediation baseline; run `scan_changed` after edits before verification. Jobs are bounded and persisted locally; work still active during a server restart is reported as `interrupted` and must be resubmitted. Completed, complete-coverage changed-scan baselines are rehydrated from the protected job store after restart and remain usable for the remainder of their original 30-minute TTL, subject to the 200-record retention limit. Full scans and partial-coverage scans do not create remediation baselines. A completed job can still have `scan_status: "partial_coverage"`; that is not a clean scan. `scan_cancel` cancels queued work or signals a running scan to stop between analysis stages.
 
 Typical MCP call sequence (replace the absolute workspace path and IDs with returned values):
 
 ```json
-{"name":"scan_changed","arguments":{"workspace":"/absolute/path/to/repo"}}
-{"name":"scan_start","arguments":{"workspace":"/absolute/path/to/repo","scope":"full","idempotency_key":"review-2026-11-25"}}
+{"name":"scan_start","arguments":{"workspace":"/absolute/path/to/repo","scope":"changed","idempotency_key":"review-2026-11-25"}}
 {"name":"scan_wait","arguments":{"job_id":"<job_id>","wait_ms":10000}}
 {"name":"scan_results","arguments":{"job_id":"<job_id>","offset":0,"limit":20}}
-{"name":"scan_cancel","arguments":{"job_id":"<job_id>"}}
-{"name":"verify_remediation","arguments":{"workspace":"/absolute/path/to/repo","baseline_id":"<scanId-from-scan_changed>"}}
+{"name":"verify_remediation","arguments":{"workspace":"/absolute/path/to/repo","baseline_id":"<scan_id-from-scan_results>"}}
+{"name":"scan_start","arguments":{"workspace":"/absolute/path/to/repo","scope":"full","idempotency_key":"full-review-2026-11-25"}}
+{"name":"scan_cancel","arguments":{"job_id":"<other-job-id>"}}
 ```
 
 `scan_wait` returns the current status after a state change or its timeout; repeat it while the status is `queued` or `running`. `scan_results` returns no findings until completion; advance using `next_offset`. A failed, cancelled, interrupted, truncated, or `partial_coverage` result is UNKNOWN and must not be described as a clean pass. Use `scan_changed`'s `scanId` as `verify_remediation.baseline_id`; queued job IDs are not remediation baselines.
