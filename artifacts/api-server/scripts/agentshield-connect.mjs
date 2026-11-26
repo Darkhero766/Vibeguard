@@ -135,7 +135,8 @@ async function projectRoot(cwd) {
   ], { timeout: 7000, maxBuffer: 4000, windowsHide: true });
   const root = await realpath(stdout.trim());
   const info = await stat(root);
-  if (!info.isDirectory() || root === path.parse(root).root || root === os.homedir()) {
+  const home = await realpath(os.homedir()).catch(() => path.resolve(os.homedir()));
+  if (!info.isDirectory() || samePath(root, path.parse(root).root) || samePath(root, home)) {
     throw new Error('Select a Git repository below the filesystem and home-directory roots.');
   }
   return root;
@@ -189,6 +190,12 @@ async function atomicWrite(file, content) {
     await unlink(temp).catch(() => {});
     throw error;
   }
+}
+
+function samePath(left, right) {
+  const a = path.resolve(left);
+  const b = path.resolve(right);
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 function sameJson(left, right) {
