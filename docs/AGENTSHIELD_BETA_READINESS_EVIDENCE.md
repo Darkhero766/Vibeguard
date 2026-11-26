@@ -96,3 +96,26 @@ The documented local tarball was installed into `/tmp/agentshield-beta-install` 
 - Tester precautions if later approved: use only disposable repositories first, allowlist only intended roots, use synthetic credentials, keep completion enforcement opt-in, review/trust host hooks explicitly, treat incomplete/unsupported scans as UNKNOWN, and do not interpret a clean static scan as certification.
 - Known risks: heuristic false positives in test/benchmark sources; changed-files-only scope; unsupported Markdown and platform gaps; host-level hooks can be disabled or bypassed; current-revision qualification and current-host MCP scan remain unverified.
 - Rollback: remove the project hooks/skill using the installed `vibesane uninstall-codex` / `vibesane uninstall` commands, restore the prior local archive if needed, then uninstall `@vibesane/agentshield`. Review config and preserve unrelated host entries.
+
+## 2026-11-26 current branch hardening and qualification
+
+This section supersedes the historical 2026-11-24 current-candidate status above. It records a later review/qualification checkpoint; it does not retroactively change the earlier observations.
+
+- Repository: `Darkhero766/Vibeguard`; PR [#69](https://github.com/Darkhero766/Vibeguard/pull/69) remains open, draft and unmerged.
+- Feature-branch head tested by the workflow: `d6a4dc8ce781d7589e997456bc4fc815e02e6952`.
+- PR qualification: [Foxy MCP Beta Qualification Run #59](https://github.com/Darkhero766/Vibeguard/actions/runs/45872103084), completed successfully.
+- Source-matched qualification report revision: `73b1b4fdd0cc7cffda5b65346d9d7d01d8788e79` (the PR merge candidate used by the workflow).
+- Release runner result: `validation_passed_review_required`; decision: `candidate_for_independent_human_review`.
+- Regression suite: **423/423 passed**, zero failures. Scanner build/source checks, curated synthetic benchmark, separate holdout synthetic benchmark, additional adversarial synthetic benchmark, and offline package/install/CLI/MCP smoke all passed.
+- The additional queue/installer hardening includes: fail-closed stale-lock handling without check-then-unlink deletion; inode and metadata checks on opened persisted state; per-host and per-allowlist default job-store namespace; 24-hour maximum retention for terminal job records while preserving active jobs; absolute Node executable paths for hooks; and exact-shape migration of previously managed legacy hook/MCP configuration with backups and unrelated entries preserved.
+- This automated evidence does not establish production safety, real-world detection accuracy, an independent security review, official MCP conformance, or host acceptance. Synthetic benchmark labels remain synthetic rule expectations, not exploit validation or production precision/recall.
+- No production merge, deployment, package publication, telemetry activation or public installer was performed.
+
+### Remaining distribution blockers after Run #59
+
+1. Independent security review of the exact current source and package, with no unresolved Critical/High findings.
+2. Current-package acceptance through actual Codex, Claude Code and Cursor installations, including scan, remediation, completion hooks, permissions and uninstall. Previous package acceptance is historical only.
+3. Official MCP conformance testing for the advertised `2026-07-28` stateless protocol and supported legacy protocol versions. The official framework's documented server runner tests an HTTP MCP endpoint; Foxy's primary production transport is STDIO. Add a reviewed test bridge or equivalent transport-specific conformance harness and separately retain real STDIO process tests. Do not claim conformance until the exact requirements are run and results preserved.
+4. Platform matrix: automated CI currently qualifies Linux x64 on Node.js 24. The package declares Node.js >=20, but Node 20 runtime and macOS still need explicit tests. Windows remains unsupported.
+5. Coverage work for Markdown/agent instructions, Dockerfiles and unsupported manifests. Partial/unsupported coverage must continue to remain UNKNOWN, never a clean pass.
+6. Review and consolidation of the stacked PR dependency chain, package contents/provenance, and explicit owner approval before named private-beta distribution.

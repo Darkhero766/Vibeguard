@@ -110,11 +110,12 @@ export default function FoxyPage() {
           <div className="mt-8 overflow-hidden border border-border">
             <div className="grid grid-cols-[1fr_1.2fr] border-b border-border bg-card px-4 py-3 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground"><span>Area</span><span>Current status</span></div>
             {[
-              ['MCP STDIO protocol', 'Offline SDK smoke and protocol regression checks have passed.'],
-              ['Claude Code', 'Live authenticated host acceptance is pending.'],
-              ['Codex CLI', 'Live host acceptance is pending; integration is still a private beta candidate.'],
-              ['Cursor', 'Stop-hook/MCP configuration is in preview; live host acceptance is pending.'],
-              ['Operating systems', 'Current beta target: Node.js 20+ on macOS and Linux. Windows is not qualified.'],
+              ['Automated candidate qualification', 'PR #69 Run #59 passed: 423/423 regression tests, synthetic benchmark stages and offline package/MCP smoke. This qualifies the candidate for independent human review only.'],
+              ['MCP protocol conformance', 'The official MCP conformance suite has not yet been run against Foxy. Existing STDIO client and protocol regression tests pass; formal conformance is not claimed.'],
+              ['Claude Code', 'Live authenticated host acceptance for the current package is pending.'],
+              ['Codex CLI', 'Live current-package host acceptance is pending; earlier package evidence is not carried forward to this candidate.'],
+              ['Cursor', 'MCP setup and Stop-hook configuration are in preview; live host acceptance is pending.'],
+              ['Operating systems', 'Package engine declares Node.js 20+. Current automated qualification runs on Linux x64 with Node.js 24. macOS, Node 20 runtime and Windows are not yet platform-qualified.'],
             ].map(([label, status]) => <div key={label} className="grid grid-cols-[1fr_1.2fr] gap-4 border-b border-border px-4 py-4 last:border-b-0"><span className="text-[12px] font-semibold">{label}</span><span className="text-[12px] leading-5 text-muted-foreground">{status}</span></div>)}
           </div>
         </section>

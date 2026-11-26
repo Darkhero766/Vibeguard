@@ -8,8 +8,9 @@ This is the release gate for the installable AgentShield beta. It is intentional
 2. **Transport:** process-level MCP client sends initialize/discovery, tool calls, malformed frames, cancellation, concurrent requests; stdout contains protocol only.
 3. **Package:** build scanner, package tarball, verify manifest and SHA-256, install in isolated prefix, execute all package binaries, uninstall.
 4. **Agent-host acceptance:** Codex, Claude Code and Cursor separately. Verify host discovery, first scan, explicit fix workflow, rescan, loop budget, permission handling and no false completion.
+5. **MCP conformance:** run the official conformance requirements for `2026-07-28` and every legacy protocol version advertised by the server. Preserve the scenario/check-level reports and exact package/source revision. Foxy's primary transport is STDIO; the official framework's documented server runner targets an HTTP MCP URL, so any bridge used for protocol-level server conformance must be isolated and separately paired with real STDIO process/client tests. Do not claim formal conformance based only on SDK smoke tests.
 5. **Benchmark:** clean and intentionally vulnerable synthetic fixtures; record TP/FP/TN/FN, scan completeness, runtime, output size, and rule-specific confidence. Do not score unsupported coverage as true negative.
-6. **Safety:** malicious repository text that attempts to instruct the agent, dummy secrets in findings, path traversal, symlinked files, dirty-file mutation during scan, unsupported language changes, scanner timeout and partial output.
+7. **Safety:** malicious repository text that attempts to instruct the agent, dummy secrets in findings, path traversal, symlinked files, dirty-file mutation during scan, unsupported language changes, scanner timeout and partial output.
 
 ## Minimum fixture suite
 - Clean fixtures: JS/TS API route, Python utility, SQL schema, environment/config examples without secrets.
@@ -45,7 +46,7 @@ The accuracy runner measures true positives, false positives, true negatives and
 - **Output privacy:** 0 source excerpts or dummy credential values in MCP/SARIF diagnostics unless specifically designed for safe redacted display.
 - **Delta correctness:** all expected removed/remaining/new finding multiplicities match fixture ground truth.
 - **Transport reliability:** malformed and cancelled requests must not corrupt the stdio stream or create late responses.
-- **Installability:** package installs and binaries start on a clean supported Node 20+ environment.
+- **Installability:** package installs and binaries start on a clean supported Node 20+ environment. A declared `engines.node >=20` value is a package compatibility floor, not proof that all supported Node versions/platforms have been qualified.
 - **FP:** measure and publish per-rule false-positive counts; do not hide them in aggregate precision.
 
 ## One-command local qualification
@@ -54,7 +55,7 @@ From `artifacts/api-server`, run `pnpm run test:agentshield:release-qualificatio
 
 ## Local package smoke command
 
-Run `node ./scripts/test-agentshield-package.mjs` from `artifacts/api-server` on a supported macOS/Linux Node 20+ workstation. It builds the scanner, creates the unpublished tarball, installs it into a temporary npm prefix, checks the CLI and doctor, scans a synthetic committed diff from a pinned fixture base, exercises MCP initialize/tool-list/status over stdio, then removes temporary files. This smoke command is not evidence until its output is captured from an actual run.
+Run `node ./scripts/test-agentshield-package.mjs` from `artifacts/api-server` on a clean, explicitly recorded platform/Node combination. It builds the scanner, creates the unpublished tarball, installs it into a temporary npm prefix, checks the CLI and doctor, scans a synthetic committed diff from a pinned fixture base, exercises MCP initialize/tool-list/status over stdio, then removes temporary files. This smoke command is not evidence until its output is captured from an actual run. The current PR qualification uses Linux x64 and Node.js 24; it does not qualify macOS or Node.js 20.
 
 ## Report template
 Record beta build hash, platform, Node version, package SHA-256, fixture commit/hash, tests executed, test counts, scan time, TP/FP/TN/FN by rule, incomplete-scan behavior, integration host/version, known defects, and release decision. Mark anything not executed as NOT TESTED.
@@ -77,4 +78,4 @@ The configured ref must exist locally, resolve to a commit strictly ancestral to
 The new regression tests cover committed changes after a clean commit, remediation committed after the blocker, renamed files, deleted files, missing refs, base refs at `HEAD` or on unrelated history, dirty worktree paths unioned with committed changes, ignored-path completion blocks, MCP baseline invalidation for committed ignored paths, and Claude/Codex Stop adapter continuation decisions. These are **test cases added, not test results** until the local qualification runner actually executes.
 
 ## Release readiness
-A beta distribution requires: local test suite pass, package build/install smoke test, MCP process transport tests, at least one supported host acceptance test, synthetic fixture benchmark, review of package contents, and a dependency-stack consolidation plan. No Actions/CI invocation is permitted for this project validation.
+A beta distribution requires: exact-candidate release qualification, package build/install smoke, MCP process transport tests, official MCP conformance evidence, current-version host acceptance, synthetic fixture benchmark review, independent security review with no unresolved Critical/High issues, supported-platform qualification, package provenance review, dependency-stack consolidation and explicit owner approval. Automated qualification is necessary but not sufficient. The repeatable local qualification command remains available for independent reproduction; the PR workflow also runs the same release gate on pushed candidates.
