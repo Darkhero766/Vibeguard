@@ -19,8 +19,8 @@ The intended loop is:
 
 - Node.js 20 or newer
 - Git
-- Linux/macOS remain the previously exercised environments; this branch adds Windows compatibility work that is still awaiting Windows CI and live-host qualification
-- Windows is **not yet approved for beta use** until the platform gate passes
+- Windows and macOS are included in the automated Foxy qualification workflow. Linux is supported by the runtime design but is not covered by that two-platform qualification run.
+- Automated CI does not equal live-host acceptance: each supported host/version combination still requires authenticated setup, restart, approval, tool-call and disconnect validation on a real machine.
 - A local Git repository
 - A trusted, MCP-capable coding-agent host
 
@@ -89,14 +89,14 @@ From the root of the Git repository:
 vibesane connect
 ```
 
-The connector detects project markers and available CLIs for Claude Code, Codex CLI, Cursor, Gemini CLI and Roo Code; it also detects a VS Code Copilot session when the host environment exposes its session marker. It then writes the corresponding project-scoped MCP entries:
+The connector detects project markers and available CLIs for Claude Code, Codex CLI, Cursor, Gemini CLI, Roo Code and Copilot where the host environment exposes a supported marker. Copilot uses the shared workspace-root `.mcp.json` entry; this does not configure a global Copilot user file. It then writes the corresponding project-scoped MCP entries:
 
 - Claude Code: `.mcp.json`
 - Codex: `.codex/config.toml`
 - Cursor: `.cursor/mcp.json`
 - Gemini CLI: `.gemini/settings.json`
 - Roo Code: `.roo/mcp.json`
-- VS Code Copilot: the workspace-root `.mcp.json` entry is shared with Claude; Copilot must be using a harness/configuration mode that reads workspace-root MCP config.
+- VS Code Copilot: the workspace-root `.mcp.json` entry is shared with Claude. In VS Code’s Copilot harness, the workspace-root destination is offered in guided setup when `chat.mcp.workspaceRootConfig.enabled` is enabled; an existing native workspace-root `.mcp.json` remains a valid source when that setting is off. The connector does not write Copilot’s global `$COPILOT_HOME/mcp-config.json` / `~/.copilot/mcp-config.json` file.
 
 Useful variants:
 
@@ -125,7 +125,7 @@ This removes only exact, unchanged AgentShield entries from the supported host f
 
 The generated project configuration includes absolute local executable/script paths. Treat it as machine-specific local configuration; do not commit it for teammates unless the installation layout and trust policy are intentionally shared. For Codex, project `.codex/config.toml` is loaded only after the repository is trusted.
 
-Windows compatibility changes are present on this engineering branch, but Windows is not declared supported until the Windows CI suite and live Claude/Codex/Cursor acceptance pass. Cursor enterprise MCP Network Controls may also require the administrator to allow this local command server in the appropriate no-sandbox mode on Windows.
+Windows and macOS automated qualification is source-matched to the commit linked from the Foxy qualification PR. This is platform-runner evidence, not a claim that every installed Claude/Codex/Cursor/Gemini/Roo/Copilot release has passed live acceptance. Before any public distribution, run the real-host matrix on named app versions, record successful tool calls and disconnect behavior, and obtain an independent security review. Cursor enterprise MCP Network Controls may also require an administrator to allow the local command server in the applicable configuration.
 
 ## Connect the coding agents
 
