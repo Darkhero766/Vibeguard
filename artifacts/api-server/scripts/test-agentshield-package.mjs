@@ -87,7 +87,7 @@ try {
   const packaged = JSON.parse(pack.stdout);
   assert(packaged.status === 'packaged_local_only' && packaged.published === false,
     'Packaging must remain local-only.');
-  assert(packaged.version === '0.7.0-beta.3', 'Unexpected AgentShield beta package version.');
+  assert(packaged.version === '0.7.0-beta.4', 'Unexpected AgentShield beta package version.');
   assert(typeof packaged.archive === 'string' && typeof packaged.sha256 === 'string',
     'Packaging did not return an archive path and SHA-256.');
   archive = packaged.archive;
