@@ -15,6 +15,7 @@ const reportPath = path.join(dist, 'agentshield-release-validation.json');
 const TEST_FILES = [
   'test-agentshield.mjs',
   'test-agentshield-week2.mjs',
+  'test-agentshield-connect.mjs',
   'test-agentshield-week3.mjs',
   'test-agentshield-week4.mjs',
   'test-agentshield-week5.mjs',
