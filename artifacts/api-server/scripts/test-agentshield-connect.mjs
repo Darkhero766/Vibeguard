@@ -224,6 +224,59 @@ test('one disconnect command removes only exact managed host entries and preserv
 });
 
 
+test('connect migrates exact legacy JSON and Codex entries to isolated namespaces without losing unrelated settings', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-connect-migrate-'));
+  const project = path.join(root, 'project');
+  await mkdir(path.join(project, '.codex'), { recursive: true });
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await exec('git', ['init', project]);
+  const realRoot = await (await import('node:fs/promises')).realpath(project);
+  const nodePath = process.execPath;
+  const serverPath = path.join(root, 'agentshield-mcp-stdio.mjs');
+  const legacyJson = {
+    mcpServers: {
+      'vibesane-agentshield': {
+        type: 'stdio',
+        command: nodePath,
+        args: [serverPath],
+        env: { VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([realRoot]) },
+      },
+      unrelated: { command: 'keep-me', args: [] },
+    },
+    custom: true,
+  };
+  const jsonFile = path.join(project, '.mcp.json');
+  await writeFile(jsonFile, JSON.stringify(legacyJson, null, 2));
+  const legacyToml = [
+    '[features]',
+    'experimental = true',
+    '',
+    '# BEGIN VIBESANE AGENTSHIELD MANAGED MCP ENTRY',
+    '[mcp_servers.vibesane_agentshield]',
+    'command = ' + JSON.stringify(nodePath),
+    'args = [' + JSON.stringify(serverPath) + ']',
+    'env = { VIBESANE_ALLOWED_ROOTS_JSON = ' + JSON.stringify(JSON.stringify([realRoot])) + ' }',
+    '# END VIBESANE AGENTSHIELD MANAGED MCP ENTRY',
+    '',
+  ].join('\\n');
+  const codexFile = path.join(project, '.codex', 'config.toml');
+  await writeFile(codexFile, legacyToml);
+
+  const claude = await connectAgentShield(['--agent', 'claude', '--cwd', project], { nodePath, serverPath });
+  const codex = await connectAgentShield(['--agent', 'codex', '--cwd', project], { nodePath, serverPath });
+  assert.equal(claude.results[0].status, 'migrated');
+  assert.equal(codex.results[0].status, 'migrated');
+
+  const upgraded = JSON.parse(await readFile(jsonFile, 'utf8'));
+  assert.equal(upgraded.custom, true);
+  assert.deepEqual(upgraded.mcpServers.unrelated, legacyJson.mcpServers.unrelated);
+  assert.equal(upgraded.mcpServers['vibesane-agentshield'].env.VIBESANE_JOB_STORE_NAMESPACE, 'foxy-workspace-mcp');
+  const upgradedToml = await readFile(codexFile, 'utf8');
+  assert.match(upgradedToml, /VIBESANE_JOB_STORE_NAMESPACE = "foxy-codex"/);
+  assert.ok(upgradedToml.startsWith('[features]'));
+  assert.ok((await readdir(project)).some((name) => name.includes('.vibesane-backup-')));
+});
+
 test('connect refuses malformed and oversized host configuration without rewriting or backing it up', async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-config-bounds-'));
   const project = path.join(root, 'project');
