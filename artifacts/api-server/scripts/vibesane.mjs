@@ -295,7 +295,7 @@ async function uninstallCodex(args) {
   const root = await codexProjectRoot(cwdFrom(args));
   const codexDir = path.join(root, '.codex');
   const hooksFile = path.join(codexDir, 'hooks.json');
-  const config = await readSafeJsonFile(hooksFile);
+  const config = await readProjectMcpConfig(root, '.codex', 'hooks.json');
   if (config.hooks != null && (typeof config.hooks !== 'object' || Array.isArray(config.hooks))) {
     throw new Error('Refusing malformed Codex hooks object.');
   }
