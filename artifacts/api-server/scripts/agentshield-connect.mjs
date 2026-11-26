@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { constants } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { chmod, copyFile, lstat, mkdir, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -13,6 +13,7 @@ import { promisify } from 'node:util';
 const exec = promisify(execFile);
 const SERVER_LABEL = 'vibesane-agentshield';
 const SERVER_FILE = 'agentshield-mcp-stdio.mjs';
+const MAX_HOST_CONFIG_BYTES = 256_000;
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 
 function envValue(env, name) {
@@ -157,13 +158,38 @@ async function ensureSafeDirectory(directory) {
   }
 }
 
+async function readRegularHostConfig(file, description = 'host MCP configuration') {
+  const before = await lstat(file);
+  if (!before.isFile() || before.isSymbolicLink() || before.size > MAX_HOST_CONFIG_BYTES) {
+    throw new Error('Refusing a symlinked, non-regular or oversized ' + description + '.');
+  }
+  const handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+  try {
+    const opened = await handle.stat();
+    if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino
+      || opened.size > MAX_HOST_CONFIG_BYTES) {
+      throw new Error('Host configuration identity changed while opening it.');
+    }
+    // Read at most one byte beyond the configured cap, even if another process
+    // grows the file after the initial stat.
+    const buffer = Buffer.alloc(MAX_HOST_CONFIG_BYTES + 1);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    const after = await handle.stat();
+    if (after.dev !== opened.dev || after.ino !== opened.ino
+      || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs
+      || bytesRead !== opened.size || bytesRead > MAX_HOST_CONFIG_BYTES) {
+      throw new Error('Host configuration changed or exceeded its size limit while being read.');
+    }
+    return buffer.subarray(0, bytesRead).toString('utf8');
+  } finally {
+    await handle.close();
+  }
+}
+
 async function readJsonConfig(file) {
   try {
-    const info = await lstat(file);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > 256_000) {
-      throw new Error('Refusing a symlinked, non-regular or oversized host MCP configuration.');
-    }
-    const value = JSON.parse(await readFile(file, 'utf8'));
+    const raw = await readRegularHostConfig(file);
+    const value = JSON.parse(raw);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed host MCP configuration.');
     return value;
   } catch (error) {
@@ -173,13 +199,38 @@ async function readJsonConfig(file) {
 }
 
 async function backupFile(file) {
-  const info = await lstat(file).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
-  if (!info) return null;
-  if (!info.isFile() || info.isSymbolicLink()) throw new Error('Refusing to back up a non-regular host configuration.');
-  const backup = file + '.vibesane-backup-' + new Date().toISOString().replaceAll(':', '-') + '-' + randomUUID();
-  await copyFile(file, backup, constants.COPYFILE_EXCL);
-  if (process.platform !== 'win32') await chmod(backup, 0o600);
-  return backup;
+  const before = await lstat(file).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+  if (!before) return null;
+  if (!before.isFile() || before.isSymbolicLink() || before.size > MAX_HOST_CONFIG_BYTES) {
+    throw new Error('Refusing to back up a non-regular, symlinked or oversized host configuration.');
+  }
+  const handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+  try {
+    const opened = await handle.stat();
+    if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino
+      || opened.size > MAX_HOST_CONFIG_BYTES) {
+      throw new Error('Host configuration identity changed before backup.');
+    }
+    const buffer = Buffer.alloc(MAX_HOST_CONFIG_BYTES + 1);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    const after = await handle.stat();
+    if (after.dev !== opened.dev || after.ino !== opened.ino
+      || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs
+      || bytesRead !== opened.size || bytesRead > MAX_HOST_CONFIG_BYTES) {
+      throw new Error('Host configuration changed or exceeded its size limit during backup.');
+    }
+    const backup = file + '.vibesane-backup-' + new Date().toISOString().replaceAll(':', '-') + '-' + randomUUID();
+    try {
+      await writeFile(backup, buffer.subarray(0, bytesRead), { flag: 'wx', mode: 0o600 });
+      if (process.platform !== 'win32') await chmod(backup, 0o600);
+      return backup;
+    } catch (error) {
+      await unlink(backup).catch(() => {});
+      throw error;
+    }
+  } finally {
+    await handle.close();
+  }
 }
 
 async function atomicWrite(file, content) {
@@ -233,11 +284,7 @@ async function configureCodex(root, nodePath, serverPath) {
   const file = path.join(directory, 'config.toml');
   let existing = '';
   try {
-    const info = await lstat(file);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > 256_000) {
-      throw new Error('Refusing a symlinked, non-regular or oversized Codex config.toml.');
-    }
-    existing = await readFile(file, 'utf8');
+    existing = await readRegularHostConfig(file, 'Codex config.toml');
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error;
   }
@@ -299,11 +346,7 @@ async function disconnectCodex(root, nodePath, serverPath) {
   const file = path.join(directory, 'config.toml');
   let existing = '';
   try {
-    const info = await lstat(file);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > 256_000) {
-      throw new Error('Refusing a symlinked, non-regular or oversized Codex config.toml.');
-    }
-    existing = await readFile(file, 'utf8');
+    existing = await readRegularHostConfig(file, 'Codex config.toml');
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error;
   }
