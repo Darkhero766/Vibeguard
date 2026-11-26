@@ -20,7 +20,7 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 
 - State: **open, draft, unmerged**.
 - Branch: `feat/agentshield-cross-platform-autoconnect`.
-- Exact last verified head: `a9b4fc87fa202a0aaeab60f43ed6ec361e5ec01c`.
+- Current docs branch head: `941812ca0f20a6c1ef5226c5988789fb53d7d67a`. Functional connector qualification was run against code head `a9b4fc87fa202a0aaeab60f43ed6ec361e5ec01c`; later commits on this branch only updated continuity/review documentation.
 - Target branch: `feat/agentshield-beta-coding-agent-install`.
 - PR metadata reported target/base SHA `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`, and `mergeable=false`.
 - Scope: project-scoped MCP auto-connect for Claude Code, Codex CLI, Cursor, Gemini CLI, Roo Code and GitHub Copilot; generic MCP stdio output; canonical Git-root allowlisting; backup/idempotent config; cross-platform path handling; Windows/macOS qualification; Foxy setup page.
@@ -30,10 +30,12 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 
 - State: **open, draft, unmerged**.
 - Branch: `feat/agentshield-beta-coding-agent-install`.
-- Head before this session: `00aec5ed749f1d9f8fc6d3f444b3caf86c47410d`.
-- Commit made this session: `b98f0a8bea4d50a67d1bb9c0caae5bc1801e1cb8` — improves official MCP conformance failure diagnostics and enables verbose output.
-- Latest observed workflow at snapshot time: [45875988720](https://github.com/Darkhero766/Vibeguard/actions/runs/45875988720), run #65, **in progress**. Do not assume it passes.
-- Previous run [45875018297](https://github.com/Darkhero766/Vibeguard/actions/runs/45875018297), run #64, failed at the official MCP 2026-07-28 server requirements step. The ordinary MCP regression suite (91 tests), queue suite (23 tests), and real STDIO smoke passed before that step. The old failure wrapper hid stdout behind pnpm stderr; the new commit fixes observability, not yet the underlying conformance result.
+- Current head: `ed5bf64a3dced0bd890fd66cf0634e0ae888a951`.
+- This session added: full per-check failure diagnostics, a test-only MCP conformance server/fixture catalog sharing the production SDK factory, canonical media-fixture validation, and a production STDIO regression that proves conformance fixtures never enter the real tool catalog.
+- Exact workflow [45878440549](https://github.com/Darkhero766/Vibeguard/actions/runs/45878440549), run #71: **success** on PR head `ed5bf64...`. Backend strict typecheck, 52-file source syntax gate, MCP protocol/queue/real STDIO smoke, official MCP 2026-07-28 server requirements, web static build and full release qualification all passed.
+- The release artifact reports `validation_passed_review_required` / `candidate_for_independent_human_review`; artifact checkout revision `2bf0abeff69a554d0043e4a24e91418250ceffa4` is the PR merge-checkout revision recorded inside the report, while workflow `head_sha` is the PR source head `ed5bf64...`.
+- Release evidence: 423/423 integration/regression tests; curated benchmark 120 cases (60 TP, 59 TN, 1 FP, 0 FN; precision 98.36%, recall 100%); holdout benchmark 24 cases (12 TP, 11 TN, 1 FP, 0 FN; precision 92.31%, recall 100%); additional synthetic adversarial benchmark 30 cases (16 TP, 14 TN, no FP/FN); 52 syntax-checked files; unpublished offline package 26 files, 1,388,566 bytes, SHA-256 `5e67a63437c39d4dbecbe28a3e8218131317d67a40c3b6c800bd89148dd42c46`.
+- These benchmarks are synthetic rule-expectation tests, not real-world exploit validation or scanner accuracy. The report has no failed/skipped steps, but explicitly requires independent review and manual Claude/Cursor/Codex host acceptance. Do not represent it as a security certification.
 
 ### Stacked PR dependency chain
 
@@ -44,22 +46,23 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 - #69 beta.3 packaging is based on #68.
 - #70 beta.4 connector is based on #69.
 
-**Important drift to resolve:** PR #69 now has head `b98f0a8...`, while PR #70 metadata still reports its base SHA as `f6a16dc...` and `mergeable=false`. Confirm current branch ancestry and rebase/refresh the stack before any merge discussion. Do not force-push or rewrite history without reviewing the exact diff and expected SHA.
+**Important drift to resolve:** PR #69 now has head `ed5bf64...`, while PR #70 metadata still reports its base SHA as `f6a16dc...` and `mergeable=false`. The beta.4 branch is therefore stale relative to the current beta.3 candidate. Confirm current branch ancestry and review the exact delta before any stack repair. Do not force-push, rewrite history or merge without explicit authorization.
 
 ## What is actually verified
 
-- PR #70 cross-platform automated qualification passed on its recorded source head and exact run above.
-- PR #69's MCP/unit/queue/stdio checks passed in run #64, but official MCP conformance failed and full release qualification was skipped. Run #65 must be inspected for the actual detailed result.
-- The MCP server uses the official SDK and read-only tools; the production transport is stdio. The HTTP transport is test-only and must stay loopback-bound.
+- PR #70 cross-platform automated qualification passed on its functional source head and exact run above.
+- PR #69's official 2026-07-28 MCP conformance gate and full release qualification passed in run #71. The test-only HTTP adapter is loopback-only and uses synthetic resources/prompts/tools; the shipping STDIO server remains the actual 10-tool read-only Foxy catalog. Its smoke test asserts fixture tools are absent.
+- The release artifact records 423 passing unit/integration/regression tests and no failed/skipped release steps. The 120-case and 24-case primary corpora each include one false positive; see exact corpus data in the workflow artifact before making accuracy claims.
+- The report’s additional Tasks, custom-header and JSON Schema extension scenarios are not scored in the frozen 2026-07-28 core requirement profile; do not claim those extensions are supported based on the core pass.
 - Synthetic benchmark scores are synthetic rule-expectation measurements. They are not real-world scanner precision/recall, exploit validation or certification.
 - Real-host installation, restart, approval, tool calls and disconnect have **not** been completed across the host/OS matrix just because platform CI passed.
 
 ## Open engineering work — priority order
 
-1. **Official MCP conformance:** inspect run #65 logs and scenario report. Separate protocol defects from harness defects. Fix the implementation when a required behavior is genuinely missing; do not add demo/test tools to the production MCP catalog just to make a test pass. Keep test-only adapters isolated.
-2. **Reconcile the stack:** verify PR #70's base ancestry against the latest #69 head, resolve its `mergeable=false` state, and preserve a clean reviewable diff. No merges.
-3. **Independent security review:** obtain a real reviewer report against the exact current candidate, with findings, severity, reproducible scenario, remediation and retest. The separate “11 findings” evidence set is not present in the checked-in docs available at this snapshot; retrieve the exact records before declaring them fixed or closed.
-4. **Live host acceptance:** complete the runbook using disposable synthetic repositories and exact host versions. Record install/config diff/restart/approval/tool use/unauthorized-root denial/disconnect on each advertised host and OS. Do not claim support from config-generation tests alone.
+1. **Live host acceptance:** test project-scoped install, restart, approval, tool calls, unauthorized-root denial, disconnect and config preservation using disposable repos on every advertised host/OS. Record exact app versions; CI configuration tests are not host acceptance.
+2. **Multi-host queue isolation:** the connector currently writes the same allowed-root environment for different hosts and does not set `VIBESANE_JOB_STORE_NAMESPACE`; the queue's exclusive lifetime lock means simultaneous MCP processes for the same project may contend on one state store. Design and test host/session isolation or a broker before claiming simultaneous multi-host support.
+3. **Reconcile the stack:** PR #70 base SHA is stale relative to #69 and reports `mergeable=false`. Review exact ancestry and diffs; no force push or merge without authorization.
+4. **Independent security review:** obtain a real reviewer report against the exact current candidate, with findings, severity, reproducible scenario, remediation and retest. Retrieve the exact 11-finding records before declaring any resolved.
 5. **Installer/config race hardening:** review concurrent host-config edits, atomic replacement semantics, symlink/junction and parent-directory behavior, backup handling and interruption recovery. Add deterministic regression tests before changing the implementation.
 6. **SaaS release gates:** issue #62 tracks independently labeled scanner-accuracy evidence; issue #63 tracks production security/migration/credentialed staging gates. Both remain separate from Foxy MCP and neither authorizes production changes.
 
