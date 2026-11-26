@@ -32,6 +32,11 @@ test('agent detection recognizes project markers without launching agents', asyn
     env: { PATH: '', USERPROFILE: root },
     platform: process.platform,
   }), ['claude', 'codex', 'cursor', 'gemini', 'roo']);
+  assert.deepEqual(await detectAgents({
+    cwd: root,
+    env: { PATH: '', USERPROFILE: root, VSCODE_PID: '42' },
+    platform: process.platform,
+  }), ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']);
 });
 
 test('Codex TOML and JSON MCP entries escape Windows paths and keep the allowlist narrow', () => {
