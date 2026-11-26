@@ -1,6 +1,8 @@
 import { Router } from "express";
 import crypto from "node:crypto";
-import { runExtendedSecurityChecksV2 } from "../lib/extendedScannerV2";
+import { scanRepositorySecurity } from "../lib/securityScanPipeline";
+import { shouldRead } from "../lib/githubRepoReader";
+import { buildChangedPathPlan, classifyFindingDelta, type ChangedFileRecord } from "../lib/protectionDelta";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { cacheScanResult } from "../lib/scanCache";
 import { logger } from "../lib/logger";
@@ -21,7 +23,59 @@ function getPrivateKey(): string { const encoded = process.env.GITHUB_APP_PRIVAT
 function createAppJwt(): string { const appId = process.env.GITHUB_APP_ID?.trim(); if (!appId) throw new Error("GITHUB_APP_ID is required"); const now = Math.floor(Date.now() / 1000); const unsigned = `${base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }))}.${base64Url(JSON.stringify({ iat: now - 60, exp: now + 540, iss: appId }))}`; const signer = crypto.createSign("RSA-SHA256"); signer.update(unsigned); signer.end(); const signature = signer.sign(crypto.createPrivateKey({ key: getPrivateKey(), format: "pem" }), "base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_"); return `${unsigned}.${signature}`; }
 function githubHeaders(token: string): Record<string, string> { return { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" }; }
 async function getInstallationToken(installationId: number): Promise<string> { const response = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, { method: "POST", headers: githubHeaders(createAppJwt()) }); if (!response.ok) throw new Error(`GitHub installation token failed: ${response.status} ${await response.text()}`); const data = (await response.json()) as { token?: string }; if (!data.token) throw new Error("GitHub did not return an installation token"); return data.token; }
-async function getChangedFiles(token: string, repo: string, baseSha: string, headSha: string): Promise<string[]> { const [owner, name] = repo.split("/"); const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/compare/${encodeURIComponent(baseSha)}...${encodeURIComponent(headSha)}`, { headers: githubHeaders(token) }); if (!response.ok) throw new Error(`GitHub compare failed: ${response.status} ${await response.text()}`); const data = (await response.json()) as { files?: Array<{ filename?: string }> }; return Array.isArray(data.files) ? data.files.map((file) => file.filename).filter((path): path is string => Boolean(path)) : []; }
+const MAX_COMPARE_FILES = 300;
+function nextComparePage(linkHeader: string | null): string | null {
+  if (!linkHeader) return null;
+  for (const part of linkHeader.split(",")) {
+    const match = /<([^>]+)>;\s*rel="next"/.exec(part.trim());
+    if (match) {
+      const url = new URL(match[1]);
+      if (url.origin !== "https://api.github.com") {
+        throw new Error("GitHub compare pagination returned an unexpected host; delta coverage is UNKNOWN.");
+      }
+      return url.toString();
+    }
+  }
+  return null;
+}
+function safeGitPath(filePath: string): boolean {
+  return Boolean(filePath) && filePath.length <= 4096 && !filePath.startsWith("/")
+    && !filePath.includes("\\") && !filePath.split("/").some(part => !part || part === "." || part === "..");
+}
+async function getChangedFiles(token: string, repo: string, baseSha: string, headSha: string): Promise<ChangedFileRecord[]> {
+  const [owner, name] = repo.split("/");
+  let url: string | null = "https://api.github.com/repos/" + encodeURIComponent(owner) + "/" +
+    encodeURIComponent(name) + "/compare/" + encodeURIComponent(baseSha) + "..." +
+    encodeURIComponent(headSha) + "?per_page=100&page=1";
+  const collected: ChangedFileRecord[] = [];
+  for (let page = 0; url && page < 3; page++) {
+    const response = await fetch(url, { headers: githubHeaders(token) });
+    if (!response.ok) throw new Error("GitHub compare failed: " + response.status + " " + await response.text());
+    const data = await response.json() as { files?: Array<{ filename?: string; status?: string; previous_filename?: string }> };
+    if (!Array.isArray(data.files)) throw new Error("GitHub compare omitted its changed-file list; delta coverage is UNKNOWN.");
+    for (const file of data.files) {
+      if (typeof file.filename !== "string" || typeof file.status !== "string" || !safeGitPath(file.filename)
+        || (file.previous_filename !== undefined && !safeGitPath(file.previous_filename))) {
+        throw new Error("GitHub compare returned malformed changed-file metadata; delta coverage is UNKNOWN.");
+      }
+      collected.push({ filename: file.filename, status: file.status, previous_filename: file.previous_filename });
+    }
+    url = nextComparePage(response.headers.get("link"));
+    if (collected.length > MAX_COMPARE_FILES || (page === 2 && url)) {
+      throw new Error("GitHub compare exceeded the 300-file evidence limit; no clean security verdict is available.");
+    }
+  }
+  if (collected.length >= MAX_COMPARE_FILES) {
+    throw new Error("GitHub compare reached its 300-file response cap; no clean security verdict is available.");
+  }
+  const seen = new Set<string>();
+  for (const file of collected) {
+    const key = file.filename + "\u0000" + file.status;
+    if (seen.has(key)) throw new Error("GitHub compare returned duplicate changed-file evidence; delta coverage is UNKNOWN.");
+    seen.add(key);
+  }
+  return collected;
+}
 async function createCheckRun(token: string, repo: string, sha: string, status: "queued" | "in_progress") { const [owner, name] = repo.split("/"); const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/check-runs`, { method: "POST", headers: githubHeaders(token), body: JSON.stringify({ name: "VibeSane Security", head_sha: sha, status }) }); if (!response.ok) throw new Error(`GitHub check creation failed: ${response.status} ${await response.text()}`); return (await response.json()) as { id: number; html_url?: string }; }
 async function completeCheckRun(
   token: string, repo: string, checkId: number,

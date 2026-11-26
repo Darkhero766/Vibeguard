@@ -105,7 +105,7 @@ export type RepositoryReadResult = {
 };
 
 export function planRepositoryRead(
-  treeEntries: Array<{ path?: string; type?: string; size?: number }> | null | undefined,
+  treeEntries: Array<{ path?: string; type?: string; size?: number; sha?: string }> | null | undefined,
   requestedPaths: string[] | null,
   selfScan: boolean,
 ) {

@@ -200,6 +200,17 @@ export async function runExtendedSecurityChecksV2WithStats(
   };
 }
 
+export type SecurityScanContext = {
+  applicableChecks: number;
+  executedChecks: number;
+  skippedChecks: number;
+};
+export type ExtendedScanResultV2 = {
+  findings: ExtendedFinding[];
+  filesScanned: number;
+  coverage: RepositoryReadCoverage;
+};
+
 /** Retain the legacy array-only interface for other scanner callers. */
 export async function runExtendedSecurityChecksV2(
   repoUrl: string,
