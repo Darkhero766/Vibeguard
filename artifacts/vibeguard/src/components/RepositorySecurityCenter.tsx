@@ -17,6 +17,8 @@ type RepositorySecurityCenterProps = {
   score: number;
   findings: Finding[];
   filesScanned: number;
+  checksRun?: number;
+  coverageComplete?: boolean;
   scannedAt: string;
   protected?: boolean;
   onBack: () => void;
@@ -37,7 +39,7 @@ function severityClass(severity: Finding['severity']) {
   return 'border-[#d2dbc1] bg-[#eef1e4] text-[#66763e]';
 }
 
-export function RepositorySecurityCenter({ repo, repoUrl, score, findings, filesScanned, scannedAt, protected: isProtected = false, onBack }: RepositorySecurityCenterProps) {
+export function RepositorySecurityCenter({ repo, repoUrl, score, findings, filesScanned, checksRun, coverageComplete, scannedAt, protected: isProtected = false, onBack }: RepositorySecurityCenterProps) {
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
   const critical = findings.filter((finding) => finding.severity === 'Critical').length;
   const high = findings.filter((finding) => finding.severity === 'High').length;

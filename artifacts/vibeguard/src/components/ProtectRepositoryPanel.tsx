@@ -9,6 +9,8 @@ type ScanReport = {
   repoUrl: string;
   findings: Array<{ severity: 'Critical' | 'High' | 'Medium'; title: string; description: string; filePath: string; line: number; check: string; id: string }>;
   filesScanned: number;
+  checksRun?: number;
+  coverageComplete?: boolean;
   scannedAt: string;
 };
 
@@ -97,6 +99,8 @@ export function ProtectRepositoryPanel({ onClose }: { onClose: () => void }) {
         repoUrl: normalizedUrl,
         findings: Array.isArray(report.findings) ? report.findings : [],
         filesScanned: Number(report.filesScanned ?? 0),
+        checksRun: Number(report.checksRun ?? 0),
+        coverageComplete: report.coverage?.complete === true,
         scannedAt: new Date().toISOString(),
       };
       if (user?.id) saveLastScan(user.id, savedReport);

@@ -7,7 +7,7 @@ import { ProtectRepositoryPanel } from './ProtectRepositoryPanel';
 import { ProtectionActivity } from './ProtectionActivity';
 
 type Finding = { severity: 'Critical' | 'High' | 'Medium'; title: string; filePath: string; line: number };
-type Scan = { repo: string; repoUrl: string; findings: Finding[]; filesScanned: number; checksRun?: number; scannedAt: string };
+type Scan = { repo: string; repoUrl: string; findings: Finding[]; filesScanned: number; checksRun?: number; coverageComplete?: boolean; scannedAt: string };
 type ProtectedRepository = { repo: string; repoUrl: string; baselineSha: string; lastSha: string; status: string; lastScore: number; criticalCount: number; highCount: number; mediumCount: number; };
 type Props = { firstName: string; lastScan: Scan | null; usage: { scans_used: number; scans_limit: number; plan?: string | null } | null; isAtLimit: boolean; onViewLastScan: () => void; onProtect: () => void };
 const ADMIN_EMAIL = 'nightowlclub72@gmail.com';
@@ -117,7 +117,7 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
     setShowRepository(true);
   };
 
-  if (showRepository && selectedScan) return <RepositorySecurityCenter repo={selectedScan.repo} repoUrl={selectedScan.repoUrl} score={securityScore ?? 0} findings={selectedScan.findings} filesScanned={selectedScan.filesScanned} scannedAt={selectedScan.scannedAt} protected onBack={() => setShowRepository(false)} />;
+  if (showRepository && selectedScan) return <RepositorySecurityCenter repo={selectedScan.repo} repoUrl={selectedScan.repoUrl} score={securityScore ?? 0} findings={selectedScan.findings} filesScanned={selectedScan.filesScanned} checksRun={selectedScan.checksRun} coverageComplete={selectedScan.coverageComplete} scannedAt={selectedScan.scannedAt} protected onBack={() => setShowRepository(false)} />;
 
   return (
     <section className="mt-12 sm:mt-16">

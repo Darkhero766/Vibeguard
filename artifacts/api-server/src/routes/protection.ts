@@ -3,8 +3,7 @@ import { rateLimit } from "../middlewares/rateLimit";
 import { requireAuth, type AuthedRequest } from "../middlewares/auth";
 import { getGithubTokenForUser } from "../lib/github";
 import { getInstallationIdForUser, getInstallationToken } from "../lib/githubApp";
-import { scanPublicRepository } from "../lib/scanner";
-import { runExtendedSecurityChecksV2 } from "../lib/extendedScannerV2";
+import { scanRepositorySecurity } from "../lib/securityScanPipeline";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { getProtectedRepository, listProtectedRepositories, listProtectionEvents, saveProtectedRepository } from "../lib/protectionStore";
 import { assertRepositoryCapacity, consumeProtectedScan, ensurePlanForUser } from "../lib/plan";
@@ -77,21 +76,51 @@ router.post("/protection", rateLimit({ name: "protection", windowMs: 60_000, max
     }
 
     const sha = await currentSha(repoUrl, token);
-    let report = await scanPublicRepository(repoUrl, token);
-    try {
-      const extended = await runExtendedSecurityChecksV2(repoUrl, token);
-      const normalized = extended.map((finding) => ({ ...finding, severity: finding.severity === "Low" ? "Medium" : finding.severity }));
-      const seen = new Set(report.findings.map((f) => `${f.filePath}:${f.line}:${f.check}:${f.title}`));
-      report = { ...report, findings: [...report.findings, ...normalized.filter((f) => !seen.has(`${f.filePath}:${f.line}:${f.check}:${f.title}`))] };
-    } catch { /* core scan is still a valid baseline */ }
-
+    // Pin both engines to the exact commit whose SHA is stored as the initial
+    // protection baseline. The shared pipeline must complete or protection
+    // activation is withheld; a core-only partial result is not a valid baseline.
+    const snapshotUrl = repoUrl + "?ref=" + encodeURIComponent(sha);
+    const scanned = await scanRepositorySecurity(snapshotUrl, token);
+    if (!scanned.coverage.complete) {
+      const reasons = [
+        scanned.coverage.treeTruncated ? "GitHub truncated the repository tree." : null,
+        scanned.coverage.omittedByFileLimit ? "The repository exceeded the supported file-count cap." : null,
+        scanned.coverage.oversizedPaths.length ? "One or more files exceeded scanner size limits." : null,
+        scanned.coverage.unreadablePaths.length ? "One or more files could not be read or decoded." : null,
+        scanned.coverage.missingRequestedPaths.length ? "Some requested paths were not present." : null,
+      ].filter(Boolean);
+      const error = new Error("The initial security baseline is incomplete. Protection was not activated and no scan credit was consumed. " + reasons.join(" "));
+      Object.assign(error, { status: 503 });
+      throw error;
+    }
+    const report = {
+      findings: scanned.findings,
+      filesScanned: scanned.filesScanned,
+      changedFiles: scanned.coverage.eligibleFileCount,
+      checksRun: TOTAL_SECURITY_CHECKS,
+      scanMode: "full",
+      scanIncomplete: false,
+      coveragePartial: false,
+      resolvedFindingsCount: 0,
+      existingFindingsCount: 0,
+      unscannedChangedFileCount: 0,
+      unscannedChangedFiles: [],
+      coverageReasons: [],
+    };
     const saved = await saveProtectedRepository({ owner: req.userId!, repo, repoUrl, baselineSha: sha, score: score(report.findings), report });
     if (!existing) await consumeProtectedScan(req.userId!);
-    res.json({ repository: saved, baseline: { sha, filesScanned: report.filesScanned, findings: report.findings, checksRun: TOTAL_SECURITY_CHECKS } });
+    res.json({ repository: saved, baseline: {
+      sha, filesScanned: report.filesScanned, findings: report.findings, checksRun: TOTAL_SECURITY_CHECKS,
+      scanMode: "full", coverage: {
+        eligibleFileCount: scanned.coverage.eligibleFileCount,
+        filesScanned: scanned.coverage.filesScanned,
+        complete: scanned.coverage.complete,
+      },
+    } });
   } catch (error) {
     req.log.error({ err: error, repoUrl }, "Could not protect repository");
     const status = typeof error === "object" && error !== null && "status" in error ? Number((error as { status: unknown }).status) : 502;
-    res.status(status === 429 ? 429 : 502).json({ error: error instanceof Error ? error.message : "Could not protect repository" });
+    res.status(status === 429 ? 429 : status === 503 ? 503 : 502).json({ error: error instanceof Error ? error.message : "Could not protect repository" });
   }
 });
 
