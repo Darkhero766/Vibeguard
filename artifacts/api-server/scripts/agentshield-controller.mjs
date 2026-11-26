@@ -21,7 +21,7 @@ const brief = (s, max = 250) => String(s ?? '').replace(/[\x00-\x1f\x7f]/g, ' ')
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function rootOf(cwd) {
-  const { stdout } = await run('git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=' + os.devNull,
+  const { stdout } = await run('git', ['-c', 'core.fsmonitor=false',
     '-C', path.resolve(cwd), 'rev-parse', '--show-toplevel'], {
     timeout: 5000, maxBuffer: 3000, windowsHide: true });
   return realpath(stdout.trim());
