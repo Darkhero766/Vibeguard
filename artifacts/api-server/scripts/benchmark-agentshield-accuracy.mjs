@@ -39,7 +39,7 @@ export async function benchmark({ cases = BENCHMARK_CASES, kind = 'curated' } = 
           windowsHide: true, env: { ...process.env, NODE_OPTIONS: '' } });
       } catch (e) {
         if (e?.code !== 1 || typeof e.stdout !== 'string') {
-          const detail = String(e?.stderr || e?.message || 'unknown scanner error').replace(/[\\x00-\\x1f\\x7f]/g, ' ').slice(0, 320);
+          const detail = String(e?.stderr || e?.message || 'unknown scanner error').replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 320);
           throw new Error('Scanner failed while evaluating case ' + tc.id + ' (exit=' + String(e?.code ?? 'unknown') + '): ' + detail);
         }
         result = { stdout: e.stdout };
