@@ -84,6 +84,7 @@ test('unpublished local beta package contains no server runtime or source corpus
   t.after(async () => { await rm(npmRoot, { recursive: true, force: true }); });
   await exec('npm', ['install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund',
     '--prefix', npmRoot, pkg.archive], { timeout: 45000, maxBuffer: 250000,
+    shell: process.platform === 'win32', windowsHide: true,
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false' } });
   const installed = path.join(npmRoot, 'node_modules', '@vibesane', 'agentshield');
   const manifest = JSON.parse(await readFile(path.join(installed, 'package.json'), 'utf8'));
@@ -91,7 +92,12 @@ test('unpublished local beta package contains no server runtime or source corpus
   assert.equal(manifest.private, true);
   assert.equal(Object.keys(manifest.dependencies || {}).length, 0);
   assert.ok((await stat(path.join(installed, 'dist/agentshield.mjs'))).isFile());
-  assert.ok((await lstat(path.join(npmRoot, 'node_modules/.bin/vibesane'))).isSymbolicLink());
+  const installedBin = process.platform === 'win32'
+    ? path.join(npmRoot, 'node_modules', '.bin', 'vibesane.cmd')
+    : path.join(npmRoot, 'node_modules', '.bin', 'vibesane');
+  const binInfo = await lstat(installedBin);
+  assert.ok(process.platform === 'win32' ? binInfo.isFile() : binInfo.isSymbolicLink(),
+    'Installed package CLI shim is missing or has the wrong platform type.');
 
   const root = await fixture(t);
   const main = path.join(installed, 'scripts/vibesane.mjs');
