@@ -10,7 +10,7 @@ const route = await readFile(path.join(out, 'foxy', 'index.html'), 'utf8');
 
 assert.equal(html, route, 'Preview root and /foxy entrypoint must be byte-identical.');
 assert.ok(html.includes('Security context for your AI agent.') && html.includes('GitHub Copilot'));
-assert.ok(html.includes('423 / 423') && html.includes('6 / 6'));
+assert.ok(html.includes('429 / 429') && html.includes('12 / 12'));
 assert.match(html, /name="robots" content="noindex, nofollow, noarchive"/);
 assert.ok(!/<script\b[^>]*type=["']module["']/i.test(html), 'Static Foxy preview must not bootstrap the VibeSane SPA.');
 assert.ok(!/rel=["']modulepreload["']/i.test(html));
