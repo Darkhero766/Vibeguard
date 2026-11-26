@@ -12,6 +12,8 @@ const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptsDir, '..');
 const FILES = [
   'scripts/check-agentshield-source-syntax.mjs',
+  'scripts/agentshield-mcp-conformance-http.mjs',
+  'scripts/test-agentshield-mcp-conformance.mjs',
   'scripts/build-agentshield.mjs',
   'scripts/test-agentshield-week2.mjs',
   'scripts/test-agentshield-week3.mjs',
