@@ -249,6 +249,26 @@ test('persistence retention never evicts an active job', async () => {
 });
 
 
+test('terminal queue records expire after the retention window while active work is protected', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-terminal-expiry-'));
+  let now = 1_000_000;
+  const queue = new ScanJobQueue({ storeDir, now: () => now, runner: async () => complete() });
+  try {
+    const { job_id: id } = await queue.submit({ workspace: '/tmp/foxy-terminal-expiry' });
+    const finished = await queue.wait(id, 5000);
+    assert.equal(finished.status, 'completed');
+    assert.ok(queue.getResults(id));
+    now += 24 * 60 * 60 * 1000 + 1;
+    assert.equal(queue.getStatus(id), null);
+    assert.equal(queue.getResults(id), null);
+    const persisted = JSON.parse(await readFile(path.join(storeDir, 'jobs.json'), 'utf8'));
+    assert.equal(persisted.jobs.some((job) => job.id === id), false);
+  } finally {
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
 test('wait timeout removes its waiter instead of retaining stale callbacks', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-wait-timeout-'));
   let release;

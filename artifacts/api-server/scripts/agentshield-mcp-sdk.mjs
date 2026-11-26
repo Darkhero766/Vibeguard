@@ -17,6 +17,19 @@ const JOB_TOOLS = [
   { name: 'scan_cancel', title: 'Cancel scan job', description: 'Cancel queued work or cooperatively abort a running read-only scan. A cancelled job never returns a clean result.', schema: { type: 'object', properties: { job_id: { type: 'string', minLength: 36, maxLength: 36 } }, required: ['job_id'], additionalProperties: false } },
 ];
 
+export function resolveJobStoreDirectory(env = process.env, home = homedir()) {
+  const namespace = env.VIBESANE_JOB_STORE_NAMESPACE || 'default';
+  if (!/^[a-z0-9][a-z0-9._-]{0,31}$/i.test(namespace)) {
+    throw new Error('VIBESANE_JOB_STORE_NAMESPACE must be a 1–32 character alphanumeric namespace.');
+  }
+  if (env.VIBESANE_JOB_STORE_DIR) return env.VIBESANE_JOB_STORE_DIR;
+  const allowlistScope = createHash('sha256')
+    .update(String(env.VIBESANE_ALLOWED_ROOTS_JSON || ''))
+    .digest('hex')
+    .slice(0, 24);
+  return path.join(home, '.local', 'state', 'vibesane', 'agentshield', namespace + '-' + allowlistScope);
+}
+
 const textResult = (value, isError = false) => ({
   content: [{ type: 'text', text: JSON.stringify(value) }],
   ...(isError ? { isError: true } : {}),
@@ -89,17 +102,7 @@ export function createFoxyServer(queue) {
 
 export async function serveFoxyStdio({ env = process.env } = {}) {
   await resolveAuthorizedRoots().catch(() => null);
-  const namespace = env.VIBESANE_JOB_STORE_NAMESPACE || 'default';
-  if (!/^[a-z0-9][a-z0-9._-]{0,31}$/i.test(namespace)) {
-    throw new Error('VIBESANE_JOB_STORE_NAMESPACE must be a 1–32 character alphanumeric namespace.');
-  }
-  const allowlistScope = createHash('sha256')
-    .update(String(env.VIBESANE_ALLOWED_ROOTS_JSON || ''))
-    .digest('hex')
-    .slice(0, 24);
-  const defaultStoreDir = path.join(homedir(), '.local', 'state', 'vibesane', 'agentshield',
-    namespace + '-' + allowlistScope);
-  const storeDir = env.VIBESANE_JOB_STORE_DIR || defaultStoreDir;
+  const storeDir = resolveJobStoreDirectory(env);
   const baselineProvenance = await getBaselineProvenance();
   const queue = new ScanJobQueue({ storeDir, baselineProvenance,
     concurrency: Number(env.VIBESANE_JOB_CONCURRENCY || 2),

@@ -7,6 +7,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { cursorStopEligibility } from './agentshield-controller.mjs';
+import { resolveJobStoreDirectory } from './agentshield-mcp-sdk.mjs';
 import {
   TOOL_DEFS,
   compareFindings,
@@ -26,6 +27,28 @@ import {
 
 const exec = promisify(execFile);
 process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([os.tmpdir()]);
+
+test('queue store directories are stable and isolated by host namespace and allowlist', () => {
+  const home = path.join(os.tmpdir(), 'foxy-store-home');
+  const claudeEnv = {
+    VIBESANE_JOB_STORE_NAMESPACE: 'claude',
+    VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify(['/workspace/project-a']),
+  };
+  const claudeStore = resolveJobStoreDirectory(claudeEnv, home);
+  assert.equal(resolveJobStoreDirectory(claudeEnv, home), claudeStore);
+  assert.notEqual(resolveJobStoreDirectory({
+    ...claudeEnv, VIBESANE_JOB_STORE_NAMESPACE: 'cursor',
+  }, home), claudeStore);
+  assert.notEqual(resolveJobStoreDirectory({
+    ...claudeEnv, VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify(['/workspace/project-b']),
+  }, home), claudeStore);
+  assert.equal(resolveJobStoreDirectory({
+    ...claudeEnv, VIBESANE_JOB_STORE_DIR: path.join(home, 'explicit'),
+  }, home), path.join(home, 'explicit'));
+  assert.throws(() => resolveJobStoreDirectory({
+    ...claudeEnv, VIBESANE_JOB_STORE_NAMESPACE: '../outside',
+  }, home), /JOB_STORE_NAMESPACE/);
+});
 
 test('exposes only documented read-only tools with strict input schemas', () => {
   assert.deepEqual(TOOL_DEFS.map((tool) => tool.name), [

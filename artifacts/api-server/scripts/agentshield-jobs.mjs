@@ -13,6 +13,7 @@ const MAX_RECORDS = 200;
 const MAX_JOB_FINDINGS = 1000;
 const PRIORITY_AGING_INTERVAL_MS = 15_000;
 const BASELINE_TTL_MS = 30 * 60 * 1000;
+const TERMINAL_RETENTION_MS = 24 * 60 * 60 * 1000;
 const bounded = (value, max = 300) => String(value ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, max);
 function safeBaselinePath(value) {
   if (typeof value !== 'string' || !value || value.length > 400
@@ -240,9 +241,19 @@ export class ScanJobQueue extends EventEmitter {
     this.lockHandle = null;
   }
 
+  #pruneExpiredTerminal() {
+    const now = this.now();
+    for (const [id, job] of this.jobs) {
+      if (!TERMINAL.has(job.status)) continue;
+      const endedAt = Number.isFinite(job.finishedAt) ? job.finishedAt : job.updatedAt;
+      if (Number.isFinite(endedAt) && now - endedAt >= TERMINAL_RETENTION_MS) this.jobs.delete(id);
+    }
+  }
+
   async #persist() {
     const write = async () => {
     if (!this.lockHandle || !this.lockToken) throw new Error('Job state cannot be persisted without the exclusive process lock.');
+    this.#pruneExpiredTerminal();
     // Active work must remain addressable even when old history is trimmed.
     const all = [...this.jobs.values()].sort((a, b) => a.createdAt - b.createdAt);
     const active = all.filter((job) => job.status === 'queued' || job.status === 'running');
@@ -319,6 +330,7 @@ export class ScanJobQueue extends EventEmitter {
   async #submit({ workspace, base_ref: baseRef = null, idempotency_key: idempotencyKey = null, priority = 0, scope = 'changed' } = {}) {
     await this.init();
     if (this.storageFault) throw new Error('Foxy job storage is unhealthy; restart the MCP server after repairing its state directory.');
+    this.#pruneExpiredTerminal();
     if (typeof workspace !== 'string' || !path.isAbsolute(workspace) || workspace.length > 4096) throw new Error('Workspace must be an absolute path.');
     if (baseRef !== null && (typeof baseRef !== 'string' || baseRef.length > 200)) throw new Error('Invalid base_ref.');
     if (idempotencyKey !== null && (typeof idempotencyKey !== 'string' || !idempotencyKey || idempotencyKey.length > 120)) throw new Error('Invalid idempotency_key.');
@@ -446,6 +458,7 @@ export class ScanJobQueue extends EventEmitter {
   }
 
   getRestorableBaselines() {
+    this.#pruneExpiredTerminal();
     const now = this.now();
     return [...this.jobs.values()]
       .filter((job) => job.status === 'completed' && job.scope === 'changed'
@@ -458,6 +471,7 @@ export class ScanJobQueue extends EventEmitter {
   }
 
   getStatus(id) {
+    this.#pruneExpiredTerminal();
     const job = this.jobs.get(id);
     if (!job) return null;
     const result = job.result;
@@ -485,6 +499,7 @@ export class ScanJobQueue extends EventEmitter {
   }
 
   getResults(id, { offset = 0, limit = 20 } = {}) {
+    this.#pruneExpiredTerminal();
     const job = this.jobs.get(id);
     if (!job) return null;
     if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error('Use offset >= 0 and limit from 1 to 50.');
