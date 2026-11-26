@@ -140,14 +140,18 @@ try {
   await run('git', ['init', '-q', connectFixture]);
   const connected = JSON.parse((await runCli(['connect', '--agent', 'all', '--cwd', connectFixture], { cwd: temp })).stdout);
   assert(connected.status === 'connected'
-    && connected.results.map(item => item.host).join(',') === 'claude,codex,cursor',
+    && connected.results.map(item => item.host).join(',') === 'claude,codex,cursor,gemini,roo,copilot',
     'Installed one-command connector did not configure all supported MCP hosts.');
   const connectedClaude = JSON.parse(await readFile(path.join(connectFixture, '.mcp.json'), 'utf8'));
   const connectedCursor = JSON.parse(await readFile(path.join(connectFixture, '.cursor', 'mcp.json'), 'utf8'));
   const connectedCodex = await readFile(path.join(connectFixture, '.codex', 'config.toml'), 'utf8');
+  const connectedGemini = JSON.parse(await readFile(path.join(connectFixture, '.gemini', 'settings.json'), 'utf8'));
+  const connectedRoo = JSON.parse(await readFile(path.join(connectFixture, '.roo', 'mcp.json'), 'utf8'));
   assert(connectedClaude.mcpServers['vibesane-agentshield']?.command === process.execPath
     && connectedCursor.mcpServers['vibesane-agentshield']?.type === 'stdio'
-    && connectedCodex.includes('[mcp_servers.vibesane_agentshield]'),
+    && connectedCodex.includes('[mcp_servers.vibesane_agentshield]')
+    && connectedGemini.mcpServers['vibesane-agentshield']?.command === process.execPath
+    && connectedRoo.mcpServers['vibesane-agentshield']?.command === process.execPath,
     'One-command connector did not create all three host entries.');
   const connectedDoctor = JSON.parse((await runCli(['doctor', '--cwd', connectFixture], { cwd: temp })).stdout);
   assert(connectedDoctor.status === 'ready'
