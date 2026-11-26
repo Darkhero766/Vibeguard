@@ -12,7 +12,7 @@ Short form from the trusted repository root (Node.js 20+, Git, pnpm; Windows rem
 pnpm --filter @workspace/api-server run build:agentshield
 node artifacts/api-server/scripts/package-agentshield-beta.mjs
 npm install --global --prefix "$HOME/.local" --ignore-scripts \
-  "$PWD/artifacts/api-server/dist/vibesane-agentshield-0.7.0-beta.3.tgz"
+  "$PWD/artifacts/api-server/dist/vibesane-agentshield-0.7.0-beta.4.tgz"
 VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/disposable-repo"]' \
   "$HOME/.local/bin/vibesane" mcp-doctor
 ```
