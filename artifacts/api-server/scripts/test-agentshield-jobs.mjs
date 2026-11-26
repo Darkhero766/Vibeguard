@@ -67,7 +67,15 @@ test('queue retries only bounded transient errors and reports scanner failures a
   try {
     const retried = await queue.submit({ workspace: '/tmp/foxy-flaky' });
     const failed = await queue.submit({ workspace: '/tmp/foxy-broken' });
-    for (let i = 0; i < 100 && queue.getStatus(failed.job_id)?.status !== 'failed'; i++) await tick();
+    // The second submission may fail before the retried job gets its worker
+    // slot. Wait for both independent outcomes rather than treating the first
+    // terminal job as evidence that the earlier retry has also completed.
+    for (let i = 0; i < 200; i++) {
+      const retryStatus = queue.getStatus(retried.job_id)?.status;
+      const failedStatus = queue.getStatus(failed.job_id)?.status;
+      if (retryStatus === 'completed' && failedStatus === 'failed') break;
+      await tick();
+    }
     assert.equal(queue.getStatus(retried.job_id).status, 'completed');
     assert.equal(queue.getStatus(retried.job_id).retries, 1);
     assert.equal(attempts.get('/tmp/foxy-flaky'), 2);
