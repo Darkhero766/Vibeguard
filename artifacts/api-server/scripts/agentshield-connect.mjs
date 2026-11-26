@@ -122,6 +122,20 @@ export function buildCodexMcpBlock({ nodePath, serverPath, workspaceRoot }) {
   ].join('\n');
 }
 
+function buildLegacyCodexMcpBlock({ nodePath, serverPath, workspaceRoot }) {
+  const allowlist = JSON.stringify([workspaceRoot]);
+  return [
+    '# BEGIN VIBESANE AGENTSHIELD MANAGED MCP ENTRY',
+    '[mcp_servers.vibesane_agentshield]',
+    'command = ' + safeTomlString(nodePath),
+    'args = [' + safeTomlString(serverPath) + ']',
+    'env = { VIBESANE_ALLOWED_ROOTS_JSON = ' + safeTomlString(allowlist) + ' }',
+    '# END VIBESANE AGENTSHIELD MANAGED MCP ENTRY',
+  ].join('\n');
+}
+
+
+
 export function jobStoreNamespaceForHost(host) {
   // Claude Code and Copilot can both consume the workspace-root .mcp.json,
   // so deliberately give that shared configuration one namespace. Each
@@ -146,6 +160,15 @@ export function buildJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot })
       VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([workspaceRoot]),
       VIBESANE_JOB_STORE_NAMESPACE: jobStoreNamespaceForHost(host),
     },
+  };
+  return ['claude', 'cursor', 'copilot'].includes(host) ? { type: 'stdio', ...entry } : entry;
+}
+
+function buildLegacyJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot }) {
+  const entry = {
+    command: nodePath,
+    args: [serverPath],
+    env: { VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([workspaceRoot]) },
   };
   return ['claude', 'cursor', 'copilot'].includes(host) ? { type: 'stdio', ...entry } : entry;
 }
@@ -298,7 +321,14 @@ async function configureJsonHost(host, root, nodePath, serverPath) {
   const desired = buildJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
   if (servers[SERVER_LABEL] != null) {
     if (sameJson(servers[SERVER_LABEL], desired)) return { host, status: 'already_configured', configFile: file };
-    throw new Error('A different MCP entry already uses ' + SERVER_LABEL + '; it was left untouched.');
+    const legacy = buildLegacyJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
+    if (!sameJson(servers[SERVER_LABEL], legacy)) {
+      throw new Error('A different or customized MCP entry already uses ' + SERVER_LABEL + '; it was left untouched.');
+    }
+    const backup = await backupFile(file);
+    config.mcpServers = { ...servers, [SERVER_LABEL]: desired };
+    await atomicWrite(file, JSON.stringify(config, null, 2) + '\n');
+    return { host, status: 'migrated', configFile: file, backup };
   }
   const backup = await backupFile(file);
   config.mcpServers = { ...servers, [SERVER_LABEL]: desired };
@@ -325,7 +355,14 @@ async function configureCodex(root, nodePath, serverPath) {
     if (end < 0) throw new Error('The managed Codex MCP block is damaged; refusing to rewrite it.');
     const current = existing.slice(start, end + endMarker.length);
     if (current === block) return { host: 'codex', status: 'already_configured', configFile: file };
-    throw new Error('The managed Codex MCP block was customized; refusing to overwrite it.');
+    const legacy = buildLegacyCodexMcpBlock({ nodePath, serverPath, workspaceRoot: root });
+    if (current !== legacy) {
+      throw new Error('The managed Codex MCP block was customized; refusing to overwrite it.');
+    }
+    const backup = await backupFile(file);
+    const tail = existing.slice(end + endMarker.length);
+    await atomicWrite(file, existing.slice(0, start) + block + tail);
+    return { host: 'codex', status: 'migrated', configFile: file, backup };
   }
   if (/^\s*\[mcp_servers\.vibesane_agentshield\]\s*$/m.test(existing)
     || /^\s*mcp_servers\s*=\s*\{/m.test(existing)) {
@@ -357,7 +394,8 @@ async function disconnectJsonHost(host, root, nodePath, serverPath) {
   const existing = servers[SERVER_LABEL];
   if (existing == null) return { host, status: 'not_configured', configFile: file };
   const desired = buildJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
-  if (!sameJson(existing, desired)) {
+  const legacy = buildLegacyJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
+  if (!sameJson(existing, desired) && !sameJson(existing, legacy)) {
     throw new Error('The AgentShield MCP entry was customized; refusing to remove it automatically.');
   }
   const backup = await backupFile(file);
@@ -389,7 +427,9 @@ async function disconnectCodex(root, nodePath, serverPath) {
     serverPath,
     workspaceRoot: root,
   });
-  if (existing.slice(start, end + endMarker.length) !== expected) {
+  const current = existing.slice(start, end + endMarker.length);
+  const legacy = buildLegacyCodexMcpBlock({ nodePath, serverPath, workspaceRoot: root });
+  if (current !== expected && current !== legacy) {
     throw new Error('The managed Codex MCP block was customized; refusing to remove it automatically.');
   }
   const backup = await backupFile(file);
