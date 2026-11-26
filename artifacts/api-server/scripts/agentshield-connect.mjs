@@ -96,8 +96,10 @@ export async function detectAgents({ cwd, env = process.env, platform = process.
     || await isDirectory(path.join(home, '.cursor')));
   const gemini = Boolean(geminiCli || geminiProject || envValue(env, 'GEMINI_CLI'));
   const roo = rooProject || Boolean(envValue(env, 'ROO_CODE'));
-  return ['claude', 'codex', 'cursor', 'gemini', 'roo'].filter((name) =>
-    name === 'claude' ? claude : name === 'codex' ? codex : name === 'cursor' ? cursor : name === 'gemini' ? gemini : roo);
+  const copilot = Boolean(envValue(env, 'VSCODE_PID') || envValue(env, 'COPILOT_HOME') || envValue(env, 'GITHUB_COPILOT'));
+  return ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot'].filter((name) =>
+    name === 'claude' ? claude : name === 'codex' ? codex : name === 'cursor' ? cursor
+      : name === 'gemini' ? gemini : name === 'roo' ? roo : copilot);
 }
 
 function safeTomlString(value) {
