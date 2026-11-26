@@ -187,7 +187,7 @@ async function main() {
   ];
   const packageEvidenceValid = Boolean(packageStep && packageStep.status === 'passed'
     && packageStep.evidence?.status === 'package_smoke_passed'
-    && packageStep.evidence?.version === '0.7.0-beta.3'
+    && packageStep.evidence?.version === '0.7.0-beta.4'
     && packageStep.evidence?.published === false
     && Number.isSafeInteger(packageStep.evidence?.packageBytes) && packageStep.evidence.packageBytes > 0
     && Number.isSafeInteger(packageStep.evidence?.packagedFiles) && packageStep.evidence.packagedFiles >= 20
@@ -209,7 +209,7 @@ async function main() {
   const report = {
     schemaVersion: 1,
     product: 'VibeSane AgentShield',
-    packageVersion: '0.7.0-beta.3',
+    packageVersion: '0.7.0-beta.4',
     status: allRequiredPassed && benchmarkTargetsMet ? 'validation_passed_review_required' : 'not_qualified',
     releaseDecision: allRequiredPassed && benchmarkTargetsMet
       ? 'candidate_for_independent_human_review'
