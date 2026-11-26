@@ -78,6 +78,15 @@ try {
 
   const tools = await client.listTools();
   const names = tools.tools.map((tool) => tool.name);
+  const conformanceOnlyNames = [
+    'test_simple_text', 'test_image_content', 'test_audio_content',
+    'test_embedded_resource', 'test_multiple_content_types',
+    'test_input_required_result_elicitation', 'test_input_required_result_sampling',
+  ];
+  assert.equal(names.length, 10, 'production Foxy must expose only its ten real read-only tools');
+  for (const fixtureName of conformanceOnlyNames) {
+    assert.equal(names.includes(fixtureName), false, `Conformance-only fixture leaked into production STDIO catalog: ${fixtureName}`);
+  }
   for (const name of ['scan_changed', 'scan_start', 'scan_status', 'scan_wait', 'scan_results', 'scan_cancel']) {
     assert.ok(names.includes(name), `Missing MCP tool ${name}`);
   }
