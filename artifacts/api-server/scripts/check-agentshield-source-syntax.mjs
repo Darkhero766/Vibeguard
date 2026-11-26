@@ -13,6 +13,8 @@ const root = path.resolve(scriptsDir, '..');
 const FILES = [
   'scripts/check-agentshield-source-syntax.mjs',
   'scripts/agentshield-mcp-conformance-http.mjs',
+  'scripts/agentshield-mcp-conformance-fixtures.mjs',
+  'scripts/agentshield-mcp-conformance-server.mjs',
   'scripts/test-agentshield-mcp-conformance.mjs',
   'scripts/build-agentshield.mjs',
   'scripts/test-agentshield-week2.mjs',
