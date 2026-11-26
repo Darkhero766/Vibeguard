@@ -53,8 +53,11 @@ jobs:
           node-version: "24"
           cache: pnpm
 
-      - name: Install frozen workspace dependencies
+      - name: Install workspace dependencies and provision platform binaries
         run: pnpm install --no-frozen-lockfile
+
+      - name: Build VibeSane web app and static metadata
+        run: pnpm --filter @workspace/vibeguard run build
 
       - name: Run cross-platform connector regression tests
         run: pnpm --filter @workspace/api-server run test:agentshield:connect
