@@ -3,6 +3,7 @@
 // Standard MCP stdio transport: one UTF-8 JSON-RPC message per line.
 // Repository data is untrusted. This server is read-only and never executes project code.
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { realpath, lstat, open, stat } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -30,20 +31,35 @@ const LEGACY_PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
 const SUPPORTED_PROTOCOLS = [MODERN_PROTOCOL, ...LEGACY_PROTOCOLS];
 const LATEST_PROTOCOL = MODERN_PROTOCOL;
 const LEGACY_DEFAULT_PROTOCOL = LEGACY_PROTOCOLS[0];
-const SERVER_INFO = Object.freeze({ name: 'vibesane-agentshield', version: '0.7.0-beta.3' });
+const SERVER_INFO = Object.freeze({ name: 'vibesane-agentshield', version: '0.7.0-beta.4' });
 const META_PROTOCOL = 'io.modelcontextprotocol/protocolVersion';
 const META_CLIENT_CAPABILITIES = 'io.modelcontextprotocol/clientCapabilities';
 const META_SERVER_INFO = 'io.modelcontextprotocol/serverInfo';
 const SOURCE_FILE = /\.(?:[cm]?[jt]sx?|pyi?|sql|json|ya?ml)$/i;
 const ENV_FILE = /(^|\/)\.env(?:\.[\w-]+)?$/i;
 const IGNORE_PARTS = new Set(['.git', 'node_modules', '.next', 'dist', 'build', 'coverage', 'vendor']);
+function parentEnvValue(name) {
+  const key = Object.keys(process.env).find((candidate) => candidate.toLowerCase() === name.toLowerCase());
+  return key ? process.env[key] : undefined;
+}
+const temporaryDirectory = os.tmpdir();
 const FIXED_ENV = Object.freeze({
-  PATH: '/usr/bin:/bin:/usr/local/bin',
+  // Keep only execution-critical variables; never forward tokens or credentials.
+  PATH: parentEnvValue('PATH') || '',
   LANG: 'C',
   LC_ALL: 'C',
-  HOME: '/tmp',
+  HOME: temporaryDirectory,
+  TMPDIR: temporaryDirectory,
+  TEMP: temporaryDirectory,
+  TMP: temporaryDirectory,
   NODE_OPTIONS: '',
-  TMPDIR: '/tmp',
+  ...(process.platform === 'win32' ? {
+    SYSTEMROOT: parentEnvValue('SYSTEMROOT') || '',
+    WINDIR: parentEnvValue('WINDIR') || parentEnvValue('SYSTEMROOT') || '',
+    COMSPEC: parentEnvValue('COMSPEC') || '',
+    PATHEXT: parentEnvValue('PATHEXT') || '.COM;.EXE;.BAT;.CMD',
+    USERPROFILE: temporaryDirectory,
+  } : {}),
 });
 const AUTHORIZED_ROOTS_ENV = 'VIBESANE_ALLOWED_ROOTS_JSON';
 
@@ -151,8 +167,13 @@ const GUIDANCE = Object.freeze({
   },
 });
 
+function samePath(left, right) {
+  const a = path.resolve(left);
+  const b = path.resolve(right);
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
 function gitArgs(root, extra) {
-  return ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-C', root, ...extra];
+  return ['-c', 'core.fsmonitor=false', '-C', root, ...extra];
 }
 function containedBy(root, candidate) {
   const relative = path.relative(root, candidate);
@@ -207,7 +228,7 @@ async function canonicalRoot(workspace, signal) {
     const result = await exec('git', gitArgs(root, ['rev-parse', '--show-toplevel']), {
       timeout: 5000, maxBuffer: 4096, windowsHide: true, env: FIXED_ENV, signal,
     });
-    if (await realpath(result.stdout.trim()) !== root || await realpath(input) !== root) throw new Error('not repository root');
+    if (!samePath(await realpath(result.stdout.trim()), root) || !samePath(await realpath(input), root)) throw new Error('not repository root');
     return root;
   } catch {
     // Do not disclose whether an unauthorized path exists or is a Git repository.
@@ -352,7 +373,7 @@ export async function workspaceSnapshot(workspace, signal, baseRef = null) {
     totalBytes += before.size;
     if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Changed files exceed the scanner total-size budget.');
     const canonicalFile = await realpath(fullPath);
-    if (canonicalFile !== fullPath || !canonicalFile.startsWith(root + path.sep)) {
+    if (!samePath(canonicalFile, fullPath) || !containedBy(root, canonicalFile)) {
       throw new Error('Changed path resolves outside the workspace.');
     }
     const handle = await open(fullPath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
@@ -649,7 +670,7 @@ async function fullWorkspaceSnapshot(workspace, signal) {
     totalBytes += before.size;
     if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Full-scan files exceed the aggregate scanner size budget.');
     const canonicalFile = await realpath(absolutePath);
-    if (canonicalFile !== absolutePath || !canonicalFile.startsWith(root + path.sep)) {
+    if (!samePath(canonicalFile, absolutePath) || !containedBy(root, canonicalFile)) {
       throw new Error('Full-scan source resolves outside the authorized workspace.');
     }
     const handle = await open(absolutePath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));

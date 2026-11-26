@@ -7,12 +7,13 @@
  */
 import { access, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 if (process.env.VITE_DEPLOYMENT_ENV !== 'staging') {
   throw new Error('Refusing to run staging finalizer outside staging builds');
 }
 
-const out = new URL('../dist/public/', import.meta.url).pathname;
+const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'public');
 const index = join(out, 'index.html');
 
 async function htmlFiles(dir) {

@@ -7,7 +7,9 @@
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts && node ./scripts/generate-seo-pages.mjs",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:foxy:page": "node ./scripts/test-foxy-page.mjs",
+    "test:foxy:preview": "node ./scripts/test-foxy-preview.mjs"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

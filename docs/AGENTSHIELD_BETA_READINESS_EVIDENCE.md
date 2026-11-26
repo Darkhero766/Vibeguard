@@ -96,3 +96,21 @@ The documented local tarball was installed into `/tmp/agentshield-beta-install` 
 - Tester precautions if later approved: use only disposable repositories first, allowlist only intended roots, use synthetic credentials, keep completion enforcement opt-in, review/trust host hooks explicitly, treat incomplete/unsupported scans as UNKNOWN, and do not interpret a clean static scan as certification.
 - Known risks: heuristic false positives in test/benchmark sources; changed-files-only scope; unsupported Markdown and platform gaps; host-level hooks can be disabled or bypassed; current-revision qualification and current-host MCP scan remain unverified.
 - Rollback: remove the project hooks/skill using the installed `vibesane uninstall-codex` / `vibesane uninstall` commands, restore the prior local archive if needed, then uninstall `@vibesane/agentshield`. Review config and preserve unrelated host entries.
+
+
+## Cross-platform auto-connect engineering delta — 2026-11-26
+
+A separate candidate branch, `feat/agentshield-cross-platform-autoconnect`, was forked from PR #69 head `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`. Its current source head at the time of this note is `dc8a1184905eb534361ec0ebc183de126d91232b`. It remains a draft engineering candidate and has not been merged or deployed.
+
+The branch introduces package version `0.7.0-beta.4` and the `vibesane connect` command:
+
+- Auto-detects project/CLI markers for Claude Code, Codex CLI and Cursor; `--agent all` explicitly configures all three.
+- Writes project-scoped MCP stdio configuration for Claude (`.mcp.json`), Codex (`.codex/config.toml`) and Cursor (`.cursor/mcp.json`).
+- `--agent mcp` emits a generic stdio configuration object for manual registration with other MCP-compatible clients.
+- Resolves the actual Git root and supplies that exact root in `VIBESANE_ALLOWED_ROOTS_JSON`; preserves unrelated configuration, backs up existing files, rejects symlinked/malformed/conflicting host config, and avoids installing hooks automatically.
+- Adds Windows-aware executable quoting, environment allowlisting (including execution-critical Windows variables), case-insensitive canonical path comparisons, and platform-independent Git invocation for read-only commands.
+- Adds connector tests and a dedicated Windows/macOS release-qualification workflow.
+
+**No tests or CI workflow have been executed for this revision yet.** Windows and macOS remain unqualified. The historical Linux qualification evidence above applies only to its recorded source revision/package checksum and is not evidence for beta.4. No distribution approval is implied.
+
+The separate “11 findings” report referenced in the follow-up work was not present in the checked-in branch documentation or PR #69 review evidence available for this pass. The historical November 24 real-repository report records 9 heuristic findings and 9 unsupported Markdown paths; those 9 were reviewed as synthetic test/benchmark fixtures, not confirmed application vulnerabilities. It is not the same thing as the 11-finding report and must not be used to close it. The exact 11 finding records, paths, line numbers and scanner evidence still need to be supplied or retrieved before those items can be triaged or marked fixed.

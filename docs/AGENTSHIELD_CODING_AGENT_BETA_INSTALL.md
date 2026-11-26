@@ -1,4 +1,4 @@
-# AgentShield coding-agent beta (0.7.0-beta.3)
+# AgentShield coding-agent beta (0.7.0-beta.4)
 
 ## What this beta does
 
@@ -19,7 +19,8 @@ The intended loop is:
 
 - Node.js 20 or newer
 - Git
-- macOS or Linux for this beta; Windows is not supported yet
+- Windows and macOS are included in the automated Foxy qualification workflow. Linux is supported by the runtime design but is not covered by that two-platform qualification run.
+- Automated CI does not equal live-host acceptance: each supported host/version combination still requires authenticated setup, restart, approval, tool-call and disconnect validation on a real machine.
 - A local Git repository
 - A trusted, MCP-capable coding-agent host
 
@@ -28,13 +29,33 @@ The intended loop is:
 After receiving the maintainer-built tarball:
 
 ```bash
-npm install --global ./vibesane-agentshield-0.7.0-beta.3.tgz
+npm install --global ./vibesane-agentshield-0.7.0-beta.4.tgz
 vibesane --help
 vibesane doctor --cwd /absolute/path/to/project
 ```
 
 The tarball is local and unpublished. The package script checks its file manifest and SHA-256 digest when it is built. This documentation does not imply that the archive has already been built or runtime-tested.
 
+## Windows PowerShell install (candidate only)
+
+Windows packaging and installer changes are being validated separately. **Do not use this path for production or unrestricted rollout until the Windows release workflow and real-host acceptance are green.** From a trusted checkout of the candidate branch, after that qualification passes:
+
+```powershell
+pnpm install --no-frozen-lockfile
+pnpm --filter @workspace/api-server run build:agentshield
+node .\artifacts\api-server\scripts\package-agentshield-beta.mjs
+
+$installPrefix = Join-Path $env:LOCALAPPDATA 'VibeSane'
+New-Item -ItemType Directory -Force -Path $installPrefix | Out-Null
+$archive = (Resolve-Path '.\artifacts\api-server\dist\vibesane-agentshield-0.7.0-beta.4.tgz').Path
+npm install --global --prefix $installPrefix --ignore-scripts $archive
+
+$vibesane = Join-Path $installPrefix 'vibesane.cmd'
+& $vibesane doctor --cwd (Get-Location).Path
+& $vibesane connect --agent auto --cwd (Get-Location).Path
+```
+
+Restart the selected agent and approve the MCP server. To configure every included project-level format, use `connect --agent all`. To remove the exact managed entries later, run `disconnect --agent all`. If your npm global prefix or install path differs, use the actual `vibesane.cmd` path created by npm. These commands are documented as a candidate workflow, not proof of Windows support.
 ## Completion gate and host enforcement
 
 The default `completionGate` is `advisory` for compatibility. To opt into commit-aware enforcement in a Claude Code project, install the hooks and configure a base reference that is present in the local clone:
@@ -60,19 +81,63 @@ For a one-off CLI scan without persisting a policy, use `vibesane scan --changed
 
 `monitor` reports findings only; `assist` asks the agent to propose a repair; `auto-fix` may request bounded repair under host permissions. `completionGate: enforce` is independent of repair mode and can block even when automatic repair is disabled.
 
+## One-command MCP connection
+
+From the root of the Git repository:
+
+```bash
+vibesane connect
+```
+
+The connector detects project markers and available CLIs for Claude Code, Codex CLI, Cursor, Gemini CLI, Roo Code and Copilot where the host environment exposes a supported marker. Copilot uses the shared workspace-root `.mcp.json` entry; this does not configure a global Copilot user file. It then writes the corresponding project-scoped MCP entries:
+
+- Claude Code: `.mcp.json`
+- Codex: `.codex/config.toml`
+- Cursor: `.cursor/mcp.json`
+- Gemini CLI: `.gemini/settings.json`
+- Roo Code: `.roo/mcp.json`
+- VS Code Copilot: the workspace-root `.mcp.json` entry is shared with Claude. In VS Code’s Copilot harness, the workspace-root destination is offered in guided setup when `chat.mcp.workspaceRootConfig.enabled` is enabled; an existing native workspace-root `.mcp.json` remains a valid source when that setting is off. The connector does not write Copilot’s global `$COPILOT_HOME/mcp-config.json` / `~/.copilot/mcp-config.json` file.
+
+Useful variants:
+
+```bash
+vibesane connect --agent all
+vibesane connect --agent claude
+vibesane connect --agent codex
+vibesane connect --agent cursor
+vibesane connect --agent gemini
+vibesane connect --agent roo
+vibesane connect --agent copilot
+vibesane connect --agent mcp
+```
+
+`auto` is the default and configures detected project hosts. VS Code Copilot is detected from the VS Code/Copilot host environment when that marker is available. `all` configures all five supported project-level host formats; VS Code Copilot shares the `.mcp.json` entry. `mcp` prints a generic stdio server object that can be copied into another MCP-compatible host. The connector resolves the Git root itself, writes an explicit `VIBESANE_ALLOWED_ROOTS_JSON` allowlist for that root, backs up existing config files, preserves unrelated settings, and refuses malformed, symlinked or conflicting configuration. It does not run project scripts, install hooks, change agent permissions, or connect to an account remotely. Restart the host and approve the local server when prompted.
+
+The generic mode is for hosts that implement MCP stdio. It cannot automatically configure products that do not expose MCP or a documented extension/configuration API. MCP is a common tool transport, not a universal adapter for every proprietary agent. Lifecycle hooks remain host-specific and are installed separately only after review.
+
+Disconnect the managed project integrations:
+
+```bash
+vibesane disconnect --agent all
+```
+
+This removes only exact, unchanged AgentShield entries from the supported host files. Existing unrelated MCP entries are preserved, and a backup is created before each modification. A host entry that has been customized is left untouched and reported as an error; review it manually before removal.
+
+The generated project configuration includes absolute local executable/script paths. Treat it as machine-specific local configuration; do not commit it for teammates unless the installation layout and trust policy are intentionally shared. For Codex, project `.codex/config.toml` is loaded only after the repository is trusted.
+
+Windows and macOS automated qualification is source-matched to the commit linked from the Foxy qualification PR. This is platform-runner evidence, not a claim that every installed Claude/Codex/Cursor/Gemini/Roo/Copilot release has passed live acceptance. Before any public distribution, run the real-host matrix on named app versions, record successful tool calls and disconnect behavior, and obtain an independent security review. Cursor enterprise MCP Network Controls may also require an administrator to allow the local command server in the applicable configuration.
+
 ## Connect the coding agents
 
 ### Codex
 
-Configure the MCP server in the Codex MCP configuration (typically `~/.codex/config.toml`; check the location for your Codex version):
+Register the project-scoped MCP server from the repository root:
 
-```toml
-[mcp_servers.vibesane_agentshield]
-command = "vibesane-mcp"
-args = []
+```bash
+vibesane connect --agent codex
 ```
 
-If the global npm executable directory is not in Codex's PATH, use the absolute path printed by `command -v vibesane-mcp`.
+This writes `.codex/config.toml` with the current Node executable, the packaged MCP entry point and an exact repository-root allowlist. Codex loads project-scoped config only after you trust the repository. If you configure Codex manually instead, include the `VIBESANE_ALLOWED_ROOTS_JSON` environment value; a server entry without that allowlist will deny workspace tools.
 
 Install the bundled project skill and project Stop hook from the repository root:
 
@@ -86,10 +151,10 @@ Codex also receives the server's MCP initialization instructions. The Stop hook 
 
 ### Claude Code
 
-Register the MCP server:
+Register the project-scoped MCP server:
 
 ```bash
-claude mcp add vibesane-agentshield -- vibesane-mcp
+vibesane connect --agent claude
 ```
 
 Install the Claude Code PostToolUse and Stop hooks in the project:
@@ -102,7 +167,11 @@ The hooks scan after supported file edits and at the end of an agent turn. The S
 
 ### Cursor
 
-Register the MCP server as an stdio server using `vibesane-mcp` and no arguments.
+Register the project-scoped MCP server:
+
+```bash
+vibesane connect --agent cursor
+```
 
 For the Stop lifecycle feedback loop, merge the packaged `cursor-hooks.json` entry into the project's existing `.cursor/hooks.json` file. **Do not replace the file or remove other hooks.** The sample uses:
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, utimes } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, utimes, realpath } from 'node:fs/promises';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
@@ -270,7 +270,7 @@ test('abandoned lock is recovered only when old and its owning process is gone',
   const f = await fixture(t, 'src/auth.ts', danger);
   await f.send(post);
   const hash = text => createHash('sha256').update(text).digest('hex').slice(0, 28);
-  const lock = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, hash(f.root), hash('test-week3') + '.json.lock');
+  const lock = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, hash(await realpath(f.root)), hash('test-week3') + '.json.lock');
   await mkdir(lock, { recursive: true });
   await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: 2147483000, createdAt: Date.now() - 90_000 }));
   const old = new Date(Date.now() - 90_000);
@@ -284,7 +284,7 @@ test('malformed persistent state produces explicit unknown status instead of a p
   const f = await fixture(t, 'src/auth.ts', danger);
   await f.send(post);
   const hash = text => createHash('sha256').update(text).digest('hex').slice(0, 28);
-  const file = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, hash(f.root), hash('test-week3') + '.json');
+  const file = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, hash(await realpath(f.root)), hash('test-week3') + '.json');
   await writeFile(file, '{ "corrupted":');
   const result = await f.send(post);
   assert.match(result.data?.hookSpecificOutput?.additionalContext || '', /UNKNOWN/);
@@ -294,7 +294,7 @@ test('local state never stores synthetic secret values or source excerpts', asyn
   const f = await fixture(t, 'src/auth.ts', danger);
   await f.send(post);
   const hash = text => createHash('sha256').update(text).digest('hex').slice(0, 28);
-  const file = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, hash(f.root), hash('test-week3') + '.json');
+  const file = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, hash(await realpath(f.root)), hash('test-week3') + '.json');
   const data = await readFile(file, 'utf8');
   assert.doesNotMatch(data, /Z{30}/);
   assert.doesNotMatch(data, /const JWT_SECRET =/);

@@ -13,7 +13,6 @@ const usage = 'Usage: node scripts/agentshield-install.mjs install|uninstall /ab
 async function main() {
   const [mode, project] = process.argv.slice(2);
   if (!['install', 'uninstall'].includes(mode) || !project) throw new Error(usage);
-  if (process.platform === 'win32') throw new Error('This installer currently supports macOS/Linux; use a POSIX shell.');
   const projectDir = path.resolve(project);
   const claudeDir = path.join(projectDir, '.claude');
   const settingsPath = path.join(claudeDir, 'settings.json');
@@ -22,9 +21,14 @@ async function main() {
     const dir = await lstat(claudeDir);
     if (!dir.isDirectory() || dir.isSymbolicLink()) throw new Error('Refusing unsafe or symlinked .claude directory.');
   } catch (error) { if (error?.code !== 'ENOENT') throw error; }
-  // Single-quoted POSIX shell argument. Only the fixed hook path is inserted.
-  const command = "node '" + hookPath.replaceAll("'", "'\\''") + "'";
-  const stopCommand = "node '" + stopPath.replaceAll("'", "'\\''") + "'";
+  // Commands contain only the trusted, package-owned Node executable and hook paths.
+  // Use Windows-compatible double quoting for drive paths and POSIX single quoting elsewhere.
+  const command = process.platform === 'win32'
+    ? '"' + process.execPath + '" "' + hookPath + '"'
+    : "node '" + hookPath.replaceAll("'", "'\\''") + "'";
+  const stopCommand = process.platform === 'win32'
+    ? '"' + process.execPath + '" "' + stopPath + '"'
+    : "node '" + stopPath.replaceAll("'", "'\\''") + "'";
 
   let settings = {};
   try {

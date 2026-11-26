@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, realpath } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -174,7 +174,7 @@ test('Claude Code Stop hook enforces blockers then allows a complete clean resca
   const stateHome = path.join(controlHome, 'state');
   t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
 
-  const rootHash = createHash('sha256').update(cwd).digest('hex').slice(0, 28);
+  const rootHash = createHash('sha256').update(await realpath(cwd)).digest('hex').slice(0, 28);
   await writeFile(path.join(controlHome, rootHash + '.json'), JSON.stringify({
     completionGate: 'enforce',
     mode: 'assist',
@@ -219,7 +219,7 @@ test('Claude Code Stop hook blocks enforce mode when there are no changed files 
 
   const controlHome = await mkdtemp(path.join(os.tmpdir(), 'agentshield-empty-control-'));
   t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
-  const rootHash = createHash('sha256').update(cwd).digest('hex').slice(0, 28);
+  const rootHash = createHash('sha256').update(await realpath(cwd)).digest('hex').slice(0, 28);
   await writeFile(path.join(controlHome, rootHash + '.json'), JSON.stringify({
     completionGate: 'enforce', mode: 'assist', enabled: true, baseRef: 'agentshield-base',
   }));
@@ -240,7 +240,7 @@ test('Claude Code Stop hook blocks if enforcement is enabled but scanner is disa
   const { cwd } = await fixture(t, 'src/index.js', 'export const changed = true;\n');
   const controlHome = await mkdtemp(path.join(os.tmpdir(), 'agentshield-disabled-control-'));
   t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
-  const rootHash = createHash('sha256').update(cwd).digest('hex').slice(0, 28);
+  const rootHash = createHash('sha256').update(await realpath(cwd)).digest('hex').slice(0, 28);
   await writeFile(path.join(controlHome, rootHash + '.json'), JSON.stringify({
     completionGate: 'enforce', enabled: false,
   }));
@@ -357,7 +357,7 @@ test('Claude Code Stop hook enforces commit-aware base-to-HEAD scope', async (t)
 
   const controlHome = await mkdtemp(path.join(os.tmpdir(), 'agentshield-committed-control-'));
   t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
-  const rootHash = createHash('sha256').update(cwd).digest('hex').slice(0, 28);
+  const rootHash = createHash('sha256').update(await realpath(cwd)).digest('hex').slice(0, 28);
   await writeFile(path.join(controlHome, rootHash + '.json'), JSON.stringify({
     completionGate: 'enforce', mode: 'assist', baseRef: 'agentshield-base', blockingSeverity: 'High',
   }));
@@ -403,7 +403,7 @@ test('Codex Stop hook blocks committed findings and permits a clean remediation 
 
   const controlHome = await mkdtemp(path.join(os.tmpdir(), 'agentshield-codex-control-'));
   t.after(async () => { await rm(controlHome, { recursive: true, force: true }); });
-  const rootHash = createHash('sha256').update(cwd).digest('hex').slice(0, 28);
+  const rootHash = createHash('sha256').update(await realpath(cwd)).digest('hex').slice(0, 28);
   await writeFile(path.join(controlHome, rootHash + '.json'), JSON.stringify({
     completionGate: 'enforce', mode: 'assist', baseRef: 'agentshield-base', blockingSeverity: 'High',
   }));

@@ -14,9 +14,10 @@ const exec = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const stage = path.join(root, 'dist', 'agentshield-beta-stage');
 const out = path.join(root, 'dist');
-export const PACKAGE_VERSION = '0.7.0-beta.3';
+export const PACKAGE_VERSION = '0.7.0-beta.4';
 const scripts = [
   'vibesane.mjs',
+  'agentshield-connect.mjs',
   'agentshield-controller.mjs',
   'agentshield-hook.mjs',
   'agentshield-stop.mjs',
@@ -157,7 +158,7 @@ async function main() {
     '# VibeSane AgentShield (unpublished developer preview)',
     '',
     'Local static security scanning, Claude Code and Codex Stop hooks, Cursor Stop feedback, and a read-only MCP server.',
-    'Requires Node.js >=20, Git, and macOS/Linux. This is an opt-in beta, not a security certification.',
+    'Requires Node.js >=20 and Git. macOS/Linux are the previously exercised platforms; Windows compatibility is a candidate only and remains blocked pending Windows CI plus live-host acceptance. This is an opt-in beta, not a security certification.',
     '',
     '## Install locally',
     'npm install --global ./vibesane-agentshield-' + PACKAGE_VERSION + '.tgz',
@@ -167,10 +168,12 @@ async function main() {
     'Validate the MCP allowlist without printing paths: VIBESANE_ALLOWED_ROOTS_JSON=\'["/absolute/path/to/project"]\' vibesane mcp-doctor.',
     '',
     '## Coding agents',
-    'MCP command: vibesane-mcp (Codex, Claude Code, Cursor MCP, and other compatible stdio clients).',
+    'MCP command: vibesane-mcp (Claude Code, Codex CLI, Cursor, Gemini CLI, Roo Code, VS Code Copilot and other compatible MCP stdio clients).',
     'Codex ~/.codex/config.toml: [mcp_servers.vibesane_agentshield], command = absolute vibesane-mcp path, args = [], env = { VIBESANE_ALLOWED_ROOTS_JSON = \'["/absolute/path/to/project"]\' }. Restart Codex and verify MCP status reports workspaceAuthorization configured.',
     'Claude Code project .mcp.json: add mcpServers.vibesane-agentshield with command set to the absolute vibesane-mcp path, args: [], and env.VIBESANE_ALLOWED_ROOTS_JSON set to the JSON-escaped allowlist string. Approve the project server and verify with /mcp.',
-    'Guided project-scoped MCP setup (private archive): vibesane setup --host claude --cwd /absolute/path/to/project or vibesane setup --host cursor --cwd /absolute/path/to/project. Existing config files are backed up and unrelated servers are preserved.',
+    'Examples: vibesane connect --agent claude; vibesane connect --agent codex; vibesane connect --agent cursor; vibesane connect --agent gemini; vibesane connect --agent roo; vibesane connect --agent copilot. VS Code Copilot and Copilot CLI use the shared workspace .mcp.json entry.',
+    'One-command MCP registration: vibesane connect auto-detects Claude Code, Codex CLI, Cursor, Gemini CLI, Roo Code and GitHub Copilot CLI from installed commands and project/host markers. Use vibesane connect --agent all to configure all six supported host targets; Claude Code and VS Code Copilot share the workspace .mcp.json entry and are reported separately. Explicit targets include --agent claude, --agent codex, --agent cursor, --agent gemini, --agent roo and --agent copilot. Use --agent mcp to print a generic stdio entry for any other MCP-compatible host; this does not integrate agents that do not support MCP stdio. Remove exact managed entries with vibesane disconnect --agent all; customized entries are refused and backups are retained. This writes only project MCP config, backs up existing files, and preserves unrelated entries. Restart the host and approve the server.',
+    'Codex project MCP registration is written to .codex/config.toml; approve/trust the project in Codex before using project-scoped config.',
     'Remove the exact managed MCP entry: vibesane uninstall-mcp --host claude --cwd /absolute/path/to/project or vibesane uninstall-mcp --host cursor --cwd /absolute/path/to/project. Customized entries are left untouched.',
     'Claude Code hooks: vibesane init --cwd /absolute/path/to/project',
     'Claude Code and Codex completion enforcement (opt in): vibesane config --mode assist --completion-gate enforce --base-ref origin/main --cwd /absolute/path/to/project.',
@@ -200,11 +203,12 @@ async function main() {
     'Uninstall Claude Code hooks with vibesane uninstall --cwd /absolute/path/to/project; remove the Cursor hook entry manually.',
     '',
   ].join('\n'));
-  const { stdout } = await exec('npm', [
-    'pack', '--ignore-scripts', '--json', '--pack-destination', out, stage,
-  ], {
+  const packArgs = ['pack', '--ignore-scripts', '--json', '--pack-destination', out, stage];
+  const { stdout } = await exec('npm', packArgs, {
     timeout: 30000,
     maxBuffer: 250000,
+    windowsHide: true,
+    shell: process.platform === 'win32',
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false' },
   });
   const metadata = JSON.parse(stdout)[0];

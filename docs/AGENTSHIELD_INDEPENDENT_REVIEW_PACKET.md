@@ -11,10 +11,10 @@ Review the candidate commit as a security engineer. Do not assume it is ready, a
 - `artifacts/api-server/scripts/agentshield-mcp-server.mjs` — stdio MCP protocol, tool schemas, canonical workspace authorization, scan and verification orchestration, output validation.
 - `artifacts/api-server/scripts/agentshield-baselines.mjs` — scan baseline storage and identity.
 - `artifacts/api-server/scripts/agentshield-gate.mjs`, `agentshield-controller.mjs`, `agentshield-codex-stop.mjs`, `agentshield-stop.mjs`, `agentshield-hook.mjs` — completion policy and host adapters.
-- `artifacts/api-server/scripts/agentshield-cli.mjs`, `vibesane.mjs`, `agentshield-install.mjs` — CLI, diagnostics, package hook installation and removal.
+- `artifacts/api-server/scripts/agentshield-cli.mjs`, `vibesane.mjs`, `agentshield-install.mjs`, `agentshield-connect.mjs` — CLI, diagnostics, package hook installation, removal, and cross-host MCP configuration.
 - `artifacts/api-server/src/lib/apiScanner.ts`, `extendedScanner.ts`, `extendedScannerV2.ts`, `apiScanner*.ts` — detector implementation.
 - `artifacts/api-server/scripts/package-agentshield-beta.mjs` and `artifacts/api-server/package.json` — local package construction and package entry points.
-- `artifacts/api-server/scripts/test-agentshield-adversarial.mjs`, `test-agentshield-mcp.mjs`, `test-agentshield-package.mjs`, `test-agentshield-gate.mjs`, benchmark corpora and `validate-agentshield-release.mjs` — tests and qualification.
+- `artifacts/api-server/scripts/test-agentshield-adversarial.mjs`, `test-agentshield-mcp.mjs`, `test-agentshield-package.mjs`, `test-agentshield-connect.mjs`, `test-agentshield-gate.mjs`, benchmark corpora and `validate-agentshield-release.mjs` — tests and qualification.
 
 Read the relevant current-commit diffs, the authorization regression tests, and the previous security findings below. Treat current tests and benchmark labels as claims to validate, not proof.
 
@@ -27,6 +27,20 @@ The local host hook is a bounded continuation control, not a tamper-proof gate. 
 ## Additional issue found during maintainer verification
 
 Before the latest candidate change, a synthetic reproduction replaced a configured allowlist directory after the MCP process started but before its first workspace request. The replacement repository was then authorized because identity pinning began on first use. The candidate now resolves and pins valid configured roots before accepting requests, and an adversarial test starts the actual local server, replaces the root before the first workspace call, and expects denial. Independently reproduce this boundary and review the startup ordering; do not rely on the regression test alone.
+
+## Cross-platform and auto-connect review delta
+
+The separate branch `feat/agentshield-cross-platform-autoconnect` adds a candidate one-command connector and Windows portability work. The reviewer should inspect the branch diff against PR #69's head and specifically test:
+
+- Project Git-root resolution and exact per-project `VIBESANE_ALLOWED_ROOTS_JSON` scope.
+- Host configuration writes to Claude `.mcp.json`, Codex `.codex/config.toml`, and Cursor `.cursor/mcp.json`; preservation of unrelated entries; backups; idempotence; and refusal on malformed, customized or symlinked configuration.
+- Windows path quoting, drive-letter and case normalization, junction handling, `PATHEXT` discovery, Node executable path handling, child-process environment, and cleanup on interrupted writes.
+- Codex project configuration trust requirements and the actual Windows behavior of command hooks.
+- Generic `--agent mcp` output against a second independent MCP stdio client.
+
+A generic MCP entry is only a fallback for hosts that implement MCP stdio; it does not provide a universal adapter to non-MCP agents. Auto-connect configures MCP only. It does not install lifecycle hooks, change host permissions or guarantee agent completion behavior.
+
+The branch adds a Windows/macOS GitHub Actions qualification workflow, but at the time this packet was updated that workflow had not been run. Do not count the new tests, CI definition or Windows-specific code as passing evidence until the exact candidate workflow artifacts and, separately, real host sessions have been reviewed. The package candidate is `0.7.0-beta.4`; prior beta.3 reports are historical only.
 
 ## Safe review setup
 

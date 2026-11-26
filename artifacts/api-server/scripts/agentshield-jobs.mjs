@@ -243,8 +243,15 @@ export class ScanJobQueue extends EventEmitter {
         const handle = await open(temp, 'wx', 0o600);
         try { await handle.writeFile(data); await handle.sync(); } finally { await handle.close(); }
         await rename(temp, this.statePath);
-        const directory = await open(this.storeDir, constants.O_RDONLY);
-        try { await directory.sync(); } finally { await directory.close(); }
+        // POSIX filesystems allow fsync on a directory handle to persist the
+        // rename metadata. Windows does not expose directory handles through
+        // Node's fs.open in the same way; attempting it makes every initial
+        // durable checkpoint fail with EISDIR/EPERM. The snapshot file itself
+        // is flushed before the atomic replacement on all platforms.
+        if (process.platform !== 'win32') {
+          const directory = await open(this.storeDir, constants.O_RDONLY);
+          try { await directory.sync(); } finally { await directory.close(); }
+        }
       } catch (error) {
         await unlink(temp).catch(() => {});
         throw error;

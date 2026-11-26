@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, writeFile, symlink, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, symlink, rm, realpath } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,8 +57,8 @@ test('workspace authorization canonicalizes roots and rejects missing or malform
   const prior = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
   try {
     process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([allowedAlias, allowed, allowedAlias]);
-    assert.deepEqual(await resolveAuthorizedRoots(), [allowed]);
-    assert.equal((await workspaceSnapshot(allowedRepo)).root, allowedRepo);
+    assert.deepEqual(await resolveAuthorizedRoots(), [await realpath(allowed)]);
+    assert.equal((await workspaceSnapshot(allowedRepo)).root, await realpath(allowedRepo));
     await assert.rejects(workspaceSnapshot(repoPath), /not authorized/i);
     process.env.VIBESANE_ALLOWED_ROOTS_JSON = '';
     for (const raw of ['', '{bad json', JSON.stringify([]), JSON.stringify(['relative/path']),
@@ -89,7 +89,7 @@ test('replacement of a configured authorization root fails closed for the server
   await git(repoPath, 'commit', '-qm', 'synthetic authorized root identity');
   try {
     process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([root]);
-    assert.equal((await workspaceSnapshot(repoPath)).root, repoPath);
+    assert.equal((await workspaceSnapshot(repoPath)).root, await realpath(repoPath));
     const moved = root + '-moved';
     await (await import('node:fs/promises')).rename(root, moved);
     temporary.add(moved);
@@ -146,7 +146,7 @@ test('deletion of a configured authorization root after server use fails closed'
   await git(repoPath, 'commit', '-qm', 'synthetic authorized root before deletion');
   try {
     process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([root]);
-    assert.equal((await workspaceSnapshot(repoPath)).root, repoPath);
+    assert.equal((await workspaceSnapshot(repoPath)).root, await realpath(repoPath));
     await rm(root, { recursive: true, force: true });
     await assert.rejects(resolveAuthorizedRoots(), /not authorized/i);
     await assert.rejects(workspaceSnapshot(repoPath), /not authorized/i);
@@ -179,9 +179,9 @@ test('authorized root contains nested repositories and Git worktrees but blocks 
   try {
     process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([allowed]);
     await assert.rejects(workspaceSnapshot(parent), /not authorized/i);
-    assert.equal((await workspaceSnapshot(nested)).root, nested);
-    assert.equal((await workspaceSnapshot(path.join(allowed, 'nested', '..', 'nested'))).root, nested);
-    assert.equal((await workspaceSnapshot(worktree)).root, worktree);
+    assert.equal((await workspaceSnapshot(nested)).root, await realpath(nested));
+    assert.equal((await workspaceSnapshot(path.join(allowed, 'nested', '..', 'nested'))).root, await realpath(nested));
+    assert.equal((await workspaceSnapshot(worktree)).root, await realpath(worktree));
     await assert.rejects(workspaceSnapshot(outside), /not authorized/i);
     await assert.rejects(workspaceSnapshot(siblingRepo), /not authorized/i);
     const traversal = path.join(allowed, '..', path.basename(sibling), 'repo');

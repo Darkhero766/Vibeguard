@@ -45,7 +45,8 @@
     "test:agentshield:sarif": "node --test ./scripts/test-agentshield-sarif.mjs",
     "test:agentshield:baselines": "node --test ./scripts/test-agentshield-baselines.mjs",
     "test:agentshield:package": "node ./scripts/test-agentshield-package.mjs",
-    "test:agentshield:release-qualification": "node ./scripts/validate-agentshield-release.mjs"
+    "test:agentshield:release-qualification": "node ./scripts/validate-agentshield-release.mjs",
+    "test:agentshield:connect": "node --test ./scripts/test-agentshield-connect.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",
