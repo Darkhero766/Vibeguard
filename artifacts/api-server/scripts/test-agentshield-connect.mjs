@@ -353,6 +353,13 @@ test('Codex uninstall refuses a symlinked .agents parent and preserves external 
   const externalSkill = path.join(externalSkillDir, 'SKILL.md');
   await writeFile(externalSkill, skill);
 
+  // Install a real Stop hook first so the test proves uninstall is transactional:
+  // an unsafe skill path must be rejected before any managed hook is removed.
+  await exec(process.execPath, [cliPath, 'init-codex', '--cwd', project]);
+  const hooksFile = path.join(project, '.codex', 'hooks.json');
+  const hooksBefore = await readFile(hooksFile, 'utf8');
+  await rm(path.join(project, '.agents'), { recursive: true, force: true });
+
   try {
     await symlink(outside, path.join(project, '.agents'), process.platform === 'win32' ? 'junction' : 'dir');
   } catch (error) {
@@ -368,6 +375,7 @@ test('Codex uninstall refuses a symlinked .agents parent and preserves external 
     (error) => error?.code === 2 && String(error.stdout).includes('"status":"error"'),
   );
   assert.equal(await readFile(externalSkill, 'utf8'), skill);
+  assert.equal(await readFile(hooksFile, 'utf8'), hooksBefore, 'Refused uninstall must not partially remove the Stop hook.');
 });
 
 
