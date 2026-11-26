@@ -335,3 +335,37 @@ test('doctor refuses a symlinked project host configuration directory', async (t
   );
   assert.equal(await readFile(path.join(outside, 'settings.json'), 'utf8'), JSON.stringify({ hooks: {} }));
 });
+
+
+test('Codex uninstall refuses a symlinked .agents parent and preserves external skill files', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-codex-uninstall-'));
+  const project = path.join(root, 'project');
+  const outside = path.join(root, 'outside');
+  const externalSkillDir = path.join(outside, 'skills', 'vibesane-agentshield');
+  await mkdir(project);
+  await mkdir(externalSkillDir, { recursive: true });
+  await mkdir(path.join(project, '.codex'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await exec('git', ['init', project]);
+
+  const sourceSkill = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../skills/vibesane-agentshield/SKILL.md');
+  const skill = await readFile(sourceSkill, 'utf8');
+  const externalSkill = path.join(externalSkillDir, 'SKILL.md');
+  await writeFile(externalSkill, skill);
+
+  try {
+    await symlink(outside, path.join(project, '.agents'), process.platform === 'win32' ? 'junction' : 'dir');
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOTSUP'].includes(error?.code)) {
+      t.skip('This Windows environment does not permit creating directory symbolic links for the safety fixture.');
+      return;
+    }
+    throw error;
+  }
+
+  await assert.rejects(
+    exec(process.execPath, [cliPath, 'uninstall-codex', '--cwd', project]),
+    (error) => error?.code === 2 && String(error.stdout).includes('"status":"error"'),
+  );
+  assert.equal(await readFile(externalSkill, 'utf8'), skill);
+});
