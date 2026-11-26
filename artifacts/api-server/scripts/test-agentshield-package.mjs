@@ -92,16 +92,14 @@ try {
     'Packaging did not return an archive path and SHA-256.');
   archive = packaged.archive;
   const packagedReadme = await run('tar', ['-xOf', archive, 'package/README.md']);
-  assert(packagedReadme.stdout.includes('vibesane connect')
-    && packagedReadme.stdout.includes('--completion-gate enforce')
-    && packagedReadme.stdout.includes('--base-ref origin/main')
-    && packagedReadme.stdout.includes('VIBESANE_ALLOWED_ROOTS_JSON')
-    && packagedReadme.stdout.includes('mcp-doctor')
-    && packagedReadme.stdout.includes('Codex Stop hooks')
-    && packagedReadme.stdout.includes('init-codex')
-    && packagedReadme.stdout.includes('connect --agent cursor')
-    && packagedReadme.stdout.includes('uninstall-mcp --host claude'),
-    'Packaged README omits MCP setup or completion-enforcement instructions.');
+  const requiredReadmeText = [
+    'vibesane connect', '--completion-gate enforce', '--base-ref origin/main',
+    'VIBESANE_ALLOWED_ROOTS_JSON', 'mcp-doctor', 'Codex Stop hooks',
+    'init-codex', 'connect --agent cursor', 'uninstall-mcp --host claude',
+  ];
+  const missingReadmeText = requiredReadmeText.filter((item) => !packagedReadme.stdout.includes(item));
+  assert(missingReadmeText.length === 0,
+    'Packaged README omits required instructions: ' + missingReadmeText.join(', '));
 
   await run('npm', ['install', '--global', '--ignore-scripts', '--offline', '--no-audit', '--no-fund', '--prefix', installPrefix, archive], {
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_offline: 'true' },
