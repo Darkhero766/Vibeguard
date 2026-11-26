@@ -5,7 +5,7 @@ type Finding = {
   title: string;
   description?: string;
   filePath: string;
-  line: number;
+  line: number | null;
   check?: string;
 };
 
@@ -22,7 +22,8 @@ function severityClass(severity: Finding['severity']) {
 }
 
 export function FindingDetail({ finding, repoUrl, onBack }: Props) {
-  const fileUrl = `${repoUrl.replace(/\/$/, '')}/blob/HEAD/${finding.filePath}#L${finding.line}`;
+  const safePath = finding.filePath.split('/').map((part) => encodeURIComponent(part)).join('/');
+  const fileUrl = repoUrl.replace(/\/$/, '') + '/blob/HEAD/' + safePath + (finding.line ? '#L' + finding.line : '');
 
   return (
     <section className="mt-10 pb-20 sm:mt-14">
@@ -43,7 +44,7 @@ export function FindingDetail({ finding, repoUrl, onBack }: Props) {
 
         <div className="mt-8 border-2 border-foreground bg-foreground p-5 text-background sm:p-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-primary">Location</p>
-          <p className="mt-3 break-all font-mono text-[12px]">{finding.filePath}:{finding.line}</p>
+          <p className="mt-3 break-all font-mono text-[12px]">{finding.filePath}{finding.line ? ':' + finding.line : ''}</p>
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
