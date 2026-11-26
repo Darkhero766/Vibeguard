@@ -50,7 +50,7 @@ function waitForReady(child, timeoutMs = 20_000) {
   });
 }
 async function runConformance(url, cwd) {
-  const args = ['dlx', '@modelcontextprotocol/conformance@0.2.0-alpha.12', 'server', '--url', url, '--requirements', '2026-07-28'];
+  const args = ['dlx', '@modelcontextprotocol/conformance@0.2.0-alpha.12', 'server', '--url', url, '--requirements', '2026-07-28', '--verbose'];
   const result = await exec('pnpm', args, {
     cwd,
     timeout: 240_000,
@@ -112,6 +112,20 @@ async function main() {
   }) + '\n');
 }
 main().catch((error) => {
-  process.stderr.write('Foxy official MCP conformance failed: ' + String(error?.stderr || error?.stdout || error?.message || error).slice(-20_000) + '\n');
+  // pnpm writes its progress to stderr even when the conformance CLI emits
+  // the useful scenario report on stdout. Preserve both streams so a failing
+  // run cannot hide the actual protocol findings behind package-manager noise.
+  const diagnostic = [
+    'exitCode: ' + String(error?.code ?? 'unknown'),
+    'signal: ' + String(error?.signal ?? 'none'),
+    'killed: ' + String(Boolean(error?.killed)),
+    '[stdout]',
+    String(error?.stdout || '').slice(-16_000) || '(empty)',
+    '[stderr]',
+    String(error?.stderr || '').slice(-16_000) || '(empty)',
+    '[message]',
+    String(error?.message || error).slice(-2_000),
+  ].join('\n');
+  process.stderr.write('Foxy official MCP conformance failed:\n' + diagnostic + '\n');
   process.exitCode = 1;
 });
