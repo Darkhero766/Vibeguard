@@ -95,6 +95,14 @@ vibesane connect --agent mcp
 
 The generic mode is for hosts that implement MCP stdio. It cannot automatically configure products that do not expose MCP or a documented extension/configuration API. MCP is a common tool transport, not a universal adapter for every proprietary agent. Lifecycle hooks remain host-specific and are installed separately only after review.
 
+Disconnect the managed project integrations:
+
+```bash
+vibesane disconnect --agent all
+```
+
+This removes only exact, unchanged AgentShield entries from the supported host files. Existing unrelated MCP entries are preserved, and a backup is created before each modification. A host entry that has been customized is left untouched and reported as an error; review it manually before removal.
+
 The generated project configuration includes absolute local executable/script paths. Treat it as machine-specific local configuration; do not commit it for teammates unless the installation layout and trust policy are intentionally shared. For Codex, project `.codex/config.toml` is loaded only after the repository is trusted.
 
 Windows compatibility changes are present on this engineering branch, but Windows is not declared supported until the Windows CI suite and live Claude/Codex/Cursor acceptance pass. Cursor enterprise MCP Network Controls may also require the administrator to allow this local command server in the appropriate no-sandbox mode on Windows.
