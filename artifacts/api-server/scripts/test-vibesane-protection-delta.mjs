@@ -60,7 +60,7 @@ test("protection pipeline executes core and extended checks against one file sna
 test("delta matching treats line movement as existing when finding evidence is unchanged", async () => {
   const { delta } = await load();
   const base = [{ severity: "High", filePath: "src/auth.ts", line: 2, check: "weak_hash", title: "Weak hash" }];
-  const head = [{ severity: "High", filePath: "src/auth.ts", line: 5, check: "weak_hash", title: "Weak hash" }];
+  const head = [{ severity: "High", filePath: "src/auth.ts", line: 4, check: "weak_hash", title: "Weak hash" }];
   const result = delta.classifyFindingDelta(base, head,
     [{ path: "src/auth.ts", content: "one\\nmd5(password)\\nthree\\n" }],
     [{ path: "src/auth.ts", content: "added\\nlines\\none\\nmd5(password)\\nfive\\n" }]);
@@ -127,12 +127,12 @@ test("repository read planner reports unsupported, missing, and intentionally ex
     { type: "blob", path: "artifacts/api-server/src/lib/apiScanner.ts", size: 10 },
   ], [
     "src/app.ts",
-    "README.md",
+    "assets/logo.png",
     "artifacts/api-server/src/lib/apiScanner.ts",
     "src/deleted.ts",
   ], true);
   assert.deepEqual(plan.missingRequestedPaths, ["src/deleted.ts"]);
-  assert.deepEqual(plan.unsupportedRequestedPaths, ["README.md"].filter(path => !reader.shouldRead(path)));
+  assert.deepEqual(plan.unsupportedRequestedPaths, ["assets/logo.png"]);
   assert.deepEqual(plan.selfExcludedPaths, ["artifacts/api-server/src/lib/apiScanner.ts"]);
   assert.deepEqual(plan.selectedEntries.map(entry => entry.path), ["src/app.ts"]);
 });

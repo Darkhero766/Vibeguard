@@ -32,7 +32,7 @@ test('GitHub check output includes actionable path and rule without revealing so
   assert.equal(out.annotations[0].annotation_level,'failure');
   assert.match(out.summary,/src\/api\/route\.ts:17/);
   assert.match(out.summary,/command_injection/);
-  assert.match(out.summary,/Review source/);
+  assert.match(out.annotations[0].message,/Review the affected code/);
   assert.match(out.summary,/only findings introduced by this change/);
   assert.doesNotMatch(JSON.stringify(out),/PRIVATE_CREDENTIAL_MUST_NOT_LEAK/);
 });

@@ -30,7 +30,11 @@ type Annotation = {
 };
 const tick = String.fromCharCode(96);
 function safeText(value: unknown, maxLength: number): string {
-  return String(value ?? '').replace(/[\x00-\x1f\x7f<>\x60|]/g, '_').slice(0,maxLength);
+  return String(value ?? '')
+    .replace(/[\x00-\x1f\x7f<>\x60|]/g, '_')
+    .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|sk_(?:live|test)_[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,})\b/g, '[redacted]')
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[redacted]')
+    .slice(0,maxLength);
 }
 function safePath(value: unknown): string | null {
   if(typeof value !== 'string' || !value || value.length > 512) return null;
