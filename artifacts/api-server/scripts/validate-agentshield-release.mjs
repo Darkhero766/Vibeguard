@@ -43,6 +43,22 @@ const TEST_FILES = [
   'test-vibesane-protection-delta.mjs',
 ];
 const results = [];
+function tapFailureDetails(output) {
+  const lines = String(output || '').split(/\r?\n/);
+  const failures = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^not ok \d+ - /.test(lines[i])) continue;
+    const block = [];
+    for (let j = i; j < lines.length && j < i + 28; j++) {
+      if (j > i && /^(?:not ok \d+ - |ok \d+ - |1\.\.\d+|# tests |# pass |# fail )/.test(lines[j])) break;
+      block.push(lines[j].slice(0, 1200));
+    }
+    failures.push(block.join('\n').slice(0, 5000));
+    if (failures.length >= 25) break;
+  }
+  return failures;
+}
+
 const env = {
   ...process.env,
   NODE_OPTIONS: '',
@@ -57,8 +73,9 @@ async function runStep(name, program, args, { cwd = root, timeout = 900_000 } = 
     const { stdout = '', stderr = '' } = await exec(program, args, {
       cwd, env, timeout, maxBuffer: 12_000_000, windowsHide: true,
     });
-    const output = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).slice(-30_000);
-    const tap = output.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)[\s\S]*?# cancelled (\d+)[\s\S]*?# skipped (\d+)/);
+    const completeOutput = stdout + (stderr ? '\n[stderr]\n' + stderr : '');
+    const output = completeOutput.slice(-30_000);
+    const tap = completeOutput.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)[\s\S]*?# cancelled (\d+)[\s\S]*?# skipped (\d+)/);
     let evidence = null;
     if (name === 'source-syntax' || name.includes('accuracy-benchmark') || name === 'offline-package-install-cli-mcp-smoke') {
       try { evidence = JSON.parse(stdout); } catch { evidence = { parseError: 'Command output was not valid JSON.' }; }
@@ -67,6 +84,7 @@ async function runStep(name, program, args, { cwd = root, timeout = 900_000 } = 
       name, status: 'passed', exitCode: 0, durationMs: Date.now() - started,
       ...(tap ? { tests: Number(tap[1]), passed: Number(tap[2]), failed: Number(tap[3]),
         cancelled: Number(tap[4]), skipped: Number(tap[5]) } : {}),
+      ...(name === 'unit-integration-regression' ? { failedTests: tapFailureDetails(completeOutput) } : {}),
       ...(evidence ? { evidence } : {}),
       output: output.slice(-8_000),
     };
@@ -75,13 +93,15 @@ async function runStep(name, program, args, { cwd = root, timeout = 900_000 } = 
   } catch (error) {
     const stdout = String(error?.stdout || '');
     const stderr = String(error?.stderr || error?.message || '');
-    const output = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).slice(-30_000);
-    const tap = output.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)[\s\S]*?# cancelled (\d+)[\s\S]*?# skipped (\d+)/);
+    const completeOutput = stdout + (stderr ? '\n[stderr]\n' + stderr : '');
+    const output = completeOutput.slice(-30_000);
+    const tap = completeOutput.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)[\s\S]*?# cancelled (\d+)[\s\S]*?# skipped (\d+)/);
     const item = {
       name, status: 'failed', exitCode: Number.isInteger(error?.code) ? error.code : 1,
       durationMs: Date.now() - started,
       ...(tap ? { tests: Number(tap[1]), passed: Number(tap[2]), failed: Number(tap[3]),
         cancelled: Number(tap[4]), skipped: Number(tap[5]) } : {}),
+      ...(name === 'unit-integration-regression' ? { failedTests: tapFailureDetails(completeOutput) } : {}),
       output,
     };
     results.push(item);
