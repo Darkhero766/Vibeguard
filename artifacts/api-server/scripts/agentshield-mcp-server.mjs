@@ -228,7 +228,7 @@ async function canonicalRoot(workspace, signal) {
     const result = await exec('git', gitArgs(root, ['rev-parse', '--show-toplevel']), {
       timeout: 5000, maxBuffer: 4096, windowsHide: true, env: FIXED_ENV, signal,
     });
-    if (await realpath(result.stdout.trim()) !== root || await realpath(input) !== root) throw new Error('not repository root');
+    if (!samePath(await realpath(result.stdout.trim()), root) || !samePath(await realpath(input), root)) throw new Error('not repository root');
     return root;
   } catch {
     // Do not disclose whether an unauthorized path exists or is a Git repository.
