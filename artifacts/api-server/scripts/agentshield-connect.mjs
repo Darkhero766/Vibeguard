@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { constants } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { chmod, lstat, mkdir, open, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -170,17 +170,20 @@ async function readRegularHostConfig(file, description = 'host MCP configuration
       || opened.size > MAX_HOST_CONFIG_BYTES) {
       throw new Error('Host configuration identity changed while opening it.');
     }
-    // Read at most one byte beyond the configured cap, even if another process
-    // grows the file after the initial stat.
-    const buffer = Buffer.alloc(MAX_HOST_CONFIG_BYTES + 1);
-    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    const buffer = Buffer.alloc(opened.size);
+    let bytesRead = 0;
+    while (bytesRead < buffer.length) {
+      const chunk = await handle.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
+      if (chunk.bytesRead === 0) break;
+      bytesRead += chunk.bytesRead;
+    }
     const after = await handle.stat();
     if (after.dev !== opened.dev || after.ino !== opened.ino
       || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs
-      || bytesRead !== opened.size || bytesRead > MAX_HOST_CONFIG_BYTES) {
-      throw new Error('Host configuration changed or exceeded its size limit while being read.');
+      || bytesRead !== opened.size) {
+      throw new Error('Host configuration changed or was truncated while being read.');
     }
-    return buffer.subarray(0, bytesRead).toString('utf8');
+    return buffer.toString('utf8');
   } finally {
     await handle.close();
   }
@@ -211,17 +214,22 @@ async function backupFile(file) {
       || opened.size > MAX_HOST_CONFIG_BYTES) {
       throw new Error('Host configuration identity changed before backup.');
     }
-    const buffer = Buffer.alloc(MAX_HOST_CONFIG_BYTES + 1);
-    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    const buffer = Buffer.alloc(opened.size);
+    let bytesRead = 0;
+    while (bytesRead < buffer.length) {
+      const chunk = await handle.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
+      if (chunk.bytesRead === 0) break;
+      bytesRead += chunk.bytesRead;
+    }
     const after = await handle.stat();
     if (after.dev !== opened.dev || after.ino !== opened.ino
       || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs
-      || bytesRead !== opened.size || bytesRead > MAX_HOST_CONFIG_BYTES) {
-      throw new Error('Host configuration changed or exceeded its size limit during backup.');
+      || bytesRead !== opened.size) {
+      throw new Error('Host configuration changed or was truncated during backup.');
     }
     const backup = file + '.vibesane-backup-' + new Date().toISOString().replaceAll(':', '-') + '-' + randomUUID();
     try {
-      await writeFile(backup, buffer.subarray(0, bytesRead), { flag: 'wx', mode: 0o600 });
+      await writeFile(backup, buffer, { flag: 'wx', mode: 0o600 });
       if (process.platform !== 'win32') await chmod(backup, 0o600);
       return backup;
     } catch (error) {
