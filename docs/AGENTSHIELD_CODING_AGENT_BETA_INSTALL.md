@@ -97,15 +97,13 @@ Windows compatibility changes are present on this engineering branch, but Window
 
 ### Codex
 
-Configure the MCP server in the Codex MCP configuration (typically `~/.codex/config.toml`; check the location for your Codex version):
+Register the project-scoped MCP server from the repository root:
 
-```toml
-[mcp_servers.vibesane_agentshield]
-command = "vibesane-mcp"
-args = []
+```bash
+vibesane connect --agent codex
 ```
 
-If the global npm executable directory is not in Codex's PATH, use the absolute path printed by `command -v vibesane-mcp`.
+This writes `.codex/config.toml` with the current Node executable, the packaged MCP entry point and an exact repository-root allowlist. Codex loads project-scoped config only after you trust the repository. If you configure Codex manually instead, include the `VIBESANE_ALLOWED_ROOTS_JSON` environment value; a server entry without that allowlist will deny workspace tools.
 
 Install the bundled project skill and project Stop hook from the repository root:
 
@@ -119,10 +117,10 @@ Codex also receives the server's MCP initialization instructions. The Stop hook 
 
 ### Claude Code
 
-Register the MCP server:
+Register the project-scoped MCP server:
 
 ```bash
-claude mcp add vibesane-agentshield -- vibesane-mcp
+vibesane connect --agent claude
 ```
 
 Install the Claude Code PostToolUse and Stop hooks in the project:
@@ -135,7 +133,11 @@ The hooks scan after supported file edits and at the end of an agent turn. The S
 
 ### Cursor
 
-Register the MCP server as an stdio server using `vibesane-mcp` and no arguments.
+Register the project-scoped MCP server:
+
+```bash
+vibesane connect --agent cursor
+```
 
 For the Stop lifecycle feedback loop, merge the packaged `cursor-hooks.json` entry into the project's existing `.cursor/hooks.json` file. **Do not replace the file or remove other hooks.** The sample uses:
 
