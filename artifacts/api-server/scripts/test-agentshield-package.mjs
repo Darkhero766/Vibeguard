@@ -154,8 +154,12 @@ try {
   const connectedDoctor = JSON.parse((await runCli(['doctor', '--cwd', connectFixture], { cwd: temp })).stdout);
   assert(connectedDoctor.status === 'ready'
     && connectedDoctor.checks.claudeMcpConfigured
-    && connectedDoctor.checks.cursorMcpConfigured,
-    'Doctor did not verify one-command MCP registration.');
+    && connectedDoctor.checks.copilotMcpConfigured
+    && connectedDoctor.checks.codexMcpConfigured
+    && connectedDoctor.checks.cursorMcpConfigured
+    && connectedDoctor.checks.geminiMcpConfigured
+    && connectedDoctor.checks.rooMcpConfigured,
+    'Doctor did not verify all one-command MCP host registrations.');
   const generic = JSON.parse((await runCli(['connect', '--agent', 'mcp', '--cwd', connectFixture], { cwd: temp })).stdout);
   assert(generic.status === 'manual_mcp_configuration'
     && generic.server.env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([await realpath(connectFixture)]),
