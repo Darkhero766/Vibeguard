@@ -99,7 +99,7 @@ try {
     && packagedReadme.stdout.includes('mcp-doctor')
     && packagedReadme.stdout.includes('Codex Stop hooks')
     && packagedReadme.stdout.includes('init-codex')
-    && packagedReadme.stdout.includes('setup --host cursor')
+    && packagedReadme.stdout.includes('connect --agent cursor')
     && packagedReadme.stdout.includes('uninstall-mcp --host claude'),
     'Packaged README omits MCP setup or completion-enforcement instructions.');
 
