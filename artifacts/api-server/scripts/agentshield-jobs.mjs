@@ -71,6 +71,7 @@ export class ScanJobQueue extends EventEmitter {
     if (!Number.isInteger(maxQueued) || maxQueued < 1 || maxQueued > 100) throw new TypeError('Queue limit must be between 1 and 100.');
     if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 300_000) throw new TypeError('Job timeout must be between 1 and 300 seconds.');
     if (!Number.isInteger(maxRetries) || maxRetries < 0 || maxRetries > 2) throw new TypeError('Retries must be between 0 and 2.');
+    if (baselineProvenance !== null && !validBaselineProvenance(baselineProvenance)) throw new TypeError('Invalid scanner/ruleset/report provenance.');
     if (writeSnapshot !== null && typeof writeSnapshot !== 'function') throw new TypeError('writeSnapshot must be a function when supplied.');
     this.storeDir = storeDir;
     this.runner = runner;
@@ -456,7 +457,8 @@ export class ScanJobQueue extends EventEmitter {
     const now = this.now();
     const baselineAvailable = validBaselineContext(context, job, now, this.baselineProvenance);
     const baselineExpired = Boolean(context && Number.isSafeInteger(context.expiresAt) && context.expiresAt <= now);
-    const baselineStale = Boolean(context && !sameBaselineProvenance(context, this.baselineProvenance));
+    const baselineStale = Boolean(context && !baselineExpired && validBaselineProvenance(context)
+      && !sameBaselineProvenance(context, this.baselineProvenance));
     const baselineRemaining = baselineAvailable ? context.expiresAt - now : context ? 0 : null;
     return { job_id: id, status: job.status, summary: { scanStatus: job.result.status, filesScanned: job.result.filesScanned,
       totalFindings: job.result.totalFindings ?? findings.length, coverage: job.result.coverage,
