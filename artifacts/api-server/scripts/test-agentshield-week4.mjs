@@ -65,11 +65,11 @@ test('unpublished local beta package contains no server runtime or source corpus
   const pkg = JSON.parse(stdout);
   assert.equal(pkg.status, 'packaged_local_only');
   assert.equal(pkg.published, false);
-  assert.equal(pkg.fileCount, 26);
+  assert.equal(pkg.fileCount, 27);
   assert.deepEqual(pkg.contents, [
     'README.md', 'THIRD_PARTY_NOTICES.txt', 'cursor-hooks.json', 'dist/agentshield.mjs', 'package.json',
     'scripts/agentshield-ast-worker.cjs', 'scripts/agentshield-baselines.mjs', 'scripts/agentshield-capabilities.mjs',
-    'scripts/agentshield-codex-stop.mjs', 'scripts/agentshield-controller.mjs', 'scripts/agentshield-cursor-stop.mjs',
+    'scripts/agentshield-codex-stop.mjs', 'scripts/agentshield-connect.mjs', 'scripts/agentshield-controller.mjs', 'scripts/agentshield-cursor-stop.mjs',
     'scripts/agentshield-gate.mjs', 'scripts/agentshield-hook.mjs', 'scripts/agentshield-hybrid.mjs',
     'scripts/agentshield-install.mjs', 'scripts/agentshield-jobs.mjs', 'scripts/agentshield-mcp-sdk.mjs',
     'scripts/agentshield-mcp-server.mjs', 'scripts/agentshield-mcp-stdio.mjs', 'scripts/agentshield-policy.mjs',
