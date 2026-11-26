@@ -9,6 +9,7 @@ on:
       - "artifacts/api-server/package.json"
       - "artifacts/api-server/skills/**"
       - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - ".github/workflows/agentshield-cross-platform.yml"
   workflow_dispatch:
 
@@ -53,7 +54,7 @@ jobs:
           cache: pnpm
 
       - name: Install frozen workspace dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Run cross-platform connector regression tests
         run: pnpm --filter @workspace/api-server run test:agentshield:connect
@@ -66,6 +67,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: agentshield-${{ matrix.os }}-${{ github.sha }}
-          path: artifacts/api-server/dist/agentshield-release-validation.json
+          path: |
+            artifacts/api-server/dist/agentshield-release-validation.json
+            pnpm-lock.yaml
           if-no-files-found: warn
           retention-days: 14
