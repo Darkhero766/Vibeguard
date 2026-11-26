@@ -16,7 +16,15 @@ import {
 import { z } from 'zod';
 
 const TEST_IMAGE_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==';
-const TEST_AUDIO_BASE64 = 'UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAACABAAZGF0YQIAAAA=';
+const TEST_AUDIO_BASE64 = 'UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAAB9AAACABAAZGF0YQIAAAA=';
+
+// Reject fixture corruption before starting the test server. Buffer's
+// round-trip check enforces canonical Base64, not merely permissive decoding.
+for (const [label, value] of [['PNG', TEST_IMAGE_BASE64], ['WAV', TEST_AUDIO_BASE64]]) {
+  if (Buffer.from(value, 'base64').toString('base64') !== value) {
+    throw new Error('MCP conformance ' + label + ' fixture is not canonical Base64.');
+  }
+}
 
 const emptySchema = z.object({});
 
