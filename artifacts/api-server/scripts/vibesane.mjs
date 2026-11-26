@@ -403,6 +403,7 @@ async function main(args) {
   if (command === 'doctor') return doctor(tail);
   if (command === 'connect') return child(connector, tail);
   if (command === 'disconnect') return child(connector, ['disconnect', ...tail]);
+  if (command === 'disconnect') return child(connector, ['disconnect', ...tail]);
   if (command === 'mcp-doctor' && tail.length === 0) return mcpDoctor();
   if (command === 'capabilities') {
     if (tail.length > 2 || (tail.length === 2 && tail[0] !== '--format') || (tail.length === 1 && !['json','text'].includes(tail[0]))) throw Error('Use capabilities --format json|text');
