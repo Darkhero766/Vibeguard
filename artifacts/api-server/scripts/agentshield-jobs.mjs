@@ -116,8 +116,8 @@ export class ScanJobQueue extends EventEmitter {
     this.storeDir = await realpath(this.storeDir);
     this.statePath = path.join(this.storeDir, 'jobs.json');
     this.lockPath = path.join(this.storeDir, 'jobs.lock');
-    await this.#acquireLock();
     try {
+      await this.#acquireLock();
       const fileInfo = await lstat(this.statePath).catch((e) => e?.code === 'ENOENT' ? null : Promise.reject(e));
       if (fileInfo) {
         if (!fileInfo.isFile() || fileInfo.isSymbolicLink() || fileInfo.size > MAX_STATE_BYTES) throw new Error('Job state file is unsafe or over its size limit.');
@@ -185,53 +185,52 @@ export class ScanJobQueue extends EventEmitter {
 
   async #acquireLock() {
     const owner = JSON.stringify({ pid: process.pid, host: hostname(), token: randomUUID() });
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        this.lockHandle = await open(this.lockPath, 'wx', 0o600);
-        await this.lockHandle.writeFile(owner);
-        await this.lockHandle.sync();
-        this.lockToken = JSON.parse(owner).token;
-        return;
-      } catch (error) {
-        // If this process created the lock but failed while writing/syncing its
-        // owner record, remove only that just-created lock so it cannot poison
-        // all subsequent starts as an unreadable stale lock.
-        if (this.lockHandle) {
-          const handle = this.lockHandle;
-          this.lockHandle = null;
-          this.lockToken = null;
-          await handle.close().catch(() => {});
-          await unlink(this.lockPath).catch(() => {});
-          throw new Error('Unable to initialize Foxy job-store lock; no scan was started.');
-        }
-        if (error?.code !== 'EEXIST' || attempt) throw new Error('Another Foxy MCP process owns this job store.');
-        let prior;
-        try {
-          const info = await lstat(this.lockPath);
-          if (!info.isFile() || info.isSymbolicLink() || info.size > 4096) throw new Error('unsafe lock');
-          const handle = await open(this.lockPath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
-          try {
-            const opened = await handle.stat();
-            if (opened.dev !== info.dev || opened.ino !== info.ino) throw new Error('lock changed');
-            prior = JSON.parse(await handle.readFile('utf8'));
-          } finally { await handle.close(); }
-        } catch { throw new Error('Job store lock is unreadable; refusing concurrent access.'); }
-        if (prior.host !== hostname() || !Number.isInteger(prior.pid) || !prior.token) throw new Error('Job store lock belongs to another host or is invalid.');
-        try {
-          process.kill(prior.pid, 0);
-          throw new Error('Another Foxy MCP process owns this job store.');
-        } catch (probe) {
-          if (probe?.code !== 'ESRCH') throw probe;
-          // Never unlink a stale lock automatically. A check-then-unlink sequence
-          // can delete a different process's newly acquired lock if two starters
-          // race to recover the same dead owner. Recovery is an explicit operator
-          // action after all Foxy processes using this store have been stopped.
-          throw new Error('Foxy job-store lock is stale. Stop every Foxy process using this store, then remove jobs.lock manually before restarting.');
-        }
+    try {
+      this.lockHandle = await open(this.lockPath, 'wx', 0o600);
+      await this.lockHandle.writeFile(owner);
+      await this.lockHandle.sync();
+      this.lockToken = JSON.parse(owner).token;
+      return;
+    } catch (error) {
+      // If the exclusive lock was created but its owner record could not be
+      // durably written, leave it in place for explicit operator recovery.
+      // Removing it by pathname here would repeat the same check/unlink race.
+      if (this.lockHandle) {
+        await this.lockHandle.close().catch(() => {});
+        this.lockHandle = null;
+        this.lockToken = null;
+        throw new Error('Unable to initialize Foxy job-store lock; no scan was started. The lock may require manual recovery.');
       }
+      if (error?.code !== 'EEXIST') throw new Error('Unable to acquire Foxy job-store lock; no scan was started.');
     }
-  }
 
+    let prior;
+    try {
+      const info = await lstat(this.lockPath);
+      if (!info.isFile() || info.isSymbolicLink() || info.size > 4096) throw new Error('unsafe lock');
+      const handle = await open(this.lockPath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+      try {
+        const opened = await handle.stat();
+        if (opened.dev !== info.dev || opened.ino !== info.ino) throw new Error('lock changed');
+        prior = JSON.parse(await handle.readFile('utf8'));
+      } finally { await handle.close(); }
+    } catch {
+      throw new Error('Job store lock is unreadable; refusing concurrent access.');
+    }
+    if (prior.host !== hostname() || !Number.isInteger(prior.pid) || !prior.token) {
+      throw new Error('Job store lock belongs to another host or is invalid.');
+    }
+    try {
+      process.kill(prior.pid, 0);
+    } catch (probe) {
+      if (probe?.code !== 'ESRCH') throw probe;
+      // A check-then-unlink recovery is racy: two processes can both inspect a
+      // dead owner, and the later unlink can delete the first process's new lock.
+      // Require an operator to stop all users of this store before removing it.
+      throw new Error('Foxy job-store lock is stale. Stop every Foxy process using this store, then remove jobs.lock manually before restarting.');
+    }
+    throw new Error('Another Foxy MCP process owns this job store.');
+  }
   async #releaseLock() {
     try {
       if (this.lockHandle) await this.lockHandle.close();
