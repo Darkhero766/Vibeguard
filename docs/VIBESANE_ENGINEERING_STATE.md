@@ -20,11 +20,12 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 
 - State: **open, draft, unmerged**.
 - Branch: `feat/agentshield-cross-platform-autoconnect`.
-- Functional connector qualification was run against code head `a9b4fc87fa202a0aaeab60f43ed6ec361e5ec01c`; later commits on this branch are docs/queue-namespace changes and must be requalified.
+- Functional connector qualification was run against code head `a9b4fc87fa202a0aaeab60f43ed6ec361e5ec01c`. Later code commits now add host-domain queue namespaces and safe migration of exact legacy config entries; no fresh workflow/check run is recorded for the resulting branch head yet.
 - Target branch: `feat/agentshield-beta-coding-agent-install`.
 - PR metadata reported target/base SHA `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`, and `mergeable=false`.
 - Scope: project-scoped MCP auto-connect for Claude Code, Codex CLI, Cursor, Gemini CLI, Roo Code and GitHub Copilot; generic MCP stdio output; canonical Git-root allowlisting; backup/idempotent config; cross-platform path handling; Windows/macOS qualification; Foxy setup page.
-- This session adds host-domain queue namespaces (`foxy-codex`, `foxy-cursor`, `foxy-gemini`, `foxy-roo`) while Claude/Copilot retain the shared `foxy-workspace-mcp` namespace because they share `.mcp.json`. Generic hand-entered MCP uses `foxy-manual`. This isolates distinct host config domains, but it does not solve multiple concurrent Claude/Copilot or same-host processes for the same repository.
+- Code update on this branch: connector commit `8f430780851ca8e6e95d8c15eac14f17f66aaa6f` adds host-domain queue namespaces (`foxy-codex`, `foxy-cursor`, `foxy-gemini`, `foxy-roo`) while Claude/Copilot retain the shared `foxy-workspace-mcp` namespace because they share `.mcp.json`; generic hand-entered MCP uses `foxy-manual`. This isolates distinct host config domains, but it does not solve multiple concurrent Claude/Copilot or same-host processes for the same repository.
+- Safe-upgrade code commit `07ea58f23c385938f45da6eacbee7e886aadcfde` and regression fixture correction `1cda7f2fef7b7de4f95f6bbbb5e4905472f0e6b6`: exact legacy JSON/TOML entries are migrated with backups; customized entries are refused. Requalify these commits on both Windows and macOS before relying on them.
 - Exact-source GitHub Actions run [45861790387](https://github.com/Darkhero766/Vibeguard/actions/runs/45861790387), run #75: **success** on this PR head. PR evidence records 429/429 release-qualification tests and 12/12 connector regression tests on each of Windows and macOS, plus app/page builds and no-JavaScript preview checks. The validators say `validation_passed_review_required`, not security certification.
 
 ### PR #69 — Foxy beta.3 MCP/server candidate
@@ -63,9 +64,10 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 1. **Live host acceptance:** test project-scoped install, restart, approval, tool calls, unauthorized-root denial, disconnect and config preservation using disposable repos on every advertised host/OS. Record exact app versions; CI configuration tests are not host acceptance.
 2. **Multi-instance queue isolation:** distinct config domains now receive separate persistent namespaces. Claude/Copilot intentionally share the workspace `.mcp.json` namespace; multiple processes for that namespace or multiple same-host processes can still contend on the queue's exclusive lock. Design a broker / session-safe multi-process store before claiming simultaneous Claude/Copilot or same-host sessions.
 3. **Reconcile the stack:** PR #70 base SHA is stale relative to #69 and reports `mergeable=false`. Review exact ancestry and diffs; no force push or merge without authorization.
-4. **Independent security review:** obtain a real reviewer report against the exact current candidate, with findings, severity, reproducible scenario, remediation and retest. Retrieve the exact 11-finding records before declaring any resolved.
-5. **Installer/config race hardening:** review concurrent host-config edits, atomic replacement semantics, symlink/junction and parent-directory behavior, backup handling and interruption recovery. Add deterministic regression tests before changing the implementation.
-6. **SaaS release gates:** issue #62 tracks independently labeled scanner-accuracy evidence; issue #63 tracks production security/migration/credentialed staging gates. Both remain separate from Foxy MCP and neither authorizes production changes.
+4. **Trigger/obtain fresh PR #70 qualification:** the last green run #75 tested `a9b4fc...`, not the new namespace/migration commits. Do not use that older run as evidence for current code.
+5. **Independent security review:** obtain a real reviewer report against the exact current candidate, with findings, severity, reproducible scenario, remediation and retest. Retrieve the exact 11-finding records before declaring any resolved.
+6. **Installer/config race hardening:** review concurrent host-config edits, atomic replacement semantics, symlink/junction and parent-directory behavior, backup handling and interruption recovery. Add deterministic regression tests before changing the implementation.
+7. **SaaS release gates:** issue #62 tracks independently labeled scanner-accuracy evidence; issue #63 tracks production security/migration/credentialed staging gates. Both remain separate from Foxy MCP and neither authorizes production changes.
 
 ## Non-negotiable operating constraints
 
