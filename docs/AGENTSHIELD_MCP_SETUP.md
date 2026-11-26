@@ -23,12 +23,11 @@ Use the absolute executable paths below so the coding-agent host does not depend
 
 ```sh
 export VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/disposable-repo"]'
-
-Set `VIBESANE_JOB_STORE_NAMESPACE` to a stable host-specific value such as `codex`, `claude`, or `cursor`. Foxy's default queue directory is derived from this namespace and a hash of the configured allowlist, so separately configured host integrations do not contend for one queue lock. Keep the namespace stable across restarts. If a process crashes and leaves a stale `jobs.lock`, Foxy intentionally fails closed rather than racing to delete a possibly replaced lock; stop all Foxy processes using that store, confirm the owner is gone, then remove the stale lock file before restarting.
-
 "$HOME/.local/bin/vibesane" mcp-doctor
 "$HOME/.local/bin/vibesane" doctor --cwd /absolute/path/to/disposable-repo
 ```
+
+`VIBESANE_JOB_STORE_NAMESPACE` must be set to a stable host-specific value such as `codex`, `claude`, or `cursor`. The default queue directory is derived from this namespace and a hash of the configured allowlist, so separate host integrations do not contend for one queue lock. If a process crashes and leaves a stale `jobs.lock`, Foxy fails closed instead of racing to unlink a replacement lock; stop all Foxy processes using that store, confirm the owner is gone, then remove the stale lock before restarting.
 
 `mcp-doctor` checks the current process environment, canonicalizes and deduplicates existing directories, and never prints configured paths. The MCP `status` tool is the final check that the host actually passed the environment to its server process. The workspace must be a Git repository root under one of the allowlisted directories.
 
@@ -165,7 +164,7 @@ Typical MCP call sequence (replace the absolute workspace path and IDs with retu
 For a checkout used directly from Codespaces, the exact Codex CLI setup is:
 
 ```sh
-codex mcp add foxy --env "VIBESANE_ALLOWED_ROOTS_JSON=$(node -p 'JSON.stringify([process.cwd()])')" -- "$(command -v node)" "$PWD/artifacts/api-server/scripts/agentshield-mcp-stdio.mjs"
+codex mcp add foxy --env "VIBESANE_ALLOWED_ROOTS_JSON=$(node -p 'JSON.stringify([process.cwd()])')" --env "VIBESANE_JOB_STORE_NAMESPACE=codex" -- "$(command -v node)" "$PWD/artifacts/api-server/scripts/agentshield-mcp-stdio.mjs"
 codex mcp list
 ```
 

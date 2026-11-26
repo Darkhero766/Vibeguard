@@ -493,7 +493,7 @@ test('stale process locks are never reclaimed with a racy check-then-unlink', as
   await writeFile(lockPath, owner, { mode: 0o600 });
   const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
   try {
-    await assert.rejects(queue.init(), /lock is stale.*remove jobs\\.lock manually/i);
+    await assert.rejects(queue.init(), /lock is stale.*remove jobs\.lock manually/i);
     assert.equal(await readFile(lockPath, 'utf8'), owner);
     assert.equal(queue.initialized, false);
     assert.equal(queue.storageFault, true);
