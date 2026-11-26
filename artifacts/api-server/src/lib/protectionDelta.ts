@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Finding as ApiFinding, FindingCheck, FindingSeverity } from "@workspace/api-zod";
+import type { Finding as ApiFinding } from "@workspace/api-zod";
 
 export type SecurityFinding = ApiFinding & {
   confidence?: string;
