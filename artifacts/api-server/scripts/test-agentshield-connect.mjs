@@ -41,7 +41,7 @@ test('Codex TOML and JSON MCP entries escape Windows paths and keep the allowlis
   };
   const toml = buildCodexMcpBlock(entry);
   assert.match(toml, /C:\\\\Program Files\\\\nodejs\\\\node\.exe/);
-  assert.match(toml, /D:\\\\Work\\\\my repo/);
+  assert.ok(toml.includes('env = { VIBESANE_ALLOWED_ROOTS_JSON = ' + JSON.stringify(JSON.stringify([entry.workspaceRoot])) + ' }'));
   const claude = buildJsonMcpEntry({ ...entry, host: 'claude' });
   const cursor = buildJsonMcpEntry({ ...entry, host: 'cursor' });
   assert.equal(claude.command, entry.nodePath);
