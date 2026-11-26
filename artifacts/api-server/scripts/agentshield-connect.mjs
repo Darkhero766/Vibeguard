@@ -116,16 +116,36 @@ export function buildCodexMcpBlock({ nodePath, serverPath, workspaceRoot }) {
     '[mcp_servers.vibesane_agentshield]',
     'command = ' + safeTomlString(nodePath),
     'args = [' + safeTomlString(serverPath) + ']',
-    'env = { VIBESANE_ALLOWED_ROOTS_JSON = ' + safeTomlString(allowlist) + ' }',
+    'env = { VIBESANE_ALLOWED_ROOTS_JSON = ' + safeTomlString(allowlist)
+      + ', VIBESANE_JOB_STORE_NAMESPACE = "foxy-codex" }',
     '# END VIBESANE AGENTSHIELD MANAGED MCP ENTRY',
   ].join('\n');
+}
+
+export function jobStoreNamespaceForHost(host) {
+  // Claude Code and Copilot can both consume the workspace-root .mcp.json,
+  // so deliberately give that shared configuration one namespace. Each
+  // host with its own config destination gets an isolated persistent queue.
+  const namespaces = {
+    claude: 'foxy-workspace-mcp',
+    copilot: 'foxy-workspace-mcp',
+    codex: 'foxy-codex',
+    cursor: 'foxy-cursor',
+    gemini: 'foxy-gemini',
+    roo: 'foxy-roo',
+    mcp: 'foxy-manual',
+  };
+  return namespaces[host] || 'foxy-manual';
 }
 
 export function buildJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot }) {
   const entry = {
     command: nodePath,
     args: [serverPath],
-    env: { VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([workspaceRoot]) },
+    env: {
+      VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([workspaceRoot]),
+      VIBESANE_JOB_STORE_NAMESPACE: jobStoreNamespaceForHost(host),
+    },
   };
   return ['claude', 'cursor', 'copilot'].includes(host) ? { type: 'stdio', ...entry } : entry;
 }
@@ -420,7 +440,10 @@ export async function connectAgentShield(args = [], overrides = {}) {
   const generic = {
     command: nodePath,
     args: [serverPath],
-    env: { VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([root]) },
+    env: {
+      VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([root]),
+      VIBESANE_JOB_STORE_NAMESPACE: jobStoreNamespaceForHost('mcp'),
+    },
   };
   if (agent === 'mcp') {
     return { status: 'manual_mcp_configuration', root, server: generic,
