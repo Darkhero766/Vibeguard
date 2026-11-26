@@ -38,9 +38,90 @@ async function completeCheckRun(
     throw new Error(`GitHub check completion failed: ${response.status} ${await response.text()}`);
   }
 }
-function findingKey(finding: any): string { return `${finding.filePath}:${finding.line}:${finding.check}:${finding.title}`; }
+function uniquePaths(paths: string[]): string[] {
+  return [...new Set(paths)].sort();
+}
+function coverageOmissions(scan: Awaited<ReturnType<typeof scanRepositorySecurity>>): string[] {
+  return uniquePaths([
+    ...scan.coverage.oversizedPaths,
+    ...scan.coverage.unreadablePaths,
+    ...scan.coverage.missingRequestedPaths,
+    ...scan.coverage.unsupportedRequestedPaths,
+    ...scan.coverage.selfExcludedPaths,
+  ]);
+}
+async function scanDelta(repo: string, token: string, headSha: string, baseSha: string) {
+  const repoUrl = "https://github.com/" + repo;
+  logger.info({ repo, baseSha, headSha }, "Delta scan started");
+  const changedFiles = await getChangedFiles(token, repo, baseSha, headSha);
+  const pathPlan = buildChangedPathPlan(changedFiles);
+  const unsupportedChangedFiles = changedFiles
+    .map(file => file.filename)
+    .filter(filePath => !shouldRead(filePath));
+  logger.info({
+    repo,
+    baseSha,
+    headSha,
+    changedFiles: changedFiles.length,
+    baseScanPaths: pathPlan.basePaths.length,
+    headScanPaths: pathPlan.headPaths.length,
+  }, "Changed-file snapshots resolved");
 
-async function scanDelta(repo: string, token: string, headSha: string, baseSha: string) { const repoUrl = `https://github.com/${repo}`; const headUrl = `${repoUrl}?ref=${encodeURIComponent(headSha)}`; const baseUrl = `${repoUrl}?ref=${encodeURIComponent(baseSha)}`; logger.info({ repo, baseSha, headSha }, "Delta scan started"); const changedFiles = await getChangedFiles(token, repo, baseSha, headSha); logger.info({ repo, baseSha, headSha, changedFiles: changedFiles.length }, "Changed files loaded for delta scan"); const [baseFindings, headFindings] = await Promise.all([runExtendedSecurityChecksV2(baseUrl, token, changedFiles), runExtendedSecurityChecksV2(headUrl, token, changedFiles)]); logger.info({ repo, changedFiles: changedFiles.length, baseFindings: baseFindings.length, headFindings: headFindings.length }, "Changed-file security rules completed"); const baseKeys = new Set(baseFindings.map(findingKey)); const changedSet = new Set(changedFiles); const findings = headFindings.filter((finding) => changedSet.has(finding.filePath) && !baseKeys.has(findingKey(finding))).map((finding) => ({ ...finding, severity: finding.severity === "Low" ? "Medium" : finding.severity })); logger.info({ repo, changedFiles: changedFiles.length, newFindings: findings.length }, "Delta scan completed"); return { repo, repoUrl, findings, filesScanned: changedFiles.length, changedFiles: changedFiles.length, checksRun: TOTAL_SECURITY_CHECKS, scanMode: "delta", scannedAt: new Date().toISOString() }; }
+  const [baseScan, headScan] = await Promise.all([
+    scanRepositorySecurity(repoUrl + "?ref=" + encodeURIComponent(baseSha), token, pathPlan.basePaths),
+    scanRepositorySecurity(repoUrl + "?ref=" + encodeURIComponent(headSha), token, pathPlan.headPaths),
+  ]);
+  const delta = classifyFindingDelta(
+    baseScan.findings,
+    headScan.findings,
+    baseScan.files,
+    headScan.files,
+    pathPlan.renamedPaths,
+  );
+  const baseOmissions = coverageOmissions(baseScan);
+  const headOmissions = coverageOmissions(headScan);
+  const unscannedChangedFiles = uniquePaths([...unsupportedChangedFiles, ...baseOmissions, ...headOmissions]);
+  const coverageReasons: string[] = [];
+  if (changedFiles.length === 0) coverageReasons.push("GitHub returned no changed-file evidence for this commit range.");
+  if (unsupportedChangedFiles.length) coverageReasons.push("Some changed paths are outside the supported static-analysis file types.");
+  if (baseScan.coverage.treeTruncated || headScan.coverage.treeTruncated) coverageReasons.push("A GitHub repository tree response was truncated.");
+  if (baseScan.coverage.omittedByFileLimit || headScan.coverage.omittedByFileLimit) coverageReasons.push("The repository file-count limit was reached.");
+  if (baseScan.coverage.oversizedPaths.length || headScan.coverage.oversizedPaths.length) coverageReasons.push("One or more changed files exceeded the scanner byte budget.");
+  if (baseScan.coverage.unreadablePaths.length || headScan.coverage.unreadablePaths.length) coverageReasons.push("One or more changed file blobs could not be read or decoded.");
+  if (baseScan.coverage.missingRequestedPaths.length || headScan.coverage.missingRequestedPaths.length) coverageReasons.push("One or more expected changed paths were missing from a GitHub snapshot.");
+  if (baseScan.coverage.selfExcludedPaths.length || headScan.coverage.selfExcludedPaths.length) coverageReasons.push("One or more changed paths are intentionally excluded from self-scanning.");
+  const coveragePartial = coverageReasons.length > 0
+    || !baseScan.coverage.complete || !headScan.coverage.complete;
+  const findings = delta.introduced;
+  logger.info({
+    repo,
+    changedFiles: changedFiles.length,
+    filesScanned: headScan.filesScanned,
+    baseFindings: baseScan.findings.length,
+    headFindings: headScan.findings.length,
+    newFindings: findings.length,
+    resolvedFindings: delta.resolved.length,
+    existingFindings: delta.existing.length,
+    coveragePartial,
+    unscannedChangedFileCount: unscannedChangedFiles.length,
+  }, "Complete core + extended changed-file delta completed");
+  return {
+    repo,
+    repoUrl,
+    findings,
+    filesScanned: Math.max(baseScan.filesScanned, headScan.filesScanned),
+    changedFiles: changedFiles.length,
+    checksRun: TOTAL_SECURITY_CHECKS,
+    scanMode: "delta",
+    scannedAt: new Date().toISOString(),
+    coveragePartial,
+    unscannedChangedFiles: unscannedChangedFiles.slice(0, 30),
+    unscannedChangedFileCount: unscannedChangedFiles.length,
+    coverageReasons,
+    resolvedFindingsCount: delta.resolved.length,
+    existingFindingsCount: delta.existing.length,
+  };
+}
 
 async function scanEvent(payload: WebhookPayload, event: "push" | "pull_request"): Promise<void> {
   const repo = payload.repository?.full_name; const installationId = payload.installation?.id; const sha = event === "pull_request" ? payload.pull_request?.head?.sha : payload.after;
