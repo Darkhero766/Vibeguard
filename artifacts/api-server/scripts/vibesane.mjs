@@ -106,13 +106,19 @@ async function readProjectMcpConfig(root, directoryName, fileName) {
   if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Unsafe project MCP configuration directory.');
   return readSafeJsonFile(path.join(directory, fileName));
 }
+function samePath(left, right) {
+  const a = path.resolve(left);
+  const b = path.resolve(right);
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
 function sameJson(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 async function configureMcpHost(args, uninstall = false) {
   const { host, cwd } = parseSetupArgs(args);
   const root = await codexProjectRoot(cwd);
-  if (root === path.parse(root).root || root === os.homedir()) {
+  const home = await realpath(os.homedir()).catch(() => path.resolve(os.homedir()));
+  if (samePath(root, path.parse(root).root) || samePath(root, home)) {
     throw new Error('Choose a repository below the filesystem and home-directory roots.');
   }
   const configDir = host === 'cursor' ? path.join(root, '.cursor') : root;
