@@ -136,7 +136,7 @@ export class ScanJobQueue extends EventEmitter {
           if (job.status === 'completed') {
             if (!job.result || typeof job.result !== 'object' || Array.isArray(job.result)
               || !['complete', 'partial_coverage'].includes(job.result.status)
-              || !Array.isArray(job.result.findings) || job.result.findings.length > MAX_RECORDS
+              || !Array.isArray(job.result.findings) || job.result.findings.length > MAX_JOB_FINDINGS
               || job.result.findings.some((finding) => !finding || typeof finding !== 'object' || Array.isArray(finding))
               || !Number.isSafeInteger(job.result.filesScanned) || job.result.filesScanned < 0
               || !Number.isSafeInteger(job.result.totalFindings) || job.result.totalFindings < job.result.findings.length)) {

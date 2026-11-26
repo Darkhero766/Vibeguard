@@ -368,7 +368,9 @@ export async function handleHook(kind, { surface = 'claude' } = {}) {
   } catch {
     const reason = 'VibeSane AgentShield: hook execution failed. Security status is UNKNOWN; restore the hook or complete an approved manual scan before delivery.';
     if (surface === 'cursor') {
-      if (cursorStop?.allowFollowup) printJSON({ followup_message: reason });
+      // If input parsing itself failed, emit UNKNOWN rather than silently passing.
+      // A known aborted/error event or exhausted loop budget must not request continuation.
+      if (cursorStop === null || cursorStop.allowFollowup) printJSON({ followup_message: reason });
     } else if (kind === 'Stop') {
       // A broken Stop hook must never convert an enforced or indeterminate gate into a pass.
       // On recursive re-entry, terminate the turn and expose the UNKNOWN status.
