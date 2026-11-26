@@ -52,6 +52,24 @@ async function git(cwd, args) {
   }
 }
 
+async function explicitFileRelative(rootReal, cwd, file) {
+  const input = path.resolve(cwd, file);
+  // Resolve the parent directory only. Keeping the final path component lexical
+  // lets lstat/open reject a final symlink rather than silently following it.
+  const parent = await realpath(path.dirname(input));
+  return path.relative(rootReal, path.join(parent, path.basename(input)));
+}
+function containedBy(root, candidate) {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate));
+  return relative === '' || (!path.isAbsolute(relative) && relative !== '..'
+    && !relative.startsWith('..' + path.sep));
+}
+function samePath(left, right) {
+  const a = path.resolve(left);
+  const b = path.resolve(right);
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
 function ignoredPath(rel) {
   const normalized = rel.replaceAll('\\', '/');
   return normalized.startsWith('/') || normalized.split('/').includes('..')
@@ -132,8 +150,9 @@ async function loadFiles(opts) {
   const committedPaths = baseCommit
     ? diffChangedPaths(await git(cwd, ['diff', '--name-status', '-z', '--find-renames', baseCommit + '...HEAD', '--']))
     : [];
+  const explicitTarget = opts.file ? await explicitFileRelative(rootReal, cwd, opts.file) : null;
   const targets = opts.file
-    ? [path.isAbsolute(opts.file) ? path.relative(rootReal, opts.file) : path.relative(rootReal, path.resolve(cwd, opts.file))]
+    ? [explicitTarget]
     : opts.all
       ? (await git(cwd, ['ls-files', '--cached', '--others', '--exclude-standard', '-z'])).split('\0').filter(Boolean).sort()
       : [...new Set([...worktreePaths, ...committedPaths])].sort();
@@ -155,7 +174,7 @@ async function loadFiles(opts) {
   for (const rel of selected) {
     const absolute = path.resolve(rootReal, rel);
     const safeRelative = path.relative(rootReal, absolute);
-    if (safeRelative.startsWith('..') || path.isAbsolute(safeRelative)) throw new Error('File escaped the repository root.');
+    if (!containedBy(rootReal, absolute)) throw new Error('File escaped the repository root.');
     let info;
     try { info = await lstat(absolute); }
     catch (error) {
@@ -165,7 +184,7 @@ async function loadFiles(opts) {
     if (!info.isFile() || info.isSymbolicLink()) { unsafeChangedPaths.push(rel); continue; } // never follow symlinks or special files
     if (info.size > MAX_FILE_BYTES || bytes + info.size > MAX_TOTAL_BYTES) throw new Error('Source size limit exceeded; scan fewer or smaller files.');
     const verified = await realpath(absolute);
-    if (verified !== rootReal && !verified.startsWith(rootReal + path.sep)) throw new Error('File escaped the repository root.');
+    if (!containedBy(rootReal, verified)) throw new Error('File escaped the repository root.');
     let content;
     const handle = await open(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW || 0)).catch(() => {
       throw new Error('Unable to open a selected file without following symlinks.');
