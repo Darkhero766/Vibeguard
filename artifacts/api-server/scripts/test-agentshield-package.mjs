@@ -63,7 +63,7 @@ function runHook(script, cwd, payload, env) {
 }
 
 async function withPackagedMcp(executable, env, run) {
-  const transport = new StdioClientTransport({ command: executable, args: [], env, stderr: 'pipe' });
+  const transport = new StdioClientTransport({ command: process.execPath, args: [executable], env, stderr: 'pipe' });
   const client = new Client({ name: 'agentshield-package-smoke', version: '1.0.0' }, {
     versionNegotiation: { mode: { pin: '2026-07-28' }, probe: { timeoutMs: 3000 } },
   });
@@ -77,8 +77,8 @@ async function withPackagedMcp(executable, env, run) {
 }
 
 try {
-  assert(process.platform === 'darwin' || process.platform === 'linux',
-    'Package smoke currently supports macOS/Linux only.');
+  assert(['darwin', 'linux', 'win32'].includes(process.platform),
+    'Package smoke supports Windows, macOS and Linux only.');
   assert(Number(process.versions.node.split('.')[0]) >= 20, 'Node.js 20 or newer is required.');
 
   await run(process.execPath, [path.join(scriptsDir, 'build-agentshield.mjs')]);
@@ -104,13 +104,18 @@ try {
   await run('npm', ['install', '--global', '--ignore-scripts', '--offline', '--no-audit', '--no-fund', '--prefix', installPrefix, archive], {
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_offline: 'true' },
   });
-  const binDir = path.join(installPrefix, 'bin');
-  const cli = path.join(binDir, 'vibesane');
-  const mcp = path.join(binDir, 'vibesane-mcp');
+  const packageRoot = process.platform === 'win32'
+    ? path.join(installPrefix, 'node_modules', '@vibesane', 'agentshield')
+    : path.join(installPrefix, 'lib', 'node_modules', '@vibesane', 'agentshield');
+  const cli = path.join(packageRoot, 'scripts', 'vibesane.mjs');
+  const mcp = path.join(packageRoot, 'scripts', 'agentshield-mcp-stdio.mjs');
+  async function runCli(args, options = {}) {
+    return run(process.execPath, [cli, ...args], options);
+  }
 
-  const help = await run(cli, ['--help'], { cwd: temp });
+  const help = await runCli(['--help'], { cwd: temp });
   assert(help.stdout.includes('VibeSane AgentShield'), 'Installed CLI help did not execute.');
-  const mcpDoctor = await run(cli, ['mcp-doctor'], { cwd: temp, env: {
+  const mcpDoctor = await runCli(['mcp-doctor'], { cwd: temp, env: {
     ...process.env,
     VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([temp, temp]),
   } });
@@ -120,7 +125,7 @@ try {
   'Installed MCP doctor did not validate/deduplicate roots without printing their paths.');
   let invalidMcpDoctorRejected = false;
   try {
-    await run(cli, ['mcp-doctor'], { cwd: temp, env: {
+    await runCli(['mcp-doctor'], { cwd: temp, env: {
       ...process.env,
       VIBESANE_ALLOWED_ROOTS_JSON: 'not-json',
     } });
@@ -141,7 +146,7 @@ try {
     customSetting: 'preserve-me',
     mcpServers: { unrelatedServer: { command: 'example-server', args: [] } },
   }, null, 2));
-  const cursorSetup = JSON.parse((await run(cli, ['setup', '--host', 'cursor', '--cwd', fixture], { cwd: temp })).stdout);
+  const cursorSetup = JSON.parse((await runCli(['setup', '--host', 'cursor', '--cwd', fixture], { cwd: temp })).stdout);
   assert(cursorSetup.status === 'configured' && cursorSetup.backup,
     'Cursor setup did not back up its pre-existing project MCP config.');
   const cursorConfig = JSON.parse(await readFile(cursorConfigPath, 'utf8'));
@@ -152,15 +157,15 @@ try {
     && cursorEntry.args[0].endsWith(path.join('scripts', 'agentshield-mcp-stdio.mjs'))
     && cursorEntry.env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture]),
     'Cursor setup did not create a project-scoped STDIO entry with an exact root allowlist.');
-  const cursorDoctor = JSON.parse((await run(cli, ['doctor', '--cwd', fixture], { cwd: temp })).stdout);
+  const cursorDoctor = JSON.parse((await runCli(['doctor', '--cwd', fixture], { cwd: temp })).stdout);
   assert(cursorDoctor.status === 'ready' && cursorDoctor.checks.cursorMcpConfigured === true,
     'Doctor did not detect the managed Cursor MCP entry.');
   const backupConfig = JSON.parse(await readFile(cursorSetup.backup, 'utf8'));
   assert(backupConfig.customSetting === 'preserve-me' && !backupConfig.mcpServers['vibesane-agentshield'],
     'Cursor setup backup did not preserve the original config.');
-  const cursorAgain = JSON.parse((await run(cli, ['setup', '--host', 'cursor', '--cwd', fixture], { cwd: temp })).stdout);
+  const cursorAgain = JSON.parse((await runCli(['setup', '--host', 'cursor', '--cwd', fixture], { cwd: temp })).stdout);
   assert(cursorAgain.status === 'already_configured', 'Cursor setup is not idempotent.');
-  const cursorRemoved = JSON.parse((await run(cli, ['uninstall-mcp', '--host', 'cursor', '--cwd', fixture], { cwd: temp })).stdout);
+  const cursorRemoved = JSON.parse((await runCli(['uninstall-mcp', '--host', 'cursor', '--cwd', fixture], { cwd: temp })).stdout);
   assert(cursorRemoved.status === 'removed', 'Cursor MCP uninstaller did not remove its exact managed entry.');
   const cursorAfterRemove = JSON.parse(await readFile(cursorConfigPath, 'utf8'));
   assert(cursorAfterRemove.customSetting === 'preserve-me'
@@ -168,17 +173,17 @@ try {
     && !cursorAfterRemove.mcpServers['vibesane-agentshield'],
     'Cursor MCP uninstaller removed unrelated config.');
 
-  const claudeSetup = JSON.parse((await run(cli, ['setup', '--host', 'claude', '--cwd', fixture], { cwd: temp })).stdout);
+  const claudeSetup = JSON.parse((await runCli(['setup', '--host', 'claude', '--cwd', fixture], { cwd: temp })).stdout);
   const claudeConfigPath = path.join(fixture, '.mcp.json');
   const claudeConfig = JSON.parse(await readFile(claudeConfigPath, 'utf8'));
   assert(claudeSetup.status === 'configured'
     && claudeConfig.mcpServers['vibesane-agentshield'].command === process.execPath
     && claudeConfig.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture]),
     'Claude Code setup did not write a project-scoped MCP config.');
-  const claudeDoctor = JSON.parse((await run(cli, ['doctor', '--cwd', fixture], { cwd: temp })).stdout);
+  const claudeDoctor = JSON.parse((await runCli(['doctor', '--cwd', fixture], { cwd: temp })).stdout);
   assert(claudeDoctor.status === 'ready' && claudeDoctor.checks.claudeMcpConfigured === true,
     'Doctor did not detect the managed Claude MCP entry.');
-  await run(cli, ['uninstall-mcp', '--host', 'claude', '--cwd', fixture], { cwd: temp });
+  await runCli(['uninstall-mcp', '--host', 'claude', '--cwd', fixture], { cwd: temp });
   const claudeAfterRemove = JSON.parse(await readFile(claudeConfigPath, 'utf8'));
   assert(!claudeAfterRemove.mcpServers, 'Claude MCP uninstaller left its managed entry behind.');
 
@@ -189,12 +194,12 @@ try {
   await writeFile(externalConfig, JSON.stringify({ mcpServers: { safe: { command: 'leave-alone' } } }));
   await symlink(externalConfig, path.join(symlinkFixture, '.mcp.json'));
   let symlinkRejected = false;
-  try { await run(cli, ['setup', '--host', 'claude', '--cwd', symlinkFixture], { cwd: temp }); }
+  try { await runCli(['setup', '--host', 'claude', '--cwd', symlinkFixture], { cwd: temp }); }
   catch { symlinkRejected = true; }
   assert(symlinkRejected && JSON.parse(await readFile(externalConfig, 'utf8')).mcpServers.safe.command === 'leave-alone',
     'Claude setup did not reject a symlinked config file safely.');
 
-  const codexInit = await run(cli, ['init-codex', '--cwd', fixture], { cwd: temp });
+  const codexInit = await runCli(['init-codex', '--cwd', fixture], { cwd: temp });
   const codexInstall = JSON.parse(codexInit.stdout);
   assert(codexInstall.status === 'installed'
     && codexInstall.hook.endsWith(path.join('.codex', 'hooks.json')),
@@ -211,7 +216,7 @@ try {
   await run('git', ['-C', fixture, 'branch', 'agentshield-base']);
   await writeFile(path.join(fixture, 'src', 'index.js'), 'export const changed = true;\n');
 
-  const doctor = await run(cli, ['doctor', '--cwd', fixture], { cwd: temp });
+  const doctor = await runCli(['doctor', '--cwd', fixture], { cwd: temp });
   const health = JSON.parse(doctor.stdout);
   assert(health.status === 'ready' && health.checks.codexStopHookInstalled === true
     && health.checks.hooksInstalled === true,
@@ -220,7 +225,7 @@ try {
   await run('git', ['-C', fixture, 'add', '.']);
   await run('git', ['-C', fixture, '-c', 'user.name=AgentShield Package Smoke', '-c',
     'user.email=agentshield-smoke@example.invalid', 'commit', '-qm', 'synthetic committed change']);
-  const scan = await run(cli, ['scan', '--changed', '--base-ref', 'agentshield-base', '--cwd', fixture, '--format', 'json'], { cwd: temp });
+  const scan = await runCli(['scan', '--changed', '--base-ref', 'agentshield-base', '--cwd', fixture, '--format', 'json'], { cwd: temp });
   const report = JSON.parse(scan.stdout);
   assert(report.status === 'complete' && report.filesScanned === 1
     && typeof report.baseRef === 'string' && report.baseRef.length === 40,
@@ -228,7 +233,6 @@ try {
 
   // Exercise the installed Codex Stop adapter as a real child process, not just
   // the hook-registration JSON. All state/config paths are isolated to this fixture.
-  const packageRoot = path.join(installPrefix, 'lib', 'node_modules', '@vibesane', 'agentshield');
   const codexStop = path.join(packageRoot, 'scripts', 'agentshield-codex-stop.mjs');
   const hookEnv = {
     ...process.env,
@@ -240,7 +244,7 @@ try {
   await run('git', ['-C', fixture, 'add', 'src/auth.js']);
   await run('git', ['-C', fixture, '-c', 'user.name=AgentShield Package Smoke', '-c',
     'user.email=agentshield-smoke@example.invalid', 'commit', '-qm', 'synthetic blocker fixture']);
-  await run(cli, ['config', '--mode', 'assist', '--completion-gate', 'enforce',
+  await runCli(['config', '--mode', 'assist', '--completion-gate', 'enforce',
     '--base-ref', 'agentshield-base', '--cwd', fixture], { cwd: temp, env: hookEnv });
   const blockedStop = await runHook(codexStop, fixture, {
     cwd: fixture, thread_id: 'agentshield-smoke-thread', turn_id: 'agentshield-smoke-blocker',
@@ -315,7 +319,7 @@ try {
     const cancelled = await client.callTool({ name: 'scan_cancel', arguments: { job_id: queued.job_id } });
     return { job: queued, cancelled: JSON.parse(cancelled.content[0].text) };
   });
-  const codexUninstall = await run(cli, ['uninstall-codex', '--cwd', fixture], { cwd: temp });
+  const codexUninstall = await runCli(['uninstall-codex', '--cwd', fixture], { cwd: temp });
   const codexUninstallResult = JSON.parse(codexUninstall.stdout);
   assert(codexUninstallResult.hookRemoved === true && codexUninstallResult.skillRemoved === true,
     'Installed package could not safely remove its Codex hook and matching skill.');
