@@ -93,7 +93,10 @@ function foxyMcpEntry(host, root) {
   const entry = {
     command: process.execPath,
     args: [path.resolve(scripts, 'agentshield-mcp-stdio.mjs')],
-    env: { VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([root]) },
+    env: {
+      VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([root]),
+      VIBESANE_JOB_STORE_NAMESPACE: host,
+    },
   };
   if (host === 'cursor') return { type: 'stdio', ...entry };
   return entry;
@@ -155,9 +158,12 @@ async function configureMcpHost(args, uninstall = false) {
   }) + '\n');
   return 0;
 }
+function shellQuote(value) {
+  return "'" + String(value).replaceAll("'", "'\\''") + "'";
+}
 function codexHookCommand() {
   const hook = path.resolve(scripts, 'agentshield-codex-stop.mjs');
-  return "node '" + hook.replaceAll("'", "'\\''") + "'";
+  return shellQuote(process.execPath) + ' ' + shellQuote(hook);
 }
 function removeCodexStopEntry(hooks, command) {
   const stop = Array.isArray(hooks.Stop) ? hooks.Stop : [];

@@ -123,9 +123,24 @@ export class ScanJobQueue extends EventEmitter {
         if (!fileInfo.isFile() || fileInfo.isSymbolicLink() || fileInfo.size > MAX_STATE_BYTES) throw new Error('Job state file is unsafe or over its size limit.');
         const handle = await open(this.statePath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
         let raw;
-        try { raw = await handle.readFile('utf8'); } finally { await handle.close(); }
+        try {
+          const opened = await handle.stat();
+          if (!opened.isFile() || opened.dev !== fileInfo.dev || opened.ino !== fileInfo.ino
+            || opened.size > MAX_STATE_BYTES) {
+            throw new Error('Job state file identity changed while opening it.');
+          }
+          // Restrict the opened inode rather than chmodding a path that may have
+          // been replaced since lstat.
+          await handle.chmod(0o600);
+          raw = await handle.readFile('utf8');
+          const afterRead = await handle.stat();
+          if (afterRead.dev !== opened.dev || afterRead.ino !== opened.ino
+            || afterRead.size !== opened.size || afterRead.mtimeMs !== opened.mtimeMs
+            || Buffer.byteLength(raw, 'utf8') !== opened.size) {
+            throw new Error('Job state file changed while it was being read.');
+          }
+        } finally { await handle.close(); }
         const parsed = JSON.parse(raw);
-        await chmod(this.statePath, 0o600);
         if (parsed?.version !== 1 || !Array.isArray(parsed.jobs) || parsed.jobs.length > MAX_RECORDS) throw new Error('Job state format is invalid.');
         for (const job of parsed.jobs) {
           if (!job || typeof job.id !== 'string' || !/^[a-f0-9-]{36}$/.test(job.id)
@@ -202,9 +217,17 @@ export class ScanJobQueue extends EventEmitter {
           } finally { await handle.close(); }
         } catch { throw new Error('Job store lock is unreadable; refusing concurrent access.'); }
         if (prior.host !== hostname() || !Number.isInteger(prior.pid) || !prior.token) throw new Error('Job store lock belongs to another host or is invalid.');
-        try { process.kill(prior.pid, 0); throw new Error('Another Foxy MCP process owns this job store.'); }
-        catch (probe) { if (probe?.code !== 'ESRCH') throw probe; }
-        await unlink(this.lockPath);
+        try {
+          process.kill(prior.pid, 0);
+          throw new Error('Another Foxy MCP process owns this job store.');
+        } catch (probe) {
+          if (probe?.code !== 'ESRCH') throw probe;
+          // Never unlink a stale lock automatically. A check-then-unlink sequence
+          // can delete a different process's newly acquired lock if two starters
+          // race to recover the same dead owner. Recovery is an explicit operator
+          // action after all Foxy processes using this store have been stopped.
+          throw new Error('Foxy job-store lock is stale. Stop every Foxy process using this store, then remove jobs.lock manually before restarting.');
+        }
       }
     }
   }

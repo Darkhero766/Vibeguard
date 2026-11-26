@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { z } from 'zod';
 import { homedir } from 'node:os';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { TOOL_DEFS, authorizeWorkspace, handleMessage, resolveAuthorizedRoots, getBaselineProvenance, restoreBaseline, scanChanged, scanFull } from './agentshield-mcp-server.mjs';
 import { ScanJobQueue } from './agentshield-jobs.mjs';
@@ -88,7 +89,17 @@ export function createFoxyServer(queue) {
 
 export async function serveFoxyStdio({ env = process.env } = {}) {
   await resolveAuthorizedRoots().catch(() => null);
-  const storeDir = env.VIBESANE_JOB_STORE_DIR || path.join(homedir(), '.local', 'state', 'vibesane', 'agentshield');
+  const namespace = env.VIBESANE_JOB_STORE_NAMESPACE || 'default';
+  if (!/^[a-z0-9][a-z0-9._-]{0,31}$/i.test(namespace)) {
+    throw new Error('VIBESANE_JOB_STORE_NAMESPACE must be a 1–32 character alphanumeric namespace.');
+  }
+  const allowlistScope = createHash('sha256')
+    .update(String(env.VIBESANE_ALLOWED_ROOTS_JSON || ''))
+    .digest('hex')
+    .slice(0, 24);
+  const defaultStoreDir = path.join(homedir(), '.local', 'state', 'vibesane', 'agentshield',
+    namespace + '-' + allowlistScope);
+  const storeDir = env.VIBESANE_JOB_STORE_DIR || defaultStoreDir;
   const baselineProvenance = await getBaselineProvenance();
   const queue = new ScanJobQueue({ storeDir, baselineProvenance,
     concurrency: Number(env.VIBESANE_JOB_CONCURRENCY || 2),

@@ -173,7 +173,8 @@ try {
   const claudeConfig = JSON.parse(await readFile(claudeConfigPath, 'utf8'));
   assert(claudeSetup.status === 'configured'
     && claudeConfig.mcpServers['vibesane-agentshield'].command === process.execPath
-    && claudeConfig.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture]),
+    && claudeConfig.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture])
+    && claudeConfig.mcpServers['vibesane-agentshield'].env.VIBESANE_JOB_STORE_NAMESPACE === 'claude',
     'Claude Code setup did not write a project-scoped MCP config.');
   const claudeDoctor = JSON.parse((await run(cli, ['doctor', '--cwd', fixture], { cwd: temp })).stdout);
   assert(claudeDoctor.status === 'ready' && claudeDoctor.checks.claudeMcpConfigured === true,
@@ -201,9 +202,11 @@ try {
     'Installed package could not configure Codex project Stop hook.');
   const codexHooksFile = path.join(fixture, '.codex', 'hooks.json');
   const codexHooks = JSON.parse(await readFile(codexHooksFile, 'utf8'));
-  assert(codexHooks.hooks.Stop.some(entry => entry.hooks.some(item =>
-    item.command?.includes('agentshield-codex-stop.mjs'))),
-    'Codex Stop hook entry is missing from installed package.');
+  const packagedCodexStop = codexHooks.hooks.Stop.flatMap(entry => entry.hooks || [])
+    .find(item => item.command?.includes('agentshield-codex-stop.mjs'));
+  assert(packagedCodexStop, 'Codex Stop hook entry is missing from installed package.');
+  assert(packagedCodexStop.command.startsWith("'" + process.execPath.replaceAll("'", "'\\''") + "' "),
+    'Installed Codex hook does not use the absolute Node runtime.');
   await run('git', ['-C', fixture, 'config', 'user.name', 'AgentShield Package Smoke']);
   await run('git', ['-C', fixture, 'config', 'user.email', 'agentshield-smoke@example.invalid']);
   await run('git', ['-C', fixture, 'add', '.']);

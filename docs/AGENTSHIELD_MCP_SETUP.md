@@ -23,6 +23,9 @@ Use the absolute executable paths below so the coding-agent host does not depend
 
 ```sh
 export VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/disposable-repo"]'
+
+Set `VIBESANE_JOB_STORE_NAMESPACE` to a stable host-specific value such as `codex`, `claude`, or `cursor`. Foxy's default queue directory is derived from this namespace and a hash of the configured allowlist, so separately configured host integrations do not contend for one queue lock. Keep the namespace stable across restarts. If a process crashes and leaves a stale `jobs.lock`, Foxy intentionally fails closed rather than racing to delete a possibly replaced lock; stop all Foxy processes using that store, confirm the owner is gone, then remove the stale lock file before restarting.
+
 "$HOME/.local/bin/vibesane" mcp-doctor
 "$HOME/.local/bin/vibesane" doctor --cwd /absolute/path/to/disposable-repo
 ```

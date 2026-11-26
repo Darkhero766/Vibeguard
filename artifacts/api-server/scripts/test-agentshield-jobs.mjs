@@ -486,6 +486,41 @@ test('queue refuses a symlinked process lock without modifying its target', asyn
 
 
 
+test('stale process locks are never reclaimed with a racy check-then-unlink', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-stale-lock-'));
+  const lockPath = path.join(storeDir, 'jobs.lock');
+  const owner = JSON.stringify({ pid: 2147483647, host: os.hostname(), token: 'dead-owner-token' });
+  await writeFile(lockPath, owner, { mode: 0o600 });
+  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  try {
+    await assert.rejects(queue.init(), /lock is stale.*remove jobs\\.lock manually/i);
+    assert.equal(await readFile(lockPath, 'utf8'), owner);
+    assert.equal(queue.initialized, false);
+    assert.equal(queue.storageFault, true);
+  } finally {
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
+test('queue refuses a symlinked persisted state file without reading or modifying its target', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-state-symlink-'));
+  const target = path.join(storeDir, 'attacker-state.json');
+  const statePath = path.join(storeDir, 'jobs.json');
+  const data = JSON.stringify({ version: 1, jobs: [] });
+  await writeFile(target, data, { mode: 0o600 });
+  await symlink(target, statePath);
+  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  try {
+    await assert.rejects(queue.init(), /unsafe or over its size limit/i);
+    assert.equal(await readFile(target, 'utf8'), data);
+    assert.equal(queue.initialized, false);
+  } finally {
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
 test('initial queue checkpoint failure leaves the queue uninitialized and releases its lock', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-initial-checkpoint-failure-'));
   let runnerCalls = 0;

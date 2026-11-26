@@ -153,6 +153,10 @@ test('hook installer preserves existing config and uninstalls reversibly', async
   const installed = JSON.parse(await readFile(settingsPath, 'utf8'));
   assert.equal(installed.permissions.allow[0], 'Read');
   assert.ok(installed.hooks.PostToolUse.length > 0);
+  const installedCommand = installed.hooks.PostToolUse.flatMap((entry) => entry.hooks || [])
+    .find((item) => item?.command?.includes('agentshield-hook.mjs'))?.command;
+  assert.ok(installedCommand?.startsWith("'" + process.execPath.replaceAll("'", "'\\''") + "' "),
+    'Claude hook must invoke the exact Node runtime used by the installer, not PATH lookup.');
   await run(process.execPath, [installer, 'uninstall', cwd]);
   const removed = JSON.parse(await readFile(settingsPath, 'utf8'));
   assert.deepEqual(removed, original);
@@ -457,6 +461,8 @@ test('Codex installer preserves existing hooks, installs idempotently, and unins
   const managed = installed.hooks.Stop.flatMap(entry => entry.hooks)
     .filter(item => item.command?.includes('agentshield-codex-stop.mjs'));
   assert.equal(managed.length, 1);
+  assert.ok(managed[0].command.startsWith("'" + process.execPath.replaceAll("'", "'\\''") + "' "),
+    'Codex Stop hook must invoke the exact Node runtime, not PATH lookup.');
   assert.equal(managed[0].timeout, 30);
   assert.ok(await readFile(path.join(cwd, '.agents/skills/vibesane-agentshield/SKILL.md'), 'utf8'));
 

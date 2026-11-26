@@ -9,6 +9,7 @@ const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const hookPath = path.join(scriptsDir, 'agentshield-hook.mjs');
 const stopPath = path.join(scriptsDir, 'agentshield-stop.mjs');
 const usage = 'Usage: node scripts/agentshield-install.mjs install|uninstall /absolute/path/to/customer-project';
+const shellQuote = (value) => "'" + String(value).replaceAll("'", "'\\''") + "'";
 
 async function main() {
   const [mode, project] = process.argv.slice(2);
@@ -23,8 +24,8 @@ async function main() {
     if (!dir.isDirectory() || dir.isSymbolicLink()) throw new Error('Refusing unsafe or symlinked .claude directory.');
   } catch (error) { if (error?.code !== 'ENOENT') throw error; }
   // Single-quoted POSIX shell argument. Only the fixed hook path is inserted.
-  const command = "node '" + hookPath.replaceAll("'", "'\\''") + "'";
-  const stopCommand = "node '" + stopPath.replaceAll("'", "'\\''") + "'";
+  const command = shellQuote(process.execPath) + ' ' + shellQuote(hookPath);
+  const stopCommand = shellQuote(process.execPath) + ' ' + shellQuote(stopPath);
 
   let settings = {};
   try {
