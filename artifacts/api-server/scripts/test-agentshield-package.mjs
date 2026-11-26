@@ -3,7 +3,7 @@
 // Uses only a synthetic disposable Git repository; never runs customer project code.
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -158,7 +158,7 @@ try {
     'Doctor did not verify one-command MCP registration.');
   const generic = JSON.parse((await runCli(['connect', '--agent', 'mcp', '--cwd', connectFixture], { cwd: temp })).stdout);
   assert(generic.status === 'manual_mcp_configuration'
-    && generic.server.env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([connectFixture]),
+    && generic.server.env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([await realpath(connectFixture)]),
     'Generic MCP mode did not produce an exact workspace-scoped stdio configuration.');
   const disconnected = JSON.parse((await runCli(['disconnect', '--agent', 'all', '--cwd', connectFixture], { cwd: temp })).stdout);
   assert(disconnected.status === 'disconnected'
