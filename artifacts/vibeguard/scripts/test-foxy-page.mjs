@@ -15,7 +15,7 @@ for (const token of [
   '423 / 423', '6 / 6', 'Windows + macOS',
   'Live authenticated acceptance', 'independent review',
   'https://github.com/Darkhero766/Vibeguard/actions/runs/45831660350',
-  'https://github.com/Darkhero766/Vibeguard/pull/70',
+  'https://github.com/Darkhero766/Vibeguard/pull/70', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
 ]) assert.ok(html.includes(token), 'Foxy SEO route is missing: ' + token);
 
 assert.match(html, /<main id="main-content"/);
