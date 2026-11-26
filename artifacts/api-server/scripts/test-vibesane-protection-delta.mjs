@@ -147,3 +147,24 @@ test("repository read planner never silently truncates over the configured file 
   assert.equal(plan.selectedEntries.length, 300);
   assert.equal(plan.omittedByFileLimit, 5);
 });
+
+
+test("GitHub changed-file statuses map exact base/head snapshot paths", async () => {
+  const { delta } = await load();
+  const plan = delta.buildChangedPathPlan([
+    { filename: "src/new.ts", status: "added" },
+    { filename: "src/removed.ts", status: "removed" },
+    { filename: "src/edited.ts", status: "modified" },
+    { filename: "src/new-name.ts", previous_filename: "src/old-name.ts", status: "renamed" },
+  ]);
+  assert.deepEqual(plan.basePaths, ["src/edited.ts", "src/old-name.ts", "src/removed.ts"]);
+  assert.deepEqual(plan.headPaths, ["src/edited.ts", "src/new-name.ts", "src/new.ts"]);
+  assert.deepEqual(plan.renamedPaths, { "src/old-name.ts": "src/new-name.ts" });
+});
+
+test("unknown rename metadata fails closed instead of silently omitting its old path", async () => {
+  const { delta } = await load();
+  assert.throws(() => delta.buildChangedPathPlan([
+    { filename: "src/new.ts", status: "renamed" },
+  ]), /previous path/i);
+});

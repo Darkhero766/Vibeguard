@@ -38,6 +38,8 @@ const TEST_FILES = [
   'test-agentshield-supabase-policy.mjs',
   'test-agentshield-auth-regression.mjs',
   'test-vibesane-sql-context.mjs',
+  'test-vibesane-checks.mjs',
+  'test-vibesane-protection-delta.mjs',
 ];
 const results = [];
 const env = {
