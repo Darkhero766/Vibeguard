@@ -119,7 +119,7 @@ export function buildJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot })
 
 async function projectRoot(cwd) {
   const { stdout } = await exec('git', [
-    '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=' + os.devNull,
+    '-c', 'core.fsmonitor=false',
     '-C', cwd, 'rev-parse', '--show-toplevel',
   ], { timeout: 7000, maxBuffer: 4000, windowsHide: true });
   const root = await realpath(stdout.trim());
