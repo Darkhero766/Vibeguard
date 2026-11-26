@@ -10,6 +10,7 @@ import { constants } from 'node:fs';
 const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const MAX_STATE_BYTES = 8_000_000;
 const MAX_RECORDS = 200;
+const MAX_JOB_FINDINGS = 1000;
 const BASELINE_TTL_MS = 30 * 60 * 1000;
 const bounded = (value, max = 300) => String(value ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, max);
 function safeBaselinePath(value) {
