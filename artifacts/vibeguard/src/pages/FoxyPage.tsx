@@ -167,11 +167,11 @@ export default function FoxyPage() {
               <div className="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[#526e55]"><PackageCheck size={16} aria-hidden="true" /> Passed · automated CI</div>
               <h3 className="mt-5 font-sans text-2xl font-extrabold tracking-tight">Windows + macOS</h3>
               <div className="mt-6 grid grid-cols-2 gap-3">
-                <div className="border border-[#dce3d8] bg-white p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#70796f]">Regression suite</p><p className="mt-2 text-2xl font-extrabold tracking-tight">423 / 423</p><p className="mt-1 text-[11px] text-[#62665e]">per platform</p></div>
-                <div className="border border-[#dce3d8] bg-white p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#70796f]">Preview checks</p><p className="mt-2 text-2xl font-extrabold tracking-tight">6 / 6</p><p className="mt-1 text-[11px] text-[#62665e]">per platform</p></div>
+                <div className="border border-[#dce3d8] bg-white p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#70796f]">Regression suite</p><p className="mt-2 text-2xl font-extrabold tracking-tight">429 / 429</p><p className="mt-1 text-[11px] text-[#62665e]">per platform</p></div>
+                <div className="border border-[#dce3d8] bg-white p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#70796f]">Preview checks</p><p className="mt-2 text-2xl font-extrabold tracking-tight">12 / 12</p><p className="mt-1 text-[11px] text-[#62665e]">per platform</p></div>
               </div>
-              <p className="mt-5 text-xs leading-6 text-[#62665e]">Both matrix jobs completed successfully, including source integrity, page build, connector regressions, release validation, package checks and evidence upload.</p>
-              <a href="https://github.com/Darkhero766/Vibeguard/actions/runs/45831660350" target="_blank" rel="noreferrer" className="vg-focus mt-6 inline-flex items-center gap-2 text-sm font-bold text-[#d94739] hover:underline">Inspect exact workflow run <ArrowRight size={15} aria-hidden="true" /></a>
+              <p className="mt-5 text-xs leading-6 text-[#62665e]">Both matrix jobs passed the full source-matched release validator and connector suite. The VibeSane route build, SEO metadata and standalone no-JavaScript preview also passed.</p>
+              <a href="https://github.com/Darkhero766/Vibeguard/actions/workflows/agentshield-cross-platform.yml?query=branch%3Afeat%2Fagentshield-cross-platform-autoconnect" target="_blank" rel="noreferrer" className="vg-focus mt-6 inline-flex items-center gap-2 text-sm font-bold text-[#d94739] hover:underline">Open qualification workflow history <ArrowRight size={15} aria-hidden="true" /></a>
             </article>
             <article className="border border-[#d5d1c8] bg-[#ebe7de] p-6 sm:p-8">
               <div className="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[#6c7068]"><MonitorCog size={16} aria-hidden="true" /> Separate release gates</div>
