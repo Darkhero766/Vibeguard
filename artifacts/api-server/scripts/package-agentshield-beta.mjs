@@ -158,7 +158,7 @@ async function main() {
     '# VibeSane AgentShield (unpublished developer preview)',
     '',
     'Local static security scanning, Claude Code and Codex Stop hooks, Cursor Stop feedback, and a read-only MCP server.',
-    'Requires Node.js >=20, Git, on macOS, Linux and Windows (Windows remains qualification-gated). This is an opt-in beta, not a security certification.',
+    'Requires Node.js >=20 and Git. macOS/Linux are the previously exercised platforms; Windows compatibility is a candidate only and remains blocked pending Windows CI plus live-host acceptance. This is an opt-in beta, not a security certification.',
     '',
     '## Install locally',
     'npm install --global ./vibesane-agentshield-' + PACKAGE_VERSION + '.tgz',
