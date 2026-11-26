@@ -36,6 +36,26 @@ vibesane doctor --cwd /absolute/path/to/project
 
 The tarball is local and unpublished. The package script checks its file manifest and SHA-256 digest when it is built. This documentation does not imply that the archive has already been built or runtime-tested.
 
+## Windows PowerShell install (candidate only)
+
+Windows packaging and installer changes are being validated separately. **Do not use this path for production or unrestricted rollout until the Windows release workflow and real-host acceptance are green.** From a trusted checkout of the candidate branch, after that qualification passes:
+
+```powershell
+pnpm install --no-frozen-lockfile
+pnpm --filter @workspace/api-server run build:agentshield
+node .\artifacts\api-server\scripts\package-agentshield-beta.mjs
+
+$installPrefix = Join-Path $env:LOCALAPPDATA 'VibeSane'
+New-Item -ItemType Directory -Force -Path $installPrefix | Out-Null
+$archive = (Resolve-Path '.\artifacts\api-server\dist\vibesane-agentshield-0.7.0-beta.4.tgz').Path
+npm install --global --prefix $installPrefix --ignore-scripts $archive
+
+$vibesane = Join-Path $installPrefix 'vibesane.cmd'
+& $vibesane doctor --cwd (Get-Location).Path
+& $vibesane connect --agent auto --cwd (Get-Location).Path
+```
+
+Restart the selected agent and approve the MCP server. To configure every included project-level format, use `connect --agent all`. To remove the exact managed entries later, run `disconnect --agent all`. If your npm global prefix or install path differs, use the actual `vibesane.cmd` path created by npm. These commands are documented as a candidate workflow, not proof of Windows support.
 ## Completion gate and host enforcement
 
 The default `completionGate` is `advisory` for compatibility. To opt into commit-aware enforcement in a Claude Code project, install the hooks and configure a base reference that is present in the local clone:
@@ -91,7 +111,7 @@ vibesane connect --agent copilot
 vibesane connect --agent mcp
 ```
 
-`auto` is the default. `all` configures all three supported integrations. `mcp` prints a generic stdio server object that can be copied into another MCP-compatible host. The connector resolves the Git root itself, writes an explicit `VIBESANE_ALLOWED_ROOTS_JSON` allowlist for that root, backs up existing config files, preserves unrelated settings, and refuses malformed, symlinked or conflicting configuration. It does not run project scripts, install hooks, change agent permissions, or connect to an account remotely. Restart the host and approve the local server when prompted.
+`auto` is the default and configures detected project hosts. `all` configures all five supported project-level host formats; VS Code Copilot shares the `.mcp.json` entry. `mcp` prints a generic stdio server object that can be copied into another MCP-compatible host. The connector resolves the Git root itself, writes an explicit `VIBESANE_ALLOWED_ROOTS_JSON` allowlist for that root, backs up existing config files, preserves unrelated settings, and refuses malformed, symlinked or conflicting configuration. It does not run project scripts, install hooks, change agent permissions, or connect to an account remotely. Restart the host and approve the local server when prompted.
 
 The generic mode is for hosts that implement MCP stdio. It cannot automatically configure products that do not expose MCP or a documented extension/configuration API. MCP is a common tool transport, not a universal adapter for every proprietary agent. Lifecycle hooks remain host-specific and are installed separately only after review.
 
