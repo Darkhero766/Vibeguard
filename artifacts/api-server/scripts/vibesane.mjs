@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { buildCodexMcpBlock, buildJsonMcpEntry } from './agentshield-connect.mjs';
 
 const scripts = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(scripts, '../dist/agentshield.mjs');
@@ -91,13 +92,19 @@ function parseSetupArgs(args) {
   return { host, cwd };
 }
 function foxyMcpEntry(host, root) {
-  const entry = {
-    command: process.execPath,
-    args: [path.resolve(scripts, 'agentshield-mcp-stdio.mjs')],
-    env: { VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([root]) },
-  };
-  if (host === 'cursor') return { type: 'stdio', ...entry };
-  return entry;
+  return buildJsonMcpEntry({
+    host,
+    nodePath: process.execPath,
+    serverPath: path.resolve(scripts, 'agentshield-mcp-stdio.mjs'),
+    workspaceRoot: root,
+  });
+}
+async function readProjectMcpConfig(root, directoryName, fileName) {
+  const directory = path.join(root, directoryName);
+  const info = await lstat(directory).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+  if (!info) return {};
+  if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Unsafe project MCP configuration directory.');
+  return readSafeJsonFile(path.join(directory, fileName));
 }
 function sameJson(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
@@ -279,7 +286,8 @@ async function doctor(args) {
     platform: ['win32', 'darwin', 'linux'].includes(process.platform), builtScanner: await isFile(dist),
     gitRepository: false, hooksInstalled: false, claudeHooksInstalled: false,
     codexStopHookInstalled: false, claudeMcpConfigured: false,
-    cursorMcpConfigured: false, settingsReadable: true };
+    cursorMcpConfigured: false, codexMcpConfigured: false, geminiMcpConfigured: false,
+    rooMcpConfigured: false, copilotMcpConfigured: false, settingsReadable: true };
   let root = null;
   try {
     const r = await exec('git', ['-c', 'core.fsmonitor=false',
@@ -308,15 +316,47 @@ async function doctor(args) {
     } catch { checks.settingsReadable = false; }
     try {
       const config = await readSafeJsonFile(path.join(root, '.mcp.json'));
-      checks.claudeMcpConfigured = sameJson(config?.mcpServers?.['vibesane-agentshield'], foxyMcpEntry('claude', root));
+      const entry = config?.mcpServers?.['vibesane-agentshield'];
+      checks.claudeMcpConfigured = sameJson(entry, foxyMcpEntry('claude', root));
+      // VS Code Copilot's portable workspace configuration uses the same
+      // root .mcp.json format, but host approval and session availability are
+      // still controlled by Copilot.
+      checks.copilotMcpConfigured = sameJson(entry, foxyMcpEntry('copilot', root));
     } catch { checks.settingsReadable = false; }
     try {
-      const cursorDir = path.join(root, '.cursor');
-      const directory = await lstat(cursorDir).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
-      if (directory && (!directory.isDirectory() || directory.isSymbolicLink())) throw new Error('Unsafe Cursor configuration directory.');
-      if (directory) {
-        const config = await readSafeJsonFile(path.join(cursorDir, 'mcp.json'));
-        checks.cursorMcpConfigured = sameJson(config?.mcpServers?.['vibesane-agentshield'], foxyMcpEntry('cursor', root));
+      const config = await readProjectMcpConfig(root, '.cursor', 'mcp.json');
+      checks.cursorMcpConfigured = sameJson(config?.mcpServers?.['vibesane-agentshield'], foxyMcpEntry('cursor', root));
+    } catch { checks.settingsReadable = false; }
+    try {
+      const config = await readProjectMcpConfig(root, '.gemini', 'settings.json');
+      checks.geminiMcpConfigured = sameJson(config?.mcpServers?.['vibesane-agentshield'], foxyMcpEntry('gemini', root));
+    } catch { checks.settingsReadable = false; }
+    try {
+      const config = await readProjectMcpConfig(root, '.roo', 'mcp.json');
+      checks.rooMcpConfigured = sameJson(config?.mcpServers?.['vibesane-agentshield'], foxyMcpEntry('roo', root));
+    } catch { checks.settingsReadable = false; }
+    try {
+      const directory = path.join(root, '.codex');
+      const info = await lstat(directory).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+      if (info && (!info.isDirectory() || info.isSymbolicLink())) throw new Error('Unsafe Codex configuration directory.');
+      if (info) {
+        const file = path.join(directory, 'config.toml');
+        const fileInfo = await lstat(file).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+        if (fileInfo) {
+          if (!fileInfo.isFile() || fileInfo.isSymbolicLink() || fileInfo.size > 256_000) throw new Error('Unsafe Codex config.toml.');
+          const current = await readFile(file, 'utf8');
+          const expected = buildCodexMcpBlock({
+            nodePath: process.execPath,
+            serverPath: path.resolve(scripts, 'agentshield-mcp-stdio.mjs'),
+            workspaceRoot: root,
+          });
+          const begin = '# BEGIN VIBESANE AGENTSHIELD MANAGED MCP ENTRY';
+          const end = '# END VIBESANE AGENTSHIELD MANAGED MCP ENTRY';
+          const startAt = current.indexOf(begin);
+          const endAt = startAt < 0 ? -1 : current.indexOf(end, startAt);
+          checks.codexMcpConfigured = startAt >= 0 && endAt >= 0
+            && current.slice(startAt, endAt + end.length) === expected;
+        }
       }
     } catch { checks.settingsReadable = false; }
     checks.hooksInstalled = checks.claudeHooksInstalled || checks.codexStopHookInstalled;
