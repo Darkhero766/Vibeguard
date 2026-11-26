@@ -77,6 +77,8 @@ test('one connect command configures Claude, Codex, Cursor, Gemini, Roo and Copi
   const priorClaude = { mcpServers: { other: { command: 'other-agent', args: [] } }, custom: true };
   const priorCursor = { mcpServers: { existing: { type: 'stdio', command: 'kept', args: [] } } };
   const priorCodex = '[features]\nexperimental = true\n';
+  const priorGemini = { theme: 'Dark', mcpServers: { existing: { command: 'gemini-existing', args: [] } } };
+  const priorRoo = { mcpServers: { existing: { command: 'roo-existing', args: [] } } };
   await writeFile(claudeFile, JSON.stringify(priorClaude, null, 2));
   await writeFile(cursorFile, JSON.stringify(priorCursor, null, 2));
   await writeFile(codexFile, priorCodex);
