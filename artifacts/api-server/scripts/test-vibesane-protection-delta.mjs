@@ -208,7 +208,7 @@ test("protection event details are bounded, metadata-only and redact token-shape
   assert.equal(report.resolvedFindingsCount, 2);
   assert.deepEqual(report.unscannedChangedFiles, ["src/large.ts"]);
   assert.equal(report.findings.length, 1);
-  assert.match(report.findings[0].title, /\\[redacted\\]/);
+  assert.match(report.findings[0].title, /\[redacted\]/);
   assert.doesNotMatch(JSON.stringify(report), /SOURCE_MUST_NOT_BE_STORED/);
   assert.doesNotMatch(JSON.stringify(report), /ghp_A{20}/);
 });

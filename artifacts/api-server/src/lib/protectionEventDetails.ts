@@ -41,17 +41,19 @@ function safeSummaryPath(value: unknown): string | null {
 }
 export function buildProtectionEventDetails(report: ProtectionEventReport): ProtectionEventDetails {
   const findings = Array.isArray(report.findings) ? report.findings : [];
-  const safeFindings = findings.slice(0, 25).flatMap((finding) => {
+  const safeFindings: ProtectionEventDetails["findings"] = [];
+  for (const finding of findings) {
+    if (safeFindings.length >= 25) break;
     const severity = finding?.severity;
     const filePath = safeSummaryPath(finding?.filePath);
-    if (!["Critical", "High", "Medium"].includes(String(severity)) || !filePath) return [];
+    if (!["Critical", "High", "Medium"].includes(String(severity)) || !filePath) continue;
     const line = boundedCount(finding.line);
     const check = safeSummaryText(finding.check, 75).replace(/[^a-zA-Z0-9_.-]/g, "_");
     const id = safeSummaryText(finding.id, 120);
     const title = safeSummaryText(finding.title, 160);
-    if (!id || !check || !title) return [];
-    return [{ id, severity: severity as "Critical" | "High" | "Medium", title, filePath, line: line || null, check }];
-  });
+    if (!id || !check || !title) continue;
+    safeFindings.push({ id, severity: severity as "Critical" | "High" | "Medium", title, filePath, line: line || null, check });
+  }
   const coverageReasons = Array.isArray(report.coverageReasons)
     ? report.coverageReasons.slice(0, 6).map(reason => safeSummaryText(reason, 220)).filter(Boolean)
     : [];
