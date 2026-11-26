@@ -9,6 +9,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:
 import {
   buildCodexMcpBlock,
   buildJsonMcpEntry,
+  jobStoreNamespaceForHost,
   connectAgentShield,
   disconnectAgentShield,
   detectAgents,
@@ -59,7 +60,8 @@ test('Codex TOML and JSON MCP entries escape Windows paths and keep the allowlis
   };
   const toml = buildCodexMcpBlock(entry);
   assert.match(toml, /C:\\\\Program Files\\\\nodejs\\\\node\.exe/);
-  assert.ok(toml.includes('env = { VIBESANE_ALLOWED_ROOTS_JSON = ' + JSON.stringify(JSON.stringify([entry.workspaceRoot])) + ' }'));
+  assert.ok(toml.includes('VIBESANE_ALLOWED_ROOTS_JSON = ' + JSON.stringify(JSON.stringify([entry.workspaceRoot]))));
+  assert.match(toml, /VIBESANE_JOB_STORE_NAMESPACE = "foxy-codex"/);
   const claude = buildJsonMcpEntry({ ...entry, host: 'claude' });
   const cursor = buildJsonMcpEntry({ ...entry, host: 'cursor' });
   const gemini = buildJsonMcpEntry({ ...entry, host: 'gemini' });
@@ -69,10 +71,20 @@ test('Codex TOML and JSON MCP entries escape Windows paths and keep the allowlis
   assert.equal(claude.type, 'stdio');
   assert.equal(copilot.type, 'stdio');
   assert.equal(claude.env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([entry.workspaceRoot]));
+  assert.equal(claude.env.VIBESANE_JOB_STORE_NAMESPACE, 'foxy-workspace-mcp');
   assert.equal(cursor.type, 'stdio');
   assert.equal(cursor.args[0], entry.serverPath);
   assert.equal(gemini.env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([entry.workspaceRoot]));
+  assert.equal(gemini.env.VIBESANE_JOB_STORE_NAMESPACE, 'foxy-gemini');
+  assert.equal(cursor.env.VIBESANE_JOB_STORE_NAMESPACE, 'foxy-cursor');
+  assert.equal(roo.env.VIBESANE_JOB_STORE_NAMESPACE, 'foxy-roo');
+  assert.equal(copilot.env.VIBESANE_JOB_STORE_NAMESPACE, claude.env.VIBESANE_JOB_STORE_NAMESPACE);
   assert.equal(roo.command, entry.nodePath);
+
+  assert.deepEqual(
+    ['claude', 'copilot', 'codex', 'cursor', 'gemini', 'roo'].map(jobStoreNamespaceForHost),
+    ['foxy-workspace-mcp', 'foxy-workspace-mcp', 'foxy-codex', 'foxy-cursor', 'foxy-gemini', 'foxy-roo'],
+  );
 });
 
 test('one connect command configures Claude, Codex, Cursor, Gemini, Roo and Copilot while preserving existing settings', async (t) => {
@@ -129,6 +141,9 @@ test('one connect command configures Claude, Codex, Cursor, Gemini, Roo and Copi
   assert.equal(gemini.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([await (await import('node:fs/promises')).realpath(project)]));
   assert.equal(roo.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([await (await import('node:fs/promises')).realpath(project)]));
   assert.equal(claude.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([await (await import('node:fs/promises')).realpath(project)]));
+  assert.equal(claude.mcpServers['vibesane-agentshield'].env.VIBESANE_JOB_STORE_NAMESPACE, 'foxy-workspace-mcp');
+  assert.equal(gemini.mcpServers['vibesane-agentshield'].env.VIBESANE_JOB_STORE_NAMESPACE, 'foxy-gemini');
+  assert.equal(roo.mcpServers['vibesane-agentshield'].env.VIBESANE_JOB_STORE_NAMESPACE, 'foxy-roo');
   assert.match(codex, /\[mcp_servers\.vibesane_agentshield\]/);
   assert.match(codex, /C:\\\\Program Files\\\\nodejs\\\\node\.exe/);
   assert.ok(codex.startsWith(priorCodex));
@@ -160,6 +175,7 @@ test('generic MCP mode returns a stdio entry scoped to the selected repository',
   });
   assert.equal(result.status, 'manual_mcp_configuration');
   assert.equal(result.server.env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([await (await import('node:fs/promises')).realpath(project)]));
+  assert.equal(result.server.env.VIBESANE_JOB_STORE_NAMESPACE, 'foxy-manual');
 });
 
 
