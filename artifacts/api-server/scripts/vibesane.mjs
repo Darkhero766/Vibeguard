@@ -121,7 +121,7 @@ async function configureMcpHost(args, uninstall = false) {
   const existing = servers[name];
   if (uninstall) {
     if (existing == null) {
-      process.stdout.write(JSON.stringify({ status: 'not_configured', host, configFile }) + '\\n');
+      process.stdout.write(JSON.stringify({ status: 'not_configured', host, configFile }) + '\n');
       return 0;
     }
     if (!sameJson(existing, desired)) {
@@ -132,12 +132,12 @@ async function configureMcpHost(args, uninstall = false) {
     if (Object.keys(servers).length) config.mcpServers = servers;
     else delete config.mcpServers;
     await atomicJsonWrite(configFile, config);
-    process.stdout.write(JSON.stringify({ status: 'removed', host, configFile, backup }) + '\\n');
+    process.stdout.write(JSON.stringify({ status: 'removed', host, configFile, backup }) + '\n');
     return 0;
   }
   if (existing != null) {
     if (sameJson(existing, desired)) {
-      process.stdout.write(JSON.stringify({ status: 'already_configured', host, configFile, repositoryRoot: root }) + '\\n');
+      process.stdout.write(JSON.stringify({ status: 'already_configured', host, configFile, repositoryRoot: root }) + '\n');
       return 0;
     }
     throw new Error('A different MCP server already uses vibesane-agentshield; preserve it and resolve the name conflict manually.');
@@ -152,7 +152,7 @@ async function configureMcpHost(args, uninstall = false) {
     repositoryRoot: root,
     backup,
     note: 'Project-scoped Foxy MCP configured. Restart the host and approve the local server when prompted. The server is read-only and limited to this repository root.',
-  }) + '\\n');
+  }) + '\n');
   return 0;
 }
 function codexHookCommand() {
