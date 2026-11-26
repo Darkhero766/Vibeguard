@@ -11,6 +11,7 @@ const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const MAX_STATE_BYTES = 8_000_000;
 const MAX_RECORDS = 200;
 const MAX_JOB_FINDINGS = 1000;
+const PRIORITY_AGING_INTERVAL_MS = 15_000;
 const BASELINE_TTL_MS = 30 * 60 * 1000;
 const bounded = (value, max = 300) => String(value ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, max);
 function safeBaselinePath(value) {
@@ -340,8 +341,16 @@ export class ScanJobQueue extends EventEmitter {
   #pump() {
     if (!this.initialized || this.closing || this.storageFault) return;
     while (this.active < this.concurrency) {
+      const now = this.now();
+      // Priority aging prevents a continuous stream of new urgent work from
+      // starving older queued jobs. Every 15 seconds in queue adds one priority
+      // level; FIFO sequence breaks ties deterministically.
       const job = [...this.jobs.values()].filter((item) => item.status === 'queued')
-        .sort((a, b) => b.priority - a.priority || a.sequence - b.sequence)[0];
+        .sort((a, b) => {
+          const aScore = a.priority + Math.floor(Math.max(0, now - a.createdAt) / PRIORITY_AGING_INTERVAL_MS);
+          const bScore = b.priority + Math.floor(Math.max(0, now - b.createdAt) / PRIORITY_AGING_INTERVAL_MS);
+          return bScore - aScore || a.sequence - b.sequence;
+        })[0];
       if (!job) break;
       this.active++;
       const task = this.#run(job);
@@ -430,6 +439,9 @@ export class ScanJobQueue extends EventEmitter {
     const job = this.jobs.get(id);
     if (!job) return null;
     const result = job.result;
+    const now = this.now();
+    const queueWaitEnd = job.startedAt ?? (TERMINAL.has(job.status) ? job.finishedAt ?? now : now);
+    const executionEnd = job.finishedAt ?? now;
     return {
       job_id: job.id,
       type: job.type,
@@ -442,6 +454,8 @@ export class ScanJobQueue extends EventEmitter {
       started_at: job.startedAt ?? null,
       finished_at: job.finishedAt ?? null,
       retries: job.retries,
+      queue_wait_ms: Math.max(0, queueWaitEnd - job.createdAt),
+      execution_ms: Number.isFinite(job.startedAt) ? Math.max(0, executionEnd - job.startedAt) : null,
       scan_status: result?.status ?? null,
       findings_count: result?.totalFindings ?? result?.findings?.length ?? null,
       error: job.error ? bounded(job.error, 240) : null,

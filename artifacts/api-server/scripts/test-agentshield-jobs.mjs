@@ -496,3 +496,49 @@ test('concurrent init calls share one initial durable checkpoint', async () => {
     await rm(storeDir, { recursive: true, force: true });
   }
 });
+
+
+test('queue priority aging prevents older normal jobs being starved by newer urgent work', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-priority-aging-'));
+  let now = 100_000;
+  let releaseActive;
+  let signalActive;
+  const activeGate = new Promise((resolve) => { releaseActive = resolve; });
+  const activeStarted = new Promise((resolve) => { signalActive = resolve; });
+  const executionOrder = [];
+  const queue = new ScanJobQueue({
+    storeDir,
+    concurrency: 1,
+    now: () => now,
+    runner: async ({ workspace }) => {
+      if (workspace === '/tmp/foxy-aging-active') {
+        signalActive();
+        await activeGate;
+      } else executionOrder.push(workspace);
+      return complete();
+    },
+  });
+  try {
+    await queue.init();
+    await queue.submit({ workspace: '/tmp/foxy-aging-active', scope: 'full' });
+    await activeStarted;
+    const older = await queue.submit({ workspace: '/tmp/foxy-aging-older', scope: 'full', priority: 0 });
+    now += 60_000;
+    const newer = await queue.submit({ workspace: '/tmp/foxy-aging-newer', scope: 'full', priority: 3 });
+    const olderStatus = queue.getStatus(older.job_id);
+    assert.ok(olderStatus.queue_wait_ms >= 60_000);
+    assert.equal(olderStatus.execution_ms, null);
+    releaseActive();
+    await queue.wait(newer.job_id, 5000);
+    await queue.wait(older.job_id, 5000);
+    assert.deepEqual(executionOrder, ['/tmp/foxy-aging-older', '/tmp/foxy-aging-newer']);
+    const finished = queue.getStatus(older.job_id);
+    assert.ok(finished.queue_wait_ms >= 60_000);
+    assert.equal(typeof finished.execution_ms, 'number');
+    assert.ok(finished.execution_ms >= 0);
+  } finally {
+    releaseActive();
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
