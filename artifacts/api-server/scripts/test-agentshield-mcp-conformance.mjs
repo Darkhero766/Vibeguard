@@ -50,7 +50,7 @@ function waitForReady(child, timeoutMs = 20_000) {
   });
 }
 async function runConformance(url, cwd) {
-  const args = ['dlx', '--yes', '@modelcontextprotocol/conformance@0.1.16', 'server', '--url', url, '--requirements', '2026-07-28'];
+  const args = ['dlx', '@modelcontextprotocol/conformance@0.1.16', 'server', '--url', url, '--requirements', '2026-07-28'];
   const result = await exec('pnpm', args, {
     cwd,
     timeout: 240_000,
