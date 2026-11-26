@@ -25,12 +25,12 @@ test('connect argument parser defaults to automatic detection and rejects unknow
 test('agent detection recognizes project markers without launching agents', async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-detect-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  for (const name of ['.claude', '.codex', '.cursor']) await mkdir(path.join(root, name));
+  for (const name of ['.claude', '.codex', '.cursor', '.gemini', '.roo']) await mkdir(path.join(root, name));
   assert.deepEqual(await detectAgents({
     cwd: root,
     env: { PATH: '', USERPROFILE: root },
     platform: process.platform,
-  }), ['claude', 'codex', 'cursor']);
+  }), ['claude', 'codex', 'cursor', 'gemini', 'roo']);
 });
 
 test('Codex TOML and JSON MCP entries escape Windows paths and keep the allowlist narrow', () => {
@@ -44,13 +44,17 @@ test('Codex TOML and JSON MCP entries escape Windows paths and keep the allowlis
   assert.ok(toml.includes('env = { VIBESANE_ALLOWED_ROOTS_JSON = ' + JSON.stringify(JSON.stringify([entry.workspaceRoot])) + ' }'));
   const claude = buildJsonMcpEntry({ ...entry, host: 'claude' });
   const cursor = buildJsonMcpEntry({ ...entry, host: 'cursor' });
+  const gemini = buildJsonMcpEntry({ ...entry, host: 'gemini' });
+  const roo = buildJsonMcpEntry({ ...entry, host: 'roo' });
   assert.equal(claude.command, entry.nodePath);
   assert.equal(claude.env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([entry.workspaceRoot]));
   assert.equal(cursor.type, 'stdio');
   assert.equal(cursor.args[0], entry.serverPath);
+  assert.equal(gemini.env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([entry.workspaceRoot]));
+  assert.equal(roo.command, entry.nodePath);
 });
 
-test('one connect command configures Claude, Codex and Cursor while preserving existing settings', async (t) => {
+test('one connect command configures Claude, Codex, Cursor, Gemini, Roo and Copilot while preserving existing settings', async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-connect-'));
   const home = path.join(root, 'home');
   const project = path.join(root, 'project');
@@ -62,16 +66,22 @@ test('one connect command configures Claude, Codex and Cursor while preserving e
   await mkdir(path.join(project, '.claude'));
   await mkdir(path.join(project, '.codex'));
   await mkdir(path.join(project, '.cursor'));
+  await mkdir(path.join(project, '.gemini'));
+  await mkdir(path.join(project, '.roo'));
 
   const claudeFile = path.join(project, '.mcp.json');
   const cursorFile = path.join(project, '.cursor', 'mcp.json');
   const codexFile = path.join(project, '.codex', 'config.toml');
+  const geminiFile = path.join(project, '.gemini', 'settings.json');
+  const rooFile = path.join(project, '.roo', 'mcp.json');
   const priorClaude = { mcpServers: { other: { command: 'other-agent', args: [] } }, custom: true };
   const priorCursor = { mcpServers: { existing: { type: 'stdio', command: 'kept', args: [] } } };
   const priorCodex = '[features]\nexperimental = true\n';
   await writeFile(claudeFile, JSON.stringify(priorClaude, null, 2));
   await writeFile(cursorFile, JSON.stringify(priorCursor, null, 2));
   await writeFile(codexFile, priorCodex);
+  await writeFile(geminiFile, JSON.stringify(priorGemini, null, 2));
+  await writeFile(rooFile, JSON.stringify(priorRoo, null, 2));
 
   const result = await connectAgentShield(['--agent', 'all', '--cwd', project], {
     nodePath: 'C:\\Program Files\\nodejs\\node.exe',
@@ -81,13 +91,20 @@ test('one connect command configures Claude, Codex and Cursor while preserving e
   });
 
   assert.equal(result.status, 'connected');
-  assert.deepEqual(result.results.map((item) => item.host), ['claude', 'codex', 'cursor']);
+  assert.deepEqual(result.results.map((item) => item.host), ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']);
   const claude = JSON.parse(await readFile(claudeFile, 'utf8'));
   const cursor = JSON.parse(await readFile(cursorFile, 'utf8'));
   const codex = await readFile(codexFile, 'utf8');
+  const gemini = JSON.parse(await readFile(geminiFile, 'utf8'));
+  const roo = JSON.parse(await readFile(rooFile, 'utf8'));
   assert.deepEqual(claude.mcpServers.other, priorClaude.mcpServers.other);
   assert.equal(claude.custom, true);
   assert.equal(cursor.mcpServers.existing.command, 'kept');
+  assert.equal(gemini.theme, 'Dark');
+  assert.equal(gemini.mcpServers.existing.command, 'gemini-existing');
+  assert.equal(roo.mcpServers.existing.command, 'roo-existing');
+  assert.equal(gemini.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([await (await import('node:fs/promises')).realpath(project)]));
+  assert.equal(roo.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([await (await import('node:fs/promises')).realpath(project)]));
   assert.equal(claude.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([await (await import('node:fs/promises')).realpath(project)]));
   assert.match(codex, /\[mcp_servers\.vibesane_agentshield\]/);
   assert.match(codex, /C:\\\\Program Files\\\\nodejs\\\\node\.exe/);
