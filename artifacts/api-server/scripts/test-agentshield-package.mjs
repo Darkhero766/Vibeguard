@@ -190,7 +190,7 @@ try {
   const cursorEntry = cursorConfig.mcpServers['vibesane-agentshield'];
   assert(cursorEntry?.type === 'stdio' && cursorEntry.command === process.execPath
     && cursorEntry.args[0].endsWith(path.join('scripts', 'agentshield-mcp-stdio.mjs'))
-    && cursorEntry.env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture]),
+    && cursorEntry.env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([await realpath(fixture)]),
     'Cursor setup did not create a project-scoped STDIO entry with an exact root allowlist.');
   const cursorDoctor = JSON.parse((await runCli(['doctor', '--cwd', fixture], { cwd: temp })).stdout);
   assert(cursorDoctor.status === 'ready' && cursorDoctor.checks.cursorMcpConfigured === true,
@@ -213,7 +213,7 @@ try {
   const claudeConfig = JSON.parse(await readFile(claudeConfigPath, 'utf8'));
   assert(claudeSetup.status === 'configured'
     && claudeConfig.mcpServers['vibesane-agentshield'].command === process.execPath
-    && claudeConfig.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture]),
+    && claudeConfig.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([await realpath(fixture)]),
     'Claude Code setup did not write a project-scoped MCP config.');
   const claudeDoctor = JSON.parse((await runCli(['doctor', '--cwd', fixture], { cwd: temp })).stdout);
   assert(claudeDoctor.status === 'ready' && claudeDoctor.checks.claudeMcpConfigured === true,
