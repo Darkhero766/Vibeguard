@@ -125,7 +125,7 @@ export function buildJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot })
     args: [serverPath],
     env: { VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([workspaceRoot]) },
   };
-  return host === 'cursor' ? { type: 'stdio', ...entry } : entry;
+  return ['claude', 'cursor', 'copilot'].includes(host) ? { type: 'stdio', ...entry } : entry;
 }
 
 async function projectRoot(cwd) {
