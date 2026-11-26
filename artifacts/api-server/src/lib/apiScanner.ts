@@ -1,5 +1,5 @@
 import type { Finding, ScanReport } from "@workspace/api-zod";
-import { readRepositoryFiles } from "./githubRepoReader";
+import { readRepositoryFilesWithStats, type RepositoryReadCoverage } from "./githubRepoReader";
 
 type RepositoryFile = { path: string; content: string };
 
@@ -473,8 +473,9 @@ export function scanApiFiles(files: RepositoryFile[]): Finding[] {
   return findings;
 }
 
-export async function scanRepositoryViaApi(repoUrl: string, githubToken?: string): Promise<ScanReport> {
-  const { owner, repo, files } = await readRepositoryFiles(repoUrl, githubToken);
+export async function scanRepositoryViaApi(repoUrl: string, githubToken?: string): Promise<ScanReport & { coverage: RepositoryReadCoverage }> {
+  const { owner, repo, files, coverage } = await readRepositoryFilesWithStats(repoUrl, githubToken);
   const findings = scanApiFiles(files);
-  return { repo: `${owner}/${repo}`, repoUrl, findings, filesScanned: files.length, scannedAt: new Date().toISOString() };
+  return { repo: owner + "/" + repo, repoUrl, findings, filesScanned: files.length,
+    scannedAt: new Date().toISOString(), coverage };
 }
