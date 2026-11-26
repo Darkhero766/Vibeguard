@@ -35,7 +35,7 @@ For each host that will be advertised as supported:
 1. Record the host version and OS build.
 2. From the authorized fixture root, run vibesane doctor.
 3. Run vibesane connect --agent <host> --cwd <authorized-fixture>.
-4. Inspect the exact host configuration diff. Confirm only the managed vibesane-agentshield entry was added, its VIBESANE_ALLOWED_ROOTS_JSON contains only the canonical fixture root, existing unrelated entries remain semantically unchanged, and a backup exists.
+4. Inspect the exact host configuration diff. Confirm only the managed vibesane-agentshield entry was added, its VIBESANE_ALLOWED_ROOTS_JSON contains only the canonical fixture root, its VIBESANE_JOB_STORE_NAMESPACE matches the host configuration domain, existing unrelated entries remain semantically unchanged, and a backup exists.
 5. Restart the host. Approve the MCP server through the host's own trust/permission UI. Confirm the server starts without exposing credentials in its environment or logs.
 6. Invoke status; confirm scanner readiness and configured workspace authorization.
 7. Invoke scan_changed on the synthetic fixture; confirm the expected rule and bounded result are returned.
@@ -54,8 +54,7 @@ Repeat the sequence after a clean reinstall and after a second connect to confir
 - **Cursor:** validate .cursor/mcp.json, restart, and enterprise MCP controls if applicable.
 - **Gemini CLI:** validate .gemini/settings.json and the MCP approval behavior for the installed CLI version.
 - **Roo Code:** validate .roo/mcp.json and its MCP server enable/approval flow.
-- **GitHub Copilot in VS Code:** Foxy uses the portable workspace-root .mcp.json format shared with Claude. The workspace-root destination is offered by guided setup when chat.mcp.workspaceRootConfig.enabled is enabled; an existing native workspace-root .mcp.json remains a valid source when that setting is off. Copilot's global $COPILOT_HOME/mcp-config.json or ~/.copilot/mcp-config.json file is not written by vibesane connect. Confirm the server is added to the intended Copilot harness/session and actually invoke a tool.
-- **GitHub Copilot CLI:** record the exact CLI version and confirm the active CLI reads the workspace-root configuration in the tested invocation. Do not infer support solely from the presence of a copilot executable.
+- **GitHub Copilot in VS Code and Copilot CLI:** The current beta uses the portable workspace-root .mcp.json format, which is also Claude Code's project file. Both clients can read that workspace entry. The global $COPILOT_HOME/mcp-config.json or ~/.copilot/mcp-config.json destination is not written by vibesane connect. The shared Claude/Copilot entry uses the shared foxy-workspace-mcp namespace; this does not establish safe simultaneous processes because the persistent queue holds an exclusive lock. Until the queue broker / same-host multi-instance design is completed, test these hosts one at a time on a given repository and do not claim simultaneous Claude/Copilot sessions.
 
 ## Platform-specific coverage
 
@@ -69,6 +68,7 @@ For both Windows and macOS, exercise:
 - Malformed JSON/TOML, oversized config, symlinked config file and symlinked config directory refusal.
 - A customized managed entry and a conflicting server name; both must be left untouched.
 - Interruption/failure during setup; no partial JSON/TOML file should be presented as a successful install.
+- Two distinct host processes for the same authorized repository launched concurrently. Record whether each starts and can submit/read jobs without lock contention. The current queue lock intentionally permits one process per host-namespace/workspace store; do not count this as passed unless concurrent isolation is verified.
 - A second host session after restart, including a tool call and explicit disconnect.
 
 CI runner evidence does not replace these tests on real intended machines.
