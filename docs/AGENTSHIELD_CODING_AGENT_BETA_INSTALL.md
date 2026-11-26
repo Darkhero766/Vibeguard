@@ -69,11 +69,14 @@ From the root of the Git repository:
 vibesane connect
 ```
 
-The connector detects the project markers and available CLIs for Claude Code, Codex CLI and Cursor, then writes the corresponding project-scoped MCP entries:
+The connector detects project markers and available CLIs for Claude Code, Codex CLI, Cursor, Gemini CLI and Roo Code, then writes the corresponding project-scoped MCP entries:
 
 - Claude Code: `.mcp.json`
 - Codex: `.codex/config.toml`
 - Cursor: `.cursor/mcp.json`
+- Gemini CLI: `.gemini/settings.json`
+- Roo Code: `.roo/mcp.json`
+- VS Code Copilot: the workspace-root `.mcp.json` entry is shared with Claude; Copilot must be using a harness/configuration mode that reads workspace-root MCP config.
 
 Useful variants:
 
@@ -82,6 +85,9 @@ vibesane connect --agent all
 vibesane connect --agent claude
 vibesane connect --agent codex
 vibesane connect --agent cursor
+vibesane connect --agent gemini
+vibesane connect --agent roo
+vibesane connect --agent copilot
 vibesane connect --agent mcp
 ```
 
