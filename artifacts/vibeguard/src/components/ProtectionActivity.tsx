@@ -105,7 +105,7 @@ export function ProtectionActivity({ session }: { session: Session | null }) {
     else showEventDetails(event);
   };
   const findingUrl = (event: Event, finding: EventFinding) => {
-    const base = repository!.repoUrl.replace(/\\/+$/, '');
+    const base = repository!.repoUrl.replace(/\/+$/, '');
     const encodedPath = finding.filePath.split('/').map(part => encodeURIComponent(part)).join('/');
     return base + '/blob/' + encodeURIComponent(event.sha) + '/' + encodedPath
       + (finding.line ? '#L' + finding.line : '');
