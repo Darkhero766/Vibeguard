@@ -283,7 +283,7 @@ async function disconnectJsonHost(host, root, nodePath, serverPath) {
   return { host, status: 'removed', configFile: file, backup };
 }
 
-async function disconnectCodex(root) {
+async function disconnectCodex(root, nodePath, serverPath) {
   const directory = path.join(root, '.codex');
   if (!await isDirectory(directory)) return { host: 'codex', status: 'not_configured', configFile: path.join(directory, 'config.toml') };
   const file = path.join(directory, 'config.toml');
@@ -304,8 +304,8 @@ async function disconnectCodex(root) {
   const end = existing.indexOf(endMarker, start);
   if (end < 0) throw new Error('The managed Codex MCP block is damaged; refusing to rewrite it.');
   const expected = buildCodexMcpBlock({
-    nodePath: process.execPath,
-    serverPath: path.join(scriptsDir, SERVER_FILE),
+    nodePath,
+    serverPath,
     workspaceRoot: root,
   });
   if (existing.slice(start, end + endMarker.length) !== expected) {
@@ -330,7 +330,7 @@ export async function disconnectAgentShield(args = [], overrides = {}) {
   const processedConfigFiles = new Set();
   for (const host of hosts) {
     if (host === 'codex') {
-      results.push(await disconnectCodex(root));
+      results.push(await disconnectCodex(root, nodePath, serverPath));
       continue;
     }
     const configFile = host === 'cursor' ? path.join(root, '.cursor', 'mcp.json')
