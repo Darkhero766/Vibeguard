@@ -96,7 +96,7 @@ export class ScanJobQueue extends EventEmitter {
     if (this.initialized) return;
     if (this.storageFault) throw new Error('Foxy job-store initialization previously failed; repair storage and restart the MCP server.');
     if (this.initializingPromise) return this.initializingPromise;
-    const pending = this.#initialize();
+    const pending = this.initializeStore();
     this.initializingPromise = pending;
     try {
       await pending;
@@ -105,7 +105,7 @@ export class ScanJobQueue extends EventEmitter {
     }
   }
 
-  async #initialize() {
+  async initializeStore() {
     if (!path.isAbsolute(this.storeDir || '')) throw new Error('Job store path must be absolute.');
     await mkdir(this.storeDir, { recursive: true, mode: 0o700 });
     const dirInfo = await lstat(this.storeDir);
