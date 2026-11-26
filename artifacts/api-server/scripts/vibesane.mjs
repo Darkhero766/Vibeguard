@@ -374,7 +374,8 @@ async function main(args) {
       '',
       'Commands:',
       '  vibesane doctor [--cwd PROJECT]',
-      '  vibesane connect [--agent auto|all|claude|codex|cursor|mcp] [--cwd PROJECT]  Auto-register MCP',
+      '  vibesane connect [--agent auto|all|claude|codex|cursor|gemini|roo|copilot|mcp] [--cwd PROJECT]  Auto-register MCP',
+      '  vibesane disconnect [--agent auto|all|claude|codex|cursor|gemini|roo|copilot] [--cwd PROJECT]  Remove exact managed MCP entries',
       '  vibesane mcp-doctor  Validate MCP workspace authorization without printing paths',
       '  vibesane scan --changed [--base-ref REF] [--cwd PROJECT]',
       '  vibesane verify --changed [--cwd PROJECT]',
@@ -401,6 +402,7 @@ async function main(args) {
   }
   if (command === 'doctor') return doctor(tail);
   if (command === 'connect') return child(connector, tail);
+  if (command === 'disconnect') return child(connector, ['disconnect', ...tail]);
   if (command === 'mcp-doctor' && tail.length === 0) return mcpDoctor();
   if (command === 'capabilities') {
     if (tail.length > 2 || (tail.length === 2 && tail[0] !== '--format') || (tail.length === 1 && !['json','text'].includes(tail[0]))) throw Error('Use capabilities --format json|text');
