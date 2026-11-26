@@ -369,3 +369,36 @@ test('Codex uninstall refuses a symlinked .agents parent and preserves external 
   );
   assert.equal(await readFile(externalSkill, 'utf8'), skill);
 });
+
+
+test('doctor refuses symlinked Codex config.toml without following it', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-codex-doctor-'));
+  const project = path.join(root, 'project');
+  await mkdir(path.join(project, '.codex'), { recursive: true });
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await exec('git', ['init', project]);
+
+  const external = path.join(root, 'external.toml');
+  const original = '[mcp_servers.safe]\\ncommand = "node"\\nargs = []\\n';
+  await writeFile(external, original);
+  try {
+    await symlink(external, path.join(project, '.codex', 'config.toml'));
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOTSUP'].includes(error?.code)) {
+      t.skip('This Windows environment does not permit creating symbolic links for the safety fixture.');
+      return;
+    }
+    throw error;
+  }
+
+  await assert.rejects(
+    exec(process.execPath, [cliPath, 'doctor', '--cwd', project]),
+    (error) => {
+      assert.equal(error?.code, 2);
+      const report = JSON.parse(error.stdout);
+      assert.equal(report.checks.settingsReadable, false);
+      return true;
+    },
+  );
+  assert.equal(await readFile(external, 'utf8'), original);
+});
