@@ -148,3 +148,50 @@ export function classifyFindingDelta(
     existing: existing.sort(compareLocation),
   };
 }
+
+
+export type ChangedFileRecord = {
+  filename: string;
+  status: string;
+  previous_filename?: string;
+};
+export type ChangedPathPlan = {
+  basePaths: string[];
+  headPaths: string[];
+  renamedPaths: Record<string, string>;
+};
+
+/** Map GitHub compare statuses into the exact base/head snapshots to read. */
+export function buildChangedPathPlan(changedFiles: ChangedFileRecord[]): ChangedPathPlan {
+  const basePaths: string[] = [];
+  const headPaths: string[] = [];
+  const renamedPaths: Record<string, string> = {};
+  for (const file of changedFiles) {
+    if (!file || typeof file.filename !== "string" || !file.filename) continue;
+    if (!["added", "removed", "modified", "renamed", "copied", "changed"].includes(file.status)) {
+      throw new Error("GitHub compare returned an unsupported file status; delta coverage is UNKNOWN.");
+    }
+    if (file.status === "renamed") {
+      const previous = file.previous_filename;
+      if (typeof previous !== "string" || !previous) {
+        throw new Error("GitHub compare omitted the previous path for a renamed file; delta coverage is UNKNOWN.");
+      }
+      basePaths.push(previous);
+      headPaths.push(file.filename);
+      renamedPaths[previous] = file.filename;
+    } else if (file.status === "added" || file.status === "copied") {
+      headPaths.push(file.filename);
+    } else if (file.status === "removed") {
+      basePaths.push(file.filename);
+    } else {
+      basePaths.push(file.filename);
+      headPaths.push(file.filename);
+    }
+  }
+  const unique = (items: string[]) => [...new Set(items)].sort();
+  return {
+    basePaths: unique(basePaths),
+    headPaths: unique(headPaths),
+    renamedPaths,
+  };
+}
