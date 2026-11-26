@@ -12,7 +12,7 @@ for (const token of [
   'Claude Code', 'Codex CLI', 'Cursor', 'Gemini CLI', 'Roo Code', 'GitHub Copilot',
   'vibesane connect --agent auto', 'vibesane disconnect --agent all',
   'Read-only MCP tools', 'canonical Git root',
-  '429 / 429', '12 / 12', 'Windows + macOS',
+  '429 / 429', '12 / 12', 'Regression suite', 'Connector regressions', 'Windows + macOS',
   'Live authenticated acceptance', 'independent review',
   'https://github.com/Darkhero766/Vibeguard/actions/workflows/agentshield-cross-platform.yml?query=branch%3Afeat%2Fagentshield-cross-platform-autoconnect',
   'https://github.com/Darkhero766/Vibeguard/pull/70', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
