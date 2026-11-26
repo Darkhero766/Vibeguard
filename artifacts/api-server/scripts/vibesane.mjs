@@ -295,6 +295,12 @@ async function uninstallCodex(args) {
   const root = await codexProjectRoot(cwdFrom(args));
   const codexDir = path.join(root, '.codex');
   const hooksFile = path.join(codexDir, 'hooks.json');
+  // Validate every potential skill parent before removing any hook configuration.
+  for (const directory of [
+    path.join(root, '.agents'),
+    path.join(root, '.agents', 'skills'),
+    path.join(root, '.agents', 'skills', 'vibesane-agentshield'),
+  ]) await safeExistingDirectory(directory);
   const config = await readProjectMcpConfig(root, '.codex', 'hooks.json');
   if (config.hooks != null && (typeof config.hooks !== 'object' || Array.isArray(config.hooks))) {
     throw new Error('Refusing malformed Codex hooks object.');
@@ -312,10 +318,7 @@ async function uninstallCodex(args) {
   const target = path.join(targetDir, 'SKILL.md');
   let skillRemoved = false;
   const source = path.resolve(scripts, '../skills/vibesane-agentshield/SKILL.md');
-  const skillParentsAreSafe = await safeExistingDirectory(path.join(root, '.agents'))
-    && await safeExistingDirectory(path.join(root, '.agents', 'skills'))
-    && await safeExistingDirectory(targetDir);
-  if (skillParentsAreSafe && await isFile(target) && await isFile(source)) {
+  if (await isFile(target) && await isFile(source)) {
     const existing = await readSafeTextFile(target, 'Codex AgentShield skill');
     const packaged = await readFile(source, 'utf8');
     if (existing === packaged) {
