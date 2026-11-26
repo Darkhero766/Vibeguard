@@ -256,9 +256,11 @@ async function disconnectJsonHost(host, root, nodePath, serverPath) {
   const configDir = host === 'cursor' ? path.join(root, '.cursor')
     : host === 'gemini' ? path.join(root, '.gemini')
       : host === 'roo' ? path.join(root, '.roo') : root;
-  if (host === 'cursor' || host === 'gemini' || host === 'roo') await ensureSafeDirectory(configDir).catch((error) => {
-    if (error?.code !== 'ENOENT') throw error;
-  });
+  if ((host === 'cursor' || host === 'gemini' || host === 'roo') && !await isDirectory(configDir)) {
+    const file = host === 'cursor' ? path.join(configDir, 'mcp.json')
+      : host === 'gemini' ? path.join(configDir, 'settings.json') : path.join(configDir, 'mcp.json');
+    return { host, status: 'not_configured', configFile: file };
+  }
   const file = host === 'cursor' ? path.join(configDir, 'mcp.json')
     : host === 'gemini' ? path.join(configDir, 'settings.json')
       : host === 'roo' ? path.join(configDir, 'mcp.json') : path.join(root, '.mcp.json');
