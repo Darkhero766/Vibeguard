@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // AgentShield local developer commands; a repository checkout is required (no npm publishing).
 import path from 'node:path';
+import { constants } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { lstat, readFile, realpath, stat, mkdir, writeFile, rename, unlink, copyFile, readdir, chmod } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
