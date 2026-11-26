@@ -101,6 +101,11 @@ function foxyMcpEntry(host, root) {
   if (host === 'cursor') return { type: 'stdio', ...entry };
   return entry;
 }
+function legacyFoxyMcpEntry(host, root) {
+  const entry = foxyMcpEntry(host, root);
+  entry.env = { VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([root]) };
+  return entry;
+}
 function sameJson(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
@@ -121,13 +126,15 @@ async function configureMcpHost(args, uninstall = false) {
   const servers = config.mcpServers || {};
   const name = 'vibesane-agentshield';
   const desired = foxyMcpEntry(host, root);
+  const legacyDesired = legacyFoxyMcpEntry(host, root);
   const existing = servers[name];
+  const exactManagedEntry = sameJson(existing, desired) || sameJson(existing, legacyDesired);
   if (uninstall) {
     if (existing == null) {
       process.stdout.write(JSON.stringify({ status: 'not_configured', host, configFile }) + '\n');
       return 0;
     }
-    if (!sameJson(existing, desired)) {
+    if (!exactManagedEntry) {
       throw new Error('The Foxy server entry was customized; refusing to remove or rewrite it automatically.');
     }
     const backup = await backupJsonFile(configFile);
@@ -141,6 +148,20 @@ async function configureMcpHost(args, uninstall = false) {
   if (existing != null) {
     if (sameJson(existing, desired)) {
       process.stdout.write(JSON.stringify({ status: 'already_configured', host, configFile, repositoryRoot: root }) + '\n');
+      return 0;
+    }
+    if (sameJson(existing, legacyDesired)) {
+      const backup = await backupJsonFile(configFile);
+      config.mcpServers = { ...servers, [name]: desired };
+      await atomicJsonWrite(configFile, config);
+      process.stdout.write(JSON.stringify({
+        status: 'updated',
+        host,
+        configFile,
+        repositoryRoot: root,
+        backup,
+        note: 'Migrated the exact previously managed Foxy entry to a host-isolated queue namespace; unrelated configuration was preserved.',
+      }) + '\n');
       return 0;
     }
     throw new Error('A different MCP server already uses vibesane-agentshield; preserve it and resolve the name conflict manually.');
@@ -165,11 +186,16 @@ function codexHookCommand() {
   const hook = path.resolve(scripts, 'agentshield-codex-stop.mjs');
   return shellQuote(process.execPath) + ' ' + shellQuote(hook);
 }
-function removeCodexStopEntry(hooks, command) {
+function legacyCodexHookCommand() {
+  const hook = path.resolve(scripts, 'agentshield-codex-stop.mjs');
+  return "node '" + hook.replaceAll("'", "'\\''") + "'";
+}
+function removeCodexStopEntry(hooks, commands) {
+  const targets = new Set(Array.isArray(commands) ? commands : [commands]);
   const stop = Array.isArray(hooks.Stop) ? hooks.Stop : [];
   const kept = stop.map((entry) => {
     if (!entry || typeof entry !== 'object' || !Array.isArray(entry.hooks)) return entry;
-    const handlers = entry.hooks.filter(item => !(item?.type === 'command' && item.command === command));
+    const handlers = entry.hooks.filter(item => !(item?.type === 'command' && targets.has(item.command)));
     return handlers.length ? { ...entry, hooks: handlers } : null;
   }).filter(Boolean);
   if (kept.length) hooks.Stop = kept;
@@ -197,7 +223,7 @@ async function initCodexSkill(args) {
     throw new Error('Refusing malformed Codex Stop hook list.');
   }
   const command = codexHookCommand();
-  removeCodexStopEntry(hooks, command);
+  removeCodexStopEntry(hooks, [command, legacyCodexHookCommand()]);
   const stop = Array.isArray(hooks.Stop) ? hooks.Stop : [];
   stop.push({ hooks: [{
     type: 'command', command, timeout: 30,
@@ -253,7 +279,7 @@ async function uninstallCodex(args) {
   if (hooks.Stop != null && !Array.isArray(hooks.Stop)) {
     throw new Error('Refusing malformed Codex Stop hook list.');
   }
-  const changed = removeCodexStopEntry(hooks, codexHookCommand());
+  const changed = removeCodexStopEntry(hooks, [codexHookCommand(), legacyCodexHookCommand()]);
   if (Object.keys(hooks).length) config.hooks = hooks;
   else delete config.hooks;
   if (changed) await atomicJsonWrite(hooksFile, config);

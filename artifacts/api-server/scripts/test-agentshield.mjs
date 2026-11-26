@@ -163,6 +163,40 @@ test('hook installer preserves existing config and uninstalls reversibly', async
 });
 
 
+test('Claude installer migrates legacy PATH-based commands and uninstalls only AgentShield hooks', async (t) => {
+  const { cwd } = await fixture(t, 'src/index.js', 'export const value = 1;\n');
+  const dir = path.join(cwd, '.claude');
+  await mkdir(dir, { recursive: true });
+  const settingsPath = path.join(dir, 'settings.json');
+  const legacyPost = "node '" + hook.replaceAll("'", "'\\''") + "'";
+  const legacyStop = "node '" + stopHook.replaceAll("'", "'\\''") + "'";
+  await writeFile(settingsPath, JSON.stringify({ permissions: { allow: ['Read'] }, hooks: {
+    PostToolUse: [{ matcher: 'Edit|Write|MultiEdit', hooks: [
+      { type: 'command', command: legacyPost, timeout: 20 },
+      { type: 'command', command: 'node unrelated-post.mjs' },
+    ] }],
+    Stop: [{ hooks: [
+      { type: 'command', command: legacyStop, timeout: 20 },
+      { type: 'command', command: 'node unrelated-stop.mjs' },
+    ] }],
+  } }));
+  await run(process.execPath, [installer, 'install', cwd]);
+  const installed = JSON.parse(await readFile(settingsPath, 'utf8'));
+  const postCommands = installed.hooks.PostToolUse.flatMap(entry => entry.hooks || []);
+  const stopCommands = installed.hooks.Stop.flatMap(entry => entry.hooks || []);
+  assert.equal(postCommands.filter(item => item.command?.includes('agentshield-hook.mjs')).length, 1);
+  assert.equal(stopCommands.filter(item => item.command?.includes('agentshield-stop.mjs')).length, 1);
+  assert.equal(postCommands.some(item => item.command === legacyPost), false);
+  assert.equal(stopCommands.some(item => item.command === legacyStop), false);
+  await run(process.execPath, [installer, 'uninstall', cwd]);
+  const removed = JSON.parse(await readFile(settingsPath, 'utf8'));
+  assert.equal(removed.hooks.PostToolUse.flatMap(entry => entry.hooks || []).some(item => item.command?.includes('agentshield-hook.mjs')), false);
+  assert.equal(removed.hooks.Stop.flatMap(entry => entry.hooks || []).some(item => item.command?.includes('agentshield-stop.mjs')), false);
+  assert.equal(removed.hooks.PostToolUse.flatMap(entry => entry.hooks || []).some(item => item.command === 'node unrelated-post.mjs'), true);
+  assert.equal(removed.hooks.Stop.flatMap(entry => entry.hooks || []).some(item => item.command === 'node unrelated-stop.mjs'), true);
+  assert.deepEqual(removed.permissions, { allow: ['Read'] });
+});
+
 test('Claude Code Stop hook enforces blockers then allows a complete clean rescan', async (t) => {
   const secret = 'S'.repeat(38);
   const { cwd, target } = await fixture(t, 'src/auth.ts', 'const MY_API_TOKEN = "' + secret + '";\n');
@@ -447,7 +481,10 @@ test('Codex installer preserves existing hooks, installs idempotently, and unins
     description: 'Existing project hooks',
     hooks: {
       SessionStart: [{ hooks: [{ type: 'command', command: 'node existing-start.mjs' }] }],
-      Stop: [{ hooks: [{ type: 'command', command: 'node existing-stop.mjs', timeout: 12 }] }],
+      Stop: [{ hooks: [
+        { type: 'command', command: 'node existing-stop.mjs', timeout: 12 },
+        { type: 'command', command: "node '" + codexStopHook.replaceAll("'", "'\\''") + "'", timeout: 30 },
+      ] }],
     },
   };
   await writeFile(hooksFile, JSON.stringify(original));
@@ -461,6 +498,9 @@ test('Codex installer preserves existing hooks, installs idempotently, and unins
   const managed = installed.hooks.Stop.flatMap(entry => entry.hooks)
     .filter(item => item.command?.includes('agentshield-codex-stop.mjs'));
   assert.equal(managed.length, 1);
+  assert.equal(installed.hooks.Stop.flatMap(entry => entry.hooks)
+    .some(item => item.command === "node '" + codexStopHook.replaceAll("'", "'\\''") + "'"), false,
+    'Codex installer left a duplicate legacy PATH-based hook.');
   assert.ok(managed[0].command.startsWith("'" + process.execPath.replaceAll("'", "'\\''") + "' "),
     'Codex Stop hook must invoke the exact Node runtime, not PATH lookup.');
   assert.equal(managed[0].timeout, 30);

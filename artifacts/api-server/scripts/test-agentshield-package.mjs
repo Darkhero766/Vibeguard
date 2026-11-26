@@ -150,8 +150,19 @@ try {
   const cursorEntry = cursorConfig.mcpServers['vibesane-agentshield'];
   assert(cursorEntry?.type === 'stdio' && cursorEntry.command === process.execPath
     && cursorEntry.args[0].endsWith(path.join('scripts', 'agentshield-mcp-stdio.mjs'))
-    && cursorEntry.env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture]),
+    && cursorEntry.env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture])
+    && cursorEntry.env.VIBESANE_JOB_STORE_NAMESPACE === 'cursor',
     'Cursor setup did not create a project-scoped STDIO entry with an exact root allowlist.');
+  const legacyCursorConfig = JSON.parse(JSON.stringify(cursorConfig));
+  legacyCursorConfig.mcpServers['vibesane-agentshield'].env = {
+    VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([fixture]),
+  };
+  await writeFile(cursorConfigPath, JSON.stringify(legacyCursorConfig, null, 2));
+  const cursorMigration = JSON.parse((await run(cli, ['setup', '--host', 'cursor', '--cwd', fixture], { cwd: temp })).stdout);
+  const migratedCursorConfig = JSON.parse(await readFile(cursorConfigPath, 'utf8'));
+  assert(cursorMigration.status === 'updated' && cursorMigration.backup
+    && migratedCursorConfig.mcpServers['vibesane-agentshield'].env.VIBESANE_JOB_STORE_NAMESPACE === 'cursor',
+    'Cursor setup did not migrate the exact prior managed entry to a host-isolated queue namespace.');
   const cursorDoctor = JSON.parse((await run(cli, ['doctor', '--cwd', fixture], { cwd: temp })).stdout);
   assert(cursorDoctor.status === 'ready' && cursorDoctor.checks.cursorMcpConfigured === true,
     'Doctor did not detect the managed Cursor MCP entry.');
@@ -176,6 +187,16 @@ try {
     && claudeConfig.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture])
     && claudeConfig.mcpServers['vibesane-agentshield'].env.VIBESANE_JOB_STORE_NAMESPACE === 'claude',
     'Claude Code setup did not write a project-scoped MCP config.');
+  const legacyClaudeConfig = JSON.parse(JSON.stringify(claudeConfig));
+  legacyClaudeConfig.mcpServers['vibesane-agentshield'].env = {
+    VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([fixture]),
+  };
+  await writeFile(claudeConfigPath, JSON.stringify(legacyClaudeConfig, null, 2));
+  const claudeMigration = JSON.parse((await run(cli, ['setup', '--host', 'claude', '--cwd', fixture], { cwd: temp })).stdout);
+  const migratedClaudeConfig = JSON.parse(await readFile(claudeConfigPath, 'utf8'));
+  assert(claudeMigration.status === 'updated' && claudeMigration.backup
+    && migratedClaudeConfig.mcpServers['vibesane-agentshield'].env.VIBESANE_JOB_STORE_NAMESPACE === 'claude',
+    'Claude setup did not migrate the exact prior managed entry to a host-isolated queue namespace.');
   const claudeDoctor = JSON.parse((await run(cli, ['doctor', '--cwd', fixture], { cwd: temp })).stdout);
   assert(claudeDoctor.status === 'ready' && claudeDoctor.checks.claudeMcpConfigured === true,
     'Doctor did not detect the managed Claude MCP entry.');

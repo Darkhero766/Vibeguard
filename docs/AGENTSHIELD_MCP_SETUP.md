@@ -98,7 +98,7 @@ After the private archive is installed, the CLI can write a project-scoped MCP e
 "$HOME/.local/bin/vibesane" doctor --cwd /absolute/path/to/disposable-repo
 ```
 
-The command resolves the Git repository root, limits the MCP server to that exact root, uses the absolute Node executable and packaged STDIO entrypoint, rejects symlinked/non-regular config files, backs up an existing file before the first write, preserves unrelated server entries, and is idempotent. Restart the host and explicitly approve the local MCP server. Remove only the exact managed entry with:
+The command resolves the Git repository root, limits the MCP server to that exact root, uses the absolute Node executable and packaged STDIO entrypoint, rejects symlinked/non-regular config files, backs up an existing file before the first write or migration, preserves unrelated server entries, migrates the exact prior Foxy config to the new host-specific queue namespace, and is idempotent. Restart the host and explicitly approve the local MCP server. Remove only the exact managed entry with:
 
 ```sh
 "$HOME/.local/bin/vibesane" uninstall-mcp --host claude --cwd /absolute/path/to/disposable-repo
