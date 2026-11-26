@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export type SecurityFinding = {
-  id?: string;
+  id: string;
   severity: string;
   title: string;
   description?: string;
