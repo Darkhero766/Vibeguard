@@ -85,6 +85,25 @@ Open Claude Code in the project, approve the project MCP server when prompted, t
 
 Completion enforcement is opt-in and requires a fetched strict-ancestor target ref, configured with the same `vibesane config --mode assist --completion-gate enforce --base-ref origin/main --cwd ...` command shown above. Claude Code was unavailable in the maintainer environment for this beta qualification; this configuration was cross-checked against the current Claude Code MCP documentation, but not host-executed here.
 
+### Guided project setup (Claude Code and Cursor)
+
+After the private archive is installed, the CLI can write a project-scoped MCP entry without changing unrelated host configuration:
+
+```sh
+"$HOME/.local/bin/vibesane" setup --host claude --cwd /absolute/path/to/disposable-repo
+"$HOME/.local/bin/vibesane" setup --host cursor --cwd /absolute/path/to/disposable-repo
+"$HOME/.local/bin/vibesane" doctor --cwd /absolute/path/to/disposable-repo
+```
+
+The command resolves the Git repository root, limits the MCP server to that exact root, uses the absolute Node executable and packaged STDIO entrypoint, rejects symlinked/non-regular config files, backs up an existing file before the first write, preserves unrelated server entries, and is idempotent. Restart the host and explicitly approve the local MCP server. Remove only the exact managed entry with:
+
+```sh
+"$HOME/.local/bin/vibesane" uninstall-mcp --host claude --cwd /absolute/path/to/disposable-repo
+"$HOME/.local/bin/vibesane" uninstall-mcp --host cursor --cwd /absolute/path/to/disposable-repo
+```
+
+A customized Foxy entry is not automatically deleted; inspect it and remove it manually after backing up the file. The helper does not install software from the network and does not grant the coding agent additional file permissions. Codex remains on the documented manual MCP registration plus separate hook/skill setup, pending a dedicated safe TOML installer and live host qualification.
+
 ### Remove, upgrade, or roll back
 
 Remove the matching project hooks/skills before uninstalling the package:

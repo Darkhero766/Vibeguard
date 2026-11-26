@@ -130,6 +130,50 @@ try {
   await writeFile(path.join(fixture, 'src', 'index.js'), 'export const baseline = true;\n');
   await run('git', ['init', '-q', fixture]);
   await run('git', ['-C', fixture, 'branch', '-M', 'main']);
+
+  // Project-scoped MCP setup must preserve unrelated config, back up before
+  // replacement, remain idempotent, and refuse to remove customized entries.
+  await mkdir(path.join(fixture, '.cursor'), { recursive: true });
+  const cursorConfigPath = path.join(fixture, '.cursor', 'mcp.json');
+  await writeFile(cursorConfigPath, JSON.stringify({
+    customSetting: 'preserve-me',
+    mcpServers: { unrelatedServer: { command: 'example-server', args: [] } },
+  }, null, 2));
+  const cursorSetup = JSON.parse((await run(cli, ['setup', '--host', 'cursor', '--cwd', fixture], { cwd: temp })).stdout);
+  assert(cursorSetup.status === 'configured' && cursorSetup.backup,
+    'Cursor setup did not back up its pre-existing project MCP config.');
+  const cursorConfig = JSON.parse(await readFile(cursorConfigPath, 'utf8'));
+  assert(cursorConfig.customSetting === 'preserve-me' && cursorConfig.mcpServers.unrelatedServer.command === 'example-server',
+    'Cursor setup did not preserve unrelated project configuration.');
+  const cursorEntry = cursorConfig.mcpServers['vibesane-agentshield'];
+  assert(cursorEntry?.type === 'stdio' && cursorEntry.command === process.execPath
+    && cursorEntry.args[0].endsWith(path.join('scripts', 'agentshield-mcp-stdio.mjs'))
+    && cursorEntry.env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture]),
+    'Cursor setup did not create a project-scoped STDIO entry with an exact root allowlist.');
+  const backupConfig = JSON.parse(await readFile(cursorSetup.backup, 'utf8'));
+  assert(backupConfig.customSetting === 'preserve-me' && !backupConfig.mcpServers['vibesane-agentshield'],
+    'Cursor setup backup did not preserve the original config.');
+  const cursorAgain = JSON.parse((await run(cli, ['setup', '--host', 'cursor', '--cwd', fixture], { cwd: temp })).stdout);
+  assert(cursorAgain.status === 'already_configured', 'Cursor setup is not idempotent.');
+  const cursorRemoved = JSON.parse((await run(cli, ['uninstall-mcp', '--host', 'cursor', '--cwd', fixture], { cwd: temp })).stdout);
+  assert(cursorRemoved.status === 'removed', 'Cursor MCP uninstaller did not remove its exact managed entry.');
+  const cursorAfterRemove = JSON.parse(await readFile(cursorConfigPath, 'utf8'));
+  assert(cursorAfterRemove.customSetting === 'preserve-me'
+    && cursorAfterRemove.mcpServers.unrelatedServer.command === 'example-server'
+    && !cursorAfterRemove.mcpServers['vibesane-agentshield'],
+    'Cursor MCP uninstaller removed unrelated config.');
+
+  const claudeSetup = JSON.parse((await run(cli, ['setup', '--host', 'claude', '--cwd', fixture], { cwd: temp })).stdout);
+  const claudeConfigPath = path.join(fixture, '.mcp.json');
+  const claudeConfig = JSON.parse(await readFile(claudeConfigPath, 'utf8'));
+  assert(claudeSetup.status === 'configured'
+    && claudeConfig.mcpServers['vibesane-agentshield'].command === process.execPath
+    && claudeConfig.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture]),
+    'Claude Code setup did not write a project-scoped MCP config.');
+  await run(cli, ['uninstall-mcp', '--host', 'claude', '--cwd', fixture], { cwd: temp });
+  const claudeAfterRemove = JSON.parse(await readFile(claudeConfigPath, 'utf8'));
+  assert(!claudeAfterRemove.mcpServers, 'Claude MCP uninstaller left its managed entry behind.');
+
   const codexInit = await run(cli, ['init-codex', '--cwd', fixture], { cwd: temp });
   const codexInstall = JSON.parse(codexInit.stdout);
   assert(codexInstall.status === 'installed'

@@ -2,8 +2,9 @@
 // AgentShield local developer commands; a repository checkout is required (no npm publishing).
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { lstat, readFile, realpath, stat, mkdir, writeFile, rename, unlink } from 'node:fs/promises';
+import { lstat, readFile, realpath, stat, mkdir, writeFile, rename, unlink, copyFile, readdir, chmod } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
+import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -53,6 +54,15 @@ async function readSafeJsonFile(file) {
     throw error;
   }
 }
+async function backupJsonFile(file) {
+  const info = await lstat(file).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+  if (!info) return null;
+  if (!info.isFile() || info.isSymbolicLink()) throw new Error('Refusing to replace a non-regular or symlinked MCP configuration file.');
+  const backup = file + '.vibesane-backup-' + new Date().toISOString().replaceAll(':', '-') + '-' + randomUUID() + '.json';
+  await copyFile(file, backup, constants.COPYFILE_EXCL);
+  await chmod(backup, 0o600);
+  return backup;
+}
 async function atomicJsonWrite(file, value) {
   const temp = file + '.agentshield-' + randomUUID() + '.tmp';
   try {
@@ -62,6 +72,87 @@ async function atomicJsonWrite(file, value) {
     await unlink(temp).catch(() => {});
     throw error;
   }
+}
+function parseSetupArgs(args) {
+  let host = null;
+  let cwd = process.cwd();
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--host') {
+      if (!args[i + 1]) throw new Error('Missing --host value.');
+      host = args[++i];
+    } else if (args[i] === '--cwd') {
+      if (!args[i + 1]) throw new Error('Missing --cwd value.');
+      cwd = path.resolve(args[++i]);
+    } else throw new Error('Use --host claude|cursor and optional --cwd PROJECT.');
+  }
+  if (!['claude', 'cursor'].includes(host)) throw new Error('Supported setup hosts are claude and cursor.');
+  return { host, cwd };
+}
+function foxyMcpEntry(host, root) {
+  const entry = {
+    command: process.execPath,
+    args: [path.resolve(scripts, 'agentshield-mcp-stdio.mjs')],
+    env: { VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([root]) },
+  };
+  if (host === 'cursor') return { type: 'stdio', ...entry };
+  return entry;
+}
+function sameJson(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+async function configureMcpHost(args, uninstall = false) {
+  if (process.platform === 'win32') throw new Error('Foxy local MCP setup currently supports macOS/Linux only.');
+  const { host, cwd } = parseSetupArgs(args);
+  const root = await codexProjectRoot(cwd);
+  if (root === path.parse(root).root || root === os.homedir()) {
+    throw new Error('Choose a repository below the filesystem and home-directory roots.');
+  }
+  const configDir = host === 'cursor' ? path.join(root, '.cursor') : root;
+  if (host === 'cursor') await ensureSafeDirectory(configDir);
+  const configFile = host === 'cursor' ? path.join(configDir, 'mcp.json') : path.join(root, '.mcp.json');
+  const config = await readSafeJsonFile(configFile);
+  if (config.mcpServers != null && (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers))) {
+    throw new Error('Refusing malformed mcpServers configuration.');
+  }
+  const servers = config.mcpServers || {};
+  const name = 'vibesane-agentshield';
+  const desired = foxyMcpEntry(host, root);
+  const existing = servers[name];
+  if (uninstall) {
+    if (existing == null) {
+      process.stdout.write(JSON.stringify({ status: 'not_configured', host, configFile }) + '\\n');
+      return 0;
+    }
+    if (!sameJson(existing, desired)) {
+      throw new Error('The Foxy server entry was customized; refusing to remove or rewrite it automatically.');
+    }
+    const backup = await backupJsonFile(configFile);
+    delete servers[name];
+    if (Object.keys(servers).length) config.mcpServers = servers;
+    else delete config.mcpServers;
+    await atomicJsonWrite(configFile, config);
+    process.stdout.write(JSON.stringify({ status: 'removed', host, configFile, backup }) + '\\n');
+    return 0;
+  }
+  if (existing != null) {
+    if (sameJson(existing, desired)) {
+      process.stdout.write(JSON.stringify({ status: 'already_configured', host, configFile, repositoryRoot: root }) + '\\n');
+      return 0;
+    }
+    throw new Error('A different MCP server already uses vibesane-agentshield; preserve it and resolve the name conflict manually.');
+  }
+  const backup = await backupJsonFile(configFile);
+  config.mcpServers = { ...servers, [name]: desired };
+  await atomicJsonWrite(configFile, config);
+  process.stdout.write(JSON.stringify({
+    status: 'configured',
+    host,
+    configFile,
+    repositoryRoot: root,
+    backup,
+    note: 'Project-scoped Foxy MCP configured. Restart the host and approve the local server when prompted. The server is read-only and limited to this repository root.',
+  }) + '\\n');
+  return 0;
 }
 function codexHookCommand() {
   const hook = path.resolve(scripts, 'agentshield-codex-stop.mjs');
@@ -273,6 +364,8 @@ async function main(args) {
       '  vibesane status [--cwd PROJECT]',
       '  vibesane config [--mode monitor|assist|auto-fix] [--completion-gate advisory|enforce] [--base-ref REF] [--cwd PROJECT]',
       '  vibesane acknowledge --rule RULE --file PATH --reason CODE --hours N [--cwd PROJECT]',
+      '  vibesane setup --host claude|cursor [--cwd PROJECT] Configure project-scoped Foxy MCP',
+      '  vibesane uninstall-mcp --host claude|cursor [--cwd PROJECT] Remove the exact managed MCP entry',
       '  vibesane init [--cwd PROJECT]          Install Claude Code hooks',
       '  vibesane init-codex [--cwd PROJECT]    Install Codex skill and Stop security hook',
       '  vibesane uninstall-codex [--cwd PROJECT] Remove AgentShield Codex hook and matching skill',
@@ -295,6 +388,8 @@ async function main(args) {
     if (tail.length > 2 || (tail.length === 2 && tail[0] !== '--format') || (tail.length === 1 && !['json','text'].includes(tail[0]))) throw Error('Use capabilities --format json|text');
     return child(capabilities, [tail.length === 2 ? tail[1] : (tail[0] || 'json')]);
   }
+  if (command === 'setup') return configureMcpHost(tail, false);
+  if (command === 'uninstall-mcp') return configureMcpHost(tail, true);
   if (command === 'init') {
     if (!await isFile(dist)) throw new Error('First run pnpm --filter @workspace/api-server run build:agentshield.');
     return child(installer, ['install', cwdFrom(tail)]);
@@ -311,7 +406,7 @@ async function main(args) {
     return child(dist, ['scan', ...tail]);
   }
   if (['verify', 'status', 'config', 'acknowledge'].includes(command)) return child(controller, [command, ...tail]);
-  throw new Error('Commands: capabilities, init, init-codex, uninstall-codex, scan --changed, hybrid --changed [--enable-ast] [--enable-local-ai], verify --changed, status, config, acknowledge, doctor, uninstall.');
+  throw new Error('Commands: capabilities, setup --host claude|cursor, uninstall-mcp --host claude|cursor, init, init-codex, uninstall-codex, scan --changed, hybrid --changed [--enable-ast] [--enable-local-ai], verify --changed, status, config, acknowledge, doctor, uninstall.');
 }
 main(process.argv.slice(2)).then(code => { process.exitCode = code; }).catch(() => {
   process.stdout.write(JSON.stringify({ status: 'error', message: 'AgentShield command failed; run doctor for local diagnostics.' }) + '\n');
