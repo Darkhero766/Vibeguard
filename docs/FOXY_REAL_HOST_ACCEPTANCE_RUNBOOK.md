@@ -35,7 +35,7 @@ For each host that will be advertised as supported:
 1. Record the host version and OS build.
 2. From the authorized fixture root, run vibesane doctor.
 3. Run vibesane connect --agent <host> --cwd <authorized-fixture>.
-4. Inspect the exact host configuration diff. Confirm only the managed vibesane-agentshield entry was added, its VIBESANE_ALLOWED_ROOTS_JSON contains only the canonical fixture root, its VIBESANE_JOB_STORE_NAMESPACE matches the host configuration domain, existing unrelated entries remain semantically unchanged, and a backup exists.
+4. Inspect the exact host configuration diff. Confirm only the managed vibesane-agentshield entry was added or safely migrated, its VIBESANE_ALLOWED_ROOTS_JSON contains only the canonical fixture root, its VIBESANE_JOB_STORE_NAMESPACE matches the host configuration domain, existing unrelated entries remain semantically unchanged, and a backup exists. Repeat from an exact legacy beta entry and verify it migrates; modify one byte/field in a managed entry and verify the connector refuses to overwrite it.
 5. Restart the host. Approve the MCP server through the host's own trust/permission UI. Confirm the server starts without exposing credentials in its environment or logs.
 6. Invoke status; confirm scanner readiness and configured workspace authorization.
 7. Invoke scan_changed on the synthetic fixture; confirm the expected rule and bounded result are returned.
@@ -54,7 +54,7 @@ Repeat the sequence after a clean reinstall and after a second connect to confir
 - **Cursor:** validate .cursor/mcp.json, restart, and enterprise MCP controls if applicable.
 - **Gemini CLI:** validate .gemini/settings.json and the MCP approval behavior for the installed CLI version.
 - **Roo Code:** validate .roo/mcp.json and its MCP server enable/approval flow.
-- **GitHub Copilot in VS Code and Copilot CLI:** The current beta uses the portable workspace-root .mcp.json format, which is also Claude Code's project file. Both clients can read that workspace entry. The global $COPILOT_HOME/mcp-config.json or ~/.copilot/mcp-config.json destination is not written by vibesane connect. The shared Claude/Copilot entry uses the shared foxy-workspace-mcp namespace; this does not establish safe simultaneous processes because the persistent queue holds an exclusive lock. Until the queue broker / same-host multi-instance design is completed, test these hosts one at a time on a given repository and do not claim simultaneous Claude/Copilot sessions.
+- **GitHub Copilot in VS Code and Copilot CLI:** The current beta uses the portable workspace-root .mcp.json format, which is also Claude Code's project file. Both clients can read that workspace entry. The global $COPILOT_HOME/mcp-config.json or ~/.copilot/mcp-config.json destination is not written by vibesane connect. The shared Claude/Copilot entry uses `foxy-workspace-mcp`; this does not establish safe simultaneous processes because the persistent queue holds an exclusive lock. Until the queue broker / same-host multi-instance design is completed, test these hosts one at a time on a given repository and do not claim simultaneous Claude/Copilot sessions. Other host-specific config files use dedicated namespaces, but same-host simultaneous instances also remain unverified.
 
 ## Platform-specific coverage
 
@@ -91,6 +91,10 @@ CI runner evidence does not replace these tests on real intended machines.
 | Copilot VS Code | macOS | Pending | Pending | Pending | Pending | Pending | Pending | |
 | Copilot CLI | Windows | Pending | Pending | Pending | Pending | Pending | Pending | |
 | Copilot CLI | macOS | Pending | Pending | Pending | Pending | Pending | Pending | |
+
+## Multi-instance queue acceptance gate
+
+The job queue uses a process-exclusive store lock. Connector namespaces isolate distinct host configuration domains, but multiple MCP processes using the same namespace and allowed-root scope still contend for that lock. The current safe operating assumption is one Foxy process per host-namespace/workspace store at a time. To close this limitation, complete a broker or transactional multi-process store design, then prove concurrent submit/status/result/cancel, process crash/restart recovery, idempotency and cleanup on Windows and macOS. Until that proof exists, do not claim unrestricted concurrent host sessions.
 
 ## Security review gate
 
