@@ -189,3 +189,11 @@ export function buildChangedPathPlan(changedFiles: ChangedFileRecord[]): Changed
     renamedPaths,
   };
 }
+
+
+export function shouldAdvanceProtectedHead(
+  event: "push" | "pull_request",
+  report: { coveragePartial?: boolean; scanIncomplete?: boolean },
+): boolean {
+  return event === "push" && report.coveragePartial !== true && report.scanIncomplete !== true;
+}

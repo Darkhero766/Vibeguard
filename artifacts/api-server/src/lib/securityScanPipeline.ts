@@ -10,6 +10,7 @@ export type SecurityPipelineResult = {
   filesScanned: number;
   coverage: RepositoryReadCoverage;
   findings: SecurityFinding[];
+  scanIncomplete: false;
 };
 
 export function scanRepositoryFiles(files: RepositoryFile[]): SecurityFinding[] {
@@ -35,5 +36,6 @@ export async function scanRepositorySecurity(
     filesScanned: result.files.length,
     coverage: result.coverage,
     findings: scanRepositoryFiles(result.files),
+    scanIncomplete: false,
   };
 }

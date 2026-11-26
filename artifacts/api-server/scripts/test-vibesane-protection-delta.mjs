@@ -31,6 +31,7 @@ async function load() {
     };
     helpers = {
       delta: await read("protectionDelta"),
+      eventDetails: await read("protectionEventDetails"),
       pipeline: await read("securityScanPipeline"),
       reader: await read("githubRepoReader"),
     };
@@ -167,4 +168,61 @@ test("unknown rename metadata fails closed instead of silently omitting its old 
   assert.throws(() => delta.buildChangedPathPlan([
     { filename: "src/new.ts", status: "renamed" },
   ]), /previous path/i);
+});
+
+
+test("push head only advances after complete scans, never on partial or failed outcomes", async () => {
+  const { delta } = await load();
+  assert.equal(delta.shouldAdvanceProtectedHead("push", { coveragePartial: false, scanIncomplete: false }), true);
+  assert.equal(delta.shouldAdvanceProtectedHead("push", { coveragePartial: true, scanIncomplete: false }), false);
+  assert.equal(delta.shouldAdvanceProtectedHead("push", { scanIncomplete: true }), false);
+  assert.equal(delta.shouldAdvanceProtectedHead("pull_request", { coveragePartial: false }), false);
+});
+
+test("protection event details are bounded, metadata-only and redact token-shaped values", async () => {
+  const { eventDetails } = await load();
+  const report = eventDetails.buildProtectionEventDetails({
+    scanMode: "delta",
+    coveragePartial: true,
+    changedFiles: 8,
+    filesScanned: 5,
+    checksRun: 54,
+    resolvedFindingsCount: 2,
+    existingFindingsCount: 1,
+    unscannedChangedFileCount: 3,
+    coverageReasons: ["The scanner could not inspect three changed files."],
+    unscannedChangedFiles: ["src/large.ts", "../secrets.env"],
+    findings: [{
+      id: "finding-1",
+      severity: "High",
+      title: "Possible token exposure ghp_" + "A".repeat(36),
+      filePath: "src/auth.ts",
+      line: 12,
+      check: "hardcoded_secret",
+      description: "SOURCE_MUST_NOT_BE_STORED",
+    }],
+  });
+  assert.equal(report.coveragePartial, true);
+  assert.equal(report.scanMode, "delta");
+  assert.equal(report.resolvedFindingsCount, 2);
+  assert.deepEqual(report.unscannedChangedFiles, ["src/large.ts"]);
+  assert.equal(report.findings.length, 1);
+  assert.match(report.findings[0].title, /\\[redacted\\]/);
+  assert.doesNotMatch(JSON.stringify(report), /SOURCE_MUST_NOT_BE_STORED/);
+  assert.doesNotMatch(JSON.stringify(report), /ghp_A{20}/);
+});
+
+test("protection event summaries cap findings and omit unsafe paths", async () => {
+  const { eventDetails } = await load();
+  const findings = Array.from({ length: 40 }, (_, index) => ({
+    id: "f-" + index,
+    severity: "Medium",
+    title: "Finding " + index,
+    filePath: index === 0 ? "../outside.txt" : "src/" + index + ".ts",
+    line: index + 1,
+    check: "example_rule",
+  }));
+  const report = eventDetails.buildProtectionEventDetails({ findings });
+  assert.equal(report.findings.length, 25);
+  assert.equal(report.findings.some(finding => finding.filePath.includes("..")), false);
 });

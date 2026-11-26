@@ -2,7 +2,7 @@ import { Router } from "express";
 import crypto from "node:crypto";
 import { scanRepositorySecurity } from "../lib/securityScanPipeline";
 import { shouldRead } from "../lib/githubRepoReader";
-import { buildChangedPathPlan, classifyFindingDelta, type ChangedFileRecord } from "../lib/protectionDelta";
+import { buildChangedPathPlan, classifyFindingDelta, shouldAdvanceProtectedHead, type ChangedFileRecord } from "../lib/protectionDelta";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { cacheScanResult } from "../lib/scanCache";
 import { logger } from "../lib/logger";
@@ -174,6 +174,7 @@ async function scanDelta(repo: string, token: string, headSha: string, baseSha: 
     coverageReasons,
     resolvedFindingsCount: delta.resolved.length,
     existingFindingsCount: delta.existing.length,
+    scanIncomplete: false,
   };
 }
 
@@ -193,7 +194,7 @@ async function scanEvent(payload: WebhookPayload, event: "push" | "pull_request"
   const token = await getInstallationToken(installationId); logger.info({ repo, event, sha }, "GitHub installation token created"); const check = await createCheckRun(token, repo, sha, "in_progress"); logger.info({ repo, event, sha, checkId: check.id }, "GitHub security check created");
   try { const report = await scanDelta(repo, token, sha, baseSha); cacheScanResult(report.repo, report); const hasBlocking = report.findings.some((f: any) => f.severity === "Critical" || f.severity === "High"); const conclusion = hasBlocking ? "failure" : (report.coveragePartial || report.findings.length) ? "neutral" : "success"; await completeCheckRun(token, repo, check.id, conclusion, report); await recordProtectionEvent({
       repo, event, sha, baseSha, status: conclusion, report,
-      advanceHead: event === "push" && !report.coveragePartial && !report.scanIncomplete,
+      advanceHead: shouldAdvanceProtectedHead(event, report),
     }); logger.info({ repo, event, sha, baseSha, changedFiles: report.changedFiles, findings: report.findings.length }, "Active protection delta scan completed"); }
   catch (error) { logger.error({ err: error, repo, event, sha }, "Active protection delta scan failed"); try { await completeCheckRun(token, repo, check.id, "failure", { scanIncomplete: true, findings: [], changedFiles: 0, checksRun: 0 }); } catch (completionError) { logger.error({ err: completionError, repo, event, sha }, "Failed to mark active protection check as failed"); } await recordProtectionEvent({
       repo, event, sha, baseSha, status: "failure",
