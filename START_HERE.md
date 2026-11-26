@@ -1,15 +1,15 @@
 # VibeSane / AgentShield — start here
 
-**Last maintained:** 22 November 2026  
+**Last maintained:** 26 November 2026  
 **Repository:** `Darkhero766/Vibeguard`  
-**Current work branch:** `feat/agentshield-phase1-phase2-security`  
-**Current PR:** [#61](https://github.com/Darkhero766/Vibeguard/pull/61) — draft, unmerged  
-**Last recorded branch SHA before this roadmap update:** `608666b24e8b3743f497ba690ddf999a58b5441c`  
-**Production:** do not merge, migrate or deploy from this branch without separate explicit approval.
+**Active Foxy MCP candidates:** [PR #69](https://github.com/Darkhero766/Vibeguard/pull/69) beta.3 and [PR #70](https://github.com/Darkhero766/Vibeguard/pull/70) beta.4 — both draft and unmerged.  
+**SaaS hardening:** [PR #61](https://github.com/Darkhero766/Vibeguard/pull/61) — draft and unmerged.  
+**Durable live checkpoint:** read [docs/VIBESANE_ENGINEERING_STATE.md](docs/VIBESANE_ENGINEERING_STATE.md) first; it records exact heads, workflow evidence, blockers and next tasks.  
+**Production:** do not merge, migrate, publish or deploy without separate explicit approval.
 
 ## Read this before doing work
 
-1. Read [the master roadmap](docs/MASTER_PRODUCT_ROADMAP_2026.md).
+1. Read [the live engineering state](docs/VIBESANE_ENGINEERING_STATE.md), then [the master roadmap](docs/MASTER_PRODUCT_ROADMAP_2026.md).
 2. Read [the Phase 1–2 completion gate](docs/PHASE12_COMPLETION_GATE_2026_11_21.md), [release evidence](docs/PHASE12_RELEASE_EVIDENCE_2026_11_21.md), [solo-founder beta protocol](docs/PHASE12_SOLO_FOUNDER_BETA_PROTOCOL_2026_11_21.md), and [November 30 go/no-go checklist](artifacts/api-server/NOVEMBER_2026_RELEASE_GATES.md).
 3. Read the specific Week 1–6 AgentShield document only when working on the **local developer tool**. Do not confuse AgentShield's Week 1–6 with SaaS Phase 1–2.
 4. Recheck the actual GitHub branch, PR, deployment and current quota before assuming any historical status is still true.
@@ -19,7 +19,7 @@
 VibeSane has two connected but distinct product surfaces:
 
 - **VibeSane web/GitHub security SaaS:** a developer connects GitHub, selects a repository, receives a baseline security analysis, and can receive later push/pull-request checks, reports, findings and plan/usage controls. It is a remote repository-analysis service. Its GitHub OAuth login and GitHub App installation are different integrations.
-- **AgentShield local developer preview:** a local scanner/CLI and Claude Code hook workflow for supported changed files. It is designed to keep customer source on the developer's machine. Its current optional Ollama-compatible advisory receives bounded rule IDs/severity metadata only; it does not get source snippets in the documented mode. Live authenticated Claude Code and real local-model acceptance remain unverified.
+- **Foxy / AgentShield local developer preview:** a local scanner/CLI and read-only stdio MCP server for coding-agent hosts, with optional host lifecycle hooks as a separate feature. The beta.4 connector has Windows/macOS CI evidence, but real-host acceptance and independent review remain pending. Local source processing does not prove SaaS release readiness.
 
 The shared scanning engine does **not** make these two products identical. Clearly label which path a feature or benchmark covers.
 
