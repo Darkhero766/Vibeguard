@@ -36,12 +36,12 @@ test('agent detection recognizes project markers without launching agents', asyn
 
 test('Codex TOML and JSON MCP entries escape Windows paths and keep the allowlist narrow', () => {
   const entry = {
-    nodePath: 'C:\\Program Files\\nodejs\\node.exe',
+    nodePath: 'C:\\Program Files\nodejs\node.exe',
     serverPath: 'C:\\Tools\\VibeSane\\agentshield-mcp-stdio.mjs',
     workspaceRoot: 'D:\\Work\\my repo',
   };
   const toml = buildCodexMcpBlock(entry);
-  assert.match(toml, /C:\\\\Program Files\\\\nodejs\\\\node\.exe/);
+  assert.match(toml, /C:\\\\Program Files\\\nodejs\\\node\.exe/);
   assert.ok(toml.includes('env = { VIBESANE_ALLOWED_ROOTS_JSON = ' + JSON.stringify(JSON.stringify([entry.workspaceRoot])) + ' }'));
   const claude = buildJsonMcpEntry({ ...entry, host: 'claude' });
   const cursor = buildJsonMcpEntry({ ...entry, host: 'cursor' });
@@ -87,7 +87,7 @@ test('one connect command configures Claude, Codex, Cursor, Gemini, Roo and Copi
   await writeFile(rooFile, JSON.stringify(priorRoo, null, 2));
 
   const result = await connectAgentShield(['--agent', 'all', '--cwd', project], {
-    nodePath: 'C:\\Program Files\\nodejs\\node.exe',
+    nodePath: 'C:\\Program Files\nodejs\node.exe',
     serverPath: 'C:\\Tools\\VibeSane\\agentshield-mcp-stdio.mjs',
     platform: 'win32',
     env: { PATH: '', USERPROFILE: home },
@@ -110,12 +110,12 @@ test('one connect command configures Claude, Codex, Cursor, Gemini, Roo and Copi
   assert.equal(roo.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([await (await import('node:fs/promises')).realpath(project)]));
   assert.equal(claude.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([await (await import('node:fs/promises')).realpath(project)]));
   assert.match(codex, /\[mcp_servers\.vibesane_agentshield\]/);
-  assert.match(codex, /C:\\\\Program Files\\\\nodejs\\\\node\.exe/);
+  assert.match(codex, /C:\\\\Program Files\\\nodejs\\\node\.exe/);
   assert.ok(codex.startsWith(priorCodex));
 
   // Re-running is idempotent and never duplicates a Codex managed block.
   const again = await connectAgentShield(['--agent', 'all', '--cwd', project], {
-    nodePath: 'C:\\Program Files\\nodejs\\node.exe',
+    nodePath: 'C:\\Program Files\nodejs\node.exe',
     serverPath: 'C:\\Tools\\VibeSane\\agentshield-mcp-stdio.mjs',
     platform: 'win32',
     env: { PATH: '', USERPROFILE: home },
@@ -166,7 +166,7 @@ test('one disconnect command removes only exact managed host entries and preserv
   await writeFile(path.join(project, '.roo', 'mcp.json'), JSON.stringify({
     mcpServers: { other: { command: 'keep-roo', args: [] } },
   }));
-  await writeFile(path.join(project, '.codex', 'config.toml'), '[features]\\nexperimental = true\\n');
+  await writeFile(path.join(project, '.codex', 'config.toml'), '[features]\nexperimental = true\n');
   const connected = await connectAgentShield(['--agent', 'all', '--cwd', project], options);
   assert.equal(connected.status, 'connected');
 
