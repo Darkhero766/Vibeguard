@@ -56,17 +56,47 @@ export async function benchmark({ cases = BENCHMARK_CASES, kind = 'curated' } = 
           expected: tc.expected, detected: actual, errorType: bucket, rationale: tc.rationale });
       }
     }
-    if (kind === 'curated' && cases.length < 100) throw new Error('Corpus too small; 100+ cases required.');
+    const minimums = kind === 'holdout'
+      ? { cases: 24, categories: 6, perCategory: 4, positivesPerCategory: 2, negativesPerCategory: 2 }
+      : kind === 'curated'
+        ? { cases: 120, categories: 12, perCategory: 10, positivesPerCategory: 5, negativesPerCategory: 5 }
+        : null;
+    if (!cases.length) throw new Error('Benchmark corpus must contain at least one case.');
+    if (minimums && cases.length < minimums.cases) throw new Error('Benchmark corpus is below its required minimum case count.');
+    const categoryEntries = Object.entries(categories);
+    if (minimums) {
+      if (categoryEntries.length < minimums.categories) throw new Error('Benchmark corpus is missing required category coverage.');
+      for (const [category, counts] of categoryEntries) {
+        const positives = counts.tp + counts.fn;
+        const negatives = counts.tn + counts.fp;
+        if (positives < minimums.positivesPerCategory || negatives < minimums.negativesPerCategory
+          || positives + negatives < minimums.perCategory) {
+          throw new Error('Benchmark category has insufficient positive/negative challenge cases: ' + category);
+        }
+      }
+    }
+    const categoryResults = Object.fromEntries(
+      Object.entries(categories).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, rates(v)]));
+    const overall = rates(totals);
+    // Per-family floors prevent a strong detector from hiding a completely missed rule family.
+    const categoryTargets = kind === 'holdout'
+      ? { precision: 0.5, recall: 0.5 }
+      : { precision: 0.6, recall: 0.6 };
+    const categoryResultsMet = Object.values(categoryResults).every(result =>
+      (result.precision ?? 0) >= categoryTargets.precision
+      && (result.recall ?? 0) >= categoryTargets.recall);
+    const overallTargetsMet = (overall.precision ?? 0) >= 0.9 && (overall.recall ?? 0) >= 0.85;
     const report = { tool: 'VibeSane AgentShield accuracy benchmark', schemaVersion: 1,
       corpusVersion: kind === 'holdout' ? '2026-11-19-holdout-1' : '2026-11-19-1', benchmarkType: 'synthetic_labeled_target_rule_' + kind,
-      labelLimitations: 'Curated heuristic expectations, not independent exploit validation. Each case evaluates only its named target rule.',
-      totalCases: cases.length, categoryCount: Object.keys(categories).length,
-      results: rates(totals), categories: Object.fromEntries(
-        Object.entries(categories).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, rates(v)])),
+      labelLimitations: 'Curated heuristic expectations, not independent exploit validation. Each case evaluates only its named target rule; holdout labels are challenge expectations, not exploit proof.',
+      totalCases: cases.length, categoryCount: Object.keys(categoryResults).length,
+      results: overall, categories: categoryResults,
+      categoryCaseCounts: Object.fromEntries(Object.entries(categoryResults).map(([name, result]) => [name, result.total])),
       offTargetFindings, misclassifications: misses, measuredElapsedMs: Math.round(performance.now() - start),
       nodeVersion: process.version, platform: process.platform,
-      targets: { precision: 0.9, recall: 0.85 },
-      targetsMet: (rates(totals).precision ?? 0) >= 0.9 && (rates(totals).recall ?? 0) >= 0.85 };
+      targets: { precision: 0.9, recall: 0.85, perCategory: categoryTargets },
+      overallTargetsMet, categoryResultsMet,
+      targetsMet: overallTargetsMet && categoryResultsMet };
     return report;
   } finally { await rm(root, { recursive: true, force: true }); }
 }

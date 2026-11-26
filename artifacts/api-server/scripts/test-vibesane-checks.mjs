@@ -25,13 +25,14 @@ test('GitHub check output includes actionable path and rule without revealing so
       {severity:'Critical',filePath:'src/api/route.ts',line:17,check:'command_injection',description:danger},
       {severity:'High',filePath:'src/checkout.ts',line:27,check:'sql_grant_anon',title:danger},
     ]});
-  assert.equal(out.title,'VibeSane Security — 72/100');
+  assert.equal(out.title,'VibeSane Security — Delta risk 72/100');
   assert.equal(out.annotations.length,2);
   assert.equal(out.annotations[0].path,'src/api/route.ts');
   assert.equal(out.annotations[0].start_line,17);
   assert.equal(out.annotations[0].annotation_level,'failure');
   assert.match(out.summary,/src\/api\/route\.ts:17/);
   assert.match(out.summary,/command_injection/);
+  assert.match(out.annotations[0].message,/Review the affected code/);
   assert.match(out.summary,/only findings introduced by this change/);
   assert.doesNotMatch(JSON.stringify(out),/PRIVATE_CREDENTIAL_MUST_NOT_LEAK/);
 });
@@ -77,4 +78,51 @@ test('webhook check runner uses sanitized outputs and a fail-closed scan-incompl
   assert.match(source,/buildVibeSaneCheckOutput\(report\)/);
   assert.match(source,/scanIncomplete: true, findings: \[\]/);
   assert.doesNotMatch(source,/findings: \[\{ severity: "Critical" \}\]/);
+});
+
+
+test('delta findings show sanitized titles, resolved counts and useful inline annotations',async()=>{
+  const {buildVibeSaneCheckOutput}=await load();
+  const out=buildVibeSaneCheckOutput({
+    scanMode:'delta',
+    changedFiles:4,
+    filesScanned:4,
+    checksRun:52,
+    resolvedFindingsCount:3,
+    findings:[{
+      severity:'High',
+      filePath:'src/auth/route.ts',
+      line:42,
+      check:'command_injection',
+      title:'Request-derived value reaches a shell string',
+      description:'DO_NOT_LEAK_SOURCE_OR_CREDENTIAL',
+    }],
+  });
+  assert.equal(out.title,'VibeSane Security — Delta risk 90/100');
+  assert.match(out.summary,/Request-derived value reaches a shell string/);
+  assert.match(out.summary,/no longer present.*3/);
+  assert.equal(out.annotations.length,1);
+  assert.match(out.annotations[0].title,/Request-derived value reaches a shell string/);
+  assert.match(out.annotations[0].message,/No matched values or source snippets/);
+  assert.doesNotMatch(JSON.stringify(out),/DO_NOT_LEAK_SOURCE_OR_CREDENTIAL/);
+});
+
+test('partial coverage cannot be presented as a clean or complete delta',async()=>{
+  const {buildVibeSaneCheckOutput}=await load();
+  const out=buildVibeSaneCheckOutput({
+    scanMode:'delta',
+    coveragePartial:true,
+    changedFiles:12,
+    filesScanned:9,
+    checksRun:52,
+    unscannedChangedFileCount:3,
+    unscannedChangedFiles:['src/oversized.ts','README.md'],
+    coverageReasons:['One or more changed files exceeded the scanner byte budget.'],
+    findings:[],
+  });
+  assert.equal(out.title,'VibeSane Security — Partial coverage');
+  assert.match(out.summary,/complete security verdict is unavailable/i);
+  assert.match(out.summary,/3 changed paths were not inspected/);
+  assert.match(out.summary,/src\/oversized\.ts/);
+  assert.doesNotMatch(out.summary,/No findings detected/);
 });

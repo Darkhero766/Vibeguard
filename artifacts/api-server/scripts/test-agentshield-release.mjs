@@ -12,10 +12,12 @@ const root=path.resolve(scripts,'../../..');
 const read=relative=>readFile(path.join(root,relative),'utf8');
 
 test('capability registry distinguishes supported heuristics and unimplemented language-specific SAST',()=>{
-  assert.equal(CAPABILITIES.staticScanner.codeLanguages.length,3);
-  assert.deepEqual(CAPABILITIES.staticScanner.codeLanguages.map(x=>x.name),['JavaScript','TypeScript','SQL']);
-  assert.ok(CAPABILITIES.staticScanner.unsupportedDedicatedSast.includes('Python'));
-  assert.ok(CAPABILITIES.staticScanner.unsupportedDedicatedSast.includes('Go'));
+  assert.equal(CAPABILITIES.staticScanner.codeLanguages.length,4);
+  assert.deepEqual(CAPABILITIES.staticScanner.codeLanguages.map(x=>x.name),['JavaScript','TypeScript','Python','SQL']);
+  assert.equal(CAPABILITIES.staticScanner.codeLanguages.find(x=>x.name==='Python').coverage,'limited_pattern_heuristics_not_ast');
+  assert.ok(!CAPABILITIES.staticScanner.unsupportedDedicatedSast.includes('Python'));
+  assert.ok(CAPABILITIES.staticScanner.partialLanguageHeuristics.Go);
+  assert.ok(!CAPABILITIES.staticScanner.codeLanguages.some(x=>x.name==='Go'));
   assert.equal(CAPABILITIES.securityGuarantee,false);
   assert.equal(CAPABILITIES.experimentalAst.status,'opt_in_beta_package_supported');
   assert.equal(CAPABILITIES.ai.status,'opt_in_local_advisory_only');

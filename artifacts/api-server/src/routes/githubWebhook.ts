@@ -1,6 +1,8 @@
 import { Router } from "express";
 import crypto from "node:crypto";
-import { runExtendedSecurityChecksV2 } from "../lib/extendedScannerV2";
+import { scanRepositorySecurity } from "../lib/securityScanPipeline";
+import { shouldRead } from "../lib/githubRepoReader";
+import { buildChangedPathPlan, classifyFindingDelta, shouldAdvanceProtectedHead, type ChangedFileRecord } from "../lib/protectionDelta";
 import { TOTAL_SECURITY_CHECKS } from "../lib/securityCheckCatalog";
 import { cacheScanResult } from "../lib/scanCache";
 import { logger } from "../lib/logger";
@@ -21,7 +23,59 @@ function getPrivateKey(): string { const encoded = process.env.GITHUB_APP_PRIVAT
 function createAppJwt(): string { const appId = process.env.GITHUB_APP_ID?.trim(); if (!appId) throw new Error("GITHUB_APP_ID is required"); const now = Math.floor(Date.now() / 1000); const unsigned = `${base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }))}.${base64Url(JSON.stringify({ iat: now - 60, exp: now + 540, iss: appId }))}`; const signer = crypto.createSign("RSA-SHA256"); signer.update(unsigned); signer.end(); const signature = signer.sign(crypto.createPrivateKey({ key: getPrivateKey(), format: "pem" }), "base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_"); return `${unsigned}.${signature}`; }
 function githubHeaders(token: string): Record<string, string> { return { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" }; }
 async function getInstallationToken(installationId: number): Promise<string> { const response = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, { method: "POST", headers: githubHeaders(createAppJwt()) }); if (!response.ok) throw new Error(`GitHub installation token failed: ${response.status} ${await response.text()}`); const data = (await response.json()) as { token?: string }; if (!data.token) throw new Error("GitHub did not return an installation token"); return data.token; }
-async function getChangedFiles(token: string, repo: string, baseSha: string, headSha: string): Promise<string[]> { const [owner, name] = repo.split("/"); const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/compare/${encodeURIComponent(baseSha)}...${encodeURIComponent(headSha)}`, { headers: githubHeaders(token) }); if (!response.ok) throw new Error(`GitHub compare failed: ${response.status} ${await response.text()}`); const data = (await response.json()) as { files?: Array<{ filename?: string }> }; return Array.isArray(data.files) ? data.files.map((file) => file.filename).filter((path): path is string => Boolean(path)) : []; }
+const MAX_COMPARE_FILES = 300;
+function nextComparePage(linkHeader: string | null): string | null {
+  if (!linkHeader) return null;
+  for (const part of linkHeader.split(",")) {
+    const match = /<([^>]+)>;\s*rel="next"/.exec(part.trim());
+    if (match) {
+      const url = new URL(match[1]);
+      if (url.origin !== "https://api.github.com") {
+        throw new Error("GitHub compare pagination returned an unexpected host; delta coverage is UNKNOWN.");
+      }
+      return url.toString();
+    }
+  }
+  return null;
+}
+function safeGitPath(filePath: string): boolean {
+  return Boolean(filePath) && filePath.length <= 4096 && !filePath.startsWith("/")
+    && !filePath.includes("\\") && !filePath.split("/").some(part => !part || part === "." || part === "..");
+}
+async function getChangedFiles(token: string, repo: string, baseSha: string, headSha: string): Promise<ChangedFileRecord[]> {
+  const [owner, name] = repo.split("/");
+  let url: string | null = "https://api.github.com/repos/" + encodeURIComponent(owner) + "/" +
+    encodeURIComponent(name) + "/compare/" + encodeURIComponent(baseSha) + "..." +
+    encodeURIComponent(headSha) + "?per_page=100&page=1";
+  const collected: ChangedFileRecord[] = [];
+  for (let page = 0; url && page < 3; page++) {
+    const response = await fetch(url, { headers: githubHeaders(token) });
+    if (!response.ok) throw new Error("GitHub compare failed: " + response.status + " " + await response.text());
+    const data = await response.json() as { files?: Array<{ filename?: string; status?: string; previous_filename?: string }> };
+    if (!Array.isArray(data.files)) throw new Error("GitHub compare omitted its changed-file list; delta coverage is UNKNOWN.");
+    for (const file of data.files) {
+      if (typeof file.filename !== "string" || typeof file.status !== "string" || !safeGitPath(file.filename)
+        || (file.previous_filename !== undefined && !safeGitPath(file.previous_filename))) {
+        throw new Error("GitHub compare returned malformed changed-file metadata; delta coverage is UNKNOWN.");
+      }
+      collected.push({ filename: file.filename, status: file.status, previous_filename: file.previous_filename });
+    }
+    url = nextComparePage(response.headers.get("link"));
+    if (collected.length > MAX_COMPARE_FILES || (page === 2 && url)) {
+      throw new Error("GitHub compare exceeded the 300-file evidence limit; no clean security verdict is available.");
+    }
+  }
+  if (collected.length >= MAX_COMPARE_FILES) {
+    throw new Error("GitHub compare reached its 300-file response cap; no clean security verdict is available.");
+  }
+  const seen = new Set<string>();
+  for (const file of collected) {
+    const key = file.filename + "\u0000" + file.status;
+    if (seen.has(key)) throw new Error("GitHub compare returned duplicate changed-file evidence; delta coverage is UNKNOWN.");
+    seen.add(key);
+  }
+  return collected;
+}
 async function createCheckRun(token: string, repo: string, sha: string, status: "queued" | "in_progress") { const [owner, name] = repo.split("/"); const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/check-runs`, { method: "POST", headers: githubHeaders(token), body: JSON.stringify({ name: "VibeSane Security", head_sha: sha, status }) }); if (!response.ok) throw new Error(`GitHub check creation failed: ${response.status} ${await response.text()}`); return (await response.json()) as { id: number; html_url?: string }; }
 async function completeCheckRun(
   token: string, repo: string, checkId: number,
@@ -38,9 +92,91 @@ async function completeCheckRun(
     throw new Error(`GitHub check completion failed: ${response.status} ${await response.text()}`);
   }
 }
-function findingKey(finding: any): string { return `${finding.filePath}:${finding.line}:${finding.check}:${finding.title}`; }
+function uniquePaths(paths: string[]): string[] {
+  return [...new Set(paths)].sort();
+}
+function coverageOmissions(scan: Awaited<ReturnType<typeof scanRepositorySecurity>>): string[] {
+  return uniquePaths([
+    ...scan.coverage.oversizedPaths,
+    ...scan.coverage.unreadablePaths,
+    ...scan.coverage.missingRequestedPaths,
+    ...scan.coverage.unsupportedRequestedPaths,
+    ...scan.coverage.selfExcludedPaths,
+  ]);
+}
+async function scanDelta(repo: string, token: string, headSha: string, baseSha: string) {
+  const repoUrl = "https://github.com/" + repo;
+  logger.info({ repo, baseSha, headSha }, "Delta scan started");
+  const changedFiles = await getChangedFiles(token, repo, baseSha, headSha);
+  const pathPlan = buildChangedPathPlan(changedFiles);
+  const unsupportedChangedFiles = changedFiles
+    .map(file => file.filename)
+    .filter(filePath => !shouldRead(filePath));
+  logger.info({
+    repo,
+    baseSha,
+    headSha,
+    changedFiles: changedFiles.length,
+    baseScanPaths: pathPlan.basePaths.length,
+    headScanPaths: pathPlan.headPaths.length,
+  }, "Changed-file snapshots resolved");
 
-async function scanDelta(repo: string, token: string, headSha: string, baseSha: string) { const repoUrl = `https://github.com/${repo}`; const headUrl = `${repoUrl}?ref=${encodeURIComponent(headSha)}`; const baseUrl = `${repoUrl}?ref=${encodeURIComponent(baseSha)}`; logger.info({ repo, baseSha, headSha }, "Delta scan started"); const changedFiles = await getChangedFiles(token, repo, baseSha, headSha); logger.info({ repo, baseSha, headSha, changedFiles: changedFiles.length }, "Changed files loaded for delta scan"); const [baseFindings, headFindings] = await Promise.all([runExtendedSecurityChecksV2(baseUrl, token, changedFiles), runExtendedSecurityChecksV2(headUrl, token, changedFiles)]); logger.info({ repo, changedFiles: changedFiles.length, baseFindings: baseFindings.length, headFindings: headFindings.length }, "Changed-file security rules completed"); const baseKeys = new Set(baseFindings.map(findingKey)); const changedSet = new Set(changedFiles); const findings = headFindings.filter((finding) => changedSet.has(finding.filePath) && !baseKeys.has(findingKey(finding))).map((finding) => ({ ...finding, severity: finding.severity === "Low" ? "Medium" : finding.severity })); logger.info({ repo, changedFiles: changedFiles.length, newFindings: findings.length }, "Delta scan completed"); return { repo, repoUrl, findings, filesScanned: changedFiles.length, changedFiles: changedFiles.length, checksRun: TOTAL_SECURITY_CHECKS, scanMode: "delta", scannedAt: new Date().toISOString() }; }
+  const [baseScan, headScan] = await Promise.all([
+    scanRepositorySecurity(repoUrl + "?ref=" + encodeURIComponent(baseSha), token, pathPlan.basePaths),
+    scanRepositorySecurity(repoUrl + "?ref=" + encodeURIComponent(headSha), token, pathPlan.headPaths),
+  ]);
+  const delta = classifyFindingDelta(
+    baseScan.findings,
+    headScan.findings,
+    baseScan.files,
+    headScan.files,
+    pathPlan.renamedPaths,
+  );
+  const baseOmissions = coverageOmissions(baseScan);
+  const headOmissions = coverageOmissions(headScan);
+  const unscannedChangedFiles = uniquePaths([...unsupportedChangedFiles, ...baseOmissions, ...headOmissions]);
+  const coverageReasons: string[] = [];
+  if (changedFiles.length === 0) coverageReasons.push("GitHub returned no changed-file evidence for this commit range.");
+  if (unsupportedChangedFiles.length) coverageReasons.push("Some changed paths are outside the supported static-analysis file types.");
+  if (baseScan.coverage.treeTruncated || headScan.coverage.treeTruncated) coverageReasons.push("A GitHub repository tree response was truncated.");
+  if (baseScan.coverage.omittedByFileLimit || headScan.coverage.omittedByFileLimit) coverageReasons.push("The repository file-count limit was reached.");
+  if (baseScan.coverage.oversizedPaths.length || headScan.coverage.oversizedPaths.length) coverageReasons.push("One or more changed files exceeded the scanner byte budget.");
+  if (baseScan.coverage.unreadablePaths.length || headScan.coverage.unreadablePaths.length) coverageReasons.push("One or more changed file blobs could not be read or decoded.");
+  if (baseScan.coverage.missingRequestedPaths.length || headScan.coverage.missingRequestedPaths.length) coverageReasons.push("One or more expected changed paths were missing from a GitHub snapshot.");
+  if (baseScan.coverage.selfExcludedPaths.length || headScan.coverage.selfExcludedPaths.length) coverageReasons.push("One or more changed paths are intentionally excluded from self-scanning.");
+  const coveragePartial = coverageReasons.length > 0
+    || !baseScan.coverage.complete || !headScan.coverage.complete;
+  const findings = delta.introduced;
+  logger.info({
+    repo,
+    changedFiles: changedFiles.length,
+    filesScanned: headScan.filesScanned,
+    baseFindings: baseScan.findings.length,
+    headFindings: headScan.findings.length,
+    newFindings: findings.length,
+    resolvedFindings: delta.resolved.length,
+    existingFindings: delta.existing.length,
+    coveragePartial,
+    unscannedChangedFileCount: unscannedChangedFiles.length,
+  }, "Complete core + extended changed-file delta completed");
+  return {
+    repo,
+    repoUrl,
+    findings,
+    filesScanned: Math.max(baseScan.filesScanned, headScan.filesScanned),
+    changedFiles: changedFiles.length,
+    checksRun: TOTAL_SECURITY_CHECKS,
+    scanMode: "delta",
+    scannedAt: new Date().toISOString(),
+    coveragePartial,
+    unscannedChangedFiles: unscannedChangedFiles.slice(0, 30),
+    unscannedChangedFileCount: unscannedChangedFiles.length,
+    coverageReasons,
+    resolvedFindingsCount: delta.resolved.length,
+    existingFindingsCount: delta.existing.length,
+    scanIncomplete: false,
+  };
+}
 
 async function scanEvent(payload: WebhookPayload, event: "push" | "pull_request"): Promise<void> {
   const repo = payload.repository?.full_name; const installationId = payload.installation?.id; const sha = event === "pull_request" ? payload.pull_request?.head?.sha : payload.after;
@@ -49,12 +185,22 @@ async function scanEvent(payload: WebhookPayload, event: "push" | "pull_request"
   const protectedRepo = await getProtectedRepository(repo);
   logger.info({ repo, found: Boolean(protectedRepo), status: protectedRepo?.status }, "GitHub protection repository lookup completed");
   if (!protectedRepo || protectedRepo.status !== "protected") { logger.info({ repo, event, sha }, "Ignoring event for unprotected repository"); return; }
-  const pushBase = payload.before && !/^0+$/.test(payload.before) ? payload.before : protectedRepo.lastSha; const baseSha = event === "pull_request" ? payload.pull_request?.base?.sha : pushBase;
+  // The protected repository's lastSha is the last fully scanned push, not
+  // merely the previous GitHub delivery. If an earlier scan failed or was
+  // partial, the next push must include those unreviewed commits.
+  const baseSha = event === "pull_request" ? payload.pull_request?.base?.sha : protectedRepo.lastSha;
   logger.info({ repo, event, sha, baseSha }, "GitHub protection comparison range resolved");
   if (!baseSha || baseSha === sha) { logger.info({ repo, event, sha, baseSha }, "Ignoring event without a new comparison range"); return; }
   const token = await getInstallationToken(installationId); logger.info({ repo, event, sha }, "GitHub installation token created"); const check = await createCheckRun(token, repo, sha, "in_progress"); logger.info({ repo, event, sha, checkId: check.id }, "GitHub security check created");
-  try { const report = await scanDelta(repo, token, sha, baseSha); cacheScanResult(report.repo, report); const hasBlocking = report.findings.some((f: any) => f.severity === "Critical" || f.severity === "High"); const conclusion = hasBlocking ? "failure" : report.findings.length ? "neutral" : "success"; await completeCheckRun(token, repo, check.id, conclusion, report); await recordProtectionEvent({ repo, event, sha, status: conclusion, report, advanceHead: event === "push" }); logger.info({ repo, event, sha, baseSha, changedFiles: report.changedFiles, findings: report.findings.length }, "Active protection delta scan completed"); }
-  catch (error) { logger.error({ err: error, repo, event, sha }, "Active protection delta scan failed"); try { await completeCheckRun(token, repo, check.id, "failure", { scanIncomplete: true, findings: [], changedFiles: 0, checksRun: 0 }); } catch (completionError) { logger.error({ err: completionError, repo, event, sha }, "Failed to mark active protection check as failed"); } await recordProtectionEvent({ repo, event, sha, status: "failure", report: { findings: [] }, advanceHead: event === "push" }).catch(() => undefined); }
+  try { const report = await scanDelta(repo, token, sha, baseSha); cacheScanResult(report.repo, report); const hasBlocking = report.findings.some((f: any) => f.severity === "Critical" || f.severity === "High"); const conclusion = hasBlocking ? "failure" : (report.coveragePartial || report.findings.length) ? "neutral" : "success"; await completeCheckRun(token, repo, check.id, conclusion, report); await recordProtectionEvent({
+      repo, event, sha, baseSha, status: conclusion, report,
+      advanceHead: shouldAdvanceProtectedHead(event, report),
+    }); logger.info({ repo, event, sha, baseSha, changedFiles: report.changedFiles, findings: report.findings.length }, "Active protection delta scan completed"); }
+  catch (error) { logger.error({ err: error, repo, event, sha }, "Active protection delta scan failed"); try { await completeCheckRun(token, repo, check.id, "failure", { scanIncomplete: true, findings: [], changedFiles: 0, checksRun: 0 }); } catch (completionError) { logger.error({ err: completionError, repo, event, sha }, "Failed to mark active protection check as failed"); } await recordProtectionEvent({
+      repo, event, sha, baseSha, status: "failure",
+      report: { findings: [], scanMode: "delta", scanIncomplete: true, coveragePartial: true,
+        coverageReasons: ["The protection scan failed before complete coverage could be verified."] },
+    }).catch(() => undefined); }
 }
 
 router.post("/github/webhook", async (req, res): Promise<void> => { const rawBody = (req as typeof req & RawRequest).rawBody; const signature = req.header("x-hub-signature-256"); if (!rawBody || !verifySignature(rawBody, signature)) { res.status(401).json({ error: "Invalid GitHub webhook signature" }); return; } const event = req.header("x-github-event") ?? "unknown"; const delivery = req.header("x-github-delivery") ?? "unknown"; const payload = req.body as WebhookPayload; res.status(202).json({ accepted: true, event, delivery }); if (event === "push" || (event === "pull_request" && ["opened", "reopened", "synchronize"].includes(payload.action ?? ""))) void scanEvent(payload, event as "push" | "pull_request").catch((error) => logger.error({ err: error, event, delivery }, "Unhandled active protection job failure")); });

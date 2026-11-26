@@ -58,7 +58,7 @@ async function fixture(t, filename = null, contents = '') {
 
 test('Git status parser preserves unusual filenames and recognizes renames', () => {
   const names = changedEntries('?? src/a with space.ts\0 M src/new.ts\0R  src/new-name.ts\0src/old-name.ts\0 D removed.ts\0');
-  assert.deepEqual(names, ['src/a with space.ts', 'src/new-name.ts', 'src/new.ts']);
+  assert.deepEqual(names, ['removed.ts', 'src/a with space.ts', 'src/new-name.ts', 'src/new.ts']);
 });
 
 test('final gate detects a fake critical credential in a Bash-created untracked file', async t => {

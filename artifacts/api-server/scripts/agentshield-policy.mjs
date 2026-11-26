@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 
 export const DEFAULT_CONFIG = Object.freeze({
   enabled: true, mode: 'monitor', maxAttempts: 2, timeBudgetSeconds: 120,
-  blockingSeverity: 'High', verification: { syntaxCheck: false, approved: false },
+  blockingSeverity: 'High', completionGate: 'advisory', baseRef: null, verification: { syntaxCheck: false, approved: false },
   privacy: { retentionHours: 24 }, acknowledgements: [],
 });
 export const SEVERITY = { Critical: 4, High: 3, Medium: 2, Low: 1 };
@@ -42,6 +42,13 @@ export function parseConfig(raw = {}) {
   }
   if (typeof config.enabled !== 'boolean') throw new Error('enabled must be a boolean.');
   if (!VALID_MODES.includes(config.mode)) throw new Error('mode must be monitor, assist, or auto-fix.');
+  if (!['advisory', 'enforce'].includes(config.completionGate)) throw new Error('completionGate must be advisory or enforce.');
+  if (config.baseRef !== null && (typeof config.baseRef !== 'string' || config.baseRef.length > 200
+    || !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(config.baseRef) || config.baseRef.includes('..')
+    || config.baseRef.includes('//') || config.baseRef.includes('@{') || config.baseRef.endsWith('/')
+    || config.baseRef.endsWith('.') || config.baseRef.startsWith('-'))) {
+    throw new Error('baseRef must be a safe local Git ref or commit SHA.');
+  }
   if (!Number.isInteger(config.maxAttempts) || config.maxAttempts < 1 || config.maxAttempts > 4) throw new Error('maxAttempts must be between 1 and 4.');
   if (!Number.isInteger(config.timeBudgetSeconds) || config.timeBudgetSeconds < 15 || config.timeBudgetSeconds > 900) throw new Error('timeBudgetSeconds must be between 15 and 900.');
   if (!Object.hasOwn(SEVERITY, config.blockingSeverity)) throw new Error('Invalid blockingSeverity.');
@@ -54,6 +61,42 @@ export function parseConfig(raw = {}) {
   if (!Number.isInteger(config.privacy.retentionHours) || config.privacy.retentionHours < 0 || config.privacy.retentionHours > 168) throw new Error('retentionHours must be between 0 and 168.');
   if (config.mode === 'auto-fix' && config.privacy.retentionHours === 0) throw new Error('auto-fix requires short-lived local metadata to enforce retry limits.');
   return config;
+}
+
+// Centralized Stop-hook result mapping so enforcement behavior can be tested independently.
+export function completionGateDecision({
+  status = 'complete', blocking = 0, blockingSeverity = 'High', completionGate = 'advisory',
+  unscannedCount = 0, repairMessage = null, repeatedGate = false, alreadyRequested = false, mode = 'monitor',
+} = {}) {
+  const enforced = completionGate === 'enforce';
+  if (status === 'scan_incomplete') {
+    const reason = 'VibeSane AgentShield: FINAL SCAN INCOMPLETE. Security status UNKNOWN; resolve the scan failure or run an approved verification before delivery.';
+    return enforced ? { decision: 'block', reason } : { systemMessage: reason };
+  }
+  if (status === 'no_changed_files') {
+    const reason = 'VibeSane AgentShield: no Git-visible changed files were available. No security scan or delivery evidence exists; inspect the commit/worktree scope before delivery.';
+    return enforced ? { decision: 'block', reason } : { systemMessage: reason };
+  }
+  if (unscannedCount > 0) {
+    const reason = 'VibeSane AgentShield: final scan did not cover previously flagged files; result PARTIAL, not verified. Review or rescan the previously flagged files before delivery.';
+    return enforced ? { decision: 'block', reason } : { systemMessage: reason };
+  }
+  if (repairMessage) {
+    return { decision: 'block', reason: repairMessage,
+      hookSpecificOutput: { hookEventName: 'Stop', additionalContext: repairMessage } };
+  }
+  if (blocking > 0 && enforced) {
+    const reason = 'VibeSane AgentShield ENFORCEMENT: ' + blocking + ' blocking finding(s) at or above '
+      + blockingSeverity + ' remain in the changed-file scan. Remediate and rescan, or have an authorized maintainer change the gate policy.';
+    return { decision: 'block', reason, hookSpecificOutput: { hookEventName: 'Stop', additionalContext: reason } };
+  }
+  if (blocking > 0) {
+    if (repeatedGate || (mode === 'auto-fix' && alreadyRequested)) return null;
+    return { systemMessage: 'VibeSane AgentShield: final static scan found ' + blocking +
+      ' finding(s) at or above ' + blockingSeverity + '. ' +
+      (mode === 'auto-fix' ? 'Repair budget exhausted or continuation suppressed; request human review.' : 'Advisory mode; no completion block.') };
+  }
+  return null;
 }
 
 function hash(text) { return createHash('sha256').update(text).digest('hex').slice(0, 28); }

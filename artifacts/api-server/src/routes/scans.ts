@@ -132,7 +132,22 @@ router.post("/scans", rateLimit({ name: "scans", windowMs: 60_000, max: 10 }), o
       });
       return;
     }
-    const { findings: extendedFindings, filesScanned: extendedFilesScanned } = extendedResult.findings;
+    const { findings: extendedFindings, filesScanned: extendedFilesScanned, coverage: extendedCoverage } = extendedResult.findings;
+    const coreCoverage = (report as { coverage?: { complete?: boolean } } | null)?.coverage;
+    if (extendedCoverage.complete === false || coreCoverage?.complete === false) {
+      const omitted = extendedCoverage.oversizedPaths.length
+        + extendedCoverage.unreadablePaths.length
+        + extendedCoverage.missingRequestedPaths.length
+        + extendedCoverage.unsupportedRequestedPaths.length
+        + extendedCoverage.selfExcludedPaths.length
+        + extendedCoverage.omittedByFileLimit;
+      req.log.warn({ repoUrl, extendedCoverage, coreCoverage }, "Repository scan coverage is incomplete; withholding result and scan credit");
+      res.status(503).json({
+        error: "Repository scan could not inspect every eligible file (" + omitted +
+          " omitted or unreadable). No clean result was produced and no scan credit was used. Reduce the repository scan scope or retry after resolving unreadable files.",
+      });
+      return;
+    }
 
     const normalizedExtended = extendedFindings.map((item) => ({
       ...item,

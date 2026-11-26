@@ -2,20 +2,36 @@
 
 **Status:** materials prepared, no real pilot participants recruited and no release approved.
 
-This is a disposable, synthetic demonstration of local code scanning and Claude Code hook responses. Do not deploy these fixtures, connect production credentials, or assume a clean static scan proves application security.
+## Install and connect the coding agent
+
+For the complete copy-and-paste installation flow for Codex and Claude Code, see [`docs/AGENTSHIELD_MCP_SETUP.md`](../../../docs/AGENTSHIELD_MCP_SETUP.md). It builds and installs the unpublished local package, configures the required `VIBESANE_ALLOWED_ROOTS_JSON` allowlist, verifies diagnostics and tool discovery, installs hooks, and documents upgrade, rollback, and uninstall.
+
+Short form from the trusted repository root (macOS/Linux, Node.js 20+, Git, pnpm):
+
+```sh
+pnpm --filter @workspace/api-server run build:agentshield
+node artifacts/api-server/scripts/package-agentshield-beta.mjs
+npm install --global --prefix "$HOME/.local" --ignore-scripts \
+  "$PWD/artifacts/api-server/dist/vibesane-agentshield-0.7.0-beta.3.tgz"
+VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/disposable-repo"]' \
+  "$HOME/.local/bin/vibesane" mcp-doctor
+```
+
+The MCP server must receive the same allowlist through the host's MCP `env` field. Never broaden it beyond repositories the tester authorizes for scanning. Use the documented host-specific configuration and the disposable fixture before any intended beta repository.
+
+This is a disposable, synthetic demonstration of local code scanning and coding-agent hook responses. Do not deploy these fixtures, connect production credentials, or assume a clean static scan proves application security.
 
 ## First run
 
-Use the VibeSane checkout on the Week 4 feature branch (Node.js >=20, Git, pnpm and macOS/Linux):
+Use the current trusted VibeSane feature checkout (Node.js >=20, Git, pnpm and macOS/Linux):
 
-1. Build: run pnpm install --frozen-lockfile and pnpm --filter @workspace/api-server run build:agentshield.
-2. From a disposable **Git repository**, run node artifacts/api-server/scripts/vibesane.mjs doctor --cwd /absolute/path/to/project.
-3. Install locally with node artifacts/api-server/scripts/vibesane.mjs init --cwd /absolute/path/to/project.
-4. Open Claude Code in that project; inspect /hooks and verify AgentShield's PostToolUse and Stop entries are loaded.
-5. Start in Monitor mode (default). Use a synthetic vulnerable fixture; confirm it reports the issue without altering source.
-6. Only after explicit opt-in, use config --mode assist or config --mode auto-fix --attempts 2.
-7. Run verify --changed; note that no scanned files, an incomplete scan and absence of findings are different states.
-8. Run uninstall --cwd /absolute/path/to/project before removing the package.
+1. Follow the linked setup guide to build and locally install the beta package, configure the allowlist on the MCP process, and run both diagnostics.
+2. Connect Codex or Claude Code using the documented absolute executable path. Confirm MCP `status` and all five discovered tools.
+3. Install the applicable project hooks (`vibesane init-codex` for Codex; `vibesane init` for Claude Code). Review and trust hooks in the host before enabling completion enforcement.
+4. Start in Monitor mode (default). Use a synthetic vulnerable fixture; confirm the MCP scan reports issues without modifying source.
+5. Only after explicit opt-in, use config `--mode assist` or `--mode auto-fix --attempts 2`.
+6. Run verification and distinguish no scanned files, incomplete coverage, and a complete scan with no findings.
+7. Remove hooks/skills and uninstall the package using the commands in the setup guide when finished.
 
 Use the unified CLI entry from the installed beta tarball, or from the checked-out scripts/vibesane.mjs. No hosted API or source-code upload is required by the local scanner.
 
@@ -30,7 +46,7 @@ Use the unified CLI entry from the installed beta tarball, or from the checked-o
 
 Monitor = show findings, no automatic repair requests or completion blocking.
 Assist = provide proposed minimal fixes and ask for developer approval.
-Auto-fix = request bounded Claude repair under the permissions Claude already has, with a maximum of two attempts by default. It does not silently apply patches.
+Auto-fix = request a bounded coding-agent repair under the permissions the host already grants, with a maximum of two attempts by default. It does not silently apply patches.
 
 ## Privacy and feedback
 
@@ -38,4 +54,4 @@ Static source code stays local when using the scanner. It writes only limited lo
 
 Please use PILOT_FEEDBACK.md if and when a consenting developer completes an approved pilot, and BUG_REPORT.md for reproducible issues. Uninstall first when discontinuing use.
 
-Beta release remains **blocked** until a real authenticated Claude Code end-to-end acceptance run, supported-platform installation checks, security review, and explicit owner approval.
+The Codex CLI MCP and Stop-hook paths have synthetic real-client evidence on Linux x64. Claude Code and macOS remain unvalidated. External beta remains **blocked** until an independent security review, the supported-platform installation checks for the intended tester group, and explicit owner approval are complete.

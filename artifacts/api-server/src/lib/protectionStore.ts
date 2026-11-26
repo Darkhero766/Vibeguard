@@ -1,7 +1,8 @@
 import { db, protectionEvents, protectedRepositories } from "@workspace/db";
+import { buildProtectionEventDetails, type ProtectionEventReport } from "./protectionEventDetails";
 import { desc, eq } from "drizzle-orm";
 
-export type ProtectionReport = { findings?: Array<{ severity: string }> };
+export type ProtectionReport = ProtectionEventReport;
 
 export async function saveProtectedRepository(input: { owner: string; repo: string; repoUrl: string; baselineSha: string; score: number; report: ProtectionReport }) {
   const findings = input.report.findings ?? [];
@@ -46,12 +47,36 @@ export async function getProtectedRepository(repo: string) {
   return rows[0] ?? null;
 }
 
-export async function recordProtectionEvent(input: { repo: string; event: string; sha: string; status: string; report: ProtectionReport; advanceHead?: boolean }) {
-  const findings = input.report.findings ?? [];
+export async function recordProtectionEvent(input: { repo: string; event: string; sha: string; baseSha?: string; status: string; report: ProtectionReport; advanceHead?: boolean }) {
+  const findings = Array.isArray(input.report.findings) ? input.report.findings : [];
   const critical = findings.filter((f) => f.severity === "Critical").length;
   const high = findings.filter((f) => f.severity === "High").length;
   const medium = findings.filter((f) => f.severity === "Medium").length;
-  await db.insert(protectionEvents).values({ repo: input.repo, event: input.event, sha: input.sha, status: input.status, findingsCount: findings.length, criticalCount: critical, highCount: high, mediumCount: medium });
-  const update = { lastScore: Math.max(0, 100 - critical * 18 - high * 10 - medium * 4), criticalCount: critical, highCount: high, mediumCount: medium, lastEvent: input.event, lastEventAt: new Date(), updatedAt: new Date(), ...(input.advanceHead ? { lastSha: input.sha } : {}) };
+  const details = buildProtectionEventDetails(input.report);
+  await db.insert(protectionEvents).values({
+    repo: input.repo,
+    event: input.event,
+    sha: input.sha,
+    baseSha: input.baseSha ?? null,
+    status: input.status,
+    findingsCount: findings.length,
+    criticalCount: critical,
+    highCount: high,
+    mediumCount: medium,
+    details,
+  });
+  const incomplete = details.coveragePartial || details.scanIncomplete;
+  const update = {
+    lastEvent: incomplete ? "scan_incomplete" : input.event,
+    lastEventAt: new Date(),
+    updatedAt: new Date(),
+    ...(incomplete ? {} : {
+      lastScore: Math.max(0, 100 - critical * 18 - high * 10 - medium * 4),
+      criticalCount: critical,
+      highCount: high,
+      mediumCount: medium,
+    }),
+    ...(input.advanceHead && !incomplete ? { lastSha: input.sha } : {}),
+  };
   await db.update(protectedRepositories).set(update).where(eq(protectedRepositories.repo, input.repo));
 }

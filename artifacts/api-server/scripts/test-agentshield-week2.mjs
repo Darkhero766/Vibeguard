@@ -128,7 +128,8 @@ test('Stop hook asks once for a bounded continuation but never if already active
   await f.cmd('config', '--mode', 'auto-fix');
   await f.hook();
   const stopPayload = f.event('Stop', { stop_hook_active: false });
-  assert.match(jsonContext(await f.hook(stop, stopPayload)), /bounded continuation/);
+  const stopResult = await f.hook(stop, stopPayload);
+  assert.match(stopResult.output?.reason || jsonContext(stopResult), /bounded continuation/);
   assert.equal((await f.hook(stop, stopPayload)).output, null);
   assert.equal((await f.hook(stop, f.event('Stop', { stop_hook_active: true }))).output, null);
 });

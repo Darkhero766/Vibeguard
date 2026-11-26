@@ -51,13 +51,15 @@ function parseRepo(repoUrl: string): { owner: string; repo: string; ref?: string
   const encodedPaths = parsed.searchParams.get("paths")?.trim();
   let paths: Set<string> | undefined;
   if (encodedPaths) {
-    try {
-      const decoded = decodeURIComponent(encodedPaths);
-      const parsedPaths = decoded.split("\n").map((path) => path.trim()).filter(Boolean).slice(0, MAX_FILES);
-      if (parsedPaths.length) paths = new Set(parsedPaths);
-    } catch {
+    const parsedPaths = encodedPaths.split("\n").map((path) => path.trim()).filter(Boolean);
+    if (parsedPaths.length > MAX_FILES) {
+      throw Object.assign(new Error("Changed-path scope exceeds the scanner's 300-file limit; no clean verdict is available."), { status: 413 });
+    }
+    if (parsedPaths.some((path) => path.startsWith("/") || path.includes("\\")
+      || path.split("/").some((part) => !part || part === "." || part === ".."))) {
       throw Object.assign(new Error("Invalid scan paths parameter."), { status: 400 });
     }
+    if (parsedPaths.length) paths = new Set(parsedPaths);
   }
   return { owner: parts[0], repo, ref, paths };
 }
@@ -82,8 +84,77 @@ async function githubGet(url: string, token?: string): Promise<any> {
   return response.json();
 }
 
-export async function readRepositoryFiles(repoUrl: string, token?: string): Promise<{ owner: string; repo: string; files: RepositoryFile[] }> {
-  const { owner, repo, ref, paths } = parseRepo(repoUrl);
+export type RepositoryReadCoverage = {
+  treeTruncated: boolean;
+  eligibleFileCount: number;
+  selectedFileCount: number;
+  filesScanned: number;
+  omittedByFileLimit: number;
+  oversizedPaths: string[];
+  unreadablePaths: string[];
+  missingRequestedPaths: string[];
+  unsupportedRequestedPaths: string[];
+  selfExcludedPaths: string[];
+  complete: boolean;
+};
+export type RepositoryReadResult = {
+  owner: string;
+  repo: string;
+  files: RepositoryFile[];
+  coverage: RepositoryReadCoverage;
+};
+
+export function planRepositoryRead(
+  treeEntries: Array<{ path?: string; type?: string; size?: number; sha?: string }> | null | undefined,
+  requestedPaths: string[] | null,
+  selfScan: boolean,
+) {
+  const entries = Array.isArray(treeEntries) ? treeEntries : [];
+  const blobPaths = new Set(entries.filter((entry) => entry?.type === "blob" && typeof entry.path === "string")
+    .map((entry) => entry.path as string));
+  const unsupportedRequestedPaths = requestedPaths
+    ? requestedPaths.filter((item) => !shouldRead(item))
+    : [];
+  const selfExcludedPaths = selfScan
+    ? (requestedPaths
+      ? requestedPaths.filter((item) => isSelfScanExcluded(item))
+      : entries.filter((entry) => entry?.type === "blob" && typeof entry.path === "string"
+        && isSelfScanExcluded(entry.path)).map((entry) => entry.path as string))
+    : [];
+  const eligibleRequested = requestedPaths
+    ? requestedPaths.filter((item) => shouldRead(item) && !(selfScan && isSelfScanExcluded(item)))
+    : null;
+  const missingRequestedPaths = eligibleRequested
+    ? eligibleRequested.filter((item) => !blobPaths.has(item))
+    : [];
+  const eligibleEntries = entries
+    .filter((entry) => entry?.type === "blob" && typeof entry.path === "string" && shouldRead(entry.path))
+    .filter((entry) => !requestedPaths || requestedPaths.includes(entry.path!))
+    .filter((entry) => !selfScan || !isSelfScanExcluded(entry.path!));
+  const selectedEntries = eligibleEntries.slice(0, MAX_FILES);
+  return {
+    eligibleEntries,
+    selectedEntries,
+    omittedByFileLimit: Math.max(0, eligibleEntries.length - selectedEntries.length),
+    missingRequestedPaths,
+    unsupportedRequestedPaths,
+    selfExcludedPaths,
+  };
+}
+
+export async function readRepositoryFilesWithStats(
+  repoUrl: string,
+  token?: string,
+  requestedPaths?: string[],
+): Promise<RepositoryReadResult> {
+  const parsed = parseRepo(repoUrl);
+  const owner = parsed.owner;
+  const repo = parsed.repo;
+  const ref = parsed.ref;
+  const paths = requestedPaths === undefined ? parsed.paths : new Set(requestedPaths);
+  if (paths && paths.size > MAX_FILES) {
+    throw Object.assign(new Error("Changed-path scope exceeds the scanner's 300-file limit; no clean verdict is available."), { status: 413 });
+  }
   const treeRef = ref ? encodeURIComponent(ref) : "HEAD";
   const selfScan = owner.toLowerCase() === "darkhero766" && repo.toLowerCase() === "vibeguard";
   const tree = await githubGet(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${treeRef}?recursive=1`, token);
@@ -94,51 +165,110 @@ export async function readRepositoryFiles(repoUrl: string, token?: string): Prom
     throw error;
   }
 
-  const entries = Array.isArray(tree?.tree)
-    ? tree.tree
-        .filter((entry: any) => entry?.type === "blob" && typeof entry.path === "string" && shouldRead(entry.path))
-        .filter((entry: any) => !paths || paths.has(entry.path))
-        .filter((entry: any) => !selfScan || !isSelfScanExcluded(entry.path))
-        .slice(0, MAX_FILES)
-    : [];
-
-  // Apply the size budget before network work, then fetch independent blobs in
-  // parallel. The previous implementation fetched every blob serially, making
-  // medium repositories spend minutes waiting on HTTP round trips.
-  const selectedEntries: typeof entries = [];
+  if (!Array.isArray(tree?.tree)) {
+    throw Object.assign(new Error("GitHub returned an invalid repository tree; scan status is UNKNOWN."), { status: 502 });
+  }
+  const plan = planRepositoryRead(tree.tree, paths ? [...paths] : null, selfScan);
+  const oversizedPaths: string[] = [];
+  const unreadablePaths: string[] = [];
+  const selectedEntries: typeof plan.selectedEntries = [];
   let selectedBytes = 0;
-  for (const entry of entries) {
+  for (const entry of plan.selectedEntries) {
     const declaredSize = Number(entry.size ?? 0);
-    if (declaredSize > MAX_FILE_BYTES || selectedBytes + declaredSize > MAX_TOTAL_BYTES) continue;
+    if (!Number.isFinite(declaredSize) || declaredSize < 0 || declaredSize > MAX_FILE_BYTES
+      || selectedBytes + declaredSize > MAX_TOTAL_BYTES) {
+      oversizedPaths.push(entry.path!);
+      continue;
+    }
     selectedEntries.push(entry);
     selectedBytes += declaredSize;
   }
 
-  const files: RepositoryFile[] = [];
+  // Network requests are concurrent, but results are stored by tree index so
+  // aggregate-byte decisions remain deterministic.
+  const loaded: Array<{ path: string; content: string } | null> = new Array(selectedEntries.length).fill(null);
   let nextIndex = 0;
-
   const worker = async () => {
     while (true) {
       const index = nextIndex++;
       if (index >= selectedEntries.length) return;
       const entry = selectedEntries[index];
+      let blob: any;
       try {
-        const blob = await githubGet(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/blobs/${entry.sha}`, token);
-        if (blob?.encoding !== "base64" || typeof blob.content !== "string") continue;
-        const content = Buffer.from(blob.content.replace(/\n/g, ""), "base64").toString("utf8");
-        const size = Buffer.byteLength(content, "utf8");
-        if (!content || size > MAX_FILE_BYTES) continue;
-        files.push({ path: entry.path, content });
+        const blobUrl = API_ROOT + "/repos/" + encodeURIComponent(owner) + "/" +
+          encodeURIComponent(repo) + "/git/blobs/" + entry.sha;
+        blob = await githubGet(blobUrl, token);
       } catch (error) {
-        const status = typeof error === "object" && error !== null && "status" in error ? Number((error as { status: unknown }).status) : 0;
-        if (status === 404 || status === 415) continue;
+        const status = typeof error === "object" && error !== null && "status" in error
+          ? Number((error as { status: unknown }).status) : 0;
+        if (status === 404 || status === 415) {
+          unreadablePaths.push(entry.path!);
+          continue;
+        }
         throw error;
       }
+      if (blob?.encoding !== "base64" || typeof blob.content !== "string") {
+        unreadablePaths.push(entry.path!);
+        continue;
+      }
+      let content: string;
+      try {
+        const bytes = Buffer.from(blob.content.replace(/\n/g, ""), "base64");
+        if (bytes.length > MAX_FILE_BYTES) {
+          oversizedPaths.push(entry.path!);
+          continue;
+        }
+        content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      } catch {
+        unreadablePaths.push(entry.path!);
+        continue;
+      }
+      loaded[index] = { path: entry.path!, content };
     }
   };
-
   await Promise.all(Array.from({ length: Math.min(BLOB_CONCURRENCY, selectedEntries.length) }, () => worker()));
-  files.sort((a, b) => a.path.localeCompare(b.path));
 
-  return { owner, repo, files };
+  const files: RepositoryFile[] = [];
+  let actualBytes = 0;
+  for (const item of loaded) {
+    if (!item) continue;
+    const size = Buffer.byteLength(item.content, "utf8");
+    if (actualBytes + size > MAX_TOTAL_BYTES) {
+      oversizedPaths.push(item.path);
+      continue;
+    }
+    actualBytes += size;
+    files.push(item);
+  }
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  const treeTruncated = tree.truncated === true;
+  const complete = !treeTruncated
+    && plan.omittedByFileLimit === 0
+    && oversizedPaths.length === 0
+    && unreadablePaths.length === 0
+    && plan.missingRequestedPaths.length === 0
+    && plan.unsupportedRequestedPaths.length === 0
+    && plan.selfExcludedPaths.length === 0;
+  const coverage: RepositoryReadCoverage = {
+    treeTruncated,
+    eligibleFileCount: plan.eligibleEntries.length,
+    selectedFileCount: selectedEntries.length,
+    filesScanned: files.length,
+    omittedByFileLimit: plan.omittedByFileLimit,
+    oversizedPaths: [...new Set(oversizedPaths)].sort(),
+    unreadablePaths: [...new Set(unreadablePaths)].sort(),
+    missingRequestedPaths: plan.missingRequestedPaths.sort(),
+    unsupportedRequestedPaths: plan.unsupportedRequestedPaths.sort(),
+    selfExcludedPaths: plan.selfExcludedPaths.sort(),
+    complete,
+  };
+  return { owner, repo, files, coverage };
+}
+
+export async function readRepositoryFiles(
+  repoUrl: string,
+  token?: string,
+): Promise<{ owner: string; repo: string; files: RepositoryFile[] }> {
+  const result = await readRepositoryFilesWithStats(repoUrl, token);
+  return { owner: result.owner, repo: result.repo, files: result.files };
 }

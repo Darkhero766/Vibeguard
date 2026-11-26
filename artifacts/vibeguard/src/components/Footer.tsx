@@ -10,6 +10,7 @@ export function Footer() {
             Neither replaces an independent security audit. Local AgentShield code is not automatically uploaded.
           </p>
           <div className="flex shrink-0 flex-wrap items-center gap-5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            <Link href="/foxy" className="hover:text-foreground transition-colors">Foxy</Link>
             <Link href="/agentshield" className="hover:text-foreground transition-colors">AgentShield</Link>
             <Link href="/refer" className="text-primary transition-colors hover:text-foreground">Refer &amp; Earn</Link>
             <Link href="/contact" className="hover:text-foreground transition-colors">Contact</Link>

@@ -1,5 +1,5 @@
 import { scanExtendedFiles, type ExtendedFinding } from "./extendedScanner";
-import { readRepositoryFiles } from "./githubRepoReader";
+import { readRepositoryFilesWithStats, type RepositoryReadCoverage } from "./githubRepoReader";
 import { SECURITY_CHECK_CATALOG } from "./securityCheckCatalog";
 
 type RepoFile = { path: string; content: string };
@@ -186,11 +186,18 @@ export function scanExtendedFilesV2(files: RepoFile[]): ExtendedFinding[] {
     .map((finding) => contextualSeverity(finding, files)));
 }
 
-function scopedRepoUrl(repoUrl: string, scanPaths?: string[]): string {
-  if (!scanPaths?.length) return repoUrl;
-  const url = new URL(repoUrl);
-  url.searchParams.set("paths", scanPaths.join("\n"));
-  return url.toString();
+export async function runExtendedSecurityChecksV2WithStats(
+  repoUrl: string,
+  githubToken?: string,
+  scanPaths?: string[],
+): Promise<ExtendedScanResultV2> {
+  // One GitHub download powers analysis and returns explicit cap/omission metadata.
+  const result = await readRepositoryFilesWithStats(repoUrl, githubToken, scanPaths);
+  return {
+    findings: scanExtendedFilesV2(result.files),
+    filesScanned: result.files.length,
+    coverage: result.coverage,
+  };
 }
 
 export type SecurityScanContext = {
@@ -198,29 +205,11 @@ export type SecurityScanContext = {
   executedChecks: number;
   skippedChecks: number;
 };
-
-/**
- * Runs exactly the extended checks represented in SECURITY_CHECK_CATALOG.
- * Experimental detectors are deliberately not counted here; a new detector
- * must first receive a catalog entry so the UI's "50 checks" claim always
- * matches the executable rule set.
- */
 export type ExtendedScanResultV2 = {
   findings: ExtendedFinding[];
   filesScanned: number;
+  coverage: RepositoryReadCoverage;
 };
-
-/** Scan all eligible files once and return honest coverage metadata. */
-export async function runExtendedSecurityChecksV2WithStats(
-  repoUrl: string,
-  githubToken?: string,
-  scanPaths?: string[],
-): Promise<ExtendedScanResultV2> {
-  const scopedUrl = scopedRepoUrl(repoUrl, scanPaths);
-  // One GitHub download powers analysis and filtering; no second tree/blob fetch.
-  const result = await readRepositoryFiles(scopedUrl, githubToken);
-  return { findings: scanExtendedFilesV2(result.files), filesScanned: result.files.length };
-}
 
 /** Retain the legacy array-only interface for other scanner callers. */
 export async function runExtendedSecurityChecksV2(

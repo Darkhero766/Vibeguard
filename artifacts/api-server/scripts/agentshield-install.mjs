@@ -9,6 +9,7 @@ const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const hookPath = path.join(scriptsDir, 'agentshield-hook.mjs');
 const stopPath = path.join(scriptsDir, 'agentshield-stop.mjs');
 const usage = 'Usage: node scripts/agentshield-install.mjs install|uninstall /absolute/path/to/customer-project';
+const shellQuote = (value) => "'" + String(value).replaceAll("'", "'\\''") + "'";
 
 async function main() {
   const [mode, project] = process.argv.slice(2);
@@ -23,8 +24,10 @@ async function main() {
     if (!dir.isDirectory() || dir.isSymbolicLink()) throw new Error('Refusing unsafe or symlinked .claude directory.');
   } catch (error) { if (error?.code !== 'ENOENT') throw error; }
   // Single-quoted POSIX shell argument. Only the fixed hook path is inserted.
-  const command = "node '" + hookPath.replaceAll("'", "'\\''") + "'";
-  const stopCommand = "node '" + stopPath.replaceAll("'", "'\\''") + "'";
+  const command = shellQuote(process.execPath) + ' ' + shellQuote(hookPath);
+  const stopCommand = shellQuote(process.execPath) + ' ' + shellQuote(stopPath);
+  const legacyCommand = "node '" + hookPath.replaceAll("'", "'\\''") + "'";
+  const legacyStopCommand = "node '" + stopPath.replaceAll("'", "'\\''") + "'";
 
   let settings = {};
   try {
@@ -39,13 +42,13 @@ async function main() {
   const hooks = settings.hooks && typeof settings.hooks === 'object' && !Array.isArray(settings.hooks) ? settings.hooks : {};
   const old = Array.isArray(hooks.PostToolUse) ? hooks.PostToolUse : [];
   const oldStop = Array.isArray(hooks.Stop) ? hooks.Stop : [];
-  const strip = (list, targetCommand) => list.map((entry) => {
+  const strip = (list, targetCommands) => list.map((entry) => {
     if (!entry || typeof entry !== 'object' || !Array.isArray(entry.hooks)) return entry;
-    const kept = entry.hooks.filter((item) => !(item?.type === 'command' && item.command === targetCommand));
+    const kept = entry.hooks.filter((item) => !(item?.type === 'command' && targetCommands.has(item.command)));
     return kept.length ? { ...entry, hooks: kept } : null;
   }).filter(Boolean);
-  const without = strip(old, command);
-  const withoutStop = strip(oldStop, stopCommand);
+  const without = strip(old, new Set([command, legacyCommand]));
+  const withoutStop = strip(oldStop, new Set([stopCommand, legacyStopCommand]));
 
   if (mode === 'install') without.push({ matcher: 'Edit|Write|MultiEdit', hooks: [{ type: 'command', command, timeout: 20 }] });
   if (mode === 'install') withoutStop.push({ hooks: [{ type: 'command', command: stopCommand, timeout: 20 }] });

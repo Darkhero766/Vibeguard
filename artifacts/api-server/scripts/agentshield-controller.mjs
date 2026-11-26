@@ -7,7 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, lstat, readFile, writeFile, rename, rm, readdir, realpath } from 'node:fs/promises';
-import { DEFAULT_CONFIG, parseConfig, freshState, trackFile, guidanceFor, summarize } from './agentshield-policy.mjs';
+import { DEFAULT_CONFIG, parseConfig, freshState, trackFile, guidanceFor, summarize, completionGateDecision } from './agentshield-policy.mjs';
 import { verifyResolvedFile } from './agentshield-verifier.mjs';
 import { finalGate } from './agentshield-gate.mjs';
 
@@ -210,7 +210,7 @@ async function readHookInput() {
 async function postEdit(event, root, config) {
   if (!['Write', 'Edit', 'MultiEdit'].includes(event.tool_name) || typeof event.tool_input?.file_path !== 'string') return null;
   const filePath = event.tool_input.file_path;
-  if (!/\.(?:[cm]?[jt]sx?|sql|json|ya?ml)$/i.test(filePath) && !/(^|[/\\])\.env(?:\.[\w-]+)?$/i.test(filePath)) return null;
+  if (!/\.(?:[cm]?[jt]sx?|pyi?|sql|json|ya?ml)$/i.test(filePath) && !/(^|[/\\])\.env(?:\.[\w-]+)?$/i.test(filePath)) return null;
   const report = await scan(root, ['--file', filePath]);
   if (report.filesScanned !== 1 || report.scannedPaths.length !== 1) throw new Error('Post-edit scan did not cover the edited file.');
   const file = report.scannedPaths[0];
@@ -243,17 +243,14 @@ async function postEdit(event, root, config) {
   if (!result.novel && config.mode === 'auto-fix') return null; // avoid repeating unchanged repair instructions
   return resultForHook('PostToolUse', contextLines(result.entry, config));
 }
-async function atStop(event, root, config) {
-  if (event.stop_hook_active === true) return null; // avoid recursive Stop feedback
+async function atStop(event, root, config, { allowRepairRequest = true } = {}) {
+  // Recursive Stop events still run the gate. They suppress new auto-fix requests,
+  // but must not bypass an explicitly enforced completion policy.
+  const recursiveStop = event.stop_hook_active === true;
   // Every Stop event performs a fresh worktree scan, catching Git-visible Bash edits,
   // staging, and untracked files missed by per-tool PostToolUse notifications.
   const gate = await finalGate(root, config, scan);
-  if (gate.status === 'scan_incomplete') {
-    return { systemMessage: 'VibeSane AgentShield: FINAL SCAN INCOMPLETE. Security status UNKNOWN; do not report a security pass.' };
-  }
-  if (gate.status === 'no_changed_files') {
-    return { systemMessage: 'VibeSane AgentShield: no supported changed files to scan. No security pass is implied.' };
-  }
+  if (gate.status !== 'complete') return completionGateDecision({ status: gate.status, config, completionGate: config.completionGate });
   const session = event.session_id || 'session-unknown';
   const result = await withLockedState(root, session, config, async (state) => {
     let next = state;
@@ -274,7 +271,8 @@ async function atStop(event, root, config) {
       Date.now() - f.firstSeen < config.timeBudgetSeconds * 1000 &&
       f.lastStopSignature !== f.signature);
     let message = null;
-    if (pending && gate.blocking > 0 && !unscanned.length && config.mode === 'auto-fix' && !event.stop_hook_active) {
+    if (pending && gate.blocking > 0 && !unscanned.length && config.mode === 'auto-fix'
+      && !recursiveStop && allowRepairRequest) {
       pending.lastStopSignature = pending.signature;
       pending.history.push({ event: 'repair_requested', at: Date.now() });
       message = contextLines(pending, config) +
@@ -284,49 +282,117 @@ async function atStop(event, root, config) {
     next.updatedAt = Date.now();
     return { state: next, message, unscannedCount: unscanned.length + Number(Boolean(next.prunedEntries)), repeatedGate, alreadyRequested };
   });
-  if (result.unscannedCount) {
-    return { systemMessage: 'VibeSane AgentShield: final scan did not cover previously flagged files; result PARTIAL, not verified.' };
-  }
-  if (result.message) {
-    // Claude Code Stop docs: decision:block and reason explicitly request continuation.
-    return { decision: 'block', reason: result.message,
-      hookSpecificOutput: { hookEventName: 'Stop', additionalContext: result.message } };
-  }
-  if (gate.blocking > 0) {
-    if (result.repeatedGate || (config.mode === 'auto-fix' && result.alreadyRequested)) return null;
-    return { systemMessage: 'VibeSane AgentShield: final static scan found ' + gate.blocking +
-      ' finding(s) at or above ' + config.blockingSeverity +
-      '. ' + (config.mode === 'auto-fix' ? 'Repair budget exhausted or continuation suppressed; request human review.' :
-        'Advisory mode; no completion block.') };
-  }
-  // Do not claim full-app security when the changed-file subset appears clean.
-  return null;
+  return completionGateDecision({
+    status: gate.status, blocking: gate.blocking, blockingSeverity: config.blockingSeverity,
+    completionGate: config.completionGate, unscannedCount: result.unscannedCount,
+    repairMessage: result.message, repeatedGate: result.repeatedGate,
+    alreadyRequested: result.alreadyRequested, mode: config.mode,
+  });
 }
 const SEVERITY_ORDER = { Critical: 4, High: 3, Medium: 2, Low: 1 };
 
-export async function handleHook(kind) {
+function stopGatePayload(reason, event) {
+  const safeReason = brief(reason || 'VibeSane AgentShield: security status is UNKNOWN.', 3500);
+  // A first Stop block asks the host to continue once so the agent can remediate.
+  // On the host's recursive Stop event, terminate the turn instead of returning
+  // another block that could create an unbounded continuation loop.
+  return event?.stop_hook_active === true
+    ? { continue: false, stopReason: safeReason }
+    : { decision: 'block', reason: safeReason };
+}
+
+export function cursorStopEligibility(event, loopLimit = 2) {
+  if (!event || event.status !== 'completed') return { shouldScan: false, allowFollowup: false };
+  if (!Number.isSafeInteger(event.loop_count) || event.loop_count < 0) {
+    return { shouldScan: false, allowFollowup: false };
+  }
+  if (!Number.isSafeInteger(loopLimit) || loopLimit < 1) throw new TypeError('Cursor loop limit must be a positive integer.');
+  return { shouldScan: true, allowFollowup: event.loop_count < loopLimit };
+}
+
+export async function handleHook(kind, { surface = 'claude' } = {}) {
+  let event = {};
+  let cursorStop = null;
   try {
-    const event = await readHookInput();
-    if (typeof event.cwd !== 'string') return;
+    event = await readHookInput();
+    if (surface === 'cursor') {
+      cursorStop = kind === 'Stop' ? cursorStopEligibility(event) : { shouldScan: true, allowFollowup: true };
+      if (!cursorStop.shouldScan) return;
+      // Cursor supplies the trusted project root through this documented hook env var.
+      // Prefer it over event-provided paths; never accept a workspace path from repository text.
+      const projectRoot = process.env.CURSOR_PROJECT_DIR;
+      if (typeof projectRoot === 'string' && projectRoot.length > 0) event.cwd = projectRoot;
+      event.session_id = event.session_id || event.conversation_id || event.generation_id || 'cursor-session';
+    } else if (surface === 'codex') {
+      // Codex uses thread_id/turn_id rather than Claude's session_id.
+      event.session_id = event.session_id || event.thread_id || event.turn_id || 'codex-session';
+    }
+    if (typeof event.cwd !== 'string') throw new Error('Hook workspace is unavailable.');
     const root = await rootOf(event.cwd);
     const config = await configFor(root);
-    if (!config.enabled) return;
-    const response = kind === 'Stop' ? await atStop(event, root, config) : await postEdit(event, root, config);
-    if (response) printJSON(response);
+    if (!config.enabled) {
+      if (kind === 'Stop' && config.completionGate === 'enforce') {
+        const reason = 'VibeSane AgentShield: enforcement is enabled but the scanner is disabled. Security status is UNKNOWN; restore the scanner or explicitly change the project policy.';
+        if (surface === 'cursor') {
+          if (cursorStop?.allowFollowup) printJSON({ followup_message: reason });
+        } else printJSON(stopGatePayload(reason, event));
+      }
+      return;
+    }
+    const response = kind === 'Stop'
+      ? await atStop(event, root, config, { allowRepairRequest: surface !== 'cursor' || cursorStop?.allowFollowup === true })
+      : await postEdit(event, root, config);
+    if (!response) return;
+    if (surface === 'cursor') {
+      // Cursor only consumes follow-ups for completed events. Its configured
+      // loop_limit is 2; at the cap, scan but do not consume a repair attempt.
+      if (!cursorStop?.allowFollowup) return;
+      const followup = response.reason || response.systemMessage ||
+        'VibeSane AgentShield: security status is UNKNOWN. Run a fresh scan before claiming a security pass.';
+      printJSON({ followup_message: brief(followup, 3500) });
+      return;
+    }
+    if (surface === 'codex') {
+      // Codex Stop accepts only the explicit decision/reason gate contract; omit
+      // Claude-specific hook payloads and advisory messages from this host adapter.
+      if (response.decision === 'block') {
+        printJSON(stopGatePayload(response.reason, event));
+      }
+      return;
+    }
+    if (kind === 'Stop' && response.decision === 'block') {
+      printJSON(stopGatePayload(response.reason, event));
+      return;
+    }
+    printJSON(response);
   } catch {
-    printJSON(resultForHook(kind, 'VibeSane AgentShield: scan or repair coordination failed. Security status is UNKNOWN, not passed.'));
+    const reason = 'VibeSane AgentShield: hook execution failed. Security status is UNKNOWN; restore the hook or complete an approved manual scan before delivery.';
+    if (surface === 'cursor') {
+      // If input parsing itself failed, emit UNKNOWN rather than silently passing.
+      // A known aborted/error event or exhausted loop budget must not request continuation.
+      if (cursorStop === null || cursorStop.allowFollowup) printJSON({ followup_message: reason });
+    } else if (kind === 'Stop') {
+      // A broken Stop hook must never convert an enforced or indeterminate gate into a pass.
+      // On recursive re-entry, terminate the turn and expose the UNKNOWN status.
+      printJSON(stopGatePayload(reason, event));
+    } else {
+      printJSON(resultForHook(kind, reason));
+    }
   }
+}
+export async function handleCursorStop() {
+  return handleHook('Stop', { surface: 'cursor' });
 }
 
 function argsOf(argv) {
   const [action, ...tail] = argv;
-  const opts = { action, cwd: process.cwd(), file: null, changed: false, session: null, format: 'json', mode: null, attempts: null, syntaxCheck: null, threshold: null, enabled: null, budgetSeconds: null, retentionHours: null, rule: null, reason: null, hours: null };
+  const opts = { action, cwd: process.cwd(), file: null, changed: false, session: null, format: 'json', mode: null, attempts: null, syntaxCheck: null, threshold: null, completionGate: null, baseRef: null, enabled: null, budgetSeconds: null, retentionHours: null, rule: null, reason: null, hours: null };
   for (let i = 0; i < tail.length; i++) {
     const a = tail[i];
     if (a === '--changed') opts.changed = true;
-    else if (['--cwd', '--file', '--session', '--format', '--mode', '--attempts', '--syntax-check', '--threshold', '--enabled', '--budget-seconds', '--retention-hours', '--rule', '--reason', '--hours'].includes(a)) {
+    else if (['--cwd', '--file', '--session', '--format', '--mode', '--attempts', '--syntax-check', '--threshold', '--completion-gate', '--base-ref', '--enabled', '--budget-seconds', '--retention-hours', '--rule', '--reason', '--hours'].includes(a)) {
       if (tail[i + 1] == null) throw new Error('Missing option value: ' + a);
-      const key = { '--syntax-check': 'syntaxCheck', '--attempts': 'attempts', '--threshold': 'threshold', '--budget-seconds': 'budgetSeconds', '--retention-hours': 'retentionHours' }[a] || a.slice(2);
+      const key = { '--syntax-check': 'syntaxCheck', '--attempts': 'attempts', '--threshold': 'threshold', '--completion-gate': 'completionGate', '--base-ref': 'baseRef', '--budget-seconds': 'budgetSeconds', '--retention-hours': 'retentionHours' }[a] || a.slice(2);
       opts[key] = tail[++i];
     } else throw new Error('Unsupported option: ' + a);
   }
@@ -373,7 +439,7 @@ async function verifyNow(root, opts, config) {
 }
 export async function command(argv = process.argv.slice(2)) {
   const opts = argsOf(argv);
-  if (!['status', 'verify', 'config', 'acknowledge'].includes(opts.action)) throw new Error('Commands: status, verify --changed|--file PATH, config --mode MODE, acknowledge --rule ID --file PATH --reason CODE --hours 24.');
+  if (!['status', 'verify', 'config', 'acknowledge'].includes(opts.action)) throw new Error('Commands: status, verify --changed|--file PATH, config --mode MODE --completion-gate advisory|enforce --base-ref REF, acknowledge --rule ID --file PATH --reason CODE --hours 24.');
   const root = await rootOf(opts.cwd);
   const config = await configFor(root);
   if (opts.action === 'acknowledge') {
@@ -397,11 +463,13 @@ export async function command(argv = process.argv.slice(2)) {
     return 0;
   }
   if (opts.action === 'config') {
-    if (opts.mode != null || opts.attempts != null || opts.syntaxCheck != null || opts.threshold != null || opts.enabled != null || opts.budgetSeconds != null || opts.retentionHours != null) {
+    if (opts.mode != null || opts.attempts != null || opts.syntaxCheck != null || opts.threshold != null || opts.completionGate != null || opts.baseRef != null || opts.enabled != null || opts.budgetSeconds != null || opts.retentionHours != null) {
       const candidate = { ...config };
       if (opts.mode != null) candidate.mode = opts.mode;
       if (opts.attempts != null) candidate.maxAttempts = Number(opts.attempts);
       if (opts.threshold != null) candidate.blockingSeverity = opts.threshold;
+      if (opts.completionGate != null) candidate.completionGate = opts.completionGate;
+      if (opts.baseRef != null) candidate.baseRef = opts.baseRef;
       if (opts.enabled != null) {
         if (!['true', 'false'].includes(opts.enabled)) throw new Error('--enabled must be true or false.');
         candidate.enabled = opts.enabled === 'true';

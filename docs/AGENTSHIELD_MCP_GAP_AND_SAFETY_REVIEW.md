@@ -1,6 +1,8 @@
-# AgentShield MCP gap and integration safety review
+# Historical AgentShield MCP gap and integration safety review
 
-## Verdict (2026-11-22)
+> **Superseded (2026-11-24):** this review predates the MCP server and is retained as historical context. Its statement that MCP was not implemented is no longer current. The present candidate includes the stdio server, required workspace authorization, and adversarial/installed-package coverage. See [`AGENTSHIELD_BETA_READINESS_EVIDENCE.md`](AGENTSHIELD_BETA_READINESS_EVIDENCE.md) for current commit-specific results and limitations.
+
+## Historical verdict (2026-11-22)
 
 AgentShield is a local Claude Code hook/controller and CLI workflow. The inspected Phase 1/2 branch includes a bounded controller, changed-file gate, policy/state lifecycle, verification, installer, experimental AST worker, and capability registry. **An actual MCP server implementation was not identified in the reviewed paths.** Do not advertise AgentShield as an MCP server yet.
 
@@ -50,4 +52,4 @@ Do **not** add `apply_fix`, `run_command`, `shell`, `commit`, or `deploy` to v0.
 
 ## Current status
 
-This document is an audit/engineering specification, not implementation or verification evidence. MCP support remains **not implemented/verified** until a server and the acceptance suite are added and run in a real local checkout.
+This document is an audit/engineering specification, not current implementation evidence. The MCP implementation and acceptance tests have since been added. See [`AGENTSHIELD_BETA_READINESS_EVIDENCE.md`](AGENTSHIELD_BETA_READINESS_EVIDENCE.md) for current candidate-specific results, including the actual-client boundary checks and remaining review/platform limits.
