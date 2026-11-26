@@ -81,7 +81,7 @@ export function buildVibeSaneCheckOutput(report: Report) {
         ? '**Change risk score: '+score+'/100**'
         : valid.length
           ? '**Security score: '+score+'/100 (checked scope only)**'
-          : '**No findings detected in the checked files (not a security guarantee).**',
+          : '**No new findings detected in the checked files (not a security guarantee).**',
     valid.length+' new findings — '+critical+' critical, '+high+' high, '+medium+' medium.',
     count(report?.changedFiles ?? report?.filesScanned)+' changed files checked across '+count(report?.checksRun)+' configured security checks.',
   ];

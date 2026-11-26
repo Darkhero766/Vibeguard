@@ -76,8 +76,8 @@ test("delta matching reports a new occurrence even when the same rule already ex
     { severity: "High", filePath: "src/auth.ts", line: 2, check: "weak_hash", title: "Weak hash" },
     { severity: "High", filePath: "src/auth.ts", line: 8, check: "weak_hash", title: "Weak hash" },
   ];
-  const baseText = "one\\nmd5(password)\\nthree\\n";
-  const headText = "one\\nmd5(password)\\nthree\\nfour\\nfive\\nsix\\nseven\\nmd5(resetToken)\\n";
+  const baseText = ["one", "md5(password)", "three", ""].join("\n");
+  const headText = ["one", "md5(password)", "three", "four", "five", "six", "seven", "md5(resetToken)", ""].join("\n");
   const result = delta.classifyFindingDelta(base, head,
     [{ path: "src/auth.ts", content: baseText }],
     [{ path: "src/auth.ts", content: headText }]);
