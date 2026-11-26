@@ -475,9 +475,14 @@ test('queue refuses a symlinked process lock without modifying its target', asyn
   await symlink(target, lockPath);
   const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
   try {
-    await assert.rejects(queue.init(), /Job store lock is unreadable/);
+    await assert.rejects(queue.init(), (error) => {
+      assert.match(error.message, /initial durable checkpoint/i);
+      assert.match(error.cause?.message || '', /Job store lock is unreadable/i);
+      return true;
+    });
     assert.equal(await readFile(target, 'utf8'), 'do-not-modify');
     assert.equal(queue.initialized, false);
+    assert.equal(queue.storageFault, true);
   } finally {
     await queue.close();
     await rm(storeDir, { recursive: true, force: true });
