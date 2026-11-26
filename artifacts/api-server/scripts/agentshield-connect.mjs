@@ -279,7 +279,7 @@ async function disconnectJsonHost(host, root, nodePath, serverPath) {
   delete servers[SERVER_LABEL];
   if (Object.keys(servers).length) config.mcpServers = servers;
   else delete config.mcpServers;
-  await atomicWrite(file, JSON.stringify(config, null, 2) + '\\n');
+  await atomicWrite(file, JSON.stringify(config, null, 2) + '\n');
   return { host, status: 'removed', configFile: file, backup };
 }
 
@@ -312,7 +312,7 @@ async function disconnectCodex(root, nodePath, serverPath) {
     throw new Error('The managed Codex MCP block was customized; refusing to remove it automatically.');
   }
   const backup = await backupFile(file);
-  const tail = existing.slice(end + endMarker.length).replace(/^\\r?\\n/, '');
+  const tail = existing.slice(end + endMarker.length).replace(/^\r?\n/, '');
   await atomicWrite(file, existing.slice(0, start) + tail);
   return { host: 'codex', status: 'removed', configFile: file, backup };
 }
