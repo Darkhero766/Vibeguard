@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import {
   buildCodexMcpBlock,
   buildJsonMcpEntry,
@@ -203,4 +203,73 @@ test('one disconnect command removes only exact managed host entries and preserv
   assert.ok(codex.startsWith('[features]'));
   assert.ok(!codex.includes('vibesane_agentshield'));
   assert.ok((await readdir(project)).some((file) => file.includes('.vibesane-backup-')));
+});
+
+
+test('connect refuses malformed and oversized host configuration without rewriting or backing it up', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-config-bounds-'));
+  const project = path.join(root, 'project');
+  await mkdir(project);
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await exec('git', ['init', project]);
+
+  const config = path.join(project, '.mcp.json');
+  const malformed = '{"mcpServers":';
+  await writeFile(config, malformed);
+  await assert.rejects(
+    connectAgentShield(['--agent', 'claude', '--cwd', project]),
+    SyntaxError,
+  );
+  assert.equal(await readFile(config, 'utf8'), malformed);
+  assert.ok(!(await readdir(project)).some((name) => name.includes('.vibesane-backup-')));
+
+  const oversized = JSON.stringify({ padding: 'x'.repeat(256_001) });
+  await writeFile(config, oversized);
+  await assert.rejects(
+    connectAgentShield(['--agent', 'claude', '--cwd', project]),
+    /oversized host MCP configuration/,
+  );
+  assert.equal(await readFile(config, 'utf8'), oversized);
+  assert.ok(!(await readdir(project)).some((name) => name.includes('.vibesane-backup-')));
+});
+
+test('connect refuses symlinked JSON and Codex TOML configuration files', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-config-symlink-'));
+  const project = path.join(root, 'project');
+  await mkdir(project);
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await exec('git', ['init', project]);
+  await mkdir(path.join(project, '.codex'));
+
+  const externalJson = path.join(root, 'external.json');
+  const externalToml = path.join(root, 'external.toml');
+  const jsonTarget = path.join(project, '.mcp.json');
+  const tomlTarget = path.join(project, '.codex', 'config.toml');
+  const jsonText = JSON.stringify({ mcpServers: { preserved: { command: 'do-not-touch' } } });
+  const tomlText = '[features]\\nexperimental = true\\n';
+  await writeFile(externalJson, jsonText);
+  await writeFile(externalToml, tomlText);
+
+  try {
+    await symlink(externalJson, jsonTarget);
+    await symlink(externalToml, tomlTarget);
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOTSUP'].includes(error?.code)) {
+      t.skip('This Windows environment does not permit creating symbolic links for the safety fixture.');
+      return;
+    }
+    throw error;
+  }
+
+  await assert.rejects(
+    connectAgentShield(['--agent', 'claude', '--cwd', project]),
+    /symlinked|identity changed/i,
+  );
+  await assert.rejects(
+    connectAgentShield(['--agent', 'codex', '--cwd', project]),
+    /symlinked|identity changed/i,
+  );
+  assert.equal(await readFile(externalJson, 'utf8'), jsonText);
+  assert.equal(await readFile(externalToml, 'utf8'), tomlText);
+  assert.ok(!(await readdir(project)).some((name) => name.includes('.vibesane-backup-')));
 });
