@@ -5,7 +5,7 @@
 import { createMcpHandler } from '@modelcontextprotocol/server';
 import { createServer } from 'node:http';
 import { ScanJobQueue } from './agentshield-jobs.mjs';
-import { createFoxyServer } from './agentshield-mcp-sdk.mjs';
+import { createFoxyConformanceServer } from './agentshield-mcp-conformance-server.mjs';
 import { getBaselineProvenance, resolveAuthorizedRoots, scanChanged, scanFull } from './agentshield-mcp-server.mjs';
 
 const HOST = '127.0.0.1';
@@ -55,7 +55,7 @@ async function main() {
   await queue.init();
   // Build a fresh McpServer for each HTTP request as required by the SDK's
   // per-request transport model. All requests still share one bounded queue.
-  const handler = createMcpHandler(() => createFoxyServer(queue), {
+  const handler = createMcpHandler(() => createFoxyConformanceServer(queue), {
     legacy: 'stateless',
     onerror: (error) => process.stderr.write('Foxy conformance adapter: ' + bounded(error?.message || error) + '\n'),
   });
