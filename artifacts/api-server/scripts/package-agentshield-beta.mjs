@@ -202,11 +202,12 @@ async function main() {
     'Uninstall Claude Code hooks with vibesane uninstall --cwd /absolute/path/to/project; remove the Cursor hook entry manually.',
     '',
   ].join('\n'));
-  const { stdout } = await exec('npm', [
-    'pack', '--ignore-scripts', '--json', '--pack-destination', out, stage,
-  ], {
+  const packArgs = ['pack', '--ignore-scripts', '--json', '--pack-destination', out, stage];
+  const { stdout } = await exec('npm', packArgs, {
     timeout: 30000,
     maxBuffer: 250000,
+    windowsHide: true,
+    shell: process.platform === 'win32',
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false' },
   });
   const metadata = JSON.parse(stdout)[0];
