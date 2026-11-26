@@ -4,16 +4,16 @@
 import os from 'node:os';
 import path from 'node:path';
 import { constants } from 'node:fs';
-import { access, copyFile, lstat, mkdir, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { chmod, copyFile, lstat, mkdir, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const exec = promisify(execFile);
-const SERVER_KEY = 'vibesane_agentshield';
 const SERVER_LABEL = 'vibesane-agentshield';
 const SERVER_FILE = 'agentshield-mcp-stdio.mjs';
-const scriptsDir = path.dirname(new URL(import.meta.url).pathname);
+const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 
 function envValue(env, name) {
   const key = Object.keys(env || {}).find((item) => item.toLowerCase() === name.toLowerCase());
@@ -165,7 +165,7 @@ async function backupFile(file) {
   if (!info.isFile() || info.isSymbolicLink()) throw new Error('Refusing to back up a non-regular host configuration.');
   const backup = file + '.vibesane-backup-' + new Date().toISOString().replaceAll(':', '-') + '-' + randomUUID();
   await copyFile(file, backup, constants.COPYFILE_EXCL);
-  if (process.platform !== 'win32') await import('node:fs/promises').then(({ chmod }) => chmod(backup, 0o600));
+  if (process.platform !== 'win32') await chmod(backup, 0o600);
   return backup;
 }
 
@@ -243,7 +243,7 @@ export async function connectAgentShield(args = [], overrides = {}) {
   const { agent, cwd } = parseConnectArgs(args);
   const root = await projectRoot(cwd);
   const nodePath = overrides.nodePath || process.execPath;
-  const serverPath = overrides.serverPath || path.join(path.dirname(new URL(import.meta.url).pathname), SERVER_FILE);
+  const serverPath = overrides.serverPath || path.join(scriptsDir, SERVER_FILE);
   const detected = await detectAgents({ cwd: root, env: overrides.env || process.env, platform: overrides.platform || process.platform });
   const hosts = agent === 'all' ? ['claude', 'codex', 'cursor']
     : agent === 'auto' ? detected
@@ -272,7 +272,7 @@ export async function connectAgentShield(args = [], overrides = {}) {
     note: 'MCP registration only; restart the host and approve the server. Optional lifecycle hooks are not installed. The server is read-only and authorized only for this repository.' };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   connectAgentShield(process.argv.slice(2)).then((result) => {
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
   }).catch(() => {
