@@ -35,11 +35,15 @@ const textResult = (value, isError = false) => ({
   ...(isError ? { isError: true } : {}),
 });
 
-export function createFoxyServer(queue) {
+export function createFoxyServer(queue, {
+  capabilities = { tools: {} },
+  requestState,
+} = {}) {
   const server = new McpServer({ name: 'vibesane-agentshield', version: '0.7.0-beta.3' }, {
     instructions: INSTRUCTIONS,
-    capabilities: { tools: {} },
+    capabilities,
     supportedProtocolVersions: PROTOCOLS,
+    ...(requestState ? { requestState } : {}),
   });
   for (const tool of TOOL_DEFS) {
     server.registerTool(tool.name, {
