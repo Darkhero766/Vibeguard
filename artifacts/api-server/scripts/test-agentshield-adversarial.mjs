@@ -146,7 +146,7 @@ test('deletion of a configured authorization root after server use fails closed'
   await git(repoPath, 'commit', '-qm', 'synthetic authorized root before deletion');
   try {
     process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([root]);
-    assert.equal((await workspaceSnapshot(repoPath)).root, repoPath);
+    assert.equal((await workspaceSnapshot(repoPath)).root, await realpath(repoPath));
     await rm(root, { recursive: true, force: true });
     await assert.rejects(resolveAuthorizedRoots(), /not authorized/i);
     await assert.rejects(workspaceSnapshot(repoPath), /not authorized/i);
