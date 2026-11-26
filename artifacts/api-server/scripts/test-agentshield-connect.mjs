@@ -9,6 +9,7 @@ import {
   buildCodexMcpBlock,
   buildJsonMcpEntry,
   connectAgentShield,
+  disconnectAgentShield,
   detectAgents,
   parseConnectArgs,
 } from './agentshield-connect.mjs';
@@ -93,7 +94,7 @@ test('one connect command configures Claude, Codex, Cursor, Gemini, Roo and Copi
   });
 
   assert.equal(result.status, 'connected');
-  assert.deepEqual(result.results.map((item) => item.host), ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']);
+  assert.deepEqual(result.results.map((item) => item.host), ['claude', 'codex', 'cursor', 'gemini', 'roo']);
   const claude = JSON.parse(await readFile(claudeFile, 'utf8'));
   const cursor = JSON.parse(await readFile(cursorFile, 'utf8'));
   const codex = await readFile(codexFile, 'utf8');
@@ -139,4 +140,49 @@ test('generic MCP mode returns a stdio entry scoped to the selected repository',
   });
   assert.equal(result.status, 'manual_mcp_configuration');
   assert.equal(result.server.env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([await (await import('node:fs/promises')).realpath(project)]));
+});
+
+
+test('one disconnect command removes only exact managed host entries and preserves unrelated config', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-disconnect-'));
+  const project = path.join(root, 'project');
+  await mkdir(project, { recursive: true });
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await exec('git', ['init', project]);
+  for (const dir of ['.codex', '.cursor', '.gemini', '.roo']) await mkdir(path.join(project, dir));
+  const options = {
+    nodePath: process.execPath,
+    serverPath: path.join(root, 'agentshield-mcp-stdio.mjs'),
+  };
+  await writeFile(path.join(project, '.mcp.json'), JSON.stringify({
+    mcpServers: { other: { command: 'keep-me', args: [] } },
+  }));
+  await writeFile(path.join(project, '.cursor', 'mcp.json'), JSON.stringify({
+    mcpServers: { other: { command: 'keep-cursor', args: [] } },
+  }));
+  await writeFile(path.join(project, '.gemini', 'settings.json'), JSON.stringify({
+    theme: 'Dark', mcpServers: { other: { command: 'keep-gemini', args: [] } },
+  }));
+  await writeFile(path.join(project, '.roo', 'mcp.json'), JSON.stringify({
+    mcpServers: { other: { command: 'keep-roo', args: [] } },
+  }));
+  await writeFile(path.join(project, '.codex', 'config.toml'), '[features]\\nexperimental = true\\n');
+  const connected = await connectAgentShield(['--agent', 'all', '--cwd', project], options);
+  assert.equal(connected.status, 'connected');
+
+  const removed = await disconnectAgentShield(['--agent', 'all', '--cwd', project], options);
+  assert.equal(removed.status, 'disconnected');
+  assert.ok(removed.results.every((item) => item.status === 'removed'));
+  const claude = JSON.parse(await readFile(path.join(project, '.mcp.json'), 'utf8'));
+  const cursor = JSON.parse(await readFile(path.join(project, '.cursor', 'mcp.json'), 'utf8'));
+  const gemini = JSON.parse(await readFile(path.join(project, '.gemini', 'settings.json'), 'utf8'));
+  const roo = JSON.parse(await readFile(path.join(project, '.roo', 'mcp.json'), 'utf8'));
+  const codex = await readFile(path.join(project, '.codex', 'config.toml'), 'utf8');
+  assert.deepEqual(Object.keys(claude.mcpServers), ['other']);
+  assert.deepEqual(Object.keys(cursor.mcpServers), ['other']);
+  assert.deepEqual(Object.keys(gemini.mcpServers), ['other']);
+  assert.deepEqual(Object.keys(roo.mcpServers), ['other']);
+  assert.ok(codex.startsWith('[features]'));
+  assert.ok(!codex.includes('vibesane_agentshield'));
+  assert.ok((await readdir(project)).some((file) => file.includes('.vibesane-backup-')));
 });
