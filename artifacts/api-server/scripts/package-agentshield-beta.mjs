@@ -14,7 +14,7 @@ const exec = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const stage = path.join(root, 'dist', 'agentshield-beta-stage');
 const out = path.join(root, 'dist');
-export const PACKAGE_VERSION = '0.7.0-beta.3';
+export const PACKAGE_VERSION = '0.7.0-beta.4';
 const scripts = [
   'vibesane.mjs',
   'agentshield-connect.mjs',
