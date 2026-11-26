@@ -13,6 +13,16 @@ const ENV = /(^|\/)\.env(?:\.[\w-]+)?$/i;
 const IGNORE = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'coverage', 'vendor']);
 const SEVERITY = { Critical: 4, High: 3, Medium: 2, Low: 1 };
 const sha = (content) => createHash('sha256').update(content).digest('hex');
+function samePath(left, right) {
+  const a = path.resolve(left);
+  const b = path.resolve(right);
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+function containedBy(root, candidate) {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate));
+  return relative === '' || (!path.isAbsolute(relative) && relative !== '..'
+    && !relative.startsWith('..' + path.sep));
+}
 
 export function changedEntries(status) {
   const items = status.split('\0');
@@ -37,7 +47,7 @@ function supported(file) {
 }
 async function git(root, args) {
   const result = await exec('git', [
-    '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-C', root, ...args,
+    '-c', 'core.fsmonitor=false', '-C', root, ...args,
   ], { timeout: 7000, maxBuffer: 2_000_000, windowsHide: true });
   return result.stdout;
 }
@@ -122,7 +132,7 @@ export async function snapshot(root, { baseRef = null } = {}) {
     budget += info.size;
     if (budget > 8_000_000) throw new Error('Final gate source budget exceeded.');
     const fileReal = await realpath(full);
-    if (fileReal !== full || !fileReal.startsWith(real + path.sep)) {
+    if (!samePath(fileReal, full) || !containedBy(real, fileReal)) {
       unsafeChangedPaths.push(rel); observations.push([rel, 'unsafe_path']); continue;
     }
     const handle = await open(full, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
