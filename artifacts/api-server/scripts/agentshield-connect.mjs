@@ -252,13 +252,106 @@ async function configureCodex(root, nodePath, serverPath) {
   return { host: 'codex', status: 'configured', configFile: file, backup };
 }
 
+async function disconnectJsonHost(host, root, nodePath, serverPath) {
+  const configDir = host === 'cursor' ? path.join(root, '.cursor')
+    : host === 'gemini' ? path.join(root, '.gemini')
+      : host === 'roo' ? path.join(root, '.roo') : root;
+  if (host === 'cursor' || host === 'gemini' || host === 'roo') await ensureSafeDirectory(configDir).catch((error) => {
+    if (error?.code !== 'ENOENT') throw error;
+  });
+  const file = host === 'cursor' ? path.join(configDir, 'mcp.json')
+    : host === 'gemini' ? path.join(configDir, 'settings.json')
+      : host === 'roo' ? path.join(configDir, 'mcp.json') : path.join(root, '.mcp.json');
+  const config = await readJsonConfig(file);
+  if (config.mcpServers != null && (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers))) {
+    throw new Error('Refusing malformed mcpServers configuration.');
+  }
+  const servers = config.mcpServers || {};
+  const existing = servers[SERVER_LABEL];
+  if (existing == null) return { host, status: 'not_configured', configFile: file };
+  const desired = buildJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
+  if (!sameJson(existing, desired)) {
+    throw new Error('The AgentShield MCP entry was customized; refusing to remove it automatically.');
+  }
+  const backup = await backupFile(file);
+  delete servers[SERVER_LABEL];
+  if (Object.keys(servers).length) config.mcpServers = servers;
+  else delete config.mcpServers;
+  await atomicWrite(file, JSON.stringify(config, null, 2) + '\\n');
+  return { host, status: 'removed', configFile: file, backup };
+}
+
+async function disconnectCodex(root) {
+  const directory = path.join(root, '.codex');
+  if (!await isDirectory(directory)) return { host: 'codex', status: 'not_configured', configFile: path.join(directory, 'config.toml') };
+  const file = path.join(directory, 'config.toml');
+  let existing = '';
+  try {
+    const info = await lstat(file);
+    if (!info.isFile() || info.isSymbolicLink() || info.size > 256_000) {
+      throw new Error('Refusing a symlinked, non-regular or oversized Codex config.toml.');
+    }
+    existing = await readFile(file, 'utf8');
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  const marker = '# BEGIN VIBESANE AGENTSHIELD MANAGED MCP ENTRY';
+  const endMarker = '# END VIBESANE AGENTSHIELD MANAGED MCP ENTRY';
+  const start = existing.indexOf(marker);
+  if (start < 0) return { host: 'codex', status: 'not_configured', configFile: file };
+  const end = existing.indexOf(endMarker, start);
+  if (end < 0) throw new Error('The managed Codex MCP block is damaged; refusing to rewrite it.');
+  const expected = buildCodexMcpBlock({
+    nodePath: process.execPath,
+    serverPath: path.join(scriptsDir, SERVER_FILE),
+    workspaceRoot: root,
+  });
+  if (existing.slice(start, end + endMarker.length) !== expected) {
+    throw new Error('The managed Codex MCP block was customized; refusing to remove it automatically.');
+  }
+  const backup = await backupFile(file);
+  const tail = existing.slice(end + endMarker.length).replace(/^\\r?\\n/, '');
+  await atomicWrite(file, existing.slice(0, start) + tail);
+  return { host: 'codex', status: 'removed', configFile: file, backup };
+}
+
+export async function disconnectAgentShield(args = [], overrides = {}) {
+  const { agent, cwd } = parseConnectArgs(args);
+  if (agent === 'mcp') throw new Error('Use disconnect with a named host or all; generic MCP entries must be removed from the client configuration manually.');
+  const root = await projectRoot(cwd);
+  const nodePath = overrides.nodePath || process.execPath;
+  const serverPath = overrides.serverPath || path.join(scriptsDir, SERVER_FILE);
+  const detected = await detectAgents({ cwd: root, env: overrides.env || process.env, platform: overrides.platform || process.platform });
+  const hosts = agent === 'all' ? ['claude', 'codex', 'cursor', 'gemini', 'roo']
+    : agent === 'auto' ? detected : [agent];
+  const results = [];
+  const processedConfigFiles = new Set();
+  for (const host of hosts) {
+    if (host === 'codex') {
+      results.push(await disconnectCodex(root));
+      continue;
+    }
+    const configFile = host === 'cursor' ? path.join(root, '.cursor', 'mcp.json')
+      : host === 'gemini' ? path.join(root, '.gemini', 'settings.json')
+        : host === 'roo' ? path.join(root, '.roo', 'mcp.json') : path.join(root, '.mcp.json');
+    if (processedConfigFiles.has(configFile)) {
+      results.push({ host, status: 'shared_config', configFile, note: 'This host shares the workspace .mcp.json entry already handled for another host.' });
+      continue;
+    }
+    processedConfigFiles.add(configFile);
+    results.push(await disconnectJsonHost(host, root, nodePath, serverPath));
+  }
+  return { status: 'disconnected', root, detected, results,
+    note: 'Only exact, unmodified AgentShield entries were removed. Backups were written before changes. Generic MCP entries and customized configurations are left untouched.' };
+}
+
 export async function connectAgentShield(args = [], overrides = {}) {
   const { agent, cwd } = parseConnectArgs(args);
   const root = await projectRoot(cwd);
   const nodePath = overrides.nodePath || process.execPath;
   const serverPath = overrides.serverPath || path.join(scriptsDir, SERVER_FILE);
   const detected = await detectAgents({ cwd: root, env: overrides.env || process.env, platform: overrides.platform || process.platform });
-  const hosts = agent === 'all' ? ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']
+  const hosts = agent === 'all' ? ['claude', 'codex', 'cursor', 'gemini', 'roo']
     : agent === 'auto' ? detected
       : agent === 'mcp' ? [] : [agent];
   const generic = {
