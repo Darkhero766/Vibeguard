@@ -14,6 +14,7 @@ async function load() {
         path.join(root, "artifacts/api-server/src/lib/protectionDelta.ts"),
         path.join(root, "artifacts/api-server/src/lib/securityScanPipeline.ts"),
         path.join(root, "artifacts/api-server/src/lib/githubRepoReader.ts"),
+        path.join(root, "artifacts/api-server/src/lib/protectionEventDetails.ts"),
       ],
       bundle: true,
       splitting: false,
