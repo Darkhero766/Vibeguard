@@ -194,7 +194,9 @@ async function initCodexSkill(args) {
   removeCodexStopEntry(hooks, command);
   const stop = Array.isArray(hooks.Stop) ? hooks.Stop : [];
   stop.push({ hooks: [{
-    type: 'command', command, timeout: 30,
+    type: 'command', command,
+    ...(process.platform === 'win32' ? { commandWindows: command } : {}),
+    timeout: 30,
     statusMessage: 'Checking changed code with VibeSane AgentShield',
   }] });
   hooks.Stop = stop;
