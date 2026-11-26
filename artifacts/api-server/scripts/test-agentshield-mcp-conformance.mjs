@@ -4,7 +4,7 @@
 import { execFile } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readdir, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,8 +49,8 @@ function waitForReady(child, timeoutMs = 20_000) {
     });
   });
 }
-async function runConformance(url, cwd) {
-  const args = ['dlx', '@modelcontextprotocol/conformance@0.2.0-alpha.12', 'server', '--url', url, '--requirements', '2026-07-28', '--verbose'];
+async function runConformance(url, cwd, outputDir) {
+  const args = ['dlx', '@modelcontextprotocol/conformance@0.2.0-alpha.12', 'server', '--url', url, '--requirements', '2026-07-28', '--verbose', '--output-dir', outputDir];
   const result = await exec('pnpm', args, {
     cwd,
     timeout: 240_000,
@@ -60,6 +60,35 @@ async function runConformance(url, cwd) {
   });
   return { stdout: result.stdout || '', stderr: result.stderr || '' };
 }
+async function collectFailedChecks(outputDir) {
+  const entries = await readdir(outputDir, { withFileTypes: true }).catch((error) => {
+    if (error?.code === 'ENOENT') return [];
+    throw error;
+  });
+  const failures = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const file = path.join(outputDir, entry.name, 'checks.json');
+    let checks;
+    try { checks = JSON.parse(await readFile(file, 'utf8')); }
+    catch (error) {
+      if (error?.code === 'ENOENT') continue;
+      failures.push({ scenario: entry.name, error: 'Could not parse conformance checks.json.' });
+      continue;
+    }
+    for (const check of Array.isArray(checks) ? checks : []) {
+      if (check.status !== 'FAILURE') continue;
+      failures.push({
+        scenario: entry.name.replace(/^server-/, '').replace(/-\\d{4}-.*$/, ''),
+        id: String(check.id || '').slice(0, 180),
+        name: String(check.name || '').slice(0, 180),
+        errorMessage: String(check.errorMessage || check.description || 'Conformance check failed.').slice(0, 1200),
+      });
+    }
+  }
+  return failures;
+}
+
 async function main() {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'foxy-mcp-conformance-'));
   const workspace = path.join(temp, 'workspace');
@@ -88,7 +117,17 @@ async function main() {
       windowsHide: true,
     });
     const ready = await waitForReady(child);
-    result = await runConformance(ready.url, temp);
+    const outputDir = path.join(temp, 'conformance-results');
+    await mkdir(outputDir, { recursive: true });
+    try {
+      result = await runConformance(ready.url, temp, outputDir);
+    } catch (error) {
+      // The CLI writes one checks.json per scenario. Preserve the actual failed
+      // assertions in the CI log instead of reducing a conformance regression
+      // to a scenario-level count.
+      error.failureDetails = await collectFailedChecks(outputDir);
+      throw error;
+    }
   } finally {
     if (child && child.exitCode === null && child.signalCode === null) {
       child.kill('SIGTERM');
@@ -123,6 +162,8 @@ main().catch((error) => {
     String(error?.stdout || '').slice(-16_000) || '(empty)',
     '[stderr]',
     String(error?.stderr || '').slice(-16_000) || '(empty)',
+    '[failed conformance checks]',
+    JSON.stringify(Array.isArray(error?.failureDetails) ? error.failureDetails : []).slice(-28_000) || '[]',
     '[message]',
     String(error?.message || error).slice(-2_000),
   ].join('\n');
