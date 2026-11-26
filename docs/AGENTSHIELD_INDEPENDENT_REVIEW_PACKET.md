@@ -83,3 +83,19 @@ What remains unverified:
 ```
 
 Close with an explicit list of reviewed areas, areas not verifiable, and whether any Critical or High issue remains. A reviewer may disagree with the candidate's qualification evidence.
+
+
+## Superseding cross-platform qualification evidence — 26 November 2026
+
+The earlier note above stating that the cross-platform workflow had not run is superseded for PR #70's exact candidate:
+
+- PR #70 head: `a9b4fc87fa202a0aaeab60f43ed6ec361e5ec01c`.
+- GitHub Actions run [45861790387](https://github.com/Darkhero766/Vibeguard/actions/runs/45861790387), run #75: completed successfully.
+- Windows: 429/429 release-qualification tests and 12/12 connector regression tests passed.
+- macOS: 429/429 release-qualification tests and 12/12 connector regression tests passed.
+- Web/standalone preview build and no-JavaScript preview checks passed.
+- Both platform validators reported `validation_passed_review_required`.
+
+This closes the **automated cross-platform CI** evidence gap for that precise SHA only. It does not close the actual installed-host acceptance matrix, independent security review, package provenance review, the separate 11-finding evidence review, or owner approval. The review packet itself remains a request for independent scrutiny, not a completed review.
+
+PR #69 subsequently advanced to `b98f0a8bea4d50a67d1bb9c0caae5bc1801e1cb8` and its official MCP conformance job is being re-run with improved failure diagnostics. PR #70's reported base SHA remains `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`; verify and reconcile this stacked dependency against the live #69 branch before any merge proposal.
