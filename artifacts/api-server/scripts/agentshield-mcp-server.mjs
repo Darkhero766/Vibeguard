@@ -173,7 +173,7 @@ function samePath(left, right) {
   return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 function gitArgs(root, extra) {
-  return ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=' + os.devNull, '-C', root, ...extra];
+  return ['-c', 'core.fsmonitor=false', '-C', root, ...extra];
 }
 function containedBy(root, candidate) {
   const relative = path.relative(root, candidate);
