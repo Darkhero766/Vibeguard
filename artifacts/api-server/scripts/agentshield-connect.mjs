@@ -381,10 +381,13 @@ export async function connectAgentShield(args = [], overrides = {}) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  connectAgentShield(process.argv.slice(2)).then((result) => {
+  const disconnect = process.argv[2] === 'disconnect';
+  const args = disconnect ? process.argv.slice(3) : process.argv.slice(2);
+  (disconnect ? disconnectAgentShield(args) : connectAgentShield(args)).then((result) => {
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
-  }).catch(() => {
-    process.stderr.write('AgentShield connect failed. Run vibesane doctor and inspect the host config before retrying.\n');
+  }).catch((error) => {
+    const action = disconnect ? 'disconnect' : 'connect';
+    process.stderr.write('AgentShield ' + action + ' failed: ' + String(error?.message || 'inspect the host config and run vibesane doctor') .slice(0, 300) + '\n');
     process.exitCode = 2;
   });
 }
