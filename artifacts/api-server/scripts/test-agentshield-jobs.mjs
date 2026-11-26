@@ -255,8 +255,8 @@ test('terminal queue records expire after the retention window while active work
   const queue = new ScanJobQueue({ storeDir, now: () => now, runner: async () => complete() });
   try {
     const { job_id: id } = await queue.submit({ workspace: '/tmp/foxy-terminal-expiry' });
-    const finished = await queue.wait(id, 5000);
-    assert.equal(finished.status, 'completed');
+    for (let i = 0; i < 40 && queue.getStatus(id)?.status !== 'completed'; i++) await tick();
+    assert.equal(queue.getStatus(id)?.status, 'completed');
     assert.ok(queue.getResults(id));
     now += 24 * 60 * 60 * 1000 + 1;
     assert.equal(queue.getStatus(id), null);
