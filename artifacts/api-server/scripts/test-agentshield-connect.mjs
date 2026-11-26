@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import {
   buildCodexMcpBlock,
@@ -15,6 +16,7 @@ import {
 } from './agentshield-connect.mjs';
 
 const exec = promisify(execFile);
+const cliPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'vibesane.mjs');
 
 test('connect argument parser defaults to automatic detection and rejects unknown hosts', () => {
   assert.deepEqual(parseConnectArgs([]), { agent: 'auto', cwd: process.cwd() });
@@ -272,4 +274,64 @@ test('connect refuses symlinked JSON and Codex TOML configuration files', async 
   assert.equal(await readFile(externalJson, 'utf8'), jsonText);
   assert.equal(await readFile(externalToml, 'utf8'), tomlText);
   assert.ok(!(await readdir(project)).some((name) => name.includes('.vibesane-backup-')));
+});
+
+
+test('legacy setup command rejects malformed and oversized host MCP config without mutation', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-legacy-config-'));
+  const project = path.join(root, 'project');
+  await mkdir(project);
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await exec('git', ['init', project]);
+
+  const config = path.join(project, '.mcp.json');
+  const malformed = '{"mcpServers":';
+  await writeFile(config, malformed);
+  await assert.rejects(
+    exec(process.execPath, [cliPath, 'setup', '--host', 'claude', '--cwd', project]),
+    (error) => error?.code === 2 && String(error.stdout).includes('"status":"error"'),
+  );
+  assert.equal(await readFile(config, 'utf8'), malformed);
+  assert.ok(!(await readdir(project)).some((name) => name.includes('.vibesane-backup-')));
+
+  const oversized = JSON.stringify({ padding: 'x'.repeat(256_001) });
+  await writeFile(config, oversized);
+  await assert.rejects(
+    exec(process.execPath, [cliPath, 'setup', '--host', 'claude', '--cwd', project]),
+    (error) => error?.code === 2 && String(error.stdout).includes('"status":"error"'),
+  );
+  assert.equal(await readFile(config, 'utf8'), oversized);
+  assert.ok(!(await readdir(project)).some((name) => name.includes('.vibesane-backup-')));
+});
+
+test('doctor refuses a symlinked project host configuration directory', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-legacy-doctor-'));
+  const project = path.join(root, 'project');
+  const outside = path.join(root, 'outside');
+  await mkdir(project);
+  await mkdir(outside);
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await exec('git', ['init', project]);
+  await writeFile(path.join(outside, 'settings.json'), JSON.stringify({ hooks: {} }));
+
+  try {
+    await symlink(outside, path.join(project, '.claude'), process.platform === 'win32' ? 'junction' : 'dir');
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOTSUP'].includes(error?.code)) {
+      t.skip('This Windows environment does not permit creating directory symbolic links for the safety fixture.');
+      return;
+    }
+    throw error;
+  }
+
+  await assert.rejects(
+    exec(process.execPath, [cliPath, 'doctor', '--cwd', project]),
+    (error) => {
+      assert.equal(error?.code, 2);
+      const report = JSON.parse(error.stdout);
+      assert.equal(report.checks.settingsReadable, false);
+      return true;
+    },
+  );
+  assert.equal(await readFile(path.join(outside, 'settings.json'), 'utf8'), JSON.stringify({ hooks: {} }));
 });
