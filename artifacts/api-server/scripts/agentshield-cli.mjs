@@ -5,7 +5,6 @@ import { promisify } from 'node:util';
 import { lstat, realpath, open } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { scanApiFiles } from '../src/lib/apiScanner.ts';
 import { scanExtendedFilesV2 } from '../src/lib/extendedScannerV2.ts';
 import { scanPythonFiles } from './agentshield-python.mjs';
@@ -44,7 +43,7 @@ function options(args) {
 
 async function git(cwd, args) {
   try {
-    const result = await run('git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=' + os.devNull, '-C', cwd, ...args], {
+    const result = await run('git', ['-c', 'core.fsmonitor=false', '-C', cwd, ...args], {
       encoding: 'utf8', timeout: 7000, maxBuffer: 2_000_000, windowsHide: true,
     });
     return result.stdout;
@@ -108,7 +107,7 @@ function diffChangedPaths(output) {
 async function resolveBaseCommit(cwd, baseRef) {
   if (!baseRef) return null;
   if (!validBaseRef(baseRef)) throw new Error('Invalid base reference.');
-  const checked = await run('git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=' + os.devNull,
+  const checked = await run('git', ['-c', 'core.fsmonitor=false',
     '-C', cwd, 'rev-parse', '--verify', '--end-of-options', baseRef + '^{commit}'], {
     encoding: 'utf8', timeout: 7000, maxBuffer: 10_000, windowsHide: true,
   }).catch(() => { throw new Error('Base reference is unavailable locally; fetch it or configure an existing commit/ref.'); });
