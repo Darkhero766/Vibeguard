@@ -261,6 +261,7 @@ test('terminal queue records expire after the retention window while active work
     now += 24 * 60 * 60 * 1000 + 1;
     assert.equal(queue.getStatus(id), null);
     assert.equal(queue.getResults(id), null);
+    await queue.close();
     const persisted = JSON.parse(await readFile(path.join(storeDir, 'jobs.json'), 'utf8'));
     assert.equal(persisted.jobs.some((job) => job.id === id), false);
   } finally {
