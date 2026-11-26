@@ -177,6 +177,7 @@ async function main() {
   const packageStep = results.find(item => item.name === 'offline-package-install-cli-mcp-smoke');
   const expectedPackageChecks = [
     'build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'doctor',
+    'one-command-agent-connect',
     'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook',
     'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation',
     'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan',
