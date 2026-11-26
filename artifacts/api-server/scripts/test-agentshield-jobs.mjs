@@ -493,7 +493,11 @@ test('stale process locks are never reclaimed with a racy check-then-unlink', as
   await writeFile(lockPath, owner, { mode: 0o600 });
   const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
   try {
-    await assert.rejects(queue.init(), /lock is stale.*remove jobs\.lock manually/i);
+    await assert.rejects(queue.init(), (error) => {
+      assert.match(error.message, /initial durable checkpoint/i);
+      assert.match(error.cause?.message || '', /lock is stale.*remove jobs\.lock manually/i);
+      return true;
+    });
     assert.equal(await readFile(lockPath, 'utf8'), owner);
     assert.equal(queue.initialized, false);
     assert.equal(queue.storageFault, true);
@@ -512,7 +516,11 @@ test('queue refuses a symlinked persisted state file without reading or modifyin
   await symlink(target, statePath);
   const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
   try {
-    await assert.rejects(queue.init(), /unsafe or over its size limit/i);
+    await assert.rejects(queue.init(), (error) => {
+      assert.match(error.message, /initial durable checkpoint/i);
+      assert.match(error.cause?.message || '', /Job state file is unsafe or over its size limit/i);
+      return true;
+    });
     assert.equal(await readFile(target, 'utf8'), data);
     assert.equal(queue.initialized, false);
   } finally {

@@ -39,7 +39,7 @@ Add this to `~/.codex/config.toml`, replacing the executable and workspace paths
 [mcp_servers.vibesane_agentshield]
 command = "/home/you/.local/bin/vibesane-mcp"
 args = []
-env = { VIBESANE_ALLOWED_ROOTS_JSON = '["/absolute/path/to/disposable-repo"]' }
+env = { VIBESANE_ALLOWED_ROOTS_JSON = '["/absolute/path/to/disposable-repo"]', VIBESANE_JOB_STORE_NAMESPACE = "codex" }
 ```
 
 Restart Codex. Ask it to call `status`; verify `workspaceAuthorization` is `configured`, then discover the ten Foxy tools. Review the project hook before enabling it:
@@ -70,6 +70,7 @@ For project scope, add this `mcpServers` entry to the project-root `.mcp.json` (
       "args": [],
       "env": {
         "VIBESANE_ALLOWED_ROOTS_JSON": "[\"/absolute/path/to/disposable-repo\"]"
+        "VIBESANE_JOB_STORE_NAMESPACE": "claude"
       }
     }
   }
@@ -189,7 +190,7 @@ The MCP server denies workspace-dependent tools unless `VIBESANE_ALLOWED_ROOTS_J
 Configure the environment on the MCP server process itself. Example for a single checkout:
 
 ```sh
-VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/repo"]' vibesane-mcp
+VIBESANE_JOB_STORE_NAMESPACE=generic VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/repo"]' vibesane-mcp
 ```
 
 For Codex TOML, add the environment under the server entry:
@@ -198,7 +199,7 @@ For Codex TOML, add the environment under the server entry:
 [mcp_servers.vibesane_agentshield]
 command = "vibesane-mcp"
 args = []
-env = { VIBESANE_ALLOWED_ROOTS_JSON = '["/absolute/path/to/repo"]' }
+env = { VIBESANE_ALLOWED_ROOTS_JSON = '["/absolute/path/to/repo"]', VIBESANE_JOB_STORE_NAMESPACE = "generic" }
 ```
 
 Use the narrowest parent directory that contains the intended checkout(s). Do not use `/` or a broad home/workspaces directory unless every Git repository beneath it is authorized for scanning. MCP scan, list, and verification calls independently re-authorize their workspace; baselines remain bound to the canonical repository path and cannot be reused in another repository. The caller-provided workspace never grants authorization by itself.
