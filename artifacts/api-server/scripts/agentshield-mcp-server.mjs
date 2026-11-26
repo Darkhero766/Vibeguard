@@ -847,7 +847,11 @@ export async function verifyRemediation(workspace, baselineId, { signal, baseRef
   const delta = compareFindings(baseline.result.findings, current.findings);
   const status = delta.remaining.length ? 'findings_remain'
     : delta.newFindings.length ? 'new_findings_detected' : 'rescan_clean';
-  const currentScanId = rememberBaseline(before.root, after.fingerprint, current).scanId;
+  const currentProvenance = await getBaselineProvenance();
+  if (!sameProvenance(provenanceAfter, currentProvenance)) {
+    throw new Error('AgentShield scanner artifact changed before the verification baseline could be stored; status UNKNOWN.');
+  }
+  const currentScanId = rememberBaseline(before.root, after.fingerprint, current, provenanceAfter).scanId;
   return {
     status,
     baselineId,
