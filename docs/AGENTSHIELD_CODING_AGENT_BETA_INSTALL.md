@@ -1,4 +1,4 @@
-# AgentShield coding-agent beta (0.7.0-beta.3)
+# AgentShield coding-agent beta (0.7.0-beta.4)
 
 ## What this beta does
 
@@ -29,7 +29,7 @@ The intended loop is:
 After receiving the maintainer-built tarball:
 
 ```bash
-npm install --global ./vibesane-agentshield-0.7.0-beta.3.tgz
+npm install --global ./vibesane-agentshield-0.7.0-beta.4.tgz
 vibesane --help
 vibesane doctor --cwd /absolute/path/to/project
 ```
