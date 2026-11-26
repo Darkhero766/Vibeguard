@@ -214,16 +214,28 @@ try {
   assert(!claudeAfterRemove.mcpServers, 'Claude MCP uninstaller left its managed entry behind.');
 
   const symlinkFixture = path.join(temp, 'symlink-fixture');
-  const externalConfig = path.join(temp, 'external-mcp-config.json');
   await mkdir(symlinkFixture, { recursive: true });
   await run('git', ['init', '-q', symlinkFixture]);
-  await writeFile(externalConfig, JSON.stringify({ mcpServers: { safe: { command: 'leave-alone' } } }));
-  await symlink(externalConfig, path.join(symlinkFixture, '.mcp.json'));
   let symlinkRejected = false;
-  try { await runCli(['setup', '--host', 'claude', '--cwd', symlinkFixture], { cwd: temp }); }
-  catch { symlinkRejected = true; }
+  let externalConfig;
+  if (process.platform === 'win32') {
+    // A junction does not require the Windows Developer Mode/symlink privilege.
+    const externalDirectory = path.join(temp, 'external-cursor-config');
+    await mkdir(externalDirectory);
+    externalConfig = path.join(externalDirectory, 'mcp.json');
+    await writeFile(externalConfig, JSON.stringify({ mcpServers: { safe: { command: 'leave-alone' } } }));
+    await symlink(externalDirectory, path.join(symlinkFixture, '.cursor'), 'junction');
+    try { await runCli(['setup', '--host', 'cursor', '--cwd', symlinkFixture], { cwd: temp }); }
+    catch { symlinkRejected = true; }
+  } else {
+    externalConfig = path.join(temp, 'external-mcp-config.json');
+    await writeFile(externalConfig, JSON.stringify({ mcpServers: { safe: { command: 'leave-alone' } } }));
+    await symlink(externalConfig, path.join(symlinkFixture, '.mcp.json'));
+    try { await runCli(['setup', '--host', 'claude', '--cwd', symlinkFixture], { cwd: temp }); }
+    catch { symlinkRejected = true; }
+  }
   assert(symlinkRejected && JSON.parse(await readFile(externalConfig, 'utf8')).mcpServers.safe.command === 'leave-alone',
-    'Claude setup did not reject a symlinked config file safely.');
+    'Host setup did not reject a symlinked configuration path safely.');
 
   const codexInit = await runCli(['init-codex', '--cwd', fixture], { cwd: temp });
   const codexInstall = JSON.parse(codexInit.stdout);
@@ -373,7 +385,8 @@ try {
     packageSha256: packaged.sha256,
     packageBytes: packaged.archiveBytes,
     packagedFiles: packaged.fileCount,
-    checks: ['build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'doctor', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall'],
+    checks: ['build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'doctor',
+      'one-command-agent-connect', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall'],
     fixture: 'synthetic-disposable-git-repository',
     published: false,
   }) + '\n');
