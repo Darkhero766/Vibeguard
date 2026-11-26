@@ -50,7 +50,7 @@ function waitForReady(child, timeoutMs = 20_000) {
   });
 }
 async function runConformance(url, cwd) {
-  const args = ['dlx', '@modelcontextprotocol/conformance@0.1.16', 'server', '--url', url, '--requirements', '2026-07-28'];
+  const args = ['dlx', '@modelcontextprotocol/conformance@0.2.0-alpha.10', 'server', '--url', url, '--requirements', '2026-07-28'];
   const result = await exec('pnpm', args, {
     cwd,
     timeout: 240_000,
@@ -103,7 +103,7 @@ async function main() {
   }
   process.stdout.write(JSON.stringify({
     status: 'passed',
-    framework: '@modelcontextprotocol/conformance@0.1.16',
+    framework: '@modelcontextprotocol/conformance@0.2.0-alpha.10',
     mode: 'server',
     requirement: '2026-07-28',
     transportUnderTest: 'isolated Streamable HTTP adapter over createFoxyServer',
