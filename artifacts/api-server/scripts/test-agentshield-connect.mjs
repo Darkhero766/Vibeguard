@@ -37,6 +37,16 @@ test('agent detection recognizes project markers without launching agents', asyn
     env: { PATH: '', USERPROFILE: root, VSCODE_PID: '42' },
     platform: process.platform,
   }), ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']);
+
+  const bin = path.join(root, 'bin');
+  await mkdir(bin);
+  const executable = path.join(bin, 'copilot' + (process.platform === 'win32' ? '.cmd' : ''));
+  await writeFile(executable, '');
+  assert.deepEqual(await detectAgents({
+    cwd: root,
+    env: { PATH: bin, USERPROFILE: root },
+    platform: process.platform,
+  }), ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']);
 });
 
 test('Codex TOML and JSON MCP entries escape Windows paths and keep the allowlist narrow', () => {
@@ -102,7 +112,7 @@ test('one connect command configures Claude, Codex, Cursor, Gemini, Roo and Copi
   });
 
   assert.equal(result.status, 'connected');
-  assert.deepEqual(result.results.map((item) => item.host), ['claude', 'codex', 'cursor', 'gemini', 'roo']);
+  assert.deepEqual(result.results.map((item) => item.host), ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']);
   const claude = JSON.parse(await readFile(claudeFile, 'utf8'));
   const cursor = JSON.parse(await readFile(cursorFile, 'utf8'));
   const codex = await readFile(codexFile, 'utf8');
@@ -180,7 +190,7 @@ test('one disconnect command removes only exact managed host entries and preserv
 
   const removed = await disconnectAgentShield(['--agent', 'all', '--cwd', project], options);
   assert.equal(removed.status, 'disconnected');
-  assert.ok(removed.results.every((item) => item.status === 'removed'));
+  assert.deepEqual(removed.results.map((item) => item.status), ['removed', 'removed', 'removed', 'removed', 'removed', 'shared_config']);
   const claude = JSON.parse(await readFile(path.join(project, '.mcp.json'), 'utf8'));
   const cursor = JSON.parse(await readFile(path.join(project, '.cursor', 'mcp.json'), 'utf8'));
   const gemini = JSON.parse(await readFile(path.join(project, '.gemini', 'settings.json'), 'utf8'));

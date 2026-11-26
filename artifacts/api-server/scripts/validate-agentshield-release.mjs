@@ -27,7 +27,6 @@ const TEST_FILES = [
   'test-scan-score.mjs',
   'test-agentshield-mcp.mjs',
   'test-agentshield-jobs.mjs',
-  'test-agentshield-mcp-smoke.mjs',
   'test-agentshield-adversarial.mjs',
   'test-agentshield-python.mjs',
   'test-agentshield-gate.mjs',
@@ -77,7 +76,7 @@ async function runStep(name, program, args, { cwd = root, timeout = 900_000 } = 
     const output = completeOutput.slice(-30_000);
     const tap = completeOutput.match(/# tests (\d+)[\s\S]*?# pass (\d+)[\s\S]*?# fail (\d+)[\s\S]*?# cancelled (\d+)[\s\S]*?# skipped (\d+)/);
     let evidence = null;
-    if (name === 'source-syntax' || name.includes('accuracy-benchmark') || name === 'offline-package-install-cli-mcp-smoke') {
+    if (name === 'source-syntax' || name.includes('accuracy-benchmark') || name === 'offline-package-install-cli-mcp-smoke' || name === 'mcp-stdio-integration-smoke') {
       try { evidence = JSON.parse(stdout); } catch { evidence = { parseError: 'Command output was not valid JSON.' }; }
     }
     const item = {
@@ -125,6 +124,8 @@ async function main() {
   if (build.status === 'passed') {
     await runStep('unit-integration-regression', process.execPath,
       ['--test', '--test-reporter=tap', ...TEST_FILES.map(file => path.join(scriptsDir, file))]);
+    await runStep('mcp-stdio-integration-smoke', process.execPath,
+      [path.join(scriptsDir, 'test-agentshield-mcp-smoke.mjs')], { timeout: 300_000 });
     await runStep('curated-accuracy-benchmark', process.execPath,
       [path.join(scriptsDir, 'benchmark-agentshield-accuracy.mjs')]);
     await runStep('holdout-accuracy-benchmark', process.execPath,
@@ -134,7 +135,7 @@ async function main() {
     await runStep('offline-package-install-cli-mcp-smoke', process.execPath,
       [path.join(scriptsDir, 'test-agentshield-package.mjs')]);
   } else {
-    for (const name of ['unit-integration-regression', 'curated-accuracy-benchmark',
+    for (const name of ['unit-integration-regression', 'mcp-stdio-integration-smoke', 'curated-accuracy-benchmark',
       'holdout-accuracy-benchmark', 'offline-package-install-cli-mcp-smoke']) {
       results.push({ name, status: 'skipped', reason: 'Scanner build failed; dependent validation cannot run.' });
     }
@@ -194,6 +195,11 @@ async function main() {
     && Number.isInteger(testSuite.tests) && testSuite.tests > 0
     && testSuite.passed === testSuite.tests
     && testSuite.failed === 0 && testSuite.cancelled === 0 && testSuite.skipped === 0);
+  const mcpSmokeStep = results.find(item => item.name === 'mcp-stdio-integration-smoke');
+  const mcpSmokeValid = Boolean(mcpSmokeStep?.status === 'passed'
+    && mcpSmokeStep.evidence?.status === 'passed'
+    && mcpSmokeStep.evidence?.protocol === '2026-07-28'
+    && Number.isInteger(mcpSmokeStep.evidence?.tools) && mcpSmokeStep.evidence.tools >= 10);
   const packageStep = results.find(item => item.name === 'offline-package-install-cli-mcp-smoke');
   const expectedPackageChecks = [
     'build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'doctor',
@@ -221,6 +227,7 @@ async function main() {
     ...(!allStepsPassed ? ['one_or_more_required_commands_failed_or_were_skipped'] : []),
     ...(!syntaxEvidenceValid ? ['source_syntax_or_source_fingerprint_evidence_missing'] : []),
     ...(!testSuiteValid ? ['regression_suite_missing_tap_counts_failed_cancelled_or_skipped_tests'] : []),
+    ...(!mcpSmokeValid ? ['real_stdio_mcp_integration_smoke_missing_or_failed'] : []),
     ...(!benchmarkEvidenceValid ? ['curated_or_holdout_benchmark_evidence_missing_or_below_threshold'] : []),
     ...(!additionalBenchmarkValid ? ['additional_adversarial_benchmark_evidence_missing_or_malformed'] : []),
     ...(!packageEvidenceValid ? ['offline_package_install_smoke_or_sha256_evidence_missing'] : []),
@@ -229,7 +236,8 @@ async function main() {
   const allRequiredPassed = qualificationFailures.length === 0;
   const report = {
     schemaVersion: 1,
-    product: 'VibeSane AgentShield',
+    product: 'VibeSane Foxy (AgentShield runtime)',
+    qualificationName: 'Foxy qualification',
     packageVersion: '0.7.0-beta.4',
     status: allRequiredPassed && benchmarkTargetsMet ? 'validation_passed_review_required' : 'not_qualified',
     releaseDecision: allRequiredPassed && benchmarkTargetsMet
@@ -249,6 +257,7 @@ async function main() {
     additionalBenchmarkValid,
     syntaxEvidenceValid,
     testSuiteValid,
+    mcpSmokeValid,
     packageEvidenceValid,
     qualificationFailures,
     failedSteps: failed.map(item => item.name),

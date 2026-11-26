@@ -95,7 +95,7 @@ try {
   const requiredReadmeText = [
     'vibesane connect', '--completion-gate enforce', '--base-ref origin/main',
     'VIBESANE_ALLOWED_ROOTS_JSON', 'mcp-doctor', 'Codex Stop hooks',
-    'init-codex', 'connect --agent cursor', 'uninstall-mcp --host claude',
+    'init-codex', 'connect --agent cursor', 'connect --agent copilot', 'uninstall-mcp --host claude',
   ];
   const missingReadmeText = requiredReadmeText.filter((item) => !packagedReadme.stdout.includes(item));
   assert(missingReadmeText.length === 0,
@@ -138,7 +138,7 @@ try {
   await run('git', ['init', '-q', connectFixture]);
   const connected = JSON.parse((await runCli(['connect', '--agent', 'all', '--cwd', connectFixture], { cwd: temp })).stdout);
   assert(connected.status === 'connected'
-    && connected.results.map(item => item.host).join(',') === 'claude,codex,cursor,gemini,roo',
+    && connected.results.map(item => item.host).join(',') === 'claude,codex,cursor,gemini,roo,copilot',
     'Installed one-command connector did not configure all supported MCP hosts.');
   const connectedClaude = JSON.parse(await readFile(path.join(connectFixture, '.mcp.json'), 'utf8'));
   const connectedCursor = JSON.parse(await readFile(path.join(connectFixture, '.cursor', 'mcp.json'), 'utf8'));
@@ -149,7 +149,8 @@ try {
     && connectedCursor.mcpServers['vibesane-agentshield']?.type === 'stdio'
     && connectedCodex.includes('[mcp_servers.vibesane_agentshield]')
     && connectedGemini.mcpServers['vibesane-agentshield']?.command === process.execPath
-    && connectedRoo.mcpServers['vibesane-agentshield']?.command === process.execPath,
+    && connectedRoo.mcpServers['vibesane-agentshield']?.command === process.execPath
+    && connectedClaude.mcpServers['vibesane-agentshield']?.type === 'stdio',
     'One-command connector did not create all three host entries.');
   const connectedDoctor = JSON.parse((await runCli(['doctor', '--cwd', connectFixture], { cwd: temp })).stdout);
   assert(connectedDoctor.status === 'ready'
@@ -166,7 +167,7 @@ try {
     'Generic MCP mode did not produce an exact workspace-scoped stdio configuration.');
   const disconnected = JSON.parse((await runCli(['disconnect', '--agent', 'all', '--cwd', connectFixture], { cwd: temp })).stdout);
   assert(disconnected.status === 'disconnected'
-    && disconnected.results.every(item => item.status === 'removed'),
+    && disconnected.results.map(item => item.status).join(',') === 'removed,removed,removed,removed,removed,shared_config',
     'Installed one-command disconnect did not remove all exact managed host entries.');
   const postDisconnectClaude = JSON.parse(await readFile(path.join(connectFixture, '.mcp.json'), 'utf8'));
   assert(!postDisconnectClaude.mcpServers?.['vibesane-agentshield'],

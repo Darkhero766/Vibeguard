@@ -1,4 +1,4 @@
-name: AgentShield cross-platform qualification
+name: Foxy qualification
 
 on:
   pull_request:
@@ -8,6 +8,9 @@ on:
       - "artifacts/api-server/scripts/**"
       - "artifacts/api-server/package.json"
       - "artifacts/api-server/skills/**"
+      - "artifacts/vibeguard/src/**"
+      - "artifacts/vibeguard/scripts/**"
+      - "artifacts/vibeguard/package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - ".github/workflows/agentshield-cross-platform.yml"
@@ -17,12 +20,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: agentshield-cross-platform-${{ github.ref }}
-  cancel-in-progress: true
+  group: foxy-qualification-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   qualify:
-    name: AgentShield release qualification (${{ matrix.os }})
+    name: Foxy release qualification (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -34,12 +37,19 @@ jobs:
       npm_config_audit: "false"
       npm_config_fund: "false"
       npm_config_update_notifier: "false"
+      VITE_DEPLOYMENT_ENV: staging
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
+
+      - name: Verify exact Foxy source revision
+        env:
+          FOXY_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node artifacts/api-server/scripts/verify-foxy-source.mjs
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -56,8 +66,8 @@ jobs:
       - name: Install workspace dependencies and provision platform binaries
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build VibeSane web app and static metadata
-        run: pnpm --filter @workspace/vibeguard run build
+      - name: Build VibeSane app and standalone Foxy staging page
+        run: pnpm --filter @workspace/vibeguard run build && pnpm --filter @workspace/vibeguard run test:foxy:page && node artifacts/vibeguard/scripts/staging-postbuild.mjs && node artifacts/vibeguard/scripts/build-foxy-preview.mjs && pnpm --filter @workspace/vibeguard run test:foxy:preview
 
       - name: Run cross-platform connector regression tests
         run: pnpm --filter @workspace/api-server run test:agentshield:connect
@@ -69,9 +79,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: agentshield-${{ matrix.os }}-${{ github.sha }}
+          name: foxy-${{ matrix.os }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             artifacts/api-server/dist/agentshield-release-validation.json
+            artifacts/vibeguard/dist/public/index.html
+            artifacts/vibeguard/dist/public/foxy/index.html
             pnpm-lock.yaml
           if-no-files-found: warn
           retention-days: 14

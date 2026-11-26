@@ -79,7 +79,7 @@ export async function detectAgents({ cwd, env = process.env, platform = process.
     : envValue(env, 'HOME') || envValue(env, 'USERPROFILE') || os.homedir();
   const root = cwd ? path.resolve(cwd) : process.cwd();
   const [claudeProject, codexProject, cursorProject, geminiProject, rooProject,
-    claudeCli, codexCli, cursorCli, geminiCli] = await Promise.all([
+    claudeCli, codexCli, cursorCli, geminiCli, copilotCli] = await Promise.all([
     isDirectory(path.join(root, '.claude')),
     isDirectory(path.join(root, '.codex')),
     isDirectory(path.join(root, '.cursor')),
@@ -89,6 +89,7 @@ export async function detectAgents({ cwd, env = process.env, platform = process.
     commandOnPath('codex', env, platform),
     commandOnPath('cursor', env, platform),
     commandOnPath('gemini', env, platform),
+    commandOnPath('copilot', env, platform),
   ]);
   const claude = Boolean(claudeCli || claudeProject || envValue(env, 'CLAUDE_CODE'));
   const codex = Boolean(codexCli || codexProject || envValue(env, 'CODEX_HOME'));
@@ -96,7 +97,7 @@ export async function detectAgents({ cwd, env = process.env, platform = process.
     || await isDirectory(path.join(home, '.cursor')));
   const gemini = Boolean(geminiCli || geminiProject || envValue(env, 'GEMINI_CLI'));
   const roo = rooProject || Boolean(envValue(env, 'ROO_CODE'));
-  const copilot = Boolean(envValue(env, 'VSCODE_PID') || envValue(env, 'COPILOT_HOME') || envValue(env, 'GITHUB_COPILOT'));
+  const copilot = Boolean(copilotCli || envValue(env, 'VSCODE_PID') || envValue(env, 'COPILOT_HOME') || envValue(env, 'GITHUB_COPILOT'));
   return ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot'].filter((name) =>
     name === 'claude' ? claude : name === 'codex' ? codex : name === 'cursor' ? cursor
       : name === 'gemini' ? gemini : name === 'roo' ? roo : copilot);
@@ -333,7 +334,7 @@ export async function disconnectAgentShield(args = [], overrides = {}) {
   const nodePath = overrides.nodePath || process.execPath;
   const serverPath = overrides.serverPath || path.join(scriptsDir, SERVER_FILE);
   const detected = await detectAgents({ cwd: root, env: overrides.env || process.env, platform: overrides.platform || process.platform });
-  const hosts = agent === 'all' ? ['claude', 'codex', 'cursor', 'gemini', 'roo']
+  const hosts = agent === 'all' ? ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']
     : agent === 'auto' ? detected : [agent];
   const results = [];
   const processedConfigFiles = new Set();
@@ -362,7 +363,7 @@ export async function connectAgentShield(args = [], overrides = {}) {
   const nodePath = overrides.nodePath || process.execPath;
   const serverPath = overrides.serverPath || path.join(scriptsDir, SERVER_FILE);
   const detected = await detectAgents({ cwd: root, env: overrides.env || process.env, platform: overrides.platform || process.platform });
-  const hosts = agent === 'all' ? ['claude', 'codex', 'cursor', 'gemini', 'roo']
+  const hosts = agent === 'all' ? ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']
     : agent === 'auto' ? detected
       : agent === 'mcp' ? [] : [agent];
   const generic = {

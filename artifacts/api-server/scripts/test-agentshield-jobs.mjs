@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+
+const jobWorkspacePath = (name) => path.join(os.tmpdir(), 'foxy-job-workspaces', name);
 import { ScanJobQueue } from './agentshield-jobs.mjs';
 
 const complete = (findings = []) => ({ status: 'complete', filesScanned: 1, findings,
@@ -21,7 +23,7 @@ test('queue coalesces duplicate jobs, enforces backpressure, and paginates findi
   const queue = new ScanJobQueue({ storeDir, concurrency: 1, maxQueued: 1,
     runner: async () => { await gate; return complete(Array.from({ length: 123 }, (_, i) => ({ id: i }))); } });
   try {
-    const first = await queue.submit({ workspace: '/tmp/repo-one' });
+    const first = await queue.submit({ workspace: jobWorkspacePath('repo-one') });
     for (let i = 0; i < 40 && queue.getStatus(first.job_id)?.status !== 'running'; i++) await tick();
     assert.equal(queue.getStatus(first.job_id).status, 'running');
     const publicStatus = queue.getStatus(first.job_id);
@@ -29,11 +31,11 @@ test('queue coalesces duplicate jobs, enforces backpressure, and paginates findi
     assert.equal(Object.hasOwn(publicStatus, 'fingerprint'), false);
     assert.equal(Object.hasOwn(publicStatus, 'idempotencyKey'), false);
     const waiting = queue.wait(first.job_id, 10_000);
-    const duplicate = await queue.submit({ workspace: '/tmp/repo-one' });
+    const duplicate = await queue.submit({ workspace: jobWorkspacePath('repo-one') });
     assert.equal(duplicate.job_id, first.job_id);
     assert.equal(duplicate.deduplicated, true);
-    const second = await queue.submit({ workspace: '/tmp/repo-two' });
-    await assert.rejects(queue.submit({ workspace: '/tmp/repo-three' }), /queue is full/);
+    const second = await queue.submit({ workspace: jobWorkspacePath('repo-two') });
+    await assert.rejects(queue.submit({ workspace: jobWorkspacePath('repo-three') }), /queue is full/);
     assert.equal((await queue.cancel(second.job_id)).status, 'cancelled');
     release();
     await waiting;
@@ -57,7 +59,7 @@ test('queue retries only bounded transient errors and reports scanner failures a
   const attempts = new Map();
   const queue = new ScanJobQueue({ storeDir, concurrency: 1, maxRetries: 1,
     runner: async ({ workspace }) => {
-      if (workspace === '/tmp/foxy-flaky') {
+      if (workspace === jobWorkspacePath('foxy-flaky')) {
         const count = (attempts.get(workspace) || 0) + 1;
         attempts.set(workspace, count);
         if (count === 1) throw Object.assign(new Error('transient'), { code: 'EAGAIN' });
@@ -65,8 +67,8 @@ test('queue retries only bounded transient errors and reports scanner failures a
       return complete();
     } });
   try {
-    const retried = await queue.submit({ workspace: '/tmp/foxy-flaky' });
-    const failed = await queue.submit({ workspace: '/tmp/foxy-broken' });
+    const retried = await queue.submit({ workspace: jobWorkspacePath('foxy-flaky') });
+    const failed = await queue.submit({ workspace: jobWorkspacePath('foxy-broken') });
     // The second submission may fail before the retried job gets its worker
     // slot. Wait for both independent outcomes rather than treating the first
     // terminal job as evidence that the earlier retry has also completed.
@@ -78,7 +80,7 @@ test('queue retries only bounded transient errors and reports scanner failures a
     }
     assert.equal(queue.getStatus(retried.job_id).status, 'completed');
     assert.equal(queue.getStatus(retried.job_id).retries, 1);
-    assert.equal(attempts.get('/tmp/foxy-flaky'), 2);
+    assert.equal(attempts.get(jobWorkspacePath('foxy-flaky')), 2);
     assert.equal(queue.getStatus(failed.job_id).status, 'failed');
     assert.match(queue.getResults(failed.job_id).note, /invalid/);
     assert.equal(queue.getStatus(failed.job_id).scan_status, null);
@@ -95,7 +97,7 @@ test('job timeout fails closed and aborts the scanner signal', async () => {
       else signal.addEventListener('abort', fail, { once: true });
     }) });
   try {
-    const { job_id: id } = await queue.submit({ workspace: '/tmp/foxy-timeout' });
+    const { job_id: id } = await queue.submit({ workspace: jobWorkspacePath('foxy-timeout') });
     for (let i = 0; i < 120 && queue.getStatus(id)?.status !== 'failed'; i++) await tick();
     assert.equal(queue.getStatus(id).status, 'failed');
     assert.match(queue.getStatus(id).error, /time limit/);
@@ -112,7 +114,7 @@ test('running cancellation and restart recovery never turn interrupted work into
   });
   const queue = new ScanJobQueue({ storeDir, concurrency: 1, runner });
   try {
-    const { job_id: id } = await queue.submit({ workspace: '/tmp/repo-restart' });
+    const { job_id: id } = await queue.submit({ workspace: jobWorkspacePath('repo-restart') });
     for (let i = 0; i < 40 && queue.getStatus(id)?.status !== 'running'; i++) await tick();
     assert.equal((await queue.cancel(id)).status, 'running');
     for (let i = 0; i < 40 && queue.getStatus(id)?.status !== 'cancelled'; i++) await tick();
@@ -124,12 +126,12 @@ test('running cancellation and restart recovery never turn interrupted work into
     signal.addEventListener('abort', () => reject(new Error('shutdown')), { once: true });
   });
   const queue2 = new ScanJobQueue({ storeDir, runner: persistentRunner });
-  const { job_id: interruptedId } = await queue2.submit({ workspace: '/tmp/repo-interrupted' });
+  const { job_id: interruptedId } = await queue2.submit({ workspace: jobWorkspacePath('repo-interrupted') });
   for (let i = 0; i < 40 && queue2.getStatus(interruptedId)?.status !== 'running'; i++) await tick();
   await queue2.close();
   await writeFile(path.join(storeDir, 'jobs.json'), JSON.stringify({ version: 1, jobs: [{
     id: interruptedId, type: 'scan_full', scope: 'full', status: 'running', priority: 0,
-    sequence: 1, workspace: '/tmp/repo-interrupted', baseRef: null, idempotencyKey: null,
+    sequence: 1, workspace: jobWorkspacePath('repo-interrupted'), baseRef: null, idempotencyKey: null,
     fingerprint: 'a'.repeat(64), progress: 20, createdAt: 1, updatedAt: 2, retries: 0,
     result: null, error: null,
   }] }));
@@ -161,7 +163,7 @@ test('configured concurrency is enforced while independent jobs run in parallel'
   try {
     const ids = [];
     for (let i = 0; i < 12; i++) {
-      ids.push((await queue.submit({ workspace: `/tmp/parallel-${i}` })).job_id);
+      ids.push((await queue.submit({ workspace: jobWorkspacePath(`parallel-${i}`) })).job_id);
     }
     // Keep both workers blocked until every submission has completed its durable
     // enqueue. This tests persistence and concurrency without racing a fixed
@@ -184,7 +186,7 @@ test('partial scan coverage remains visible in completed job results', async () 
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-storage-limit-'));
   const queue = new ScanJobQueue({ storeDir, runner: async () => ({ status: 'partial_coverage', filesScanned: 0, findings: [], totalFindings: 0 }) });
   try {
-    const { job_id: id } = await queue.submit({ workspace: '/tmp/repo-partial' });
+    const { job_id: id } = await queue.submit({ workspace: jobWorkspacePath('repo-partial') });
     for (let i = 0; i < 40 && queue.getStatus(id)?.status !== 'completed'; i++) await tick();
     assert.equal(queue.getStatus(id).status, 'completed');
     assert.equal(queue.getResults(id).summary.scanStatus, 'partial_coverage');
@@ -198,11 +200,11 @@ test('simultaneous idempotent submissions create exactly one job', async () => {
   const queue = new ScanJobQueue({ storeDir, runner: async () => { await gate; return complete(); } });
   try {
     const submissions = await Promise.all(Array.from({ length: 12 }, () => queue.submit({
-      workspace: '/tmp/idempotent-repo', idempotency_key: 'same-request',
+      workspace: jobWorkspacePath('idempotent-repo'), idempotency_key: 'same-request',
     })));
     assert.equal(new Set(submissions.map((item) => item.job_id)).size, 1);
     assert.equal(submissions.filter((item) => !item.deduplicated).length, 1);
-    await assert.rejects(queue.submit({ workspace: '/tmp/other-repo', idempotency_key: 'same-request' }), /different scan/);
+    await assert.rejects(queue.submit({ workspace: jobWorkspacePath('other-repo'), idempotency_key: 'same-request' }), /different scan/);
     release();
   } finally { release(); await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
 });
@@ -235,10 +237,10 @@ test('persistence retention never evicts an active job', async () => {
   const gate = new Promise((resolve) => { release = resolve; });
   const queue = new ScanJobQueue({ storeDir, concurrency: 1, runner: async () => { await gate; return complete(); } });
   try {
-    const { job_id: activeId } = await queue.submit({ workspace: '/tmp/long-running-repo' });
+    const { job_id: activeId } = await queue.submit({ workspace: jobWorkspacePath('long-running-repo') });
     for (let i = 0; i < 40 && queue.getStatus(activeId)?.status !== 'running'; i++) await tick();
     for (let i = 0; i < 205; i++) {
-      const submitted = await queue.submit({ workspace: `/tmp/history-${i}` });
+      const submitted = await queue.submit({ workspace: jobWorkspacePath(`history-${i}`) });
       await queue.cancel(submitted.job_id);
     }
     assert.equal(queue.getStatus(activeId)?.status, 'running');
@@ -255,7 +257,7 @@ test('wait timeout removes its waiter instead of retaining stale callbacks', asy
   const gate = new Promise((resolve) => { release = resolve; });
   const queue = new ScanJobQueue({ storeDir, runner: async () => { await gate; return complete(); } });
   try {
-    const { job_id: id } = await queue.submit({ workspace: '/tmp/foxy-wait-timeout' });
+    const { job_id: id } = await queue.submit({ workspace: jobWorkspacePath('foxy-wait-timeout') });
     for (let i = 0; i < 40 && queue.getStatus(id)?.status !== 'running'; i++) await tick();
     const status = await queue.wait(id, 25);
     assert.equal(status.status, 'running');
@@ -275,11 +277,11 @@ test('failed durable submission rolls back the unaccepted job and fails closed',
     await queue.init();
     await rm(statePath, { force: true });
     await mkdir(statePath);
-    await assert.rejects(queue.submit({ workspace: '/tmp/foxy-persist-failure' }), /could not persist the scan job/i);
+    await assert.rejects(queue.submit({ workspace: jobWorkspacePath('foxy-persist-failure') }), /could not persist the scan job/i);
     assert.equal(queue.jobs.size, 0);
     assert.equal(queue.active, 0);
     assert.equal(queue.storageFault, true);
-    await assert.rejects(queue.submit({ workspace: '/tmp/foxy-next-submit' }), /storage is unhealthy/i);
+    await assert.rejects(queue.submit({ workspace: jobWorkspacePath('foxy-next-submit') }), /storage is unhealthy/i);
   } finally {
     await rm(statePath, { recursive: true, force: true });
     await queue.close();
@@ -307,7 +309,7 @@ test('completed changed-scan jobs expose recoverable baseline records after rest
   const createdAt = Date.now();
   const baselineContext = {
     scanId: 'baseline-persisted-0001',
-    workspace: '/tmp/foxy-baseline-recovery',
+    workspace: jobWorkspacePath('foxy-baseline-recovery'),
     fingerprint: 'c'.repeat(64),
     ...TEST_BASELINE_PROVENANCE,
     createdAt,
@@ -369,9 +371,9 @@ test('queued cancellation persistence failure fails closed instead of pretending
   const gate = new Promise((resolve) => { release = resolve; });
   const queue = new ScanJobQueue({ storeDir, concurrency: 1, runner: async () => { await gate; return complete(); } });
   try {
-    const first = await queue.submit({ workspace: '/tmp/foxy-cancel-running' });
+    const first = await queue.submit({ workspace: jobWorkspacePath('foxy-cancel-running') });
     for (let i = 0; i < 40 && queue.getStatus(first.job_id)?.status !== 'running'; i++) await tick();
-    const queued = await queue.submit({ workspace: '/tmp/foxy-cancel-queued' });
+    const queued = await queue.submit({ workspace: jobWorkspacePath('foxy-cancel-queued') });
     await rm(statePath, { force: true });
     await mkdir(statePath);
     await assert.rejects(queue.cancel(queued.job_id), /could not persist cancellation/i);
@@ -393,7 +395,7 @@ test('expired or malformed persisted baseline contexts never return usable scan 
   const fixedNow = 50_000;
   const context = {
     scanId: 'baseline-expired-0001',
-    workspace: '/tmp/foxy-expired-baseline',
+    workspace: jobWorkspacePath('foxy-expired-baseline'),
     fingerprint: 'd'.repeat(64),
     createdAt: 1000,
     expiresAt: 2000,
@@ -432,7 +434,7 @@ test('queue does not expose baseline IDs when persisted finding metadata is malf
   const createdAt = Date.now();
   const context = {
     scanId: 'baseline-invalid-findings-01',
-    workspace: '/tmp/foxy-invalid-findings',
+    workspace: jobWorkspacePath('foxy-invalid-findings'),
     fingerprint: 'f'.repeat(64),
     createdAt,
     expiresAt: createdAt + 60_000,
@@ -500,7 +502,7 @@ test('initial queue checkpoint failure leaves the queue uninitialized and releas
     assert.equal(queue.storageFault, true);
     assert.equal(queue.jobs.size, 0);
     assert.equal(runnerCalls, 0);
-    await assert.rejects(queue.submit({ workspace: '/tmp/foxy-initial-failure' }), /initialization previously failed/i);
+    await assert.rejects(queue.submit({ workspace: jobWorkspacePath('foxy-initial-failure') }), /initialization previously failed/i);
     await assert.rejects(readFile(path.join(storeDir, 'jobs.lock'), 'utf8'), { code: 'ENOENT' });
   } finally {
     await queue.close();
@@ -540,7 +542,7 @@ test('queue priority aging prevents older normal jobs being starved by newer urg
     concurrency: 1,
     now: () => now,
     runner: async ({ workspace }) => {
-      if (workspace === '/tmp/foxy-aging-active') {
+      if (workspace === jobWorkspacePath('foxy-aging-active')) {
         signalActive();
         await activeGate;
       } else executionOrder.push(workspace);
@@ -549,18 +551,18 @@ test('queue priority aging prevents older normal jobs being starved by newer urg
   });
   try {
     await queue.init();
-    await queue.submit({ workspace: '/tmp/foxy-aging-active', scope: 'full' });
+    await queue.submit({ workspace: jobWorkspacePath('foxy-aging-active'), scope: 'full' });
     await activeStarted;
-    const older = await queue.submit({ workspace: '/tmp/foxy-aging-older', scope: 'full', priority: 0 });
+    const older = await queue.submit({ workspace: jobWorkspacePath('foxy-aging-older'), scope: 'full', priority: 0 });
     now += 60_000;
-    const newer = await queue.submit({ workspace: '/tmp/foxy-aging-newer', scope: 'full', priority: 3 });
+    const newer = await queue.submit({ workspace: jobWorkspacePath('foxy-aging-newer'), scope: 'full', priority: 3 });
     const olderStatus = queue.getStatus(older.job_id);
     assert.ok(olderStatus.queue_wait_ms >= 60_000);
     assert.equal(olderStatus.execution_ms, null);
     releaseActive();
     await queue.wait(newer.job_id, 5000);
     await queue.wait(older.job_id, 5000);
-    assert.deepEqual(executionOrder, ['/tmp/foxy-aging-older', '/tmp/foxy-aging-newer']);
+    assert.deepEqual(executionOrder, [jobWorkspacePath('foxy-aging-older'), jobWorkspacePath('foxy-aging-newer')]);
     const finished = queue.getStatus(older.job_id);
     assert.ok(finished.queue_wait_ms >= 60_000);
     assert.equal(typeof finished.execution_ms, 'number');
