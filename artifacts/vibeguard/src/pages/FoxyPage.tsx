@@ -13,7 +13,7 @@ const hosts = [
   { name: 'Cursor', id: 'cursor', detail: 'Project-level .cursor/mcp.json registration' },
   { name: 'Gemini CLI', id: 'gemini', detail: 'Project-level .gemini/settings.json registration' },
   { name: 'Roo Code', id: 'roo', detail: 'Project-level .roo/mcp.json registration' },
-  { name: 'GitHub Copilot', id: 'copilot', detail: 'VS Code workspace MCP / Copilot CLI detection' },
+  { name: 'GitHub Copilot', id: 'copilot', detail: 'Workspace-root .mcp.json; VS Code guided setup may require chat.mcp.workspaceRootConfig.enabled' },
 ];
 
 const boundaries = [
