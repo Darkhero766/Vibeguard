@@ -3,7 +3,7 @@
 // Uses only a synthetic disposable Git repository; never runs customer project code.
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -96,8 +96,10 @@ try {
     && packagedReadme.stdout.includes('VIBESANE_ALLOWED_ROOTS_JSON')
     && packagedReadme.stdout.includes('mcp-doctor')
     && packagedReadme.stdout.includes('Codex Stop hooks')
-    && packagedReadme.stdout.includes('init-codex'),
-    'Packaged README omits commit-aware Claude/Codex completion enforcement instructions.');
+    && packagedReadme.stdout.includes('init-codex')
+    && packagedReadme.stdout.includes('setup --host cursor')
+    && packagedReadme.stdout.includes('uninstall-mcp --host claude'),
+    'Packaged README omits MCP setup or completion-enforcement instructions.');
 
   await run('npm', ['install', '--global', '--ignore-scripts', '--offline', '--no-audit', '--no-fund', '--prefix', installPrefix, archive], {
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_offline: 'true' },
@@ -150,6 +152,9 @@ try {
     && cursorEntry.args[0].endsWith(path.join('scripts', 'agentshield-mcp-stdio.mjs'))
     && cursorEntry.env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture]),
     'Cursor setup did not create a project-scoped STDIO entry with an exact root allowlist.');
+  const cursorDoctor = JSON.parse((await run(cli, ['doctor', '--cwd', fixture], { cwd: temp })).stdout);
+  assert(cursorDoctor.status === 'ready' && cursorDoctor.checks.cursorMcpConfigured === true,
+    'Doctor did not detect the managed Cursor MCP entry.');
   const backupConfig = JSON.parse(await readFile(cursorSetup.backup, 'utf8'));
   assert(backupConfig.customSetting === 'preserve-me' && !backupConfig.mcpServers['vibesane-agentshield'],
     'Cursor setup backup did not preserve the original config.');
@@ -170,9 +175,24 @@ try {
     && claudeConfig.mcpServers['vibesane-agentshield'].command === process.execPath
     && claudeConfig.mcpServers['vibesane-agentshield'].env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([fixture]),
     'Claude Code setup did not write a project-scoped MCP config.');
+  const claudeDoctor = JSON.parse((await run(cli, ['doctor', '--cwd', fixture], { cwd: temp })).stdout);
+  assert(claudeDoctor.status === 'ready' && claudeDoctor.checks.claudeMcpConfigured === true,
+    'Doctor did not detect the managed Claude MCP entry.');
   await run(cli, ['uninstall-mcp', '--host', 'claude', '--cwd', fixture], { cwd: temp });
   const claudeAfterRemove = JSON.parse(await readFile(claudeConfigPath, 'utf8'));
   assert(!claudeAfterRemove.mcpServers, 'Claude MCP uninstaller left its managed entry behind.');
+
+  const symlinkFixture = path.join(temp, 'symlink-fixture');
+  const externalConfig = path.join(temp, 'external-mcp-config.json');
+  await mkdir(symlinkFixture, { recursive: true });
+  await run('git', ['init', '-q', symlinkFixture]);
+  await writeFile(externalConfig, JSON.stringify({ mcpServers: { safe: { command: 'leave-alone' } } }));
+  await symlink(externalConfig, path.join(symlinkFixture, '.mcp.json'));
+  let symlinkRejected = false;
+  try { await run(cli, ['setup', '--host', 'claude', '--cwd', symlinkFixture], { cwd: temp }); }
+  catch { symlinkRejected = true; }
+  assert(symlinkRejected && JSON.parse(await readFile(externalConfig, 'utf8')).mcpServers.safe.command === 'leave-alone',
+    'Claude setup did not reject a symlinked config file safely.');
 
   const codexInit = await run(cli, ['init-codex', '--cwd', fixture], { cwd: temp });
   const codexInstall = JSON.parse(codexInit.stdout);

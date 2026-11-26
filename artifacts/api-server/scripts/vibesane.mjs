@@ -277,7 +277,8 @@ async function doctor(args) {
   const checks = { node: Number(process.versions.node.split('.')[0]) >= 20,
     platform: process.platform !== 'win32', builtScanner: await isFile(dist),
     gitRepository: false, hooksInstalled: false, claudeHooksInstalled: false,
-    codexStopHookInstalled: false, settingsReadable: true };
+    codexStopHookInstalled: false, claudeMcpConfigured: false,
+    cursorMcpConfigured: false, settingsReadable: true };
   let root = null;
   try {
     const r = await exec('git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null',
@@ -304,11 +305,24 @@ async function doctor(args) {
       checks.codexStopHookInstalled = (stop || []).some(entry => entry?.hooks?.some(hook =>
         typeof hook?.command === 'string' && hook.command.includes('agentshield-codex-stop.mjs')));
     } catch { checks.settingsReadable = false; }
+    try {
+      const config = await readSafeJsonFile(path.join(root, '.mcp.json'));
+      checks.claudeMcpConfigured = sameJson(config?.mcpServers?.['vibesane-agentshield'], foxyMcpEntry('claude', root));
+    } catch { checks.settingsReadable = false; }
+    try {
+      const cursorDir = path.join(root, '.cursor');
+      const directory = await lstat(cursorDir).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+      if (directory && (!directory.isDirectory() || directory.isSymbolicLink())) throw new Error('Unsafe Cursor configuration directory.');
+      if (directory) {
+        const config = await readSafeJsonFile(path.join(cursorDir, 'mcp.json'));
+        checks.cursorMcpConfigured = sameJson(config?.mcpServers?.['vibesane-agentshield'], foxyMcpEntry('cursor', root));
+      }
+    } catch { checks.settingsReadable = false; }
     checks.hooksInstalled = checks.claudeHooksInstalled || checks.codexStopHookInstalled;
   }
   const ready = checks.node && checks.platform && checks.builtScanner && checks.gitRepository && checks.settingsReadable;
   process.stdout.write(JSON.stringify({ status: ready ? 'ready' : 'not_ready',
-    root: root || null, checks, note: 'Hooks must be installed separately; Codex and Claude Code hook status is reported when the project config is readable. No repository code was executed.' }) + '\n');
+    root: root || null, checks, note: 'Hook and project MCP registration status is reported when configuration is readable. No repository code was executed.' }) + '\n');
   return ready ? 0 : 2;
 }
 async function mcpDoctor() {
