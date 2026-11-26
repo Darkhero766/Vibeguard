@@ -19,9 +19,22 @@ function safeBaselinePath(value) {
   const normalized = value.replaceAll('\\', '/');
   return !normalized.split('/').includes('..') && !normalized.startsWith('/');
 }
-function validBaselineContext(context, job, now) {
+function validBaselineProvenance(value) {
+  return Boolean(value && typeof value === 'object'
+    && typeof value.scannerFingerprint === 'string' && /^[a-f0-9]{64}$/i.test(value.scannerFingerprint)
+    && typeof value.rulesetVersion === 'string' && value.rulesetVersion.length > 0 && value.rulesetVersion.length <= 200
+    && Number.isSafeInteger(value.reportSchemaVersion) && value.reportSchemaVersion > 0);
+}
+function sameBaselineProvenance(left, right) {
+  return validBaselineProvenance(left) && validBaselineProvenance(right)
+    && left.scannerFingerprint === right.scannerFingerprint
+    && left.rulesetVersion === right.rulesetVersion
+    && left.reportSchemaVersion === right.reportSchemaVersion;
+}
+function validBaselineContext(context, job, now, expectedProvenance) {
   const result = job?.result;
-  return Boolean(context && job && typeof context.scanId === 'string'
+  return Boolean(validBaselineProvenance(context) && sameBaselineProvenance(context, expectedProvenance)
+    && context && job && typeof context.scanId === 'string'
     && context.scanId.length >= 16 && context.scanId.length <= 80
     && context.scanId === result?.scanId
     && context.workspace === job.workspace
@@ -50,13 +63,15 @@ function validBaselineContext(context, job, now) {
 }
 
 export class ScanJobQueue extends EventEmitter {
-  constructor({ storeDir, runner, concurrency = 2, maxQueued = 16, timeoutMs = 60_000, maxRetries = 1, now = Date.now } = {}) {
+  constructor({ storeDir, runner, concurrency = 2, maxQueued = 16, timeoutMs = 60_000, maxRetries = 1, now = Date.now,
+    baselineProvenance = null, writeSnapshot = null } = {}) {
     super();
     if (typeof runner !== 'function') throw new TypeError('A scan job runner is required.');
     if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4) throw new TypeError('Concurrency must be between 1 and 4.');
     if (!Number.isInteger(maxQueued) || maxQueued < 1 || maxQueued > 100) throw new TypeError('Queue limit must be between 1 and 100.');
     if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 300_000) throw new TypeError('Job timeout must be between 1 and 300 seconds.');
     if (!Number.isInteger(maxRetries) || maxRetries < 0 || maxRetries > 2) throw new TypeError('Retries must be between 0 and 2.');
+    if (writeSnapshot !== null && typeof writeSnapshot !== 'function') throw new TypeError('writeSnapshot must be a function when supplied.');
     this.storeDir = storeDir;
     this.runner = runner;
     this.concurrency = concurrency;
@@ -64,6 +79,8 @@ export class ScanJobQueue extends EventEmitter {
     this.timeoutMs = timeoutMs;
     this.maxRetries = maxRetries;
     this.now = now;
+    this.baselineProvenance = baselineProvenance;
+    this.writeSnapshot = writeSnapshot;
     this.jobs = new Map();
     this.controllers = new Map();
     this.tasks = new Set();
@@ -76,6 +93,18 @@ export class ScanJobQueue extends EventEmitter {
 
   async init() {
     if (this.initialized) return;
+    if (this.storageFault) throw new Error('Foxy job-store initialization previously failed; repair storage and restart the MCP server.');
+    if (this.initializingPromise) return this.initializingPromise;
+    const pending = this.#initialize();
+    this.initializingPromise = pending;
+    try {
+      await pending;
+    } finally {
+      if (this.initializingPromise === pending) this.initializingPromise = null;
+    }
+  }
+
+  async #initialize() {
     if (!path.isAbsolute(this.storeDir || '')) throw new Error('Job store path must be absolute.');
     await mkdir(this.storeDir, { recursive: true, mode: 0o700 });
     const dirInfo = await lstat(this.storeDir);
@@ -104,11 +133,15 @@ export class ScanJobQueue extends EventEmitter {
             || !Number.isFinite(job.createdAt) || !Number.isFinite(job.updatedAt)
             || !Number.isInteger(job.progress) || job.progress < 0 || job.progress > 100
             || !Number.isInteger(job.retries) || job.retries < 0 || job.retries > 2) throw new Error('Job state fields are invalid.');
-          if (job.status === 'completed' && (!job.result || !['complete', 'partial_coverage'].includes(job.result.status)
-            || !Array.isArray(job.result.findings) || job.result.findings.length > 1000
-            || !Number.isSafeInteger(job.result.filesScanned) || job.result.filesScanned < 0
-            || !Number.isSafeInteger(job.result.totalFindings) || job.result.totalFindings < job.result.findings.length)) {
-            throw new Error('Completed job result is invalid; refusing to report it.');
+          if (job.status === 'completed') {
+            if (!job.result || typeof job.result !== 'object' || Array.isArray(job.result)
+              || !['complete', 'partial_coverage'].includes(job.result.status)
+              || !Array.isArray(job.result.findings) || job.result.findings.length > MAX_RECORDS
+              || job.result.findings.some((finding) => !finding || typeof finding !== 'object' || Array.isArray(finding))
+              || !Number.isSafeInteger(job.result.filesScanned) || job.result.filesScanned < 0
+              || !Number.isSafeInteger(job.result.totalFindings) || job.result.totalFindings < job.result.findings.length)) {
+              throw new Error('Completed job result is invalid; refusing to report it.');
+            }
           }
           if (job.status !== 'completed' && job.result !== null) throw new Error('Non-completed job contains a result.');
           if (job.status === 'queued' || job.status === 'running') {
@@ -120,11 +153,15 @@ export class ScanJobQueue extends EventEmitter {
           this.jobs.set(job.id, job);
         }
       }
-      this.initialized = true;
+      // The queue is considered initialized only after its first durable
+      // checkpoint succeeds while this process still owns the exclusive lock.
       await this.#persist();
+      this.initialized = true;
     } catch (error) {
+      this.initialized = false;
+      this.storageFault = true;
       await this.#releaseLock();
-      throw error;
+      throw new Error('Foxy job-store initialization failed its initial durable checkpoint; no scans were accepted. Repair storage and restart the MCP server.', { cause: error });
     }
   }
 
@@ -180,6 +217,7 @@ export class ScanJobQueue extends EventEmitter {
 
   async #persist() {
     const write = async () => {
+    if (!this.lockHandle || !this.lockToken) throw new Error('Job state cannot be persisted without the exclusive process lock.');
     // Active work must remain addressable even when old history is trimmed.
     const all = [...this.jobs.values()].sort((a, b) => a.createdAt - b.createdAt);
     const active = all.filter((job) => job.status === 'queued' || job.status === 'running');
@@ -194,16 +232,20 @@ export class ScanJobQueue extends EventEmitter {
       data = JSON.stringify({ version: 1, jobs: records });
     }
     if (Buffer.byteLength(data) > MAX_STATE_BYTES) throw new Error('Active job state exceeds its storage budget.');
-    const temp = `${this.statePath}.${process.pid}.${randomUUID()}.tmp`;
-    try {
-      const handle = await open(temp, 'wx', 0o600);
-      try { await handle.writeFile(data); await handle.sync(); } finally { await handle.close(); }
-      await rename(temp, this.statePath);
-      const directory = await open(this.storeDir, constants.O_RDONLY);
-      try { await directory.sync(); } finally { await directory.close(); }
-    } catch (error) {
-      await unlink(temp).catch(() => {});
-      throw error;
+    if (this.writeSnapshot) {
+      await this.writeSnapshot({ data, statePath: this.statePath, storeDir: this.storeDir });
+    } else {
+      const temp = `${this.statePath}.${process.pid}.${randomUUID()}.tmp`;
+      try {
+        const handle = await open(temp, 'wx', 0o600);
+        try { await handle.writeFile(data); await handle.sync(); } finally { await handle.close(); }
+        await rename(temp, this.statePath);
+        const directory = await open(this.storeDir, constants.O_RDONLY);
+        try { await directory.sync(); } finally { await directory.close(); }
+      } catch (error) {
+        await unlink(temp).catch(() => {});
+        throw error;
+      }
     }
     // Prune only terminal history from the live map. Replacing the Map with
     // this snapshot could erase jobs submitted while the write was in flight.
@@ -374,7 +416,7 @@ export class ScanJobQueue extends EventEmitter {
     const now = this.now();
     return [...this.jobs.values()]
       .filter((job) => job.status === 'completed' && job.scope === 'changed'
-        && validBaselineContext(job.result?.baselineContext, job, now))
+        && validBaselineContext(job.result?.baselineContext, job, now, this.baselineProvenance))
       .sort((a, b) => a.createdAt - b.createdAt)
       .map((job) => {
         const { baselineContext, ...result } = job.result;
@@ -412,8 +454,9 @@ export class ScanJobQueue extends EventEmitter {
     const findings = job.result.findings || [];
     const context = job.result.baselineContext;
     const now = this.now();
-    const baselineAvailable = validBaselineContext(context, job, now);
+    const baselineAvailable = validBaselineContext(context, job, now, this.baselineProvenance);
     const baselineExpired = Boolean(context && Number.isSafeInteger(context.expiresAt) && context.expiresAt <= now);
+    const baselineStale = Boolean(context && !sameBaselineProvenance(context, this.baselineProvenance));
     const baselineRemaining = baselineAvailable ? context.expiresAt - now : context ? 0 : null;
     return { job_id: id, status: job.status, summary: { scanStatus: job.result.status, filesScanned: job.result.filesScanned,
       totalFindings: job.result.totalFindings ?? findings.length, coverage: job.result.coverage,
@@ -421,7 +464,8 @@ export class ScanJobQueue extends EventEmitter {
     scan_id: baselineAvailable ? context.scanId : null,
     baseline_expires_in_ms: baselineAvailable ? baselineRemaining : context ? 0 : null,
     baseline_expired: baselineExpired,
-    baseline_unavailable: Boolean(context && !baselineAvailable && !baselineExpired),
+    baseline_stale: baselineStale,
+    baseline_unavailable: Boolean(context && !baselineAvailable && !baselineExpired && !baselineStale),
     offset, limit, findings: findings.slice(offset, offset + limit),
     next_offset: offset + limit < findings.length ? offset + limit : null };
   }

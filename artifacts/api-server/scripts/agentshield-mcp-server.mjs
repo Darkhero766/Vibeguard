@@ -23,6 +23,7 @@ const MAX_FILE_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 8_000_000;
 const baselineStore = new BaselineStore({ maxEntries: 200, ttlMs: 30 * 60 * 1000 });
 const BASELINE_TTL_MS = 30 * 60 * 1000;
+const BASELINE_REPORT_SCHEMA_VERSION = 1;
 const authorizedRootIdentities = new Map();
 const MODERN_PROTOCOL = '2026-07-28';
 const LEGACY_PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
@@ -507,14 +508,44 @@ export function compareFindings(previous, current) {
   }
   return { removed, remaining, newFindings };
 }
-function rememberBaseline(root, fingerprint, result) {
-  return baselineStore.remember(root, fingerprint, result);
+export async function getBaselineProvenance() {
+  // Fingerprint the exact scanner artifact used by the local MCP server.
+  const handle = await open(SCANNER, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+  let bytes;
+  try {
+    const info = await handle.stat();
+    if (!info.isFile() || info.size < 1 || info.size > 50_000_000) {
+      throw new Error('AgentShield scanner artifact is missing or outside its size budget.');
+    }
+    bytes = await handle.readFile();
+  } finally {
+    await handle.close();
+  }
+  const scannerFingerprint = sha256(bytes);
+  return {
+    scannerFingerprint,
+    rulesetVersion: `agentshield-${SERVER_INFO.version}:${scannerFingerprint.slice(0, 24)}`,
+    reportSchemaVersion: BASELINE_REPORT_SCHEMA_VERSION,
+  };
 }
-export function restoreBaseline(record) {
-  return baselineStore.restore(record);
+function sameProvenance(left, right) {
+  return Boolean(left && right
+    && left.scannerFingerprint === right.scannerFingerprint
+    && left.rulesetVersion === right.rulesetVersion
+    && left.reportSchemaVersion === right.reportSchemaVersion);
 }
-function getBaseline(scanId, root) {
-  return baselineStore.get(scanId, root);
+function rememberBaseline(root, fingerprint, result, provenance) {
+  return baselineStore.remember(root, fingerprint, result, provenance);
+}
+export async function restoreBaseline(record) {
+  const provenance = await getBaselineProvenance();
+  return baselineStore.restore(record, provenance);
+}
+async function getBaseline(scanId, root) {
+  const baseline = baselineStore.get(scanId, root);
+  if (!baseline) return null;
+  const current = await getBaselineProvenance();
+  return sameProvenance(baseline, current) ? baseline : { ...baseline, stale: true };
 }
 export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, { signal, progress = () => {} } = {}) {
   throwIfAborted(signal);
@@ -548,7 +579,12 @@ export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, 
   progress(10);
   throwIfAborted(signal);
   progress(20);
+  const provenance = await getBaselineProvenance();
   const result = await runScanner(snapshot.root, snapshot.candidatePaths, signal, snapshot.baseCommit);
+  const provenanceAfter = await getBaselineProvenance();
+  if (!sameProvenance(provenance, provenanceAfter)) {
+    throw new Error('AgentShield scanner artifact changed during the scan; results and baseline are UNKNOWN.');
+  }
   progress(90);
   const after = await workspaceSnapshot(snapshot.root, signal, baseRef);
   progress(98);
@@ -565,9 +601,11 @@ export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, 
   if (scopedResult.status === 'complete') {
     // Persist the resolved scope (not just a symbolic ref) with the baseline.
     const baselineResult = { ...scopedResult, ...(after.baseCommit ? { baseRef: after.baseCommit } : {}) };
-    const baseline = rememberBaseline(snapshot.root, after.fingerprint, baselineResult);
+    const baseline = rememberBaseline(snapshot.root, after.fingerprint, baselineResult, provenance);
     const baselineContext = { scanId: baseline.scanId, workspace: baseline.workspace,
-      fingerprint: baseline.fingerprint, createdAt: baseline.createdAt, expiresAt: baseline.expiresAt };
+      fingerprint: baseline.fingerprint, scannerFingerprint: baseline.scannerFingerprint,
+      rulesetVersion: baseline.rulesetVersion, reportSchemaVersion: baseline.reportSchemaVersion,
+      createdAt: baseline.createdAt, expiresAt: baseline.expiresAt };
     return { ...baselineResult, scanId: baseline.scanId,
       baselineExpiresInMs: Math.max(0, baseline.expiresAt - Date.now()), baselineContext };
   }
@@ -710,9 +748,13 @@ export async function scanFull({ workspace } = {}, { signal, progress = () => {}
 export async function listFindings(workspace, scanId, { signal, baseRef = null } = {}) {
   throwIfAborted(signal);
   const snapshot = await workspaceSnapshot(workspace, signal, baseRef);
-  const baseline = getBaseline(scanId, snapshot.root);
+  const baseline = await getBaseline(scanId, snapshot.root);
   if (!baseline) {
     return { status: 'baseline_not_found', findings: [], note: 'The scan_id is unknown, expired, or belongs to a different workspace. Run scan_changed again.' };
+  }
+  if (baseline.stale) {
+    return { status: 'baseline_stale', scanId, findings: [], securityGuarantee: false,
+      note: 'The scanner artifact, ruleset or report schema changed after this baseline. Run scan_changed again before comparing findings.' };
   }
   if ((baseline.result.baseRef || null) !== (snapshot.baseCommit || null)) {
     return { status: 'rescan_required', scanId, findings: [],
@@ -730,11 +772,17 @@ export async function listFindings(workspace, scanId, { signal, baseRef = null }
 export async function verifyRemediation(workspace, baselineId, { signal, baseRef = null } = {}) {
   throwIfAborted(signal);
   const before = await workspaceSnapshot(workspace, signal, baseRef);
-  const baseline = getBaseline(baselineId, before.root);
+  const baseline = await getBaseline(baselineId, before.root);
   if (!baseline) return {
     status: 'no_baseline',
     securityGuarantee: false,
     note: 'The baseline_id is unknown, expired, or belongs to a different workspace. Run scan_changed before editing.',
+  };
+  if (baseline.stale) return {
+    status: 'verification_incomplete',
+    baselineId,
+    securityGuarantee: false,
+    note: 'The scanner artifact, ruleset or report schema changed after this baseline. Run scan_changed again before verifying remediation.',
   };
   if ((baseline.result.baseRef || null) !== (before.baseCommit || null)) {
     return {
@@ -757,7 +805,16 @@ export async function verifyRemediation(workspace, baselineId, { signal, baseRef
       note: 'No supported changed source files remain. Remediation cannot be verified from the available changed-file scope.',
     };
   }
+  const provenanceBefore = await getBaselineProvenance();
+  if (!sameProvenance(baseline, provenanceBefore)) return {
+    status: 'verification_incomplete', baselineId, securityGuarantee: false,
+    note: 'The scanner artifact, ruleset or report schema changed; create a new baseline before verifying remediation.',
+  };
   const current = await runScanner(before.root, before.candidatePaths, signal, before.baseCommit);
+  const provenanceAfter = await getBaselineProvenance();
+  if (!sameProvenance(provenanceBefore, provenanceAfter)) {
+    throw new Error('AgentShield scanner artifact changed during remediation verification; status UNKNOWN.');
+  }
   const after = await workspaceSnapshot(before.root, signal, baseRef);
   if (before.fingerprint !== after.fingerprint) throw new Error('Workspace changed during the verification scan; status UNKNOWN.');
   if (before.unsupportedChangedPaths.length || before.ignoredChangedPaths.length || baseline.result.status !== 'complete' || current.status !== 'complete') {

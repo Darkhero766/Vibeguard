@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { cursorStopEligibility } from './agentshield-controller.mjs';
 import {
   TOOL_DEFS,
   compareFindings,
@@ -589,4 +590,35 @@ test('workspace snapshots hash dirty file contents and disclose unsupported chan
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+
+
+test('Cursor Stop ignores aborted, errored and malformed events without scanning', () => {
+  for (const status of ['aborted', 'error', 'unknown', undefined]) {
+    assert.deepEqual(cursorStopEligibility({ status, loop_count: 0 }), {
+      shouldScan: false, allowFollowup: false,
+    });
+  }
+  assert.deepEqual(cursorStopEligibility({ status: 'completed' }), {
+    shouldScan: false, allowFollowup: false,
+  });
+  assert.deepEqual(cursorStopEligibility({ status: 'completed', loop_count: -1 }), {
+    shouldScan: false, allowFollowup: false,
+  });
+});
+
+test('Cursor Stop follow-ups are bounded by the configured two-iteration budget', () => {
+  assert.deepEqual(cursorStopEligibility({ status: 'completed', loop_count: 0 }), {
+    shouldScan: true, allowFollowup: true,
+  });
+  assert.deepEqual(cursorStopEligibility({ status: 'completed', loop_count: 1 }), {
+    shouldScan: true, allowFollowup: true,
+  });
+  assert.deepEqual(cursorStopEligibility({ status: 'completed', loop_count: 2 }), {
+    shouldScan: true, allowFollowup: false,
+  });
+  assert.deepEqual(cursorStopEligibility({ status: 'completed', loop_count: 3 }), {
+    shouldScan: true, allowFollowup: false,
+  });
 });

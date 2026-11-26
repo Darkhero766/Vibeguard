@@ -243,7 +243,7 @@ async function postEdit(event, root, config) {
   if (!result.novel && config.mode === 'auto-fix') return null; // avoid repeating unchanged repair instructions
   return resultForHook('PostToolUse', contextLines(result.entry, config));
 }
-async function atStop(event, root, config) {
+async function atStop(event, root, config, { allowRepairRequest = true } = {}) {
   // Recursive Stop events still run the gate. They suppress new auto-fix requests,
   // but must not bypass an explicitly enforced completion policy.
   const recursiveStop = event.stop_hook_active === true;
@@ -271,7 +271,8 @@ async function atStop(event, root, config) {
       Date.now() - f.firstSeen < config.timeBudgetSeconds * 1000 &&
       f.lastStopSignature !== f.signature);
     let message = null;
-    if (pending && gate.blocking > 0 && !unscanned.length && config.mode === 'auto-fix' && !recursiveStop) {
+    if (pending && gate.blocking > 0 && !unscanned.length && config.mode === 'auto-fix'
+      && !recursiveStop && allowRepairRequest) {
       pending.lastStopSignature = pending.signature;
       pending.history.push({ event: 'repair_requested', at: Date.now() });
       message = contextLines(pending, config) +
@@ -300,11 +301,23 @@ function stopGatePayload(reason, event) {
     : { decision: 'block', reason: safeReason };
 }
 
+export function cursorStopEligibility(event, loopLimit = 2) {
+  if (!event || event.status !== 'completed') return { shouldScan: false, allowFollowup: false };
+  if (!Number.isSafeInteger(event.loop_count) || event.loop_count < 0) {
+    return { shouldScan: false, allowFollowup: false };
+  }
+  if (!Number.isSafeInteger(loopLimit) || loopLimit < 1) throw new TypeError('Cursor loop limit must be a positive integer.');
+  return { shouldScan: true, allowFollowup: event.loop_count < loopLimit };
+}
+
 export async function handleHook(kind, { surface = 'claude' } = {}) {
   let event = {};
+  let cursorStop = null;
   try {
     event = await readHookInput();
     if (surface === 'cursor') {
+      cursorStop = kind === 'Stop' ? cursorStopEligibility(event) : { shouldScan: true, allowFollowup: true };
+      if (!cursorStop.shouldScan) return;
       // Cursor supplies the trusted project root through this documented hook env var.
       // Prefer it over event-provided paths; never accept a workspace path from repository text.
       const projectRoot = process.env.CURSOR_PROJECT_DIR;
@@ -320,16 +333,20 @@ export async function handleHook(kind, { surface = 'claude' } = {}) {
     if (!config.enabled) {
       if (kind === 'Stop' && config.completionGate === 'enforce') {
         const reason = 'VibeSane AgentShield: enforcement is enabled but the scanner is disabled. Security status is UNKNOWN; restore the scanner or explicitly change the project policy.';
-        if (surface === 'cursor') printJSON({ followup_message: reason });
-        else printJSON(stopGatePayload(reason, event));
+        if (surface === 'cursor') {
+          if (cursorStop?.allowFollowup) printJSON({ followup_message: reason });
+        } else printJSON(stopGatePayload(reason, event));
       }
       return;
     }
-    const response = kind === 'Stop' ? await atStop(event, root, config) : await postEdit(event, root, config);
+    const response = kind === 'Stop'
+      ? await atStop(event, root, config, { allowRepairRequest: surface !== 'cursor' || cursorStop?.allowFollowup === true })
+      : await postEdit(event, root, config);
     if (!response) return;
     if (surface === 'cursor') {
-      // Cursor Stop hooks use followup_message to continue the agent loop.
-      // atStop already enforces the project retry budget and records the signature.
+      // Cursor only consumes follow-ups for completed events. Its configured
+      // loop_limit is 2; at the cap, scan but do not consume a repair attempt.
+      if (!cursorStop?.allowFollowup) return;
       const followup = response.reason || response.systemMessage ||
         'VibeSane AgentShield: security status is UNKNOWN. Run a fresh scan before claiming a security pass.';
       printJSON({ followup_message: brief(followup, 3500) });
@@ -351,7 +368,7 @@ export async function handleHook(kind, { surface = 'claude' } = {}) {
   } catch {
     const reason = 'VibeSane AgentShield: hook execution failed. Security status is UNKNOWN; restore the hook or complete an approved manual scan before delivery.';
     if (surface === 'cursor') {
-      printJSON({ followup_message: reason });
+      if (cursorStop?.allowFollowup) printJSON({ followup_message: reason });
     } else if (kind === 'Stop') {
       // A broken Stop hook must never convert an enforced or indeterminate gate into a pass.
       // On recursive re-entry, terminate the turn and expose the UNKNOWN status.

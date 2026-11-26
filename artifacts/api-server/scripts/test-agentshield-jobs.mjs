@@ -8,6 +8,11 @@ import { ScanJobQueue } from './agentshield-jobs.mjs';
 const complete = (findings = []) => ({ status: 'complete', filesScanned: 1, findings,
   totalFindings: findings.length, coverage: 'synthetic complete fixture', findingsTruncated: false });
 const tick = () => new Promise((resolve) => setTimeout(resolve, 15));
+const TEST_BASELINE_PROVENANCE = Object.freeze({
+  scannerFingerprint: 'a'.repeat(64),
+  rulesetVersion: 'agentshield-test-ruleset-v1',
+  reportSchemaVersion: 1,
+});
 
 test('queue coalesces duplicate jobs, enforces backpressure, and paginates findings', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-jobs-'));
@@ -275,11 +280,13 @@ test('completed changed-scan jobs expose recoverable baseline records after rest
     scanId: 'baseline-persisted-0001',
     workspace: '/tmp/foxy-baseline-recovery',
     fingerprint: 'c'.repeat(64),
+    ...TEST_BASELINE_PROVENANCE,
     createdAt,
     expiresAt: createdAt + 60_000,
   };
   const queue = new ScanJobQueue({
     storeDir,
+    baselineProvenance: TEST_BASELINE_PROVENANCE,
     runner: async () => ({
       status: 'complete',
       filesScanned: 1,
@@ -317,7 +324,7 @@ test('completed changed-scan jobs expose recoverable baseline records after rest
     assert.equal(recoverable[0].result.findings.length, 1);
   } finally {
     await queue.close();
-    const restored = new ScanJobQueue({ storeDir, runner: async () => complete() });
+    const restored = new ScanJobQueue({ storeDir, baselineProvenance: TEST_BASELINE_PROVENANCE, runner: async () => complete() });
     try {
       await restored.init();
       assert.equal(restored.getRestorableBaselines().length, 1);
@@ -442,6 +449,48 @@ test('queue refuses a symlinked process lock without modifying its target', asyn
     await assert.rejects(queue.init(), /Job store lock is unreadable/);
     assert.equal(await readFile(target, 'utf8'), 'do-not-modify');
     assert.equal(queue.initialized, false);
+  } finally {
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
+
+
+test('initial queue checkpoint failure leaves the queue uninitialized and releases its lock', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-initial-checkpoint-failure-'));
+  let runnerCalls = 0;
+  const queue = new ScanJobQueue({
+    storeDir,
+    runner: async () => { runnerCalls++; return complete(); },
+    writeSnapshot: async () => { throw new Error('deterministic initial checkpoint failure'); },
+  });
+  try {
+    await assert.rejects(queue.init(), /initial durable checkpoint/i);
+    assert.equal(queue.initialized, false);
+    assert.equal(queue.storageFault, true);
+    assert.equal(queue.jobs.size, 0);
+    assert.equal(runnerCalls, 0);
+    await assert.rejects(queue.submit({ workspace: '/tmp/foxy-initial-failure' }), /initialization previously failed/i);
+    await assert.rejects(readFile(path.join(storeDir, 'jobs.lock'), 'utf8'), { code: 'ENOENT' });
+  } finally {
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
+test('concurrent init calls share one initial durable checkpoint', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-concurrent-init-'));
+  let writes = 0;
+  const queue = new ScanJobQueue({
+    storeDir,
+    runner: async () => complete(),
+    writeSnapshot: async () => { writes++; await tick(); },
+  });
+  try {
+    await Promise.all([queue.init(), queue.init(), queue.init()]);
+    assert.equal(queue.initialized, true);
+    assert.equal(writes, 1);
   } finally {
     await queue.close();
     await rm(storeDir, { recursive: true, force: true });
