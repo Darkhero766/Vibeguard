@@ -53,6 +53,9 @@ test('Codex TOML and JSON MCP entries escape Windows paths and keep the allowlis
   const gemini = buildJsonMcpEntry({ ...entry, host: 'gemini' });
   const roo = buildJsonMcpEntry({ ...entry, host: 'roo' });
   assert.equal(claude.command, entry.nodePath);
+  const copilot = buildJsonMcpEntry({ ...entry, host: 'copilot' });
+  assert.equal(claude.type, 'stdio');
+  assert.equal(copilot.type, 'stdio');
   assert.equal(claude.env.VIBESANE_ALLOWED_ROOTS_JSON, JSON.stringify([entry.workspaceRoot]));
   assert.equal(cursor.type, 'stdio');
   assert.equal(cursor.args[0], entry.serverPath);
