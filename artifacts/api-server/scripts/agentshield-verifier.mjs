@@ -5,6 +5,28 @@ import { promisify } from 'node:util';
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 const exec = promisify(execFile);
+function samePath(left, right) {
+  const a = path.resolve(left);
+  const b = path.resolve(right);
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+function containedBy(root, candidate) {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate));
+  return relative === '' || (!path.isAbsolute(relative) && relative !== '..'
+    && !relative.startsWith('..' + path.sep));
+}
+function verifierChildEnv() {
+  const env = { PATH: process.env.PATH || '', NODE_OPTIONS: '' };
+  if (process.platform === 'win32') {
+    env.SYSTEMROOT = process.env.SYSTEMROOT || '';
+    env.WINDIR = process.env.WINDIR || env.SYSTEMROOT;
+    env.COMSPEC = process.env.COMSPEC || '';
+    env.TEMP = process.env.TEMP || '';
+    env.TMP = process.env.TMP || env.TEMP;
+    env.USERPROFILE = process.env.USERPROFILE || '';
+  }
+  return env;
+}
 
 async function safeRead(root, relative) {
   const rootReal = await realpath(root);
@@ -14,7 +36,7 @@ async function safeRead(root, relative) {
   const info = await lstat(full);
   if (!info.isFile() || info.isSymbolicLink() || info.size > 1_000_000) return null;
   const targetReal = await realpath(full);
-  if (targetReal !== full || !targetReal.startsWith(rootReal + path.sep)) return null;
+  if (!samePath(targetReal, full) || !containedBy(rootReal, targetReal)) return null;
   return { full, content: await readFile(full, 'utf8') };
 }
 
@@ -33,7 +55,7 @@ export async function verifyResolvedFile(root, filePath, previous, config) {
         // Node's --check only parses this file; it does not evaluate the application.
         await exec(process.execPath, ['--check', file.full], {
           timeout: 2500, maxBuffer: 4000, windowsHide: true,
-          env: { PATH: process.env.PATH || '', NODE_OPTIONS: '' },
+          env: verifierChildEnv(),
         });
         syntax = 'passed';
       } catch { syntax = 'failed'; }
