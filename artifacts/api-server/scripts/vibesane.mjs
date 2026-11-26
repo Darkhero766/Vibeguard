@@ -144,14 +144,6 @@ async function readProjectMcpConfig(root, directoryName, fileName) {
   if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Unsafe project MCP configuration directory.');
   return readSafeJsonFile(path.join(directory, fileName));
 }
-async function readProjectTextConfig(root, directoryName, fileName) {
-  const directory = path.join(root, directoryName);
-  const info = await lstat(directory).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
-  if (!info) return null;
-  if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Unsafe project configuration directory.');
-  try { return await readSafeTextFile(path.join(directory, fileName), fileName); }
-  catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
-}
 function samePath(left, right) {
   const a = path.resolve(left);
   const b = path.resolve(right);
