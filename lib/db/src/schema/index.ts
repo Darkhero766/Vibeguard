@@ -1,4 +1,4 @@
-import { bigint, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Stores encrypted GitHub OAuth tokens keyed by Supabase user UUID.
@@ -40,14 +40,44 @@ export const protectedRepositories = pgTable("protected_repositories", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-/** Lightweight activity history used by the Pro protection dashboard. */
+export type ProtectionEventDetails = {
+  version: 1;
+  scanMode: "delta" | "full" | "unknown";
+  scanIncomplete: boolean;
+  coveragePartial: boolean;
+  changedFiles: number;
+  filesScanned: number;
+  checksRun: number;
+  resolvedFindingsCount: number;
+  existingFindingsCount: number;
+  unscannedChangedFileCount: number;
+  coverageReasons: string[];
+  unscannedChangedFiles: string[];
+  findings: Array<{
+    id: string;
+    severity: "Critical" | "High" | "Medium";
+    title: string;
+    filePath: string;
+    line: number | null;
+    check: string;
+  }>;
+};
+
+/** Lightweight, redacted activity history used by the Pro protection dashboard. */
 export const protectionEvents = pgTable("protection_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   repo: text("repo").notNull(),
   event: text("event").notNull(),
   sha: text("sha").notNull(),
+  baseSha: text("base_sha"),
   status: text("status").notNull(),
   findingsCount: integer("findings_count").notNull().default(0),
+  details: jsonb("details").$type<ProtectionEventDetails>().notNull().default({
+    version: 1, scanMode: "unknown", scanIncomplete: false, coveragePartial: false,
+    changedFiles: 0, filesScanned: 0, checksRun: 0, resolvedFindingsCount: 0,
+    existingFindingsCount: 0, unscannedChangedFileCount: 0,
+    coverageReasons: [], unscannedChangedFiles: [], findings: [],
+  }),
   criticalCount: integer("critical_count").notNull().default(0),
   highCount: integer("high_count").notNull().default(0),
   mediumCount: integer("medium_count").notNull().default(0),

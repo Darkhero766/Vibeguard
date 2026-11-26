@@ -184,12 +184,22 @@ async function scanEvent(payload: WebhookPayload, event: "push" | "pull_request"
   const protectedRepo = await getProtectedRepository(repo);
   logger.info({ repo, found: Boolean(protectedRepo), status: protectedRepo?.status }, "GitHub protection repository lookup completed");
   if (!protectedRepo || protectedRepo.status !== "protected") { logger.info({ repo, event, sha }, "Ignoring event for unprotected repository"); return; }
-  const pushBase = payload.before && !/^0+$/.test(payload.before) ? payload.before : protectedRepo.lastSha; const baseSha = event === "pull_request" ? payload.pull_request?.base?.sha : pushBase;
+  // The protected repository's lastSha is the last fully scanned push, not
+  // merely the previous GitHub delivery. If an earlier scan failed or was
+  // partial, the next push must include those unreviewed commits.
+  const baseSha = event === "pull_request" ? payload.pull_request?.base?.sha : protectedRepo.lastSha;
   logger.info({ repo, event, sha, baseSha }, "GitHub protection comparison range resolved");
   if (!baseSha || baseSha === sha) { logger.info({ repo, event, sha, baseSha }, "Ignoring event without a new comparison range"); return; }
   const token = await getInstallationToken(installationId); logger.info({ repo, event, sha }, "GitHub installation token created"); const check = await createCheckRun(token, repo, sha, "in_progress"); logger.info({ repo, event, sha, checkId: check.id }, "GitHub security check created");
-  try { const report = await scanDelta(repo, token, sha, baseSha); cacheScanResult(report.repo, report); const hasBlocking = report.findings.some((f: any) => f.severity === "Critical" || f.severity === "High"); const conclusion = hasBlocking ? "failure" : (report.coveragePartial || report.findings.length) ? "neutral" : "success"; await completeCheckRun(token, repo, check.id, conclusion, report); await recordProtectionEvent({ repo, event, sha, status: conclusion, report, advanceHead: event === "push" }); logger.info({ repo, event, sha, baseSha, changedFiles: report.changedFiles, findings: report.findings.length }, "Active protection delta scan completed"); }
-  catch (error) { logger.error({ err: error, repo, event, sha }, "Active protection delta scan failed"); try { await completeCheckRun(token, repo, check.id, "failure", { scanIncomplete: true, findings: [], changedFiles: 0, checksRun: 0 }); } catch (completionError) { logger.error({ err: completionError, repo, event, sha }, "Failed to mark active protection check as failed"); } await recordProtectionEvent({ repo, event, sha, status: "failure", report: { findings: [] }, advanceHead: event === "push" }).catch(() => undefined); }
+  try { const report = await scanDelta(repo, token, sha, baseSha); cacheScanResult(report.repo, report); const hasBlocking = report.findings.some((f: any) => f.severity === "Critical" || f.severity === "High"); const conclusion = hasBlocking ? "failure" : (report.coveragePartial || report.findings.length) ? "neutral" : "success"; await completeCheckRun(token, repo, check.id, conclusion, report); await recordProtectionEvent({
+      repo, event, sha, baseSha, status: conclusion, report,
+      advanceHead: event === "push" && !report.coveragePartial && !report.scanIncomplete,
+    }); logger.info({ repo, event, sha, baseSha, changedFiles: report.changedFiles, findings: report.findings.length }, "Active protection delta scan completed"); }
+  catch (error) { logger.error({ err: error, repo, event, sha }, "Active protection delta scan failed"); try { await completeCheckRun(token, repo, check.id, "failure", { scanIncomplete: true, findings: [], changedFiles: 0, checksRun: 0 }); } catch (completionError) { logger.error({ err: completionError, repo, event, sha }, "Failed to mark active protection check as failed"); } await recordProtectionEvent({
+      repo, event, sha, baseSha, status: "failure",
+      report: { findings: [], scanMode: "delta", scanIncomplete: true, coveragePartial: true,
+        coverageReasons: ["The protection scan failed before complete coverage could be verified."] },
+    }).catch(() => undefined); }
 }
 
 router.post("/github/webhook", async (req, res): Promise<void> => { const rawBody = (req as typeof req & RawRequest).rawBody; const signature = req.header("x-hub-signature-256"); if (!rawBody || !verifySignature(rawBody, signature)) { res.status(401).json({ error: "Invalid GitHub webhook signature" }); return; } const event = req.header("x-github-event") ?? "unknown"; const delivery = req.header("x-github-delivery") ?? "unknown"; const payload = req.body as WebhookPayload; res.status(202).json({ accepted: true, event, delivery }); if (event === "push" || (event === "pull_request" && ["opened", "reopened", "synchronize"].includes(payload.action ?? ""))) void scanEvent(payload, event as "push" | "pull_request").catch((error) => logger.error({ err: error, event, delivery }, "Unhandled active protection job failure")); });
