@@ -9,7 +9,8 @@
 - [ ] At least one real coding-agent MCP client (Codex CLI or Claude Code) completes discovery, scan, explain, remediation and verification
 - [ ] Authorized and unauthorized synthetic workspace tests pass through the actual client
 - [ ] Completion hook behavior is validated on each host that will be supported to pilot participants (Codex Stop and Claude Code Stop where applicable)
-- [ ] Linux and macOS installation checks pass on actual intended versions; Windows support remains disabled until qualified
+- [ ] Linux, macOS and Windows installation checks pass on actual intended versions, including native path handling, subprocess environment, config updates, symlink refusal and uninstall
+- [ ] Windows CI and real Windows host acceptance pass before advertising Windows support
 - [ ] Package contents, checksum, Node requirement and third-party notices reviewed
 - [ ] Allowlist is narrow, validated, and host MCP status reports it configured
 - [ ] Beta limitations, troubleshooting, rollback, feedback and private vulnerability-reporting instructions are supplied
