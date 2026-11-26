@@ -30,7 +30,7 @@ async function isFile(location) {
 }
 async function codexProjectRoot(cwd) {
   const result = await exec('git', [
-    '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=' + os.devNull,
+    '-c', 'core.fsmonitor=false',
     '-C', cwd, 'rev-parse', '--show-toplevel',
   ], { timeout: 5000, maxBuffer: 4000 });
   return realpath(result.stdout.trim());
@@ -282,7 +282,7 @@ async function doctor(args) {
     cursorMcpConfigured: false, settingsReadable: true };
   let root = null;
   try {
-    const r = await exec('git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=' + os.devNull,
+    const r = await exec('git', ['-c', 'core.fsmonitor=false',
       '-C', cwd, 'rev-parse', '--show-toplevel'], { timeout: 5000, maxBuffer: 4000 });
     root = await realpath(r.stdout.trim()); checks.gitRepository = true;
   } catch {}
