@@ -3,7 +3,7 @@
 import path from 'node:path';
 import { constants } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { lstat, readFile, realpath, stat, mkdir, writeFile, rename, unlink, copyFile, readdir, chmod } from 'node:fs/promises';
+import { lstat, readFile, realpath, stat, mkdir, open, writeFile, rename, unlink, readdir, chmod } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
@@ -18,6 +18,7 @@ const capabilities = path.resolve(scripts, 'agentshield-capabilities.mjs');
 const installer = path.resolve(scripts, 'agentshield-install.mjs');
 const connector = path.resolve(scripts, 'agentshield-connect.mjs');
 const exec = promisify(execFile);
+const MAX_HOST_CONFIG_BYTES = 256_000;
 
 function cwdFrom(args) {
   const n = args.indexOf('--cwd');
@@ -37,20 +38,49 @@ async function codexProjectRoot(cwd) {
   return realpath(result.stdout.trim());
 }
 async function ensureSafeDirectory(directory) {
-  try {
-    const info = await lstat(directory);
-    if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Refusing symlinked or non-directory Codex configuration path.');
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error;
+  let info = await lstat(directory).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+  if (!info) {
     await mkdir(directory, { mode: 0o700 });
+    info = await lstat(directory);
+  }
+  if (!info.isDirectory() || info.isSymbolicLink()) {
+    throw new Error('Refusing symlinked or non-directory configuration path.');
+  }
+}
+async function readSafeTextFile(file, description = 'host configuration') {
+  const before = await lstat(file);
+  if (!before.isFile() || before.isSymbolicLink() || before.size > MAX_HOST_CONFIG_BYTES) {
+    throw new Error('Refusing a symlinked, non-regular or oversized ' + description + '.');
+  }
+  const handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+  try {
+    const opened = await handle.stat();
+    if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino
+      || opened.size > MAX_HOST_CONFIG_BYTES) {
+      throw new Error('Host configuration identity changed while opening it.');
+    }
+    const buffer = Buffer.alloc(opened.size);
+    let bytesRead = 0;
+    while (bytesRead < buffer.length) {
+      const chunk = await handle.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
+      if (chunk.bytesRead === 0) break;
+      bytesRead += chunk.bytesRead;
+    }
+    const after = await handle.stat();
+    if (after.dev !== opened.dev || after.ino !== opened.ino
+      || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs
+      || bytesRead !== opened.size) {
+      throw new Error('Host configuration changed or was truncated while being read.');
+    }
+    return buffer.toString('utf8');
+  } finally {
+    await handle.close();
   }
 }
 async function readSafeJsonFile(file) {
   try {
-    const info = await lstat(file);
-    if (!info.isFile() || info.isSymbolicLink()) throw new Error('Refusing non-regular or symlinked Codex hooks.json.');
-    const value = JSON.parse(await readFile(file, 'utf8'));
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Unexpected Codex hooks.json structure.');
+    const value = JSON.parse(await readSafeTextFile(file));
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Unexpected host configuration structure.');
     return value;
   } catch (error) {
     if (error?.code === 'ENOENT') return {};
@@ -60,11 +90,19 @@ async function readSafeJsonFile(file) {
 async function backupJsonFile(file) {
   const info = await lstat(file).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
   if (!info) return null;
-  if (!info.isFile() || info.isSymbolicLink()) throw new Error('Refusing to replace a non-regular or symlinked MCP configuration file.');
+  if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_HOST_CONFIG_BYTES) {
+    throw new Error('Refusing to back up a non-regular, symlinked or oversized host configuration.');
+  }
+  const raw = await readSafeTextFile(file);
   const backup = file + '.vibesane-backup-' + new Date().toISOString().replaceAll(':', '-') + '-' + randomUUID() + '.json';
-  await copyFile(file, backup, constants.COPYFILE_EXCL);
-  await chmod(backup, 0o600);
-  return backup;
+  try {
+    await writeFile(backup, raw, { flag: 'wx', mode: 0o600 });
+    if (process.platform !== 'win32') await chmod(backup, 0o600);
+    return backup;
+  } catch (error) {
+    await unlink(backup).catch(() => {});
+    throw error;
+  }
 }
 async function atomicJsonWrite(file, value) {
   const temp = file + '.agentshield-' + randomUUID() + '.tmp';
@@ -105,6 +143,14 @@ async function readProjectMcpConfig(root, directoryName, fileName) {
   if (!info) return {};
   if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Unsafe project MCP configuration directory.');
   return readSafeJsonFile(path.join(directory, fileName));
+}
+async function readProjectTextConfig(root, directoryName, fileName) {
+  const directory = path.join(root, directoryName);
+  const info = await lstat(directory).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+  if (!info) return null;
+  if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Unsafe project configuration directory.');
+  try { return await readSafeTextFile(path.join(directory, fileName), fileName); }
+  catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
 }
 function samePath(left, right) {
   const a = path.resolve(left);
@@ -301,20 +347,17 @@ async function doctor(args) {
     root = await realpath(r.stdout.trim()); checks.gitRepository = true;
   } catch {}
   if (root) {
-    const settings = path.join(root, '.claude', 'settings.json');
     try {
-      if (await isFile(settings)) {
-        const d = JSON.parse(await readFile(settings, 'utf8'));
-        const hooks = d?.hooks || {};
-        const entries = [...(hooks.PostToolUse || []), ...(hooks.Stop || [])];
-        checks.claudeHooksInstalled = entries.some(x => x?.hooks?.some(y =>
-          typeof y?.command === 'string' && y.command.includes('agentshield-hook.mjs'))) &&
-          entries.some(x => x?.hooks?.some(y => typeof y?.command === 'string' &&
-            y.command.includes('agentshield-stop.mjs')));
-      }
+      const d = await readProjectMcpConfig(root, '.claude', 'settings.json');
+      const hooks = d?.hooks || {};
+      const entries = [...(hooks.PostToolUse || []), ...(hooks.Stop || [])];
+      checks.claudeHooksInstalled = entries.some(x => x?.hooks?.some(y =>
+        typeof y?.command === 'string' && y.command.includes('agentshield-hook.mjs'))) &&
+        entries.some(x => x?.hooks?.some(y => typeof y?.command === 'string' &&
+          y.command.includes('agentshield-stop.mjs')));
     } catch { checks.settingsReadable = false; }
     try {
-      const config = await readSafeJsonFile(path.join(root, '.codex', 'hooks.json'));
+      const config = await readProjectMcpConfig(root, '.codex', 'hooks.json');
       const stop = config?.hooks?.Stop;
       if (stop != null && !Array.isArray(stop)) throw new Error('Malformed Codex Stop hook list.');
       checks.codexStopHookInstalled = (stop || []).some(entry => entry?.hooks?.some(hook =>
@@ -350,7 +393,7 @@ async function doctor(args) {
         const fileInfo = await lstat(file).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
         if (fileInfo) {
           if (!fileInfo.isFile() || fileInfo.isSymbolicLink() || fileInfo.size > 256_000) throw new Error('Unsafe Codex config.toml.');
-          const current = await readFile(file, 'utf8');
+          const current = await readSafeTextFile(file, 'Codex config.toml');
           const expected = buildCodexMcpBlock({
             nodePath: process.execPath,
             serverPath: path.resolve(scripts, 'agentshield-mcp-stdio.mjs'),
@@ -448,7 +491,6 @@ async function main(args) {
   }
   if (command === 'doctor') return doctor(tail);
   if (command === 'connect') return child(connector, tail);
-  if (command === 'disconnect') return child(connector, ['disconnect', ...tail]);
   if (command === 'disconnect') return child(connector, ['disconnect', ...tail]);
   if (command === 'mcp-doctor' && tail.length === 0) return mcpDoctor();
   if (command === 'capabilities') {
