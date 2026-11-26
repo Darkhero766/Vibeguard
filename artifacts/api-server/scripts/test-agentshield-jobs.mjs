@@ -145,18 +145,39 @@ test('configured concurrency is enforced while independent jobs run in parallel'
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-concurrency-'));
   let running = 0;
   let peak = 0;
+  let signalBothStarted;
+  let releaseWorkers;
+  const bothStarted = new Promise((resolve) => { signalBothStarted = resolve; });
+  const workerGate = new Promise((resolve) => { releaseWorkers = resolve; });
   const queue = new ScanJobQueue({ storeDir, concurrency: 2, maxQueued: 12,
-    runner: async () => { running++; peak = Math.max(peak, running); await tick(); await tick(); running--; return complete(); } });
+    runner: async () => {
+      running++;
+      peak = Math.max(peak, running);
+      if (running === 2) signalBothStarted();
+      await workerGate;
+      running--;
+      return complete();
+    } });
   try {
     const ids = [];
     for (let i = 0; i < 12; i++) {
       ids.push((await queue.submit({ workspace: `/tmp/parallel-${i}` })).job_id);
     }
-    for (let i = 0; i < 160 && ids.some((id) => queue.getStatus(id)?.status !== 'completed'); i++) await tick();
+    // Keep both workers blocked until every submission has completed its durable
+    // enqueue. This tests persistence and concurrency without racing a fixed
+    // wall-clock delay against slow CI filesystem syncs.
+    for (let i = 0; i < 120 && running < 2; i++) await tick();
+    assert.equal(running, 2, 'both configured worker slots should become active');
     assert.equal(peak, 2);
+    releaseWorkers();
+    for (let i = 0; i < 240 && ids.some((id) => queue.getStatus(id)?.status !== 'completed'); i++) await tick();
     assert.ok(ids.every((id) => queue.getStatus(id)?.status === 'completed'),
       'concurrent persistence must not evict accepted jobs from the live queue');
-  } finally { await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
+  } finally {
+    releaseWorkers();
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
 });
 
 test('partial scan coverage remains visible in completed job results', async () => {
