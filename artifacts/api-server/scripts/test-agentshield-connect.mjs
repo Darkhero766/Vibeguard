@@ -258,7 +258,7 @@ test('connect migrates exact legacy JSON and Codex entries to isolated namespace
     'env = { VIBESANE_ALLOWED_ROOTS_JSON = ' + JSON.stringify(JSON.stringify([realRoot])) + ' }',
     '# END VIBESANE AGENTSHIELD MANAGED MCP ENTRY',
     '',
-  ].join('\\n');
+  ].join('\n');
   const codexFile = path.join(project, '.codex', 'config.toml');
   await writeFile(codexFile, legacyToml);
 
