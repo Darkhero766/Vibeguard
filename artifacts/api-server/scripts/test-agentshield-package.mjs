@@ -24,6 +24,7 @@ let archive = null;
 async function run(program, args, options = {}) {
   return exec(program, args, {
     cwd: root, timeout: 60_000, maxBuffer: 4_000_000, windowsHide: true,
+    shell: process.platform === 'win32' && program === 'npm',
     ...options,
   });
 }
@@ -91,7 +92,8 @@ try {
     'Packaging did not return an archive path and SHA-256.');
   archive = packaged.archive;
   const packagedReadme = await run('tar', ['-xOf', archive, 'package/README.md']);
-  assert(packagedReadme.stdout.includes('--completion-gate enforce')
+  assert(packagedReadme.stdout.includes('vibesane connect')
+    && packagedReadme.stdout.includes('--completion-gate enforce')
     && packagedReadme.stdout.includes('--base-ref origin/main')
     && packagedReadme.stdout.includes('VIBESANE_ALLOWED_ROOTS_JSON')
     && packagedReadme.stdout.includes('mcp-doctor')
@@ -133,6 +135,30 @@ try {
     invalidMcpDoctorRejected = error?.code === 2 && String(error?.stdout || '').includes('"status":"not_ready"');
   }
   assert(invalidMcpDoctorRejected, 'Installed MCP doctor did not fail closed on malformed authorization configuration.');
+  const connectFixture = path.join(temp, 'connect-fixture');
+  await mkdir(connectFixture, { recursive: true });
+  await run('git', ['init', '-q', connectFixture]);
+  const connected = JSON.parse((await runCli(['connect', '--agent', 'all', '--cwd', connectFixture], { cwd: temp })).stdout);
+  assert(connected.status === 'connected'
+    && connected.results.map(item => item.host).join(',') === 'claude,codex,cursor',
+    'Installed one-command connector did not configure all supported MCP hosts.');
+  const connectedClaude = JSON.parse(await readFile(path.join(connectFixture, '.mcp.json'), 'utf8'));
+  const connectedCursor = JSON.parse(await readFile(path.join(connectFixture, '.cursor', 'mcp.json'), 'utf8'));
+  const connectedCodex = await readFile(path.join(connectFixture, '.codex', 'config.toml'), 'utf8');
+  assert(connectedClaude.mcpServers['vibesane-agentshield']?.command === process.execPath
+    && connectedCursor.mcpServers['vibesane-agentshield']?.type === 'stdio'
+    && connectedCodex.includes('[mcp_servers.vibesane_agentshield]'),
+    'One-command connector did not create all three host entries.');
+  const connectedDoctor = JSON.parse((await runCli(['doctor', '--cwd', connectFixture], { cwd: temp })).stdout);
+  assert(connectedDoctor.status === 'ready'
+    && connectedDoctor.checks.claudeMcpConfigured
+    && connectedDoctor.checks.cursorMcpConfigured,
+    'Doctor did not verify one-command MCP registration.');
+  const generic = JSON.parse((await runCli(['connect', '--agent', 'mcp', '--cwd', connectFixture], { cwd: temp })).stdout);
+  assert(generic.status === 'manual_mcp_configuration'
+    && generic.server.env.VIBESANE_ALLOWED_ROOTS_JSON === JSON.stringify([connectFixture]),
+    'Generic MCP mode did not produce an exact workspace-scoped stdio configuration.');
+
   await mkdir(path.join(fixture, 'src'), { recursive: true });
   await writeFile(path.join(fixture, 'src', 'index.js'), 'export const baseline = true;\n');
   await run('git', ['init', '-q', fixture]);
