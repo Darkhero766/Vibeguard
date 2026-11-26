@@ -74,18 +74,21 @@ async function commandOnPath(command, env = process.env, platform = process.plat
 }
 
 export async function detectAgents({ cwd, env = process.env, platform = process.platform } = {}) {
-  const home = envValue(env, 'HOME') || envValue(env, 'USERPROFILE') || os.homedir();
+  const home = platform === 'win32'
+    ? envValue(env, 'USERPROFILE') || envValue(env, 'HOME') || os.homedir()
+    : envValue(env, 'HOME') || envValue(env, 'USERPROFILE') || os.homedir();
   const root = cwd ? path.resolve(cwd) : process.cwd();
-  const [claudeProject, codexProject, cursorProject, claudeCli, codexCli] = await Promise.all([
+  const [claudeProject, codexProject, cursorProject, claudeCli, codexCli, cursorCli] = await Promise.all([
     isDirectory(path.join(root, '.claude')),
     isDirectory(path.join(root, '.codex')),
     isDirectory(path.join(root, '.cursor')),
     commandOnPath('claude', env, platform),
     commandOnPath('codex', env, platform),
+    commandOnPath('cursor', env, platform),
   ]);
   const claude = Boolean(claudeCli || claudeProject || envValue(env, 'CLAUDE_CODE'));
   const codex = Boolean(codexCli || codexProject || envValue(env, 'CODEX_HOME'));
-  const cursor = Boolean(cursorProject || envValue(env, 'CURSOR_AGENT') || envValue(env, 'CURSOR_PROJECT_DIR')
+  const cursor = Boolean(cursorCli || cursorProject || envValue(env, 'CURSOR_AGENT') || envValue(env, 'CURSOR_PROJECT_DIR')
     || await isDirectory(path.join(home, '.cursor')));
   return ['claude', 'codex', 'cursor'].filter((name) =>
     name === 'claude' ? claude : name === 'codex' ? codex : cursor);
