@@ -15,6 +15,7 @@ const controller = path.resolve(scripts, 'agentshield-controller.mjs');
 const hybrid = path.resolve(scripts, 'agentshield-hybrid.mjs');
 const capabilities = path.resolve(scripts, 'agentshield-capabilities.mjs');
 const installer = path.resolve(scripts, 'agentshield-install.mjs');
+const connector = path.resolve(scripts, 'agentshield-connect.mjs');
 const exec = promisify(execFile);
 
 function cwdFrom(args) {
@@ -29,7 +30,7 @@ async function isFile(location) {
 }
 async function codexProjectRoot(cwd) {
   const result = await exec('git', [
-    '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null',
+    '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=' + os.devNull,
     '-C', cwd, 'rev-parse', '--show-toplevel',
   ], { timeout: 5000, maxBuffer: 4000 });
   return realpath(result.stdout.trim());
@@ -102,7 +103,6 @@ function sameJson(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 async function configureMcpHost(args, uninstall = false) {
-  if (process.platform === 'win32') throw new Error('Foxy local MCP setup currently supports macOS/Linux only.');
   const { host, cwd } = parseSetupArgs(args);
   const root = await codexProjectRoot(cwd);
   if (root === path.parse(root).root || root === os.homedir()) {
@@ -157,6 +157,7 @@ async function configureMcpHost(args, uninstall = false) {
 }
 function codexHookCommand() {
   const hook = path.resolve(scripts, 'agentshield-codex-stop.mjs');
+  if (process.platform === 'win32') return '"' + process.execPath + '" "' + hook + '"';
   return "node '" + hook.replaceAll("'", "'\\''") + "'";
 }
 function removeCodexStopEntry(hooks, command) {
@@ -177,7 +178,6 @@ async function initCodexSkill(args) {
       i++;
     } else throw new Error('init-codex accepts only --cwd PROJECT.');
   }
-  if (process.platform === 'win32') throw new Error('Codex project hook installation currently supports macOS/Linux.');
   const root = await codexProjectRoot(cwdFrom(args));
   const codexDir = path.join(root, '.codex');
   await ensureSafeDirectory(codexDir);
@@ -235,7 +235,6 @@ async function uninstallCodex(args) {
       i++;
     } else throw new Error('uninstall-codex accepts only --cwd PROJECT.');
   }
-  if (process.platform === 'win32') throw new Error('Codex project hook removal currently supports macOS/Linux.');
   const root = await codexProjectRoot(cwdFrom(args));
   const codexDir = path.join(root, '.codex');
   const hooksFile = path.join(codexDir, 'hooks.json');
@@ -275,13 +274,13 @@ async function uninstallCodex(args) {
 async function doctor(args) {
   const cwd = cwdFrom(args);
   const checks = { node: Number(process.versions.node.split('.')[0]) >= 20,
-    platform: process.platform !== 'win32', builtScanner: await isFile(dist),
+    platform: ['win32', 'darwin', 'linux'].includes(process.platform), builtScanner: await isFile(dist),
     gitRepository: false, hooksInstalled: false, claudeHooksInstalled: false,
     codexStopHookInstalled: false, claudeMcpConfigured: false,
     cursorMcpConfigured: false, settingsReadable: true };
   let root = null;
   try {
-    const r = await exec('git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null',
+    const r = await exec('git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=' + os.devNull,
       '-C', cwd, 'rev-parse', '--show-toplevel'], { timeout: 5000, maxBuffer: 4000 });
     root = await realpath(r.stdout.trim()); checks.gitRepository = true;
   } catch {}
@@ -373,6 +372,7 @@ async function main(args) {
       '',
       'Commands:',
       '  vibesane doctor [--cwd PROJECT]',
+      '  vibesane connect [--agent auto|all|claude|codex|cursor|mcp] [--cwd PROJECT]  Auto-register MCP',
       '  vibesane mcp-doctor  Validate MCP workspace authorization without printing paths',
       '  vibesane scan --changed [--base-ref REF] [--cwd PROJECT]',
       '  vibesane verify --changed [--cwd PROJECT]',
@@ -398,6 +398,7 @@ async function main(args) {
     return 0;
   }
   if (command === 'doctor') return doctor(tail);
+  if (command === 'connect') return child(connector, tail);
   if (command === 'mcp-doctor' && tail.length === 0) return mcpDoctor();
   if (command === 'capabilities') {
     if (tail.length > 2 || (tail.length === 2 && tail[0] !== '--format') || (tail.length === 1 && !['json','text'].includes(tail[0]))) throw Error('Use capabilities --format json|text');
@@ -421,7 +422,7 @@ async function main(args) {
     return child(dist, ['scan', ...tail]);
   }
   if (['verify', 'status', 'config', 'acknowledge'].includes(command)) return child(controller, [command, ...tail]);
-  throw new Error('Commands: capabilities, setup --host claude|cursor, uninstall-mcp --host claude|cursor, init, init-codex, uninstall-codex, scan --changed, hybrid --changed [--enable-ast] [--enable-local-ai], verify --changed, status, config, acknowledge, doctor, uninstall.');
+  throw new Error('Commands: connect, capabilities, setup --host claude|cursor, uninstall-mcp --host claude|cursor, init, init-codex, uninstall-codex, scan --changed, hybrid --changed [--enable-ast] [--enable-local-ai], verify --changed, status, config, acknowledge, doctor, uninstall.');
 }
 main(process.argv.slice(2)).then(code => { process.exitCode = code; }).catch(() => {
   process.stdout.write(JSON.stringify({ status: 'error', message: 'AgentShield command failed; run doctor for local diagnostics.' }) + '\n');
