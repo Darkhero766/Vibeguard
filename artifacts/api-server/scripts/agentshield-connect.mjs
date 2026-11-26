@@ -31,10 +31,10 @@ export function parseConnectArgs(args = []) {
       if (!args[i + 1]) throw new Error('Missing --cwd value.');
       cwd = path.resolve(args[++i]);
     } else {
-      throw new Error('Use connect [--agent auto|all|claude|codex|cursor|mcp] [--cwd PROJECT].');
+      throw new Error('Use connect [--agent auto|all|claude|codex|cursor|gemini|roo|copilot|mcp] [--cwd PROJECT].');
     }
   }
-  if (!['auto', 'all', 'claude', 'codex', 'cursor', 'mcp'].includes(agent)) {
+  if (!['auto', 'all', 'claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot', 'mcp'].includes(agent)) {
     throw new Error('Agent must be auto, all, claude, codex, cursor, or mcp.');
   }
   return { agent, cwd };
@@ -78,20 +78,26 @@ export async function detectAgents({ cwd, env = process.env, platform = process.
     ? envValue(env, 'USERPROFILE') || envValue(env, 'HOME') || os.homedir()
     : envValue(env, 'HOME') || envValue(env, 'USERPROFILE') || os.homedir();
   const root = cwd ? path.resolve(cwd) : process.cwd();
-  const [claudeProject, codexProject, cursorProject, claudeCli, codexCli, cursorCli] = await Promise.all([
+  const [claudeProject, codexProject, cursorProject, geminiProject, rooProject,
+    claudeCli, codexCli, cursorCli, geminiCli] = await Promise.all([
     isDirectory(path.join(root, '.claude')),
     isDirectory(path.join(root, '.codex')),
     isDirectory(path.join(root, '.cursor')),
+    isDirectory(path.join(root, '.gemini')),
+    isDirectory(path.join(root, '.roo')),
     commandOnPath('claude', env, platform),
     commandOnPath('codex', env, platform),
     commandOnPath('cursor', env, platform),
+    commandOnPath('gemini', env, platform),
   ]);
   const claude = Boolean(claudeCli || claudeProject || envValue(env, 'CLAUDE_CODE'));
   const codex = Boolean(codexCli || codexProject || envValue(env, 'CODEX_HOME'));
   const cursor = Boolean(cursorCli || cursorProject || envValue(env, 'CURSOR_AGENT') || envValue(env, 'CURSOR_PROJECT_DIR')
     || await isDirectory(path.join(home, '.cursor')));
-  return ['claude', 'codex', 'cursor'].filter((name) =>
-    name === 'claude' ? claude : name === 'codex' ? codex : cursor);
+  const gemini = Boolean(geminiCli || geminiProject || envValue(env, 'GEMINI_CLI'));
+  const roo = rooProject || Boolean(envValue(env, 'ROO_CODE'));
+  return ['claude', 'codex', 'cursor', 'gemini', 'roo'].filter((name) =>
+    name === 'claude' ? claude : name === 'codex' ? codex : name === 'cursor' ? cursor : name === 'gemini' ? gemini : roo);
 }
 
 function safeTomlString(value) {
@@ -188,9 +194,13 @@ function sameJson(left, right) {
 }
 
 async function configureJsonHost(host, root, nodePath, serverPath) {
-  const configDir = host === 'cursor' ? path.join(root, '.cursor') : root;
-  if (host === 'cursor') await ensureSafeDirectory(configDir);
-  const file = host === 'cursor' ? path.join(configDir, 'mcp.json') : path.join(root, '.mcp.json');
+  const configDir = host === 'cursor' ? path.join(root, '.cursor')
+    : host === 'gemini' ? path.join(root, '.gemini')
+      : host === 'roo' ? path.join(root, '.roo') : root;
+  if (host === 'cursor' || host === 'gemini' || host === 'roo') await ensureSafeDirectory(configDir);
+  const file = host === 'cursor' ? path.join(configDir, 'mcp.json')
+    : host === 'gemini' ? path.join(configDir, 'settings.json')
+      : host === 'roo' ? path.join(configDir, 'mcp.json') : path.join(root, '.mcp.json');
   const config = await readJsonConfig(file);
   if (config.mcpServers != null && (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers))) {
     throw new Error('Refusing malformed mcpServers configuration.');
@@ -248,7 +258,7 @@ export async function connectAgentShield(args = [], overrides = {}) {
   const nodePath = overrides.nodePath || process.execPath;
   const serverPath = overrides.serverPath || path.join(scriptsDir, SERVER_FILE);
   const detected = await detectAgents({ cwd: root, env: overrides.env || process.env, platform: overrides.platform || process.platform });
-  const hosts = agent === 'all' ? ['claude', 'codex', 'cursor']
+  const hosts = agent === 'all' ? ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']
     : agent === 'auto' ? detected
       : agent === 'mcp' ? [] : [agent];
   const generic = {
@@ -263,7 +273,7 @@ export async function connectAgentShield(args = [], overrides = {}) {
   if (!hosts.length) {
     return { status: 'no_supported_agent_detected', root, detected,
       genericMcpServer: generic,
-      note: 'No supported host was detected. Re-run with --agent claude|codex|cursor, or use the generic MCP entry in an MCP-compatible client.' };
+      note: 'No supported host was detected. Re-run with --agent claude|codex|cursor|gemini|roo|copilot, or use the generic MCP entry in an MCP-compatible client.' };
   }
   const results = [];
   for (const host of hosts) {
@@ -272,7 +282,7 @@ export async function connectAgentShield(args = [], overrides = {}) {
       : await configureJsonHost(host, root, nodePath, serverPath));
   }
   return { status: 'connected', root, detected, results,
-    note: 'MCP registration only; restart the host and approve the server. Optional lifecycle hooks are not installed. The server is read-only and authorized only for this repository.' };
+    note: 'MCP registration only; restart the host and approve the server. Optional lifecycle hooks are not installed. The .mcp.json entry also serves VS Code Copilot workspace configuration where workspace-root MCP config is enabled. The server is read-only and authorized only for this repository.' };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
