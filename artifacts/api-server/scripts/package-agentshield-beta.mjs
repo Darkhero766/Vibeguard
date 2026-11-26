@@ -17,6 +17,7 @@ const out = path.join(root, 'dist');
 export const PACKAGE_VERSION = '0.7.0-beta.3';
 const scripts = [
   'vibesane.mjs',
+  'agentshield-connect.mjs',
   'agentshield-controller.mjs',
   'agentshield-hook.mjs',
   'agentshield-stop.mjs',
@@ -157,7 +158,7 @@ async function main() {
     '# VibeSane AgentShield (unpublished developer preview)',
     '',
     'Local static security scanning, Claude Code and Codex Stop hooks, Cursor Stop feedback, and a read-only MCP server.',
-    'Requires Node.js >=20, Git, and macOS/Linux. This is an opt-in beta, not a security certification.',
+    'Requires Node.js >=20, Git, on macOS, Linux and Windows (Windows remains qualification-gated). This is an opt-in beta, not a security certification.',
     '',
     '## Install locally',
     'npm install --global ./vibesane-agentshield-' + PACKAGE_VERSION + '.tgz',
@@ -170,7 +171,8 @@ async function main() {
     'MCP command: vibesane-mcp (Codex, Claude Code, Cursor MCP, and other compatible stdio clients).',
     'Codex ~/.codex/config.toml: [mcp_servers.vibesane_agentshield], command = absolute vibesane-mcp path, args = [], env = { VIBESANE_ALLOWED_ROOTS_JSON = \'["/absolute/path/to/project"]\' }. Restart Codex and verify MCP status reports workspaceAuthorization configured.',
     'Claude Code project .mcp.json: add mcpServers.vibesane-agentshield with command set to the absolute vibesane-mcp path, args: [], and env.VIBESANE_ALLOWED_ROOTS_JSON set to the JSON-escaped allowlist string. Approve the project server and verify with /mcp.',
-    'Guided project-scoped MCP setup (private archive): vibesane setup --host claude --cwd /absolute/path/to/project or vibesane setup --host cursor --cwd /absolute/path/to/project. Existing config files are backed up and unrelated servers are preserved.',
+    'One-command MCP registration: vibesane connect (auto-detect Claude Code, Codex CLI and Cursor in the project); use vibesane connect --agent all to configure all three, or --agent mcp to print a generic stdio entry for another MCP-compatible host. This writes only project MCP config, backs up existing files, and preserves unrelated entries. Restart the host and approve the server.',
+    'Codex project MCP registration is written to .codex/config.toml; approve/trust the project in Codex before using project-scoped config.',
     'Remove the exact managed MCP entry: vibesane uninstall-mcp --host claude --cwd /absolute/path/to/project or vibesane uninstall-mcp --host cursor --cwd /absolute/path/to/project. Customized entries are left untouched.',
     'Claude Code hooks: vibesane init --cwd /absolute/path/to/project',
     'Claude Code and Codex completion enforcement (opt in): vibesane config --mode assist --completion-gate enforce --base-ref origin/main --cwd /absolute/path/to/project.',
