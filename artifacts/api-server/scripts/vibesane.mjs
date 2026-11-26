@@ -137,11 +137,15 @@ function foxyMcpEntry(host, root) {
     workspaceRoot: root,
   });
 }
+async function safeExistingDirectory(directory) {
+  const info = await lstat(directory).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+  if (!info) return false;
+  if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Unsafe or symlinked project configuration directory.');
+  return true;
+}
 async function readProjectMcpConfig(root, directoryName, fileName) {
   const directory = path.join(root, directoryName);
-  const info = await lstat(directory).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
-  if (!info) return {};
-  if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Unsafe project MCP configuration directory.');
+  if (!await safeExistingDirectory(directory)) return {};
   return readSafeJsonFile(path.join(directory, fileName));
 }
 function samePath(left, right) {
@@ -233,7 +237,7 @@ async function initCodexSkill(args) {
   const codexDir = path.join(root, '.codex');
   await ensureSafeDirectory(codexDir);
   const hooksFile = path.join(codexDir, 'hooks.json');
-  const config = await readSafeJsonFile(hooksFile);
+  const config = await readProjectMcpConfig(root, '.codex', 'hooks.json');
   if (config.hooks != null && (typeof config.hooks !== 'object' || Array.isArray(config.hooks))) {
     throw new Error('Refusing malformed Codex hooks object.');
   }
@@ -304,11 +308,15 @@ async function uninstallCodex(args) {
   else delete config.hooks;
   if (changed) await atomicJsonWrite(hooksFile, config);
 
-  const target = path.join(root, '.agents', 'skills', 'vibesane-agentshield', 'SKILL.md');
+  const targetDir = path.join(root, '.agents', 'skills', 'vibesane-agentshield');
+  const target = path.join(targetDir, 'SKILL.md');
   let skillRemoved = false;
   const source = path.resolve(scripts, '../skills/vibesane-agentshield/SKILL.md');
-  if (await isFile(target) && await isFile(source)) {
-    const existing = await readFile(target, 'utf8');
+  const skillParentsAreSafe = await safeExistingDirectory(path.join(root, '.agents'))
+    && await safeExistingDirectory(path.join(root, '.agents', 'skills'))
+    && await safeExistingDirectory(targetDir);
+  if (skillParentsAreSafe && await isFile(target) && await isFile(source)) {
+    const existing = await readSafeTextFile(target, 'Codex AgentShield skill');
     const packaged = await readFile(source, 'utf8');
     if (existing === packaged) {
       await unlink(target);
