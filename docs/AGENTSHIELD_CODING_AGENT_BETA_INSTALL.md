@@ -19,7 +19,8 @@ The intended loop is:
 
 - Node.js 20 or newer
 - Git
-- macOS or Linux for this beta; Windows is not supported yet
+- Linux/macOS remain the previously exercised environments; this branch adds Windows compatibility work that is still awaiting Windows CI and live-host qualification
+- Windows is **not yet approved for beta use** until the platform gate passes
 - A local Git repository
 - A trusted, MCP-capable coding-agent host
 
@@ -59,6 +60,38 @@ For a one-off CLI scan without persisting a policy, use `vibesane scan --changed
 **Host distinction:** Claude Code Stop and Codex Stop support an explicit first continuation/block response when their project hooks are installed, reviewed/trusted and `completionGate: enforce` is configured. If the host re-enters Stop with `stop_hook_active: true` and the condition is still unresolved, the hook ends that turn with `continue: false` and a visible stop reason to avoid a repeated continuation loop. Cursor's `followup_message` continues the agent loop within its configured `loop_limit`. These remain host-level controls, not tamper-proof prohibitions on a developer ending the session or changing local policy. Do not describe these integrations as security certification or an unbypassable delivery lock.
 
 `monitor` reports findings only; `assist` asks the agent to propose a repair; `auto-fix` may request bounded repair under host permissions. `completionGate: enforce` is independent of repair mode and can block even when automatic repair is disabled.
+
+## One-command MCP connection
+
+From the root of the Git repository:
+
+```bash
+vibesane connect
+```
+
+The connector detects the project markers and available CLIs for Claude Code, Codex CLI and Cursor, then writes the corresponding project-scoped MCP entries:
+
+- Claude Code: `.mcp.json`
+- Codex: `.codex/config.toml`
+- Cursor: `.cursor/mcp.json`
+
+Useful variants:
+
+```bash
+vibesane connect --agent all
+vibesane connect --agent claude
+vibesane connect --agent codex
+vibesane connect --agent cursor
+vibesane connect --agent mcp
+```
+
+`auto` is the default. `all` configures all three supported integrations. `mcp` prints a generic stdio server object that can be copied into another MCP-compatible host. The connector resolves the Git root itself, writes an explicit `VIBESANE_ALLOWED_ROOTS_JSON` allowlist for that root, backs up existing config files, preserves unrelated settings, and refuses malformed, symlinked or conflicting configuration. It does not run project scripts, install hooks, change agent permissions, or connect to an account remotely. Restart the host and approve the local server when prompted.
+
+The generic mode is for hosts that implement MCP stdio. It cannot automatically configure products that do not expose MCP or a documented extension/configuration API. MCP is a common tool transport, not a universal adapter for every proprietary agent. Lifecycle hooks remain host-specific and are installed separately only after review.
+
+The generated project configuration includes absolute local executable/script paths. Treat it as machine-specific local configuration; do not commit it for teammates unless the installation layout and trust policy are intentionally shared. For Codex, project `.codex/config.toml` is loaded only after the repository is trusted.
+
+Windows compatibility changes are present on this engineering branch, but Windows is not declared supported until the Windows CI suite and live Claude/Codex/Cursor acceptance pass. Cursor enterprise MCP Network Controls may also require the administrator to allow this local command server in the appropriate no-sandbox mode on Windows.
 
 ## Connect the coding agents
 
