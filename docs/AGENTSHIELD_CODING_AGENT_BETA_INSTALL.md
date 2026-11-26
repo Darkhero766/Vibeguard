@@ -89,7 +89,7 @@ From the root of the Git repository:
 vibesane connect
 ```
 
-The connector detects project markers and available CLIs for Claude Code, Codex CLI, Cursor, Gemini CLI and Roo Code, then writes the corresponding project-scoped MCP entries:
+The connector detects project markers and available CLIs for Claude Code, Codex CLI, Cursor, Gemini CLI and Roo Code; it also detects a VS Code Copilot session when the host environment exposes its session marker. It then writes the corresponding project-scoped MCP entries:
 
 - Claude Code: `.mcp.json`
 - Codex: `.codex/config.toml`
@@ -111,7 +111,7 @@ vibesane connect --agent copilot
 vibesane connect --agent mcp
 ```
 
-`auto` is the default and configures detected project hosts. `all` configures all five supported project-level host formats; VS Code Copilot shares the `.mcp.json` entry. `mcp` prints a generic stdio server object that can be copied into another MCP-compatible host. The connector resolves the Git root itself, writes an explicit `VIBESANE_ALLOWED_ROOTS_JSON` allowlist for that root, backs up existing config files, preserves unrelated settings, and refuses malformed, symlinked or conflicting configuration. It does not run project scripts, install hooks, change agent permissions, or connect to an account remotely. Restart the host and approve the local server when prompted.
+`auto` is the default and configures detected project hosts. VS Code Copilot is detected from the VS Code/Copilot host environment when that marker is available. `all` configures all five supported project-level host formats; VS Code Copilot shares the `.mcp.json` entry. `mcp` prints a generic stdio server object that can be copied into another MCP-compatible host. The connector resolves the Git root itself, writes an explicit `VIBESANE_ALLOWED_ROOTS_JSON` allowlist for that root, backs up existing config files, preserves unrelated settings, and refuses malformed, symlinked or conflicting configuration. It does not run project scripts, install hooks, change agent permissions, or connect to an account remotely. Restart the host and approve the local server when prompted.
 
 The generic mode is for hosts that implement MCP stdio. It cannot automatically configure products that do not expose MCP or a documented extension/configuration API. MCP is a common tool transport, not a universal adapter for every proprietary agent. Lifecycle hooks remain host-specific and are installed separately only after review.
 
