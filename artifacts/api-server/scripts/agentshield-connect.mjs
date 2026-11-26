@@ -35,7 +35,7 @@ export function parseConnectArgs(args = []) {
     }
   }
   if (!['auto', 'all', 'claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot', 'mcp'].includes(agent)) {
-    throw new Error('Agent must be auto, all, claude, codex, cursor, or mcp.');
+    throw new Error('Agent must be auto, all, claude, codex, cursor, gemini, roo, copilot, or mcp.');
   }
   return { agent, cwd };
 }
