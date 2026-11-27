@@ -65,7 +65,7 @@ export function createFoxyServer(queue, { authorizedRoots } = {}) {
       title: tool.title,
       description: tool.description,
       inputSchema: z.fromJSONSchema(tool.schema).strict(),
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: tool.name !== 'scan_start', openWorldHint: false },
+      annotations: { readOnlyHint: !['scan_start', 'scan_cancel'].includes(tool.name), destructiveHint: false, idempotentHint: tool.name !== 'scan_start', openWorldHint: false },
     }, async (args, context) => {
       try {
         let result;
