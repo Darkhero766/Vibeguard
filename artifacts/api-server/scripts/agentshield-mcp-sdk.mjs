@@ -41,7 +41,7 @@ const textResult = (value, isError = false) => ({
   ...(isError ? { isError: true } : {}),
 });
 
-export function createFoxyServer(queue) {
+export function createFoxyServer(queue, { authorizedRoots } = {}) {
   const server = new McpServer({ name: 'vibesane-agentshield', version: '0.7.0-beta.5' }, {
     instructions: INSTRUCTIONS,
     capabilities: { tools: {} },
@@ -55,7 +55,7 @@ export function createFoxyServer(queue) {
       annotations: tool.annotations,
     }, async (args, context) => {
       const response = await handleMessage({ jsonrpc: '2.0', id: context.mcpReq.id,
-        method: 'tools/call', params: { name: tool.name, arguments: args } }, { signal: context.mcpReq.signal });
+        method: 'tools/call', params: { name: tool.name, arguments: args } }, { signal: context.mcpReq.signal, authorizedRoots });
       return response?.result || textResult({ status: 'error', note: 'Tool returned no response.' }, true);
     });
   }
@@ -69,7 +69,7 @@ export function createFoxyServer(queue) {
       try {
         let result;
         if (tool.name === 'scan_start') {
-          const workspace = await authorizeWorkspace(args.workspace, { signal: context.mcpReq.signal });
+          const workspace = await authorizeWorkspace(args.workspace, { signal: context.mcpReq.signal, authorizedRoots });
           result = await queue.submit({ ...args, workspace });
         }
         else if (tool.name === 'scan_status') result = queue.getStatus(args.job_id);
@@ -110,7 +110,8 @@ export async function serveFoxyStdio({ env = process.env } = {}) {
   // Resolve roots once for queue scoping and legacy migration. If the allowlist
   // is absent or malformed, the MCP server still starts in a fail-closed
   // authorization state, but it must not import any shared beta.4 job records.
-  const authorizedRoots = await resolveAuthorizedRoots(env.VIBESANE_ALLOWED_ROOTS_JSON).catch(() => []);
+  const configuredRoots = await resolveAuthorizedRoots(env.VIBESANE_ALLOWED_ROOTS_JSON).catch(() => []);
+  const authorizedRoots = Object.freeze([...configuredRoots]);
   const storeDir = resolveJobStoreDirectory(env);
   const legacyStoreDir = env.VIBESANE_LEGACY_JOB_STORE_DIR
     ? env.VIBESANE_LEGACY_JOB_STORE_DIR
@@ -128,15 +129,15 @@ export async function serveFoxyStdio({ env = process.env } = {}) {
     maxQueued: Number(env.VIBESANE_JOB_QUEUE_LIMIT || 16),
     timeoutMs: Number(env.VIBESANE_JOB_TIMEOUT_MS || 60_000),
     runner: (input, options) => input.scope === 'full'
-      ? scanFull({ workspace: input.workspace }, options)
-      : scanChanged(input, options),
+      ? scanFull({ workspace: input.workspace }, { ...options, authorizedRoots })
+      : scanChanged(input, { ...options, authorizedRoots }),
   });
   await queue.init();
   for (const baseline of queue.getRestorableBaselines()) {
     try { await restoreBaseline(baseline); } catch { /* invalid, stale or expired baseline is not restored */ }
   }
   const handle = serveStdio(() => {
-    const server = createFoxyServer(queue);
+    const server = createFoxyServer(queue, { authorizedRoots });
     server.server.onclose = () => { void queue.close(); };
     return server;
   });
