@@ -31,7 +31,7 @@ export default function FoxyPage() {
     document.title = 'Foxy — Local-first MCP security for AI coding agents | VibeSane';
     const meta = document.querySelector('meta[name="description"]');
     const prior = meta?.getAttribute('content');
-    meta?.setAttribute('content', 'Connect supported AI coding-agent hosts to VibeSane Foxy with a workspace-scoped, read-only MCP integration. Windows and macOS automated qualification has passed; live host acceptance and independent review remain separate release gates.');
+    meta?.setAttribute('content', 'Connect supported AI coding-agent hosts to VibeSane Foxy with a workspace-scoped, read-only MCP integration. Windows and macOS are included in automated qualification; live host acceptance and independent review remain separate release gates.');
     return () => {
       document.title = previousTitle;
       if (meta && prior != null) meta.setAttribute('content', prior);
@@ -65,7 +65,7 @@ export default function FoxyPage() {
                 </a>
               </div>
               <p className="mt-7 max-w-[650px] font-mono text-[10px] uppercase leading-6 tracking-[.13em] text-[#777b72]">
-                Private beta · Node.js 20+ · Windows + macOS automated qualification · Linux not covered by this run
+                Private beta · Node.js 24.15+ · Windows + macOS automated qualification · Linux not covered by this run
               </p>
             </div>
 
@@ -99,7 +99,7 @@ export default function FoxyPage() {
           <div className="mx-auto grid max-w-[1180px] gap-6 px-5 py-8 sm:grid-cols-3 sm:px-8">
             <div className="flex items-start gap-3"><ShieldCheck size={21} className="mt-0.5 shrink-0 text-[#d94739]" aria-hidden="true" /><div><h2 className="font-sans text-sm font-bold tracking-tight">Local-first by design</h2><p className="mt-1 text-xs leading-6 text-[#62665e]">The connector runs locally over MCP STDIO.</p></div></div>
             <div className="flex items-start gap-3"><Fingerprint size={21} className="mt-0.5 shrink-0 text-[#d94739]" aria-hidden="true" /><div><h2 className="font-sans text-sm font-bold tracking-tight">Explicit workspace scope</h2><p className="mt-1 text-xs leading-6 text-[#62665e]">Canonical Git-root authorization is enforced by the local server.</p></div></div>
-            <div className="flex items-start gap-3"><Monitor size={21} className="mt-0.5 shrink-0 text-[#d94739]" aria-hidden="true" /><div><h2 className="font-sans text-sm font-bold tracking-tight">Cross-platform engineering</h2><p className="mt-1 text-xs leading-6 text-[#62665e]">Automated qualification currently covers Windows and macOS.</p></div></div>
+            <div className="flex items-start gap-3"><Monitor size={21} className="mt-0.5 shrink-0 text-[#d94739]" aria-hidden="true" /><div><h2 className="font-sans text-sm font-bold tracking-tight">Cross-platform engineering</h2><p className="mt-1 text-xs leading-6 text-[#62665e]">The connector targets Windows and macOS. CI validates exact source revisions; live host acceptance remains a separate gate.</p></div></div>
           </div>
         </section>
 
