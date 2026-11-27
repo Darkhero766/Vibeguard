@@ -83,6 +83,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
 
+      - name: Build TypeScript workspace project references
+        run: pnpm exec tsc -b --pretty false
+
       - name: Typecheck VibeSane frontend
         run: pnpm --filter @workspace/vibeguard run typecheck
 
