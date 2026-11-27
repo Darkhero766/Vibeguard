@@ -65,7 +65,7 @@ test('MCP SQLite stores are separated by host namespace and authorized-root scop
   );
   assert.throws(
     () => resolveJobStoreDirectory({ ...env, VIBESANE_JOB_STORE_NAMESPACE: '../escape' }, home),
-    /namespace must be/,
+    /VIBESANE_JOB_STORE_NAMESPACE must be/,
   );
   assert.throws(
     () => resolveJobStoreDirectory({ ...env, VIBESANE_JOB_STORE_DIR: 'relative-store' }, home),
