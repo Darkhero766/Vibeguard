@@ -337,7 +337,8 @@ async function uninstallCodex(args) {
 }
 async function doctor(args) {
   const cwd = cwdFrom(args);
-  const checks = { node: Number(process.versions.node.split('.')[0]) >= 20,
+  const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
+  const checks = { node: nodeMajor > 24 || (nodeMajor === 24 && nodeMinor >= 15),
     platform: ['win32', 'darwin', 'linux'].includes(process.platform), builtScanner: await isFile(dist),
     gitRepository: false, hooksInstalled: false, claudeHooksInstalled: false,
     codexStopHookInstalled: false, claudeMcpConfigured: false,
