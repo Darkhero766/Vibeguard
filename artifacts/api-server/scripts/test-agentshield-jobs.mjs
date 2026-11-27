@@ -996,6 +996,36 @@ test('initialization fails closed when the SQLite database path is a directory',
   }
 });
 
+test('close waits for in-flight initialization before releasing the SQLite worker', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-init-close-race-'));
+  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  const originalInitialize = queue.initializeStore.bind(queue);
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  queue.initializeStore = async () => { await gate; return originalInitialize(); };
+  let closeSettled = false;
+  try {
+    const initialization = queue.init();
+    await tick();
+    const closing = queue.close().finally(() => { closeSettled = true; });
+    await tick();
+    assert.equal(closeSettled, false, 'close must wait for pending store initialization');
+    release();
+    await Promise.all([initialization, closing]);
+    assert.equal(queue.initialized, false);
+    assert.equal(queue.store.db, null);
+    const check = new DatabaseSync(path.join(storeDir, 'jobs.sqlite3'));
+    try {
+      assert.equal(check.prepare('SELECT COUNT(*) AS count FROM workers').get().count, 0,
+        'shutdown must release the worker registered by the completed initialization');
+    } finally { check.close(); }
+  } finally {
+    release();
+    await queue.close();
+    await rm(storeDir,{recursive:true,force:true});
+  }
+});
+
 test('concurrent init calls share one SQLite worker registration', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-concurrent-init-'));
   const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
