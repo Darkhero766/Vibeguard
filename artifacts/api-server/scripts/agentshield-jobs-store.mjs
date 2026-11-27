@@ -120,13 +120,37 @@ export class ScanJobStore {
     const permissionHandle = await open(this.databasePath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
     try {
       const opened = await permissionHandle.stat();
-      if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino) {
+      const openedPath = await lstat(this.databasePath);
+      if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino
+        || !openedPath.isFile() || openedPath.isSymbolicLink()
+        || openedPath.dev !== before.dev || openedPath.ino !== before.ino) {
         throw new Error('Foxy SQLite database identity changed while opening; refusing to alter its permissions.');
       }
-      // POSIX permissions are enforced through the verified descriptor
-      // rather than re-resolving the path. Windows ACLs are inherited from the
-      // user-profile-backed store directory; Node's POSIX mode bits are not a
-      // reliable representation of Windows access-control entries.
+
+      // Inspect the database identity before any persistent PRAGMA or
+      // permission change. The configured store path may contain an unrelated
+      // SQLite database; opening it must not silently convert it to WAL or chmod it.
+      this.db.exec('PRAGMA busy_timeout=10000; PRAGMA trusted_schema=OFF;');
+      const applicationId = Number(this.db.prepare('PRAGMA application_id').get()?.application_id || 0);
+      if (applicationId !== 0 && applicationId !== FOXY_SQLITE_APPLICATION_ID) {
+        throw new Error('Refusing to open a SQLite database owned by another application.');
+      }
+      const schemaObjects = Number(this.db.prepare(
+        "SELECT COUNT(*) AS count FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'",
+      ).get()?.count || 0);
+      if (applicationId === 0 && schemaObjects !== 0) {
+        throw new Error('Refusing to adopt a non-empty SQLite database without Foxy application identity.');
+      }
+      const integrity = this.db.prepare('PRAGMA quick_check(1)').get();
+      if (String(Object.values(integrity || {})[0] || '').toLowerCase() !== 'ok') {
+        throw new Error('Foxy SQLite job store failed its integrity check; no scans were accepted.');
+      }
+      if (applicationId === 0) this.db.exec('PRAGMA application_id=' + FOXY_SQLITE_APPLICATION_ID);
+
+      // POSIX permissions are enforced through the verified descriptor rather
+      // than re-resolving the path. Windows ACLs are inherited from the
+      // user-profile-backed store directory; POSIX mode bits are not reliable
+      // evidence of Windows access-control entries.
       if (process.platform !== 'win32') await permissionHandle.chmod(0o600);
       const hardened = await permissionHandle.stat();
       if (hardened.dev !== before.dev || hardened.ino !== before.ino
@@ -134,6 +158,7 @@ export class ScanJobStore {
         throw new Error('Foxy SQLite database identity or POSIX owner-only permissions could not be verified.');
       }
     } finally { await permissionHandle.close(); }
+
     const after = await lstat(this.databasePath);
     if (!after.isFile() || after.isSymbolicLink() || after.dev !== before.dev || after.ino !== before.ino) {
       this.db.close();
@@ -141,20 +166,12 @@ export class ScanJobStore {
       throw new Error('Foxy SQLite database path changed while opening.');
     }
 
-    this.db.exec('PRAGMA busy_timeout=10000; PRAGMA trusted_schema=OFF; PRAGMA secure_delete=ON; PRAGMA wal_autocheckpoint=1000;');
+    // WAL is a persistent database change, so enable it only after ownership
+    // and integrity are established.
+    this.db.exec('PRAGMA secure_delete=ON; PRAGMA wal_autocheckpoint=1000; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;');
     const journal = this.db.prepare('PRAGMA journal_mode=WAL').get();
     if (String(journal?.journal_mode || '').toLowerCase() !== 'wal') {
       throw new Error('Foxy job store requires SQLite WAL mode on a local filesystem; no weaker journal fallback is permitted.');
-    }
-    this.db.exec('PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;');
-    const applicationId = Number(this.db.prepare('PRAGMA application_id').get()?.application_id || 0);
-    if (applicationId !== 0 && applicationId !== FOXY_SQLITE_APPLICATION_ID) {
-      throw new Error('Refusing to open a SQLite database owned by another application.');
-    }
-    if (applicationId === 0) this.db.exec('PRAGMA application_id=' + FOXY_SQLITE_APPLICATION_ID);
-    const integrity = this.db.prepare('PRAGMA quick_check(1)').get();
-    if (String(Object.values(integrity || {})[0] || '').toLowerCase() !== 'ok') {
-      throw new Error('Foxy SQLite job store failed its integrity check; no scans were accepted.');
     }
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS queue_meta (
@@ -722,16 +739,50 @@ export class ScanJobStore {
     // deletion and leave a ghost process counted against global concurrency.
     const now = this.now();
     this.#transaction(() => {
-      const rows = this.db.prepare("SELECT id,payload FROM jobs WHERE status='running' AND owner_worker_id=?").all(this.workerId);
+      const rows = this.db.prepare("SELECT id,payload,workspace,fingerprint,created_at,priority,sequence,idempotency_key FROM jobs WHERE status='running' AND owner_worker_id=?").all(this.workerId);
       for (const row of rows) {
-        const job = JSON.parse(row.payload);
+        let job;
+        let malformed = false;
+        try {
+          job = JSON.parse(row.payload);
+          validateLegacyJob(job);
+          if (job.id !== row.id || job.workspace !== row.workspace || job.fingerprint !== row.fingerprint) {
+            throw new Error('Persisted job payload does not match its indexed columns.');
+          }
+        } catch {
+          malformed = true;
+          // A graceful shutdown must release the worker even if the active
+          // payload was damaged. Rebuild a minimal UNKNOWN record from the
+          // indexed ownership columns, just as stale-lease recovery does.
+          job = {
+            id: row.id,
+            type: 'unknown',
+            scope: 'unknown',
+            status: 'interrupted',
+            priority: row.priority,
+            sequence: row.sequence,
+            workspace: row.workspace,
+            baseRef: null,
+            idempotencyKey: row.idempotency_key || null,
+            fingerprint: row.fingerprint,
+            progress: 0,
+            createdAt: row.created_at,
+            updatedAt: now,
+            retries: 0,
+            result: null,
+            error: 'Persisted scan metadata was corrupt during shutdown. The outcome is UNKNOWN; submit a new scan.',
+            finishedAt: now,
+          };
+        }
         job.status = 'interrupted';
         job.result = null;
-        job.error = 'The Foxy server stopped before this scan completed. The outcome is UNKNOWN.';
+        job.error = malformed
+          ? 'Persisted scan metadata was corrupt during shutdown. The outcome is UNKNOWN; submit a new scan.'
+          : 'The Foxy server stopped before this scan completed. The outcome is UNKNOWN.';
         job.updatedAt = now;
         job.finishedAt = now;
         this.db.prepare("UPDATE jobs SET status='interrupted',updated_at=?,finished_at=?,owner_worker_id=NULL,cancel_requested=0,payload=? WHERE id=?")
-          .run(now, now, encodeJob(job), job.id);
+          .run(now, now, encodeJob(job), row.id);
       }
       this.db.prepare('DELETE FROM workers WHERE id=?').run(this.workerId);
     });
