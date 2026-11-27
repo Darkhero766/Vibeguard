@@ -2,7 +2,7 @@
 
 ## What this beta does
 
-VibeSane AgentShield is a local security-feedback layer for AI coding agents. It combines a deterministic static scanner, a read-only MCP server, host-specific lifecycle adapters, and a reusable Codex skill.
+VibeSane AgentShield is a local security-feedback layer for AI coding agents. It combines a deterministic static scanner, a repository-read-only MCP server, host-specific lifecycle adapters, and a reusable Codex skill.
 
 The intended loop is:
 
@@ -13,7 +13,7 @@ The intended loop is:
 5. Compare removed, remaining, and newly introduced findings.
 6. Report clean, remaining, partial, or unknown outcomes without misrepresenting a partial scan as a pass.
 
-**The MCP server itself is read-only. It never edits code, runs project scripts, commits, deploys, or calls a remote model.** The coding agent applies changes using its own normal tools and permissions.
+**The MCP server never edits repository files, runs project scripts, commits, deploys, or calls a remote model.** It does update Foxy-managed local baseline and SQLite queue state. The coding agent applies repository changes using its own normal tools and permissions.
 
 ## Requirements
 
@@ -204,7 +204,7 @@ Cursor hook support can continue an agent turn; it does not create a tamper-proo
 
 ## MCP workflow
 
-The server exposes five read-only tools. Complete scans return isolated scan IDs (30-minute expiry, 50 retained baselines) so parallel coding-agent runs cannot silently overwrite one another's baseline:
+The synchronous MCP surface exposes five tools. `status`, `list_findings`, and `explain_finding` are pure queries; `scan_changed` and `verify_remediation` update Foxy-managed in-memory baseline state and therefore are not annotated read-only. Complete scans return isolated scan IDs (30-minute expiry, 50 retained baselines) so parallel coding-agent runs cannot silently overwrite one another's baseline:
 
 - `status`: checks whether the scanner is bundled and ready.
 - `scan_changed`: fresh scan of supported changed files; returns a unique `scanId` for the complete baseline.
