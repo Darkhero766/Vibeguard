@@ -56,7 +56,7 @@ async function normalizePackageTree(directory) {
       throw new Error('Beta package contains an unexpected non-text or non-regular file: ' + entry.name);
     }
     const original = await readFile(fullPath, 'utf8');
-    const normalized = original.replace(/\\r\\n?/g, '\\n');
+    const normalized = original.replace(/\r\n?/g, '\n');
     if (normalized !== original) await writeFile(fullPath, normalized);
     await utimes(fullPath, PACKAGE_EPOCH, PACKAGE_EPOCH);
   }
@@ -69,7 +69,7 @@ async function packageContentManifest(stageDirectory, files) {
   for (const relativePath of [...files].sort()) {
     const bytes = await readFile(path.join(stageDirectory, ...relativePath.split('/')));
     const sha256 = createHash('sha256').update(bytes).digest('hex');
-    aggregate.update(relativePath).update('\\0').update(String(bytes.length)).update('\\0').update(bytes).update('\\0');
+    aggregate.update(relativePath).update('\0').update(String(bytes.length)).update('\0').update(bytes).update('\0');
     fileDigests.push({ path: relativePath, bytes: bytes.length, sha256 });
   }
   return { contentSha256: aggregate.digest('hex'), fileDigests };
