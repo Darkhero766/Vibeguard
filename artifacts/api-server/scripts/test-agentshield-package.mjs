@@ -80,14 +80,15 @@ async function withPackagedMcp(executable, env, run) {
 try {
   assert(['darwin', 'linux', 'win32'].includes(process.platform),
     'Package smoke supports Windows, macOS and Linux only.');
-  assert(Number(process.versions.node.split('.')[0]) >= 20, 'Node.js 20 or newer is required.');
+  const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
+  assert(nodeMajor > 24 || (nodeMajor === 24 && nodeMinor >= 15), 'Node.js 24.15.0 or newer is required for node:sqlite.');
 
   await run(process.execPath, [path.join(scriptsDir, 'build-agentshield.mjs')]);
   const pack = await run(process.execPath, [path.join(scriptsDir, 'package-agentshield-beta.mjs')]);
   const packaged = JSON.parse(pack.stdout);
   assert(packaged.status === 'packaged_local_only' && packaged.published === false,
     'Packaging must remain local-only.');
-  assert(packaged.version === '0.7.0-beta.4', 'Unexpected AgentShield beta package version.');
+  assert(packaged.version === '0.7.0-beta.5', 'Unexpected AgentShield beta package version.');
   assert(typeof packaged.archive === 'string' && typeof packaged.sha256 === 'string',
     'Packaging did not return an archive path and SHA-256.');
   archive = packaged.archive;
