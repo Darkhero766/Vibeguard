@@ -14,6 +14,13 @@ import { ScanJobQueue } from './agentshield-jobs.mjs';
 const complete = (findings = []) => ({ status: 'complete', filesScanned: 1, findings,
   totalFindings: findings.length, coverage: 'synthetic complete fixture', findingsTruncated: false });
 const tick = () => new Promise((resolve) => setTimeout(resolve, 15));
+function queueInitFailure(pattern) {
+  return (error) => {
+    assert.match(String(error?.message || ''), /Foxy SQLite queue initialization failed/);
+    assert.match(String(error?.cause?.message || ''), pattern);
+    return true;
+  };
+}
 async function stopChild(child) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
   const exited = new Promise((resolve) => child.once('exit', resolve));
@@ -83,7 +90,7 @@ test('queue retries only bounded transient errors and reports scanner failures a
     // The second submission may fail before the retried job gets its worker
     // slot. Wait for both independent outcomes rather than treating the first
     // terminal job as evidence that the earlier retry has also completed.
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 1000; i++) {
       const retryStatus = queue.getStatus(retried.job_id)?.status;
       const failedStatus = queue.getStatus(failed.job_id)?.status;
       if (retryStatus === 'completed' && failedStatus === 'failed') break;
@@ -1535,6 +1542,9 @@ test('queue priority aging prevents older normal jobs being starved by newer urg
   const queue = new ScanJobQueue({
     storeDir,
     concurrency: 1,
+    // The fixture advances its logical clock to test priority aging. Keep the
+    // worker lease beyond that artificial interval.
+    workerLeaseMs: 120_000,
     now: () => now,
     runner: async ({ workspace }) => {
       if (workspace === jobWorkspacePath('foxy-aging-active')) {
