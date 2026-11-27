@@ -77,11 +77,28 @@ test('unpublished local beta package contains no server runtime or source corpus
     'scripts/agentshield-verifier.mjs', 'scripts/agentshield-version.mjs', 'scripts/vibesane.mjs', 'skills/vibesane-agentshield/SKILL.md',
   ]);
   assert.equal(pkg.sha256.length, 64);
+  assert.match(pkg.contentSha256, /^[a-f0-9]{64}$/);
+  assert.equal(pkg.fileDigests.length, pkg.fileCount);
+  assert.deepEqual(pkg.fileDigests.map((file) => file.path), pkg.contents);
+  assert.ok(pkg.fileDigests.every((file) => Number.isSafeInteger(file.bytes) && file.bytes >= 0
+    && /^[a-f0-9]{64}$/.test(file.sha256)));
   assert.ok(pkg.contents.includes('dist/agentshield.mjs'));
   assert.ok(pkg.contents.includes('scripts/vibesane.mjs'));
   assert.ok(!pkg.contents.some(x => /src\/lib|\.env|benchmark|test-|node_modules|\.ts$/.test(x)));
   const npmRoot = await mkdtemp(path.join(tmpdir(), 'agentshield-w4-offline-install-'));
   t.after(async () => { await rm(npmRoot, { recursive: true, force: true }); });
+  // Rebuilding the same staged source tree must produce byte-identical package
+  // archives; this catches OS-dependent line endings and timestamps.
+  await rm(pkg.archive, { force: true });
+  const repeatedPack = JSON.parse((await exec(process.execPath, [packager], {
+    timeout: 40000, maxBuffer: 250000, windowsHide: true,
+  })).stdout);
+  assert.equal(repeatedPack.contentSha256, pkg.contentSha256,
+    'Repeated packaging changed the normalized file-content manifest.');
+  assert.equal(repeatedPack.sha256, pkg.sha256,
+    'Repeated packaging of identical normalized inputs must be byte reproducible.');
+  assert.equal(repeatedPack.archiveBytes, pkg.archiveBytes);
+
   await exec('npm', ['install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund',
     '--prefix', npmRoot, pkg.archive], { timeout: 45000, maxBuffer: 250000,
     shell: process.platform === 'win32', windowsHide: true,
@@ -91,6 +108,10 @@ test('unpublished local beta package contains no server runtime or source corpus
   assert.equal(manifest.version, pkg.version);
   assert.equal(manifest.private, true);
   assert.equal(Object.keys(manifest.dependencies || {}).length, 0);
+  const installedReadme = await readFile(path.join(installed, 'README.md'), 'utf8');
+  assert.match(installedReadme, /never modifies repository files/i);
+  assert.match(installedReadme, /local SQLite queue/i);
+  assert.match(installedReadme, /in-memory baseline state/i);
   assert.ok((await stat(path.join(installed, 'dist/agentshield.mjs'))).isFile());
   const installedBin = process.platform === 'win32'
     ? path.join(npmRoot, 'node_modules', '.bin', 'vibesane.cmd')
