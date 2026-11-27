@@ -7,6 +7,8 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { cursorStopEligibility } from './agentshield-controller.mjs';
+import { resolveJobStoreDirectory } from './agentshield-mcp-sdk.mjs';
+import { createHash } from 'node:crypto';
 import {
   TOOL_DEFS,
   compareFindings,
@@ -26,6 +28,38 @@ import {
 
 const exec = promisify(execFile);
 process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([os.tmpdir()]);
+
+test('MCP SQLite stores are separated by host namespace and authorized-root scope', () => {
+  const home = path.join(os.tmpdir(), 'foxy-store-path-home');
+  const roots = JSON.stringify(['/workspace/repo-a']);
+  const env = {
+    VIBESANE_JOB_STORE_NAMESPACE: 'foxy-cursor',
+    VIBESANE_ALLOWED_ROOTS_JSON: roots,
+  };
+  const scope = createHash('sha256').update(roots).digest('hex').slice(0, 24);
+  const expected = path.join(home, '.local', 'state', 'vibesane', 'agentshield', 'foxy-cursor-' + scope);
+  assert.equal(resolveJobStoreDirectory(env, home), expected);
+  assert.notEqual(
+    resolveJobStoreDirectory({ ...env, VIBESANE_JOB_STORE_NAMESPACE: 'foxy-codex' }, home),
+    expected,
+  );
+  assert.notEqual(
+    resolveJobStoreDirectory({ ...env, VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify(['/workspace/repo-b']) }, home),
+    expected,
+  );
+  assert.equal(
+    resolveJobStoreDirectory({ ...env, VIBESANE_JOB_STORE_DIR: path.join(home, 'custom-store') }, home),
+    path.join(home, 'custom-store'),
+  );
+  assert.throws(
+    () => resolveJobStoreDirectory({ ...env, VIBESANE_JOB_STORE_NAMESPACE: '../escape' }, home),
+    /namespace must be/,
+  );
+  assert.throws(
+    () => resolveJobStoreDirectory({ ...env, VIBESANE_JOB_STORE_DIR: 'relative-store' }, home),
+    /must be an absolute local path/,
+  );
+});
 
 test('exposes only documented read-only tools with strict input schemas', () => {
   assert.deepEqual(TOOL_DEFS.map((tool) => tool.name), [
