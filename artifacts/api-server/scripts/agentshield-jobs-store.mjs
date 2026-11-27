@@ -8,6 +8,7 @@ import { mkdir, lstat, chmod, open, readFile, realpath } from 'node:fs/promises'
 import { constants } from 'node:fs';
 
 const FOXY_SQLITE_APPLICATION_ID = 1447514958; // ASCII 'VGSN'
+const LEGACY_MIGRATION_GUARD = 'FOXY_BETA5_MIGRATION_GUARD_V1';
 const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const MAX_RECORDS = 200;
 const MAX_STATE_BYTES = 8_000_000;
@@ -261,8 +262,13 @@ export class ScanJobStore {
           || Buffer.byteLength(lockText, 'utf8') !== opened.size) {
           throw new Error('Legacy Foxy job lock changed while being read; refusing migration.');
         }
-        legacyOwner = JSON.parse(lockText);
+        if (lockText.trim() === LEGACY_MIGRATION_GUARD) {
+          legacyOwner = { migrationGuard: true };
+        } else {
+          legacyOwner = JSON.parse(lockText);
+        }
       } finally { await lockHandle.close(); }
+      if (legacyOwner.migrationGuard) continue;
       if (legacyOwner.host !== this.host || !Number.isInteger(legacyOwner.pid) || !legacyOwner.token) {
         throw new Error('Legacy Foxy job lock belongs to another host or is invalid; refusing migration.');
       }
@@ -273,6 +279,32 @@ export class ScanJobStore {
         if (error?.code !== 'ESRCH') throw error;
       }
     }
+  }
+
+  async #ensureLegacyMigrationGuard(directory) {
+    const lockPath = path.join(directory, 'jobs.lock');
+    const current = await lstat(lockPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+    if (current) {
+      // A beta.4 stale lock blocks new beta.4 writers already. Preserve it;
+      // the PID-aware validation above decides whether it is safe to read.
+      await this.#assertNoLiveLegacyLocks([directory]);
+      return;
+    }
+
+    // Reuse beta.4's exclusive-create lock path. If beta.4 wins the race,
+    // its live PID is detected and migration fails. If beta.5 wins, the old
+    // writer sees EEXIST and cannot mutate jobs.json while it is imported.
+    try {
+      const handle = await open(lockPath, 'wx', 0o600);
+      try {
+        await handle.writeFile(LEGACY_MIGRATION_GUARD, 'utf8');
+        await handle.sync();
+      } finally { await handle.close(); }
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+      await this.#assertNoLiveLegacyLocks([directory]);
+    }
+    await this.#assertNoLiveLegacyLocks([directory]);
   }
 
   #workspaceWithinAuthorizedRoots(workspace) {
@@ -307,6 +339,12 @@ export class ScanJobStore {
       }
     }
     const snapshot = snapshots[0] || null;
+    if (snapshot) {
+      // Persist a beta.5 guard in the old lock slot before opening jobs.json.
+      // It is intentionally retained as a downgrade barrier and recognized by
+      // future beta.5 processes; old beta.4 cannot acquire the same lock path.
+      await this.#ensureLegacyMigrationGuard(path.dirname(snapshot.snapshotPath));
+    }
     this.legacyMigration = (async () => {
       let jobs = [];
       if (snapshot) {
