@@ -14,7 +14,7 @@ const exec = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const stage = path.join(root, 'dist', 'agentshield-beta-stage');
 const out = path.join(root, 'dist');
-export const PACKAGE_VERSION = '0.7.0-beta.4';
+export const PACKAGE_VERSION = '0.7.0-beta.5';
 const scripts = [
   'vibesane.mjs',
   'agentshield-connect.mjs',
@@ -33,6 +33,7 @@ const scripts = [
   'agentshield-mcp-sdk.mjs',
   'agentshield-mcp-stdio.mjs',
   'agentshield-jobs.mjs',
+  'agentshield-jobs-store.mjs',
   'agentshield-baselines.mjs',
   'agentshield-python.mjs',
   'agentshield-sarif.mjs',
@@ -63,7 +64,7 @@ async function main() {
     platform: 'node',
     format: 'esm',
     bundle: true,
-    target: 'node20',
+    target: 'node24',
     sourcemap: false,
     legalComments: 'eof',
   });
@@ -75,7 +76,7 @@ async function main() {
     platform: 'node',
     format: 'cjs',
     bundle: true,
-    target: 'node20',
+    target: 'node24',
     minify: true,
     sourcemap: false,
     legalComments: 'eof',
@@ -128,7 +129,7 @@ async function main() {
       'vibesane-mcp': './scripts/agentshield-mcp-stdio.mjs',
       'vibesane-cursor-stop': './scripts/agentshield-cursor-stop.mjs',
     },
-    engines: { node: '>=20' },
+    engines: { node: '>=24.15.0' },
     dependencies: {},
     files: [
       'dist/agentshield.mjs',
@@ -158,7 +159,7 @@ async function main() {
     '# VibeSane AgentShield (unpublished developer preview)',
     '',
     'Local static security scanning, Claude Code and Codex Stop hooks, Cursor Stop feedback, and a read-only MCP server.',
-    'Requires Node.js >=20 and Git. macOS/Linux are the previously exercised platforms; Windows compatibility is a candidate only and remains blocked pending Windows CI plus live-host acceptance. This is an opt-in beta, not a security certification.',
+    'Requires Node.js >=24.15.0 and Git. macOS/Linux are the previously exercised platforms; Windows compatibility is a candidate only and remains blocked pending Windows CI plus live-host acceptance. This is an opt-in beta, not a security certification.',
     '',
     '## Install locally',
     'npm install --global ./vibesane-agentshield-' + PACKAGE_VERSION + '.tgz',
