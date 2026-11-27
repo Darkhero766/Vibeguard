@@ -94,22 +94,26 @@ CI runner evidence does not replace these tests on real intended machines.
 
 ## Multi-instance SQLite queue acceptance gate
 
-The beta.5 candidate replaces the process-exclusive JSON snapshot with a local SQLite WAL database. Connections to the same host-namespace/workspace store coordinate writes through short BEGIN IMMEDIATE transactions. Each MCP process registers a worker row and refreshes a lease; job claims are atomic and the global concurrency/backpressure policy is enforced per shared store. Cancellation is stored centrally and observed by the owning worker's heartbeat. A stale worker lease turns that worker's running jobs into interrupted/UNKNOWN, never into clean results or automatic retries.
+The beta.5 candidate replaces the process-exclusive JSON snapshot with a local SQLite WAL database. Connections to the same host-namespace/authorized-root store coordinate writes through short `BEGIN IMMEDIATE` transactions. Each MCP process registers a worker row and refreshes a lease; job claims are atomic and the global concurrency/backpressure policy is enforced per shared store. Cancellation is stored centrally and observed by the owning worker's heartbeat. A stale worker lease turns that worker's running jobs into `interrupted`/UNKNOWN, never into clean results or automatic retries.
 
-Host namespaces determine which MCP processes share a queue: Claude/Copilot share the workspace-root .mcp.json namespace; Codex, Cursor, Gemini and Roo each have dedicated namespaces; generic hand-entered MCP uses its own namespace. Same-namespace processes intentionally share queue history, idempotency and concurrency policy.
+The runtime path is derived from the host's `VIBESANE_JOB_STORE_NAMESPACE` plus a SHA-256 scope of the exact `VIBESANE_ALLOWED_ROOTS_JSON` value. Claude/Copilot share the workspace-root `.mcp.json` namespace; Codex, Cursor, Gemini and Roo each use dedicated namespaces; generic hand-entered MCP uses `foxy-manual`. Processes with the same namespace and exact allowlist share queue history, idempotency, worker cap and cancellation state. Different host namespaces or different allowlists resolve to distinct store directories.
 
-**Hard storage boundary:** this database uses SQLite WAL and must live on one machine's local filesystem. Do not place it on NFS, SMB, network shares, or cloud-synchronized directories. Startup must reject non-WAL mode, an unrelated database application ID, failed quick_check, and a live worker on another host.
+The SQLite schema uses a normalized `job_idempotency_keys` table with a unique primary key and cascading foreign key. This lets multiple client idempotency keys safely alias one fingerprint-coalesced job. Reuse of an existing key for a different fingerprint must be rejected even when the original job is already terminal or another process created it.
+
+**Hard storage boundary:** this database uses SQLite WAL and must live on one machine's local filesystem. Do not place it on NFS, SMB, network shares, or cloud-synchronized directories. Startup must reject non-WAL mode, an unrelated database application ID, failed `quick_check`, unsafe file identity and a live worker on another host. Database permissions must stay owner-only.
 
 The exact-source qualification suite must prove, on both Windows and macOS:
 - independent processes can register against one DB without startup races;
-- duplicate submissions with the same idempotency key coalesce and key reuse with a different fingerprint is rejected;
-- the SQL worker-claim transaction never exceeds the shared concurrency limit;
+- duplicate submissions with the same idempotency key coalesce to one durable job, including terminal-job retries;
+- fingerprint coalescing persists additional idempotency aliases, and key reuse for a different scan is rejected across processes;
+- the SQL worker-claim transaction never exceeds the shared concurrency limit and backpressure remains bounded;
 - a process can observe another process's status/results and request cancellation;
-- cancellation wins over a completion race and the owning process persists cancelled;
-- abrupt termination expires the worker lease and marks only that worker's active jobs interrupted/UNKNOWN;
-- queued work is subsequently claimable by surviving workers;
-- two simultaneous beta.5 startups migrate a beta.4 snapshot exactly once, and startup refuses while the old jobs.lock owner is alive;
-- graceful close, bounded retention, local permissions, and DB integrity remain correct.
+- cancellation wins over a completion race and the owning process persists `cancelled`;
+- abrupt termination expires the worker lease and marks only that worker's active jobs interrupted/UNKNOWN, while surviving workers continue queued work;
+- beta.4 `jobs.json` migrates once, a live legacy `jobs.lock` owner prevents migration, and an interrupted legacy job never appears clean;
+- if startup pruning fails after worker registration, deregistration still commits and no ghost worker remains;
+- calling close during asynchronous initialization waits for registration to settle and then releases the worker;
+- graceful close, bounded byte-accurate retention, local permissions, WAL/integrity checks and store-path namespace isolation remain correct.
 
 These are code/test expectations until the workflow for the exact current PR head completes. Do not claim unrestricted simultaneous host support from the architecture alone.
 
