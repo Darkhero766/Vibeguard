@@ -2,7 +2,7 @@
 
 **Status:** NOT APPROVED FOR PRODUCTION  
 **Candidate:** 0.7.0-beta.5  
-**Current source candidate:** 13a74ef706d531c92fbf2c21629b64cac141a36c  
+**Current source candidate:** 4dec4fb27a9070127904e3c29ece476dad3ad2a4  
 **PR:** [#70 — Foxy beta.5](https://github.com/Darkhero766/Vibeguard/pull/70)
 
 This is the release control record for Foxy / AgentShield beta.5. A source change, test definition, historical green run, or reviewer preview is not a completed release gate. Mark an item complete only when its evidence is attached to the exact candidate commit and reviewed. Keep the PR draft, unpublished and unmerged until every mandatory gate is closed.
