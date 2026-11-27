@@ -1,4 +1,4 @@
-# AgentShield coding-agent beta (0.7.0-beta.4)
+# AgentShield coding-agent beta (0.7.0-beta.5)
 
 ## What this beta does
 
@@ -17,19 +17,27 @@ The intended loop is:
 
 ## Requirements
 
-- Node.js 20 or newer
+- Node.js 24.15.0 or newer (the MCP queue uses the built-in `node:sqlite` module)
 - Git
 - Windows and macOS are included in the automated Foxy qualification workflow. Linux is supported by the runtime design but is not covered by that two-platform qualification run.
 - Automated CI does not equal live-host acceptance: each supported host/version combination still requires authenticated setup, restart, approval, tool-call and disconnect validation on a real machine.
 - A local Git repository
 - A trusted, MCP-capable coding-agent host
 
+## Multi-process queue and recovery
+
+The MCP queue is stored in a local SQLite database using WAL mode, full synchronous commits, and short `BEGIN IMMEDIATE` transactions. Each MCP process registers a worker lease and heartbeats; database transactions serialize idempotency, backpressure and global worker claims across processes. A running job is owned by exactly one worker. Cancellation is written to SQLite and observed by that owner. A worker that stops heartbeating has its running jobs marked `interrupted` with an UNKNOWN outcome; they are never automatically retried or described as clean. Queued jobs remain available to another live process. Completed records and remediation baselines are retained within the bounded history/TTL policy.
+
+The SQLite database is local-machine state; do not put the job store on NFS, SMB, cloud-synced or other network filesystems. Processes on a different host are rejected. Host config namespaces keep unrelated configuration domains separate; clients intentionally sharing a config entry also share that namespace and see the same job history.
+
+An exact legacy JSON snapshot from beta.4 is migrated once into SQLite. The migration refuses to proceed while a legacy Foxy writer is still alive, and retains the original `jobs.json` as a recovery copy. Stop every older Foxy MCP process before the first beta.5 start.
+
 ## Install the local beta
 
 After receiving the maintainer-built tarball:
 
 ```bash
-npm install --global ./vibesane-agentshield-0.7.0-beta.4.tgz
+npm install --global ./vibesane-agentshield-0.7.0-beta.5.tgz
 vibesane --help
 vibesane doctor --cwd /absolute/path/to/project
 ```
@@ -47,7 +55,7 @@ node .\artifacts\api-server\scripts\package-agentshield-beta.mjs
 
 $installPrefix = Join-Path $env:LOCALAPPDATA 'VibeSane'
 New-Item -ItemType Directory -Force -Path $installPrefix | Out-Null
-$archive = (Resolve-Path '.\artifacts\api-server\dist\vibesane-agentshield-0.7.0-beta.4.tgz').Path
+$archive = (Resolve-Path '.\artifacts\api-server\dist\vibesane-agentshield-0.7.0-beta.5.tgz').Path
 npm install --global --prefix $installPrefix --ignore-scripts $archive
 
 $vibesane = Join-Path $installPrefix 'vibesane.cmd'
