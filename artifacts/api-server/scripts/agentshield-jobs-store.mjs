@@ -216,24 +216,7 @@ export class ScanJobStore {
     }
   }
 
-  #workspaceWithinAuthorizedRoots(workspace) {
-    if (this.authorizedRoots === null) return true;
-    const candidate = path.resolve(workspace);
-    return this.authorizedRoots.some((root) => {
-      const relative = path.relative(root, candidate);
-      return relative === '' || (!path.isAbsolute(relative)
-        && relative !== '..' && !relative.startsWith('..' + path.sep));
-    });
-  }
-
-  async #migrateLegacySnapshot() {
-    const marker = this.db.prepare("SELECT value FROM queue_meta WHERE key='json_snapshot_migrated'").get();
-    if (marker?.value === '1') return;
-
-    const directories = [...new Set([this.storeDir, this.legacyStoreDir].map((item) => path.resolve(item)))];
-    // Check every historical storage directory before reading any snapshot.
-    // Beta.4 used one shared directory; beta.5 uses per-host/per-root stores.
-    // A live old process can still rewrite the shared snapshot, so do not race it.
+  async #assertNoLiveLegacyLocks(directories) {
     for (const directory of directories) {
       const directoryInfo = await lstat(directory).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
       if (!directoryInfo) continue;
@@ -265,6 +248,26 @@ export class ScanJobStore {
         if (error?.code !== 'ESRCH') throw error;
       }
     }
+  }
+
+  #workspaceWithinAuthorizedRoots(workspace) {
+    if (this.authorizedRoots === null) return true;
+    const candidate = path.resolve(workspace);
+    return this.authorizedRoots.some((root) => {
+      const relative = path.relative(root, candidate);
+      return relative === '' || (!path.isAbsolute(relative)
+        && relative !== '..' && !relative.startsWith('..' + path.sep));
+    });
+  }
+
+  async #migrateLegacySnapshot() {
+    const marker = this.db.prepare("SELECT value FROM queue_meta WHERE key='json_snapshot_migrated'").get();
+    if (marker?.value === '1') return;
+
+    const directories = [...new Set([this.storeDir, this.legacyStoreDir].map((item) => path.resolve(item)))];
+    // Check every historical storage directory before reading any snapshot.
+    // Beta.4 used one shared directory; beta.5 uses per-host/per-root stores.
+    await this.#assertNoLiveLegacyLocks(directories);
 
     const snapshotPaths = directories.map((directory) => path.join(directory, 'jobs.json'));
     const snapshots = [];
@@ -317,15 +320,9 @@ export class ScanJobStore {
         jobs = parsed.jobs.filter((job) => this.#workspaceWithinAuthorizedRoots(job.workspace));
       }
 
-      // Re-check locks immediately before the SQL transaction in case an old
-      // process appeared while the snapshot was being validated.
-      for (const directory of directories) {
-        const legacyLockPath = path.join(directory, 'jobs.lock');
-        const lockInfo = await lstat(legacyLockPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
-        if (lockInfo) {
-          throw new Error('Legacy Foxy job lock appeared during migration; stop all Foxy processes and retry.');
-        }
-      }
+      // Re-run the same PID-aware check after reading and validating the snapshot.
+      // A verified stale lock is harmless; a newly active beta.4 writer blocks import.
+      await this.#assertNoLiveLegacyLocks(directories);
 
       this.#transaction(() => {
         const stillMissing = this.db.prepare("SELECT value FROM queue_meta WHERE key='json_snapshot_migrated'").get();
