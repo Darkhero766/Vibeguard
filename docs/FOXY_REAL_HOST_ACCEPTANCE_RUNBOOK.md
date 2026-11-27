@@ -102,6 +102,8 @@ The SQLite schema uses a normalized `job_idempotency_keys` table with a unique p
 
 **Hard storage boundary:** this database uses SQLite WAL and must live on one machine's local filesystem. Do not place it on NFS, SMB, network shares, or cloud-synchronized directories. Startup must reject non-WAL mode, an unrelated database application ID, failed `quick_check`, unsafe file identity and a live worker on another host. Database permissions must stay owner-only.
 
+**Beta.4 migration fixture:** create a shared legacy snapshot containing at least two records with distinct sibling Git roots. Launch beta.5 with an allowlist that authorizes only one root. Verify only that root's record appears in the new SQLite database; the sibling job ID must be not-found; the original shared JSON must remain byte-for-byte unchanged. Repeat with an absent/invalid allowlist and assert startup refuses to migrate any records. Place an active beta.4 lock in the old shared directory and verify migration refuses before reading or modifying the snapshot. Repeat with an inactive stale lock and verify the migration path remains fail-closed without deleting the lock automatically.
+
 The exact-source qualification suite must prove, on both Windows and macOS:
 - independent processes can register against one DB without startup races;
 - duplicate submissions with the same idempotency key coalesce to one durable job, including terminal-job retries;
