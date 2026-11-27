@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { writeSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -152,6 +153,27 @@ test('running cancellation and restart recovery never turn interrupted work into
   }
 });
 
+test('legacy JSON migration refuses to race a still-running pre-SQLite Foxy process', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-live-writer-'));
+  const snapshot = { version: 1, jobs: [] };
+  await writeFile(path.join(storeDir, 'jobs.json'), JSON.stringify(snapshot));
+  await writeFile(path.join(storeDir, 'jobs.lock'), JSON.stringify({
+    pid: process.pid,
+    host: os.hostname(),
+    token: 'legacy-writer-live-fixture',
+  }));
+  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  try {
+    await assert.rejects(queue.init(), /legacy Foxy process is still using jobs\.json/);
+    assert.equal(queue.initialized, false);
+    assert.deepEqual(JSON.parse(await readFile(path.join(storeDir, 'jobs.json'), 'utf8')), snapshot);
+    assert.equal(queue.store?.db, null, 'failed migration must close the SQLite handle');
+  } finally {
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
 test('legacy JSON queue state migrates once into SQLite and interrupted work stays UNKNOWN', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-migration-'));
   const now = Date.now();
@@ -216,7 +238,7 @@ test('two independent Node processes share one SQLite queue and enforce a global
       });
       ids.push(result.job_id);
     }
-    process.stdout.write('SUBMITTED ' + JSON.stringify({ label, ids }) + '\\n');
+    writeSync(1, 'SUBMITTED ' + JSON.stringify({ label, ids }) + '\\n');
     for (const id of ids) {
       for (let attempt = 0; attempt < 500; attempt++) {
         const state = queue.getStatus(id);
@@ -228,7 +250,7 @@ test('two independent Node processes share one SQLite queue and enforce a global
         if (attempt === 499) throw new Error('Timed out waiting for shared queue job ' + id);
       }
     }
-    process.stdout.write('DONE ' + label + '\\n');
+    writeSync(1, 'DONE ' + label + '\\n');
     await queue.close();
   `;
   const start = (label) => spawn(process.execPath, ['--input-type=module', '-e', childSource, storeDir, label], {
@@ -243,16 +265,12 @@ test('two independent Node processes share one SQLite queue and enforce a global
     child.stdout.on('data', (chunk) => { output += chunk.toString(); });
     child.stderr.on('data', (chunk) => { errors += chunk.toString(); });
   }
-  const submitted = new Set();
   const dbPath = path.join(storeDir, 'jobs.sqlite3');
   let db = null;
   let peakRunning = 0;
   try {
     const deadline = Date.now() + 15_000;
     while (Date.now() < deadline) {
-      for (const label of ['alpha', 'beta']) {
-        if (output.includes('SUBMITTED ' + JSON.stringify({ label }).slice(0, -1))) submitted.add(label);
-      }
       if (!db && await (await import('node:fs/promises')).stat(dbPath).then(() => true).catch(() => false)) {
         db = new DatabaseSync(dbPath);
         db.exec('PRAGMA busy_timeout=10000;');
@@ -264,9 +282,9 @@ test('two independent Node processes share one SQLite queue and enforce a global
       if (children.every((child) => child.exitCode !== null)) break;
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
-    const exits = await Promise.all(children.map((child) => child.exitCode !== null
-      ? Promise.resolve(child.exitCode)
-      : new Promise((resolve) => child.once('exit', (code) => resolve(code)))));
+    assert.ok(children.every((child) => child.exitCode !== null),
+      'both worker processes must finish before the test deadline; ' + errors + output);
+    const exits = children.map((child) => child.exitCode);
     assert.deepEqual(exits, [0, 0], errors || output);
     assert.match(output, /SUBMITTED .*alpha/);
     assert.match(output, /SUBMITTED .*beta/);
@@ -297,7 +315,7 @@ test('a crashed subprocess lease turns its running job into interrupted on recov
     const result = await queue.submit({ workspace: '/tmp/foxy-crashed-worker-fixture' });
     for (let attempt = 0; attempt < 100; attempt++) {
       if (queue.getStatus(result.job_id)?.status === 'running') {
-        process.stdout.write('RUNNING ' + result.job_id + '\\n');
+        writeSync(1, 'RUNNING ' + result.job_id + '\\n');
         process.exit(0);
       }
       await new Promise((resolve) => setTimeout(resolve, 10));
