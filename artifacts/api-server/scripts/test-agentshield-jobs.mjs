@@ -193,6 +193,7 @@ test('a verified stale beta.4 lock permits migration but is never deleted automa
   const legacyStoreDir = path.join(root, 'shared-beta4-store');
   await mkdir(legacyStoreDir, { recursive: true });
   const workspace = jobWorkspacePath('stale-lock-repo');
+  await mkdir(workspace, { recursive: true });
   const now = Date.now();
   const id = '66666666-6666-4666-8666-666666666666';
   const snapshot = {
@@ -247,6 +248,8 @@ test('beta.4 shared JSON migration imports only jobs under the current MCP allow
   const now = Date.now();
   const allowedWorkspace = jobWorkspacePath('legacy-repo-a');
   const otherWorkspace = jobWorkspacePath('legacy-repo-b');
+  await mkdir(allowedWorkspace, { recursive: true });
+  await mkdir(otherWorkspace, { recursive: true });
   const makeJob = (id, workspace, fingerprint) => ({
     id,
     type: 'scan_full',
@@ -300,6 +303,59 @@ test('beta.4 shared JSON migration imports only jobs under the current MCP allow
   }
 });
 
+test('beta.4 migration resolves symlinked workspace paths before importing findings', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-symlink-filter-'));
+  const storeDir = path.join(root, 'host-store');
+  const legacyStoreDir = path.join(root, 'shared-beta4-store');
+  const authorizedRoot = path.join(root, 'authorized');
+  const legitimateWorkspace = path.join(authorizedRoot, 'repo-good');
+  const externalWorkspace = path.join(root, 'outside-repo');
+  const symlinkedWorkspace = path.join(authorizedRoot, 'repo-linked-outside');
+  await mkdir(legacyStoreDir, { recursive: true });
+  await mkdir(legitimateWorkspace, { recursive: true });
+  await mkdir(externalWorkspace, { recursive: true });
+  await symlink(externalWorkspace, symlinkedWorkspace,
+    process.platform === 'win32' ? 'junction' : 'dir');
+  const now = Date.now();
+  const allowedId = '99999999-9999-4999-8999-999999999999';
+  const escapedId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const makeJob = (id, workspace, fingerprint) => ({
+    id, type: 'scan_full', scope: 'full', status: 'running', priority: 0,
+    sequence: now, workspace, baseRef: null, idempotencyKey: null,
+    fingerprint, progress: 25, createdAt: now, updatedAt: now,
+    retries: 0, result: null, error: null,
+  });
+  const snapshot = {
+    version: 1,
+    jobs: [
+      makeJob(allowedId, legitimateWorkspace, '9'.repeat(64)),
+      makeJob(escapedId, symlinkedWorkspace, 'a'.repeat(64)),
+    ],
+  };
+  const snapshotPath = path.join(legacyStoreDir, 'jobs.json');
+  const snapshotText = JSON.stringify(snapshot);
+  await writeFile(snapshotPath, snapshotText);
+  const queue = new ScanJobQueue({
+    storeDir, legacyStoreDir, authorizedRoots: [authorizedRoot],
+    runner: async () => complete(),
+  });
+  try {
+    await queue.init();
+    assert.equal(queue.getStatus(allowedId).status, 'interrupted');
+    assert.equal(queue.getStatus(escapedId), null,
+      'a symlink lexically below an authorized root must not import findings from outside the root');
+    assert.deepEqual(
+      queue.store.db.prepare('SELECT id FROM jobs ORDER BY id').all().map((row) => row.id),
+      [allowedId],
+    );
+    assert.equal(await readFile(snapshotPath, 'utf8'), snapshotText,
+      'migration leaves the shared source snapshot unchanged');
+  } finally {
+    await queue.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('concurrent beta.5 host stores share a durable beta.4 migration guard without cross-root leakage', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-concurrent-migration-'));
   const legacyStoreDir = path.join(root, 'shared-beta4-store');
@@ -309,6 +365,8 @@ test('concurrent beta.5 host stores share a durable beta.4 migration guard witho
   const now = Date.now();
   const workspaceA = jobWorkspacePath('legacy-concurrent-a');
   const workspaceB = jobWorkspacePath('legacy-concurrent-b');
+  await mkdir(workspaceA, { recursive: true });
+  await mkdir(workspaceB, { recursive: true });
   const idA = '77777777-7777-4777-8777-777777777777';
   const idB = '88888888-8888-4888-8888-888888888888';
   const makeJob = (id, workspace, fingerprint) => ({
