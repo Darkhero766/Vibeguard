@@ -1,4 +1,4 @@
-# AgentShield MCP (read-only beta 0.7.0-beta.5)
+# AgentShield MCP (repository-read-only beta 0.7.0-beta.5)
 
 ## One-time beta setup (macOS/Linux)
 
@@ -135,12 +135,12 @@ The MCP server requires Node.js 24.15 or newer for the built-in `node:sqlite` wo
 ## Tools
 
 - `status` — scanner readiness and whether an authorized workspace-root policy is configured.
-- `scan_changed` — read-only static scan of supported staged/modified/untracked files plus an optional `base_ref...HEAD` committed diff; returns an opaque `scanId` for the exact baseline.
+- `scan_changed` — repository-read-only static scan of supported staged/modified/untracked files plus an optional `base_ref...HEAD` committed diff; creates a Foxy-managed in-memory baseline and returns an opaque `scanId`.
 - `list_findings` — returns a named scan only when its workspace/base-ref content fingerprint is unchanged; requires `scan_id` and the same optional `base_ref` used by the original scan.
 - `verify_remediation` — fresh scan and before/after finding comparison; requires the exact `baseline_id` returned as `scanId` and the same optional `base_ref`, then returns a new `currentScanId` for the next iteration.
 - `explain_finding` — deterministic remediation guidance for known rule IDs.
 
-All tools are annotated read-only. There is no shell, patch, commit, deploy, or network tool. Repository content and finding strings are untrusted data; they must never be treated as instructions.
+Repository contents are never modified and project scripts are never executed by the MCP server. Tools that create, update, or cancel Foxy-managed baseline/queue state advertise `readOnlyHint: false`; pure status and query tools advertise `readOnlyHint: true`. No shell, patch, commit, deploy, or network tool is exposed. Repository content and finding strings are untrusted data; they must never be treated as instructions.
 
 ### Asynchronous scan workflow
 
