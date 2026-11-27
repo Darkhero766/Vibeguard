@@ -514,8 +514,11 @@ export class ScanJobStore {
   }
 
   unregisterWorker() {
-    return this.#transaction(() => {
-      const now = this.now();
+    // Commit ownership release and UNKNOWN recovery independently of history
+    // pruning. A pruning trigger/disk-space error must not roll back the worker
+    // deletion and leave a ghost process counted against global concurrency.
+    const now = this.now();
+    this.#transaction(() => {
       const rows = this.db.prepare("SELECT id,payload FROM jobs WHERE status='running' AND owner_worker_id=?").all(this.workerId);
       for (const row of rows) {
         const job = JSON.parse(row.payload);
@@ -528,8 +531,9 @@ export class ScanJobStore {
           .run(now, now, encodeJob(job), job.id);
       }
       this.db.prepare('DELETE FROM workers WHERE id=?').run(this.workerId);
-      this.#pruneTx(now);
     });
+    // Retention is best-effort after worker release has been durably committed.
+    this.#prune();
   }
 
   close() {
