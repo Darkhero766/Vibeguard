@@ -160,24 +160,134 @@ test('running cancellation and restart recovery never turn interrupted work into
   }
 });
 
-test('legacy JSON migration refuses to race a still-running pre-SQLite Foxy process', async () => {
-  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-live-writer-'));
+test('legacy JSON migration checks the old shared beta.4 lock before reading its snapshot', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-live-writer-'));
+  const storeDir = path.join(root, 'namespaced-store');
+  const legacyStoreDir = path.join(root, 'shared-beta4-store');
+  await mkdir(legacyStoreDir, { recursive: true });
   const snapshot = { version: 1, jobs: [] };
-  await writeFile(path.join(storeDir, 'jobs.json'), JSON.stringify(snapshot));
-  await writeFile(path.join(storeDir, 'jobs.lock'), JSON.stringify({
+  await writeFile(path.join(legacyStoreDir, 'jobs.json'), JSON.stringify(snapshot));
+  await writeFile(path.join(legacyStoreDir, 'jobs.lock'), JSON.stringify({
     pid: process.pid,
     host: os.hostname(),
     token: 'legacy-writer-live-fixture',
   }));
-  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  const queue = new ScanJobQueue({
+    storeDir, legacyStoreDir, authorizedRoots: [jobWorkspacePath('authorized')],
+    runner: async () => complete(),
+  });
   try {
     await assert.rejects(queue.init(), /legacy Foxy process is still using jobs\.json/);
     assert.equal(queue.initialized, false);
-    assert.deepEqual(JSON.parse(await readFile(path.join(storeDir, 'jobs.json'), 'utf8')), snapshot);
+    assert.deepEqual(JSON.parse(await readFile(path.join(legacyStoreDir, 'jobs.json'), 'utf8')), snapshot);
     assert.equal(queue.store?.db, null, 'failed migration must close the SQLite handle');
   } finally {
     await queue.close();
-    await rm(storeDir, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('beta.4 shared JSON migration imports only jobs under the current MCP allowlist', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-root-filter-'));
+  const storeDir = path.join(root, 'host-scoped-store');
+  const legacyStoreDir = path.join(root, 'shared-beta4-store');
+  await mkdir(legacyStoreDir, { recursive: true });
+  const now = Date.now();
+  const allowedWorkspace = jobWorkspacePath('legacy-repo-a');
+  const otherWorkspace = jobWorkspacePath('legacy-repo-b');
+  const makeJob = (id, workspace, fingerprint) => ({
+    id,
+    type: 'scan_full',
+    scope: 'full',
+    status: 'running',
+    priority: 0,
+    sequence: now,
+    workspace,
+    baseRef: null,
+    idempotencyKey: null,
+    fingerprint,
+    progress: 35,
+    createdAt: now,
+    updatedAt: now,
+    retries: 0,
+    result: null,
+    error: null,
+  });
+  const allowedId = '33333333-3333-4333-8333-333333333333';
+  const excludedId = '44444444-4444-4444-8444-444444444444';
+  const snapshot = {
+    version: 1,
+    jobs: [
+      makeJob(allowedId, allowedWorkspace, 'c'.repeat(64)),
+      makeJob(excludedId, otherWorkspace, 'd'.repeat(64)),
+    ],
+  };
+  const snapshotText = JSON.stringify(snapshot);
+  const snapshotPath = path.join(legacyStoreDir, 'jobs.json');
+  await writeFile(snapshotPath, snapshotText);
+  const queue = new ScanJobQueue({
+    storeDir,
+    legacyStoreDir,
+    authorizedRoots: [allowedWorkspace],
+    runner: async () => complete(),
+  });
+  try {
+    await queue.init();
+    assert.equal(queue.getStatus(allowedId).status, 'interrupted');
+    assert.match(queue.getStatus(allowedId).error, /UNKNOWN/);
+    assert.equal(queue.getStatus(excludedId), null,
+      'jobs belonging to another authorized repository must not enter this host store');
+    const rows = queue.store.db.prepare('SELECT id FROM jobs ORDER BY id').all();
+    assert.deepEqual(rows.map((row) => row.id), [allowedId]);
+    assert.equal(await readFile(snapshotPath, 'utf8'), snapshotText,
+      'the original shared beta.4 snapshot remains an untouched recovery copy');
+    assert.equal(queue.store.db.prepare("SELECT value FROM queue_meta WHERE key='json_snapshot_migrated'").get().value, '1');
+  } finally {
+    await queue.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('legacy shared migration fails closed when an old snapshot exists but no roots are authorized', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-no-roots-'));
+  const storeDir = path.join(root, 'host-scoped-store');
+  const legacyStoreDir = path.join(root, 'shared-beta4-store');
+  await mkdir(legacyStoreDir, { recursive: true });
+  const snapshot = { version: 1, jobs: [] };
+  snapshot.jobs.push({
+    id: '55555555-5555-4555-8555-555555555555',
+    type: 'scan_full',
+    scope: 'full',
+    status: 'queued',
+    priority: 0,
+    sequence: 1,
+    workspace: jobWorkspacePath('unknown-allowlist'),
+    baseRef: null,
+    idempotencyKey: null,
+    fingerprint: 'e'.repeat(64),
+    progress: 0,
+    createdAt: 1,
+    updatedAt: 1,
+    retries: 0,
+    result: null,
+    error: null,
+  });
+  const snapshotPath = path.join(legacyStoreDir, 'jobs.json');
+  const snapshotText = JSON.stringify(snapshot);
+  await writeFile(snapshotPath, snapshotText);
+  const queue = new ScanJobQueue({
+    storeDir,
+    legacyStoreDir,
+    authorizedRoots: [],
+    runner: async () => complete(),
+  });
+  try {
+    await assert.rejects(queue.init(), /without configured authorized roots/);
+    assert.equal(queue.initialized, false);
+    assert.equal(await readFile(snapshotPath, 'utf8'), snapshotText);
+  } finally {
+    await queue.close();
+    await rm(root, { recursive: true, force: true });
   }
 });
 
