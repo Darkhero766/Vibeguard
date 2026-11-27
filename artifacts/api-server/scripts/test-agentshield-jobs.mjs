@@ -1309,8 +1309,7 @@ test('Windows SQLite store directories must remain inside the current user profi
   try {
     await assert.rejects(queue.init(), (error) =>
       /must remain inside the current user profile/.test(errorCauseMessages(error)),
-    'Windows store rejection must preserve the user-profile boundary error through initialization wrappers: '
-      + errorCauseMessages);
+    'Windows store rejection must preserve the user-profile boundary error through initialization wrappers.');
     assert.equal(queue.initialized, false);
     assert.equal(queue.store?.db, null,
       'an out-of-profile path must be rejected before opening a SQLite database');
