@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import { BaselineStore } from './agentshield-baselines.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { AGENTSHIELD_VERSION } from './agentshield-version.mjs';
 
 const exec = promisify(execFile);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -31,7 +32,7 @@ const LEGACY_PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
 const SUPPORTED_PROTOCOLS = [MODERN_PROTOCOL, ...LEGACY_PROTOCOLS];
 const LATEST_PROTOCOL = MODERN_PROTOCOL;
 const LEGACY_DEFAULT_PROTOCOL = LEGACY_PROTOCOLS[0];
-const SERVER_INFO = Object.freeze({ name: 'vibesane-agentshield', version: '0.7.0-beta.5' });
+const SERVER_INFO = Object.freeze({ name: 'vibesane-agentshield', version: AGENTSHIELD_VERSION });
 const META_PROTOCOL = 'io.modelcontextprotocol/protocolVersion';
 const META_CLIENT_CAPABILITIES = 'io.modelcontextprotocol/clientCapabilities';
 const META_SERVER_INFO = 'io.modelcontextprotocol/serverInfo';
