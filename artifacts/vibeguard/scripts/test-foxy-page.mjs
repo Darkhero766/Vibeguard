@@ -16,7 +16,7 @@ assert.ok(mainPageSource.includes('bg-accent p-8 text-[#0b1112]'), 'Lime landing
 assert.ok(mainPageSource.includes('text-[#46544a]') && mainPageSource.includes('text-[#5a5144]'), 'Light clean/upgrade cards must use dark readable body text.');
 assert.ok(dashboardSource.includes("isClear ? 'text-[#0b1112]' : 'text-foreground'"), 'Clean dashboard repository card must use a dark readable foreground.');
 assert.ok(dashboardSource.includes("isClear ? 'text-[#59665d]' : 'text-muted-foreground'"), 'Clean dashboard labels must use a dark readable foreground.');
-const catalogRuleCount = (scannerCatalog.match(/^\\s*\\{ id:/gm) || []).length;
+const catalogRuleCount = (scannerCatalog.match(/^\s*\{ id:/gm) || []).length;
 assert.equal(catalogRuleCount, 54, 'Catalog rule count changed; update the customer-facing count intentionally.');
 assert.ok(mainPageSource.includes("label: '54 security checks'"), 'Main homepage must show the catalog-backed security rule count.');
 assert.ok(mainPageSource.includes('54 checks. The signals that actually matter.'), 'Homepage checks section must match the catalog count.');
