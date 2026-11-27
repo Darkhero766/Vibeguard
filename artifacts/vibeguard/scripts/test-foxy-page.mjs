@@ -6,6 +6,18 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const html = await readFile(path.join(root, 'dist', 'public', 'foxy', 'index.html'), 'utf8');
 const agentShieldHtml = await readFile(path.join(root, 'dist', 'public', 'agentshield', 'index.html'), 'utf8');
+const scannerCatalog = await readFile(path.resolve(root, '../api-server/src/lib/securityCheckCatalog.ts'), 'utf8');
+const mainPageSource = await readFile(path.join(root, 'src', 'AppOriginal.tsx'), 'utf8');
+const dashboardSource = await readFile(path.join(root, 'src', 'components', 'SecurityDashboard.tsx'), 'utf8');
+const themeSource = await readFile(path.join(root, 'src', 'index.css'), 'utf8');
+const catalogRuleCount = (scannerCatalog.match(/^\\s*\\{ id:/gm) || []).length;
+assert.equal(catalogRuleCount, 54, 'Catalog rule count changed; update the customer-facing count intentionally.');
+assert.ok(mainPageSource.includes("label: '54 security checks'"), 'Main homepage must show the catalog-backed security rule count.');
+assert.ok(mainPageSource.includes('54 checks. The signals that actually matter.'), 'Homepage checks section must match the catalog count.');
+assert.ok(mainPageSource.includes('Fifty-four focused rules'), 'Homepage description must match the catalog count.');
+assert.ok(dashboardSource.includes('54 checks, one clear signal.'), 'Signed-in dashboard must match the catalog count.');
+assert.ok(themeSource.includes('54 CHECKS. ONE SECURITY PERIMETER.') && themeSource.includes('SCAN // 54') && themeSource.includes('54 RULES ACTIVE'), 'Animated security console labels must match the catalog count.');
+assert.ok(!/51 checks|50 CHECKS|SCAN \\/\\/ 50|50 RULES ACTIVE/.test(mainPageSource + dashboardSource + themeSource), 'Legacy scanner count remains in the UI.');
 
 for (const token of [
   '<title>Foxy — Local-First MCP Security for AI Coding Agents | VibeSane</title>',
