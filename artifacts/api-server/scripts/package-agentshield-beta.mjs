@@ -63,16 +63,49 @@ async function normalizePackageTree(directory) {
   await utimes(directory, PACKAGE_EPOCH, PACKAGE_EPOCH);
 }
 
-async function packageContentManifest(stageDirectory, files) {
+export function digestPackageFileManifest(fileDigests) {
+  if (!Array.isArray(fileDigests) || fileDigests.length < 1 || fileDigests.length > 100) {
+    throw new TypeError('Package file manifest must contain between 1 and 100 records.');
+  }
   const aggregate = createHash('sha256');
+  let previousPath = '';
+  for (const file of fileDigests) {
+    if (!file || typeof file !== 'object' || Array.isArray(file)
+      || typeof file.path !== 'string' || !file.path || file.path.length > 512
+      || file.path.startsWith('/') || file.path.includes('\\')
+      || file.path.split('/').some((part) => !part || part === '.' || part === '..')
+      || (previousPath && previousPath >= file.path)
+      || !Number.isSafeInteger(file.bytes) || file.bytes < 0
+      || typeof file.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(file.sha256)) {
+      throw new TypeError('Package file manifest contains an invalid, duplicate, or unsorted record.');
+    }
+    previousPath = file.path;
+    aggregate.update(file.path).update('\0').update(String(file.bytes)).update('\0')
+      .update(file.sha256).update('\0');
+  }
+  return aggregate.digest('hex');
+}
+
+export function verifyPackageFileManifest(evidence) {
+  try {
+    return Boolean(evidence && Number.isSafeInteger(evidence.packagedFiles)
+      && Array.isArray(evidence.packageFileDigests)
+      && evidence.packageFileDigests.length === evidence.packagedFiles
+      && /^[a-f0-9]{64}$/.test(evidence.packageContentSha256 || '')
+      && digestPackageFileManifest(evidence.packageFileDigests) === evidence.packageContentSha256);
+  } catch {
+    return false;
+  }
+}
+
+async function packageContentManifest(stageDirectory, files) {
   const fileDigests = [];
   for (const relativePath of [...files].sort()) {
     const bytes = await readFile(path.join(stageDirectory, ...relativePath.split('/')));
     const sha256 = createHash('sha256').update(bytes).digest('hex');
-    aggregate.update(relativePath).update('\0').update(String(bytes.length)).update('\0').update(sha256).update('\0');
     fileDigests.push({ path: relativePath, bytes: bytes.length, sha256 });
   }
-  return { contentSha256: aggregate.digest('hex'), fileDigests };
+  return { contentSha256: digestPackageFileManifest(fileDigests), fileDigests };
 }
 
 async function main() {
