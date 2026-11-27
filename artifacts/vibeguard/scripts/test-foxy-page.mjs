@@ -10,6 +10,12 @@ const scannerCatalog = await readFile(path.resolve(root, '../api-server/src/lib/
 const mainPageSource = await readFile(path.join(root, 'src', 'AppOriginal.tsx'), 'utf8');
 const dashboardSource = await readFile(path.join(root, 'src', 'components', 'SecurityDashboard.tsx'), 'utf8');
 const themeSource = await readFile(path.join(root, 'src', 'index.css'), 'utf8');
+const accentTokenMatches = themeSource.match(/--accent: 81 83% 68%/g) || [];
+assert.equal(accentTokenMatches.length, 2, 'Light and dark theme accent tokens must both use lime.');
+assert.ok(mainPageSource.includes('bg-accent p-8 text-[#0b1112]'), 'Lime landing CTA must use a dark readable foreground.');
+assert.ok(mainPageSource.includes('text-[#46544a]') && mainPageSource.includes('text-[#5a5144]'), 'Light clean/upgrade cards must use dark readable body text.');
+assert.ok(dashboardSource.includes("isClear ? 'text-[#0b1112]' : 'text-foreground'"), 'Clean dashboard repository card must use a dark readable foreground.');
+assert.ok(dashboardSource.includes("isClear ? 'text-[#59665d]' : 'text-muted-foreground'"), 'Clean dashboard labels must use a dark readable foreground.');
 const catalogRuleCount = (scannerCatalog.match(/^\\s*\\{ id:/gm) || []).length;
 assert.equal(catalogRuleCount, 54, 'Catalog rule count changed; update the customer-facing count intentionally.');
 assert.ok(mainPageSource.includes("label: '54 security checks'"), 'Main homepage must show the catalog-backed security rule count.');
