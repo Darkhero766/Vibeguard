@@ -184,7 +184,7 @@ test('legacy JSON migration checks the old shared beta.4 lock before reading its
     runner: async () => complete(),
   });
   try {
-    await assert.rejects(queue.init(), /legacy Foxy process is still using jobs\.json/);
+    await assert.rejects(queue.init(), queueInitFailure(/legacy Foxy process is still using jobs\.json/));
     assert.equal(queue.initialized, false);
     assert.deepEqual(JSON.parse(await readFile(path.join(legacyStoreDir, 'jobs.json'), 'utf8')), snapshot);
     assert.equal(queue.store?.db, null, 'failed migration must close the SQLite handle');
@@ -234,7 +234,7 @@ test('a verified stale beta.4 lock blocks migration until operator cleanup', asy
     runner: async () => complete(),
   });
   try {
-    await assert.rejects(queue.init(), /stale beta\.4 Foxy job lock exists/);
+    await assert.rejects(queue.init(), queueInitFailure(/stale beta\.4 Foxy job lock exists/));
     assert.equal(queue.initialized, false);
     assert.equal(queue.store.db, null, 'migration failure closes the unregistered SQLite handle');
     assert.equal(await readFile(lockPath, 'utf8'), lockText,
