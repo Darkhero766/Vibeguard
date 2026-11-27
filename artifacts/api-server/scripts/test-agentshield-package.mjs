@@ -431,7 +431,7 @@ try {
     manifestHash.update(file.path).update('\0').update(String(file.bytes)).update('\0')
       .update(file.sha256).update('\0');
   }
-  assert.equal(manifestHash.digest('hex'), packaged.contentSha256,
+  assert(manifestHash.digest('hex') === packaged.contentSha256,
     'Package content manifest digest does not match its canonical file records.');
   process.stdout.write(JSON.stringify({
     status: 'package_smoke_passed',
