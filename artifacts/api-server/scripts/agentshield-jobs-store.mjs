@@ -462,13 +462,51 @@ export class ScanJobStore {
     const cutoff = now - this.workerLeaseMs;
     const stale = this.db.prepare('SELECT id FROM workers WHERE heartbeat_at < ?').all(cutoff);
     const update = this.db.prepare('UPDATE jobs SET status=?,updated_at=?,finished_at=?,owner_worker_id=NULL,cancel_requested=0,payload=? WHERE id=?');
+    const runningForWorker = this.db.prepare(
+      "SELECT id,payload,workspace,fingerprint,created_at,priority,sequence,idempotency_key FROM jobs WHERE status='running' AND owner_worker_id=?",
+    );
     for (const { id } of stale) {
-      const rows = this.db.prepare("SELECT id,payload FROM jobs WHERE status='running' AND owner_worker_id=?").all(id);
+      const rows = runningForWorker.all(id);
       for (const row of rows) {
-        const job = JSON.parse(row.payload);
+        let job;
+        let malformed = false;
+        try {
+          job = JSON.parse(row.payload);
+          validateLegacyJob(job);
+          if (job.id !== row.id || job.workspace !== row.workspace || job.fingerprint !== row.fingerprint) {
+            throw new Error('Persisted job payload does not match its indexed columns.');
+          }
+        } catch {
+          malformed = true;
+          // The SQL columns are the durable ownership/index record. Preserve
+          // only that minimal metadata and make the result explicitly UNKNOWN;
+          // never let one corrupt JSON payload strand a worker lease or block
+          // other processes from claiming queued work.
+          job = {
+            id: row.id,
+            type: 'unknown',
+            scope: 'unknown',
+            status: 'interrupted',
+            priority: row.priority,
+            sequence: row.sequence,
+            workspace: row.workspace,
+            baseRef: null,
+            idempotencyKey: row.idempotency_key || null,
+            fingerprint: row.fingerprint,
+            progress: 0,
+            createdAt: row.created_at,
+            updatedAt: now,
+            retries: 0,
+            result: null,
+            error: 'Persisted scan metadata was corrupt when its worker lease expired. The outcome is UNKNOWN; submit a new scan.',
+            finishedAt: now,
+          };
+        }
         job.status = 'interrupted';
         job.result = null;
-        job.error = 'The Foxy worker stopped heartbeating before this scan completed. The outcome is UNKNOWN; submit a new scan.';
+        job.error = malformed
+          ? 'Persisted scan metadata was corrupt when its worker lease expired. The outcome is UNKNOWN; submit a new scan.'
+          : 'The Foxy worker stopped heartbeating before this scan completed. The outcome is UNKNOWN; submit a new scan.';
         job.updatedAt = now;
         job.finishedAt = now;
         update.run('interrupted', now, now, encodeJob(job), job.id);
