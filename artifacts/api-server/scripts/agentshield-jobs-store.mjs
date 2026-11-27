@@ -144,7 +144,7 @@ export class ScanJobStore {
     const schemaVersion = this.db.prepare("SELECT value FROM queue_meta WHERE key='schema_version'").get()?.value;
     if (schemaVersion !== '1') throw new Error('Unsupported Foxy SQLite queue schema version.');
 
-    this.#migrateLegacySnapshot();
+    await this.#migrateLegacySnapshot();
     this.#transaction(() => {
       const now = this.now();
       this.#recoverStaleWorkersTx(now);
@@ -168,14 +168,12 @@ export class ScanJobStore {
     }
   }
 
-  #migrateLegacySnapshot() {
+  async #migrateLegacySnapshot() {
     const marker = this.db.prepare("SELECT value FROM queue_meta WHERE key='json_snapshot_migrated'").get();
     if (marker?.value === '1') return;
     const legacyPath = path.join(this.storeDir, 'jobs.json');
-    const before = lstat(legacyPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
-    // The caller is async for filesystem initialization; this promise is joined below
-    // without leaving a partially initialized worker visible.
-    this.legacyMigration = before.then(async (info) => {
+    const info = await lstat(legacyPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+    this.legacyMigration = (async () => {
       let jobs = [];
       if (info) {
         if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_STATE_BYTES) {
@@ -221,13 +219,13 @@ export class ScanJobStore {
         }
         this.db.prepare("INSERT INTO queue_meta(key,value) VALUES('json_snapshot_migrated','1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
       });
-    });
+    })();
     return this.legacyMigration;
   }
 
   #recoverStaleWorkersTx(now) {
     const cutoff = now - this.workerLeaseMs;
-    const stale = this.db.prepare('SELECT id FROM workers WHERE heartbeat_at < ? OR host <> ?').all(cutoff, this.host);
+    const stale = this.db.prepare('SELECT id FROM workers WHERE heartbeat_at < ?').all(cutoff);
     const update = this.db.prepare('UPDATE jobs SET status=?,updated_at=?,finished_at=?,owner_worker_id=NULL,cancel_requested=0,payload=? WHERE id=?');
     for (const { id } of stale) {
       const rows = this.db.prepare("SELECT id,payload FROM jobs WHERE status='running' AND owner_worker_id=?").all(id);
