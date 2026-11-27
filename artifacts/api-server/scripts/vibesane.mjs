@@ -420,6 +420,16 @@ async function doctor(args) {
   return ready ? 0 : 2;
 }
 async function mcpDoctor() {
+  const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
+  if (!(nodeMajor > 24 || (nodeMajor === 24 && nodeMinor >= 15))) {
+    process.stdout.write(JSON.stringify({
+      status: 'not_ready',
+      check: 'node',
+      required: '24.15.0 or newer',
+      note: 'The transactional MCP worker queue requires the built-in node:sqlite module. Upgrade Node.js; no workspace paths or environment values are printed.',
+    }) + '\\n');
+    return 2;
+  }
   const raw = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
   let roots;
   try {
