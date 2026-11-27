@@ -113,3 +113,12 @@ A source-level review of the beta.5 SQLite queue found two failure-path weakness
 The queue test file now defines 39 test cases. This is a source count, not a passing count. Reviewers should independently inspect the transaction boundaries, descriptor/path identity assumptions, foreign-database fixtures, corrupt-payload fallback, and the exact package contents.
 
 No database migration, package publication, CI dispatch, production change, or PR merge was performed by this review. The beta.4 run #75 remains historical evidence for its exact older SHA only.
+
+## Release-validator and test-quality review delta — 27 November 2026
+
+The beta.5 candidate had two further source-review findings, both corrected on the PR #70 branch; neither has executed CI evidence yet:
+
+1. The release validator still expected package version 0.7.0-beta.4 while the package smoke test and package builder already emitted 0.7.0-beta.5. It now imports the builder's exported PACKAGE_VERSION and uses it for both package evidence validation and the qualification report. A package smoke regression asserts the validator derives its version from that source and contains no stale beta.4 literal.
+2. The first corrupt-shutdown regression allowed the worker's normal finish path to overwrite the malformed payload before shutdown cleanup. The fixture now makes that persistence attempt return false, forcing unregisterWorker() to execute its indexed-column recovery path; it asserts UNKNOWN/interrupted state and worker-row release.
+
+The current queue test file defines 39 cases. These are definitions only. Run them on the exact candidate; do not describe the shutdown-recovery test as passing until CI reports it.
