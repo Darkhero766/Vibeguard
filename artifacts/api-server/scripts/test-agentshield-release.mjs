@@ -6,10 +6,38 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CAPABILITIES, printCapabilities } from './agentshield-capabilities.mjs';
+import { digestPackageFileManifest, verifyPackageFileManifest } from './package-agentshield-beta.mjs';
 const exec=promisify(execFile);
 const scripts=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(scripts,'../../..');
 const read=relative=>readFile(path.join(root,relative),'utf8');
+
+test('package file manifests are canonical, complete and tamper-evident', () => {
+  const packageFileDigests = [
+    { path: 'README.md', bytes: 5, sha256: 'a'.repeat(64) },
+    { path: 'package.json', bytes: 7, sha256: 'b'.repeat(64) },
+  ];
+  const evidence = {
+    packagedFiles: packageFileDigests.length,
+    packageFileDigests,
+    packageContentSha256: digestPackageFileManifest(packageFileDigests),
+  };
+  assert.equal(verifyPackageFileManifest(evidence), true);
+  assert.equal(verifyPackageFileManifest({ ...evidence, packageContentSha256: '0'.repeat(64) }), false);
+  assert.equal(verifyPackageFileManifest({ ...evidence, packageFileDigests: [...packageFileDigests].reverse() }), false);
+  assert.equal(verifyPackageFileManifest({ ...evidence, packageFileDigests: [packageFileDigests[0], packageFileDigests[0]] }), false);
+  assert.equal(verifyPackageFileManifest({
+    ...evidence,
+    packageFileDigests: [{ path: '../escape', bytes: 1, sha256: 'c'.repeat(64) }],
+    packagedFiles: 1,
+  }), false);
+  assert.equal(verifyPackageFileManifest({
+    ...evidence,
+    packageFileDigests: [{ path: 'README.md', bytes: -1, sha256: 'a'.repeat(64) }],
+    packagedFiles: 1,
+  }), false);
+  assert.equal(verifyPackageFileManifest({ ...evidence, packagedFiles: 3 }), false);
+});
 
 test('capability registry distinguishes supported heuristics and unimplemented language-specific SAST',()=>{
   assert.equal(CAPABILITIES.staticScanner.codeLanguages.length,4);
