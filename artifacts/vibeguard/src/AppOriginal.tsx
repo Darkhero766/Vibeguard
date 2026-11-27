@@ -376,7 +376,7 @@ function Report({ report, onRescan, onCopy, copied, onBack }: {
       <BadgeSnippet report={report} />
 
       <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-        scope: public source files · 51 security checks
+        scope: public source files · 54 security checks
       </p>
     </section>
   );
