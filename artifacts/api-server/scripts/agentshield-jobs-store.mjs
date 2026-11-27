@@ -231,6 +231,12 @@ export class ScanJobStore {
             throw new Error('Legacy JSON job state changed while opening.');
           }
           raw = await handle.readFile('utf8');
+          const after = await handle.stat();
+          if (after.dev !== opened.dev || after.ino !== opened.ino
+            || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs
+            || Buffer.byteLength(raw, 'utf8') !== opened.size) {
+            throw new Error('Legacy JSON job state changed while being migrated.');
+          }
         } finally { await handle.close(); }
         const parsed = JSON.parse(raw);
         if (parsed?.version !== 1 || !Array.isArray(parsed.jobs) || parsed.jobs.length > MAX_RECORDS) {
@@ -441,13 +447,13 @@ export class ScanJobStore {
   #pruneTx(now) {
     this.db.prepare("DELETE FROM jobs WHERE status IN ('completed','failed','cancelled','interrupted') AND finished_at IS NOT NULL AND finished_at <= ?")
       .run(now - TERMINAL_RETENTION_MS);
-    let counts = this.db.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN status IN ('queued','running') THEN 1 ELSE 0 END) AS active, SUM(length(payload)) AS bytes FROM jobs").get();
+    let counts = this.db.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN status IN ('queued','running') THEN 1 ELSE 0 END) AS active, SUM(length(CAST(payload AS BLOB))) AS bytes FROM jobs").get();
     const removeOldest = this.db.prepare("SELECT id FROM jobs WHERE status IN ('completed','failed','cancelled','interrupted') ORDER BY COALESCE(finished_at,updated_at),created_at LIMIT 1");
     while ((counts.total > MAX_RECORDS || counts.bytes > MAX_STATE_BYTES) && counts.total > counts.active) {
       const candidate = removeOldest.get();
       if (!candidate) break;
       this.db.prepare('DELETE FROM jobs WHERE id=?').run(candidate.id);
-      counts = this.db.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN status IN ('queued','running') THEN 1 ELSE 0 END) AS active, SUM(length(payload)) AS bytes FROM jobs").get();
+      counts = this.db.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN status IN ('queued','running') THEN 1 ELSE 0 END) AS active, SUM(length(CAST(payload AS BLOB))) AS bytes FROM jobs").get();
     }
     if (counts.active > MAX_RECORDS || counts.bytes > MAX_STATE_BYTES) {
       throw new Error('Active Foxy job state exceeds the bounded SQLite storage budget.');
