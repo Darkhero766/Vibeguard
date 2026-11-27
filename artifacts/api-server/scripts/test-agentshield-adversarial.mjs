@@ -122,8 +122,16 @@ test('MCP server rejects a configured root replaced after an authorized workspac
   const client = new Client({ name: 'authorization-test', version: '1' }, {
     versionNegotiation: { mode: { pin: '2026-07-28' }, probe: { timeoutMs: 3000 } },
   });
+  let serverStderr = '';
+  transport.stderr?.setEncoding?.('utf8');
+  transport.stderr?.on?.('data', (chunk) => { serverStderr += chunk; });
   t.after(async () => { await client.close().catch(() => {}); await transport.close().catch(() => {}); });
-  await client.connect(transport, { timeout: 15_000 });
+  try {
+    await client.connect(transport, { timeout: 15_000 });
+  } catch (error) {
+    throw new Error('Foxy MCP subprocess failed during protocol negotiation: '
+      + String(error?.message || error) + (serverStderr ? '\\nserver stderr: ' + serverStderr : '\\nserver stderr: <empty>'), { cause: error });
+  }
   const initial = await client.callTool({ name: 'scan_changed', arguments: { workspace: path.join(allowed, 'repo') } });
   assert.match(initial.content?.[0]?.text || '', /no_changed_files/i);
   const moved = path.join(parent, 'authorized-original');
