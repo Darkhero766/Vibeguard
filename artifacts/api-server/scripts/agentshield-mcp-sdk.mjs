@@ -22,7 +22,7 @@ const textResult = (value, isError = false) => ({
 });
 
 export function createFoxyServer(queue) {
-  const server = new McpServer({ name: 'vibesane-agentshield', version: '0.7.0-beta.3' }, {
+  const server = new McpServer({ name: 'vibesane-agentshield', version: '0.7.0-beta.5' }, {
     instructions: INSTRUCTIONS,
     capabilities: { tools: {} },
     supportedProtocolVersions: PROTOCOLS,
