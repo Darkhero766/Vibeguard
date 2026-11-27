@@ -216,8 +216,8 @@ function CleanResult({ report }: { report: ScanReport }) {
       <div className="flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#aebe8c] bg-[#66763e]/[0.06] text-[#66763e]">
         <ShieldCheck size={21} strokeWidth={1.6} />
       </div>
-      <h2 className="mt-6 text-[24px] font-bold tracking-[-0.035em]">No high-signal issues found.</h2>
-      <p className="mt-2.5 max-w-xl text-[14px] leading-6 text-muted-foreground">
+      <h2 className="mt-6 text-[24px] font-bold tracking-[-0.035em] text-[#0b1112]">No high-signal issues found.</h2>
+      <p className="mt-2.5 max-w-xl text-[14px] leading-6 text-[#46544a]">
         VibeSane checked all {report.filesScanned} files and did not find any of the security patterns it looks for.
       </p>
       <div className="mt-6 flex flex-wrap gap-5 font-mono text-[11px] uppercase tracking-[0.1em] text-[#66763e]">
@@ -237,10 +237,10 @@ function UpgradeWall() {
       <div className="flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#d4a96a] bg-[#a06427]/[0.06] text-[#a06427]">
         <ShieldOff size={20} strokeWidth={1.6} />
       </div>
-      <h2 className="mt-6 text-[22px] font-bold tracking-[-0.03em] text-foreground">
+      <h2 className="mt-6 text-[22px] font-bold tracking-[-0.03em] text-[#0b1112]">
         You've used your free scan.
       </h2>
-      <p className="mt-2.5 max-w-lg text-[14px] leading-6 text-muted-foreground">
+      <p className="mt-2.5 max-w-lg text-[14px] leading-6 text-[#5a5144]">
         Upgrade for unlimited scans, scan history, and team sharing.
       </p>
       <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -547,18 +547,18 @@ function ChecksGrid() {
 
 function BottomCTA() {
   return (
-    <section className="relative mt-6 mb-20 overflow-hidden border-2 border-foreground bg-accent p-8 shadow-[6px_6px_0_hsl(var(--foreground))] sm:p-14">
-      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
+    <section className="relative mt-6 mb-20 overflow-hidden border-2 border-[#0b1112] bg-accent p-8 text-[#0b1112] shadow-[6px_6px_0_#0b1112] sm:p-14">
+      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#536a46]">
         <span className="inline-block h-px w-8 bg-primary" />
         Free to start
       </div>
-      <div className="mt-5 flex h-11 w-11 items-center justify-center rounded-[10px] border border-primary/40 bg-primary/[0.08] text-primary">
+      <div className="mt-5 flex h-11 w-11 items-center justify-center rounded-[10px] border border-[#536a46]/40 bg-[#0b1112]/5 text-[#536a46]">
         <ShieldCheck size={22} strokeWidth={1.6} />
       </div>
       <h2 className="vg-display mt-4 max-w-xl text-[42px] leading-[.86] tracking-[0.01em] sm:text-[64px]">
         Ship with confidence.<br className="hidden sm:block" /> Catch the bugs before your users do.
       </h2>
-      <p className="mt-3 max-w-lg text-[14px] leading-6 text-muted-foreground">
+      <p className="mt-3 max-w-lg text-[14px] leading-6 text-[#26362a]">
         No installation. No tokens. Paste a GitHub URL and get a security report in under 30 seconds. Free for your first scan.
       </p>
       <div className="mt-8 flex flex-wrap items-center gap-3">
