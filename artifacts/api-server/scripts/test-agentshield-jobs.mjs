@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -296,6 +296,63 @@ test('beta.4 shared JSON migration imports only jobs under the current MCP allow
     assert.equal(queue.store.db.prepare("SELECT value FROM queue_meta WHERE key='json_snapshot_migrated'").get().value, '1');
   } finally {
     await queue.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('concurrent beta.5 host stores share a durable beta.4 migration guard without cross-root leakage', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-concurrent-migration-'));
+  const legacyStoreDir = path.join(root, 'shared-beta4-store');
+  const storeA = path.join(root, 'host-a-store');
+  const storeB = path.join(root, 'host-b-store');
+  await mkdir(legacyStoreDir, { recursive: true });
+  const now = Date.now();
+  const workspaceA = jobWorkspacePath('legacy-concurrent-a');
+  const workspaceB = jobWorkspacePath('legacy-concurrent-b');
+  const idA = '77777777-7777-4777-8777-777777777777';
+  const idB = '88888888-8888-4888-8888-888888888888';
+  const makeJob = (id, workspace, fingerprint) => ({
+    id, type: 'scan_full', scope: 'full', status: 'running', priority: 0,
+    sequence: now, workspace, baseRef: null, idempotencyKey: null,
+    fingerprint, progress: 15, createdAt: now, updatedAt: now,
+    retries: 0, result: null, error: null,
+  });
+  const snapshot = {
+    version: 1,
+    jobs: [
+      makeJob(idA, workspaceA, '7'.repeat(64)),
+      makeJob(idB, workspaceB, '8'.repeat(64)),
+    ],
+  };
+  const snapshotText = JSON.stringify(snapshot);
+  const snapshotPath = path.join(legacyStoreDir, 'jobs.json');
+  const lockPath = path.join(legacyStoreDir, 'jobs.lock');
+  await writeFile(snapshotPath, snapshotText);
+  const queueA = new ScanJobQueue({
+    storeDir: storeA, legacyStoreDir, authorizedRoots: [workspaceA],
+    runner: async () => complete(),
+  });
+  const queueB = new ScanJobQueue({
+    storeDir: storeB, legacyStoreDir, authorizedRoots: [workspaceB],
+    runner: async () => complete(),
+  });
+  try {
+    // Deliberately race two independent scoped DB initializations against the
+    // same old snapshot. The exclusive legacy lock path arbitrates the first
+    // writer; subsequent beta.5 processes recognize the static guard marker.
+    await Promise.all([queueA.init(), queueB.init()]);
+    assert.equal(queueA.getStatus(idA).status, 'interrupted');
+    assert.equal(queueA.getStatus(idB), null);
+    assert.equal(queueB.getStatus(idB).status, 'interrupted');
+    assert.equal(queueB.getStatus(idA), null);
+    assert.equal(await readFile(snapshotPath, 'utf8'), snapshotText,
+      'both migrations must leave the shared source snapshot byte-for-byte unchanged');
+    assert.equal((await readFile(lockPath, 'utf8')).trim(), 'FOXY_BETA5_MIGRATION_GUARD_V1',
+      'the old lock path becomes a durable beta.5 downgrade guard');
+    await assert.rejects(open(lockPath, 'wx', 0o600), (error) => error?.code === 'EEXIST',
+      'a beta.4 process using exclusive-create locking must not be able to start');
+  } finally {
+    await Promise.all([queueA.close(), queueB.close()]);
     await rm(root, { recursive: true, force: true });
   }
 });
