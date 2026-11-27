@@ -31,7 +31,7 @@ export default function FoxyPage() {
     document.title = 'Foxy — Local-first MCP security for AI coding agents | VibeSane';
     const meta = document.querySelector('meta[name="description"]');
     const prior = meta?.getAttribute('content');
-    meta?.setAttribute('content', 'Connect supported AI coding-agent hosts to VibeSane Foxy with a workspace-scoped, read-only MCP integration. Windows and macOS are included in automated qualification; live host acceptance and independent review remain separate release gates.');
+    meta?.setAttribute('content', 'Connect supported AI coding-agent hosts to VibeSane Foxy with a workspace-scoped, read-only MCP integration. The current beta.5 SQLite queue candidate still needs exact-source Windows/macOS CI and real-host acceptance; independent security review is also pending.');
     return () => {
       document.title = previousTitle;
       if (meta && prior != null) meta.setAttribute('content', prior);
@@ -65,7 +65,7 @@ export default function FoxyPage() {
                 </a>
               </div>
               <p className="mt-7 max-w-[650px] font-mono text-[10px] uppercase leading-6 tracking-[.13em] text-[#777b72]">
-                Private beta · Node.js 24.15+ · Windows + macOS automated qualification · Linux not covered by this run
+                Private beta · Node.js 24.15+ · beta.5 exact-source CI pending · Windows + macOS matrix
               </p>
             </div>
 
@@ -99,7 +99,7 @@ export default function FoxyPage() {
           <div className="mx-auto grid max-w-[1180px] gap-6 px-5 py-8 sm:grid-cols-3 sm:px-8">
             <div className="flex items-start gap-3"><ShieldCheck size={21} className="mt-0.5 shrink-0 text-[#d94739]" aria-hidden="true" /><div><h2 className="font-sans text-sm font-bold tracking-tight">Local-first by design</h2><p className="mt-1 text-xs leading-6 text-[#62665e]">The connector runs locally over MCP STDIO.</p></div></div>
             <div className="flex items-start gap-3"><Fingerprint size={21} className="mt-0.5 shrink-0 text-[#d94739]" aria-hidden="true" /><div><h2 className="font-sans text-sm font-bold tracking-tight">Explicit workspace scope</h2><p className="mt-1 text-xs leading-6 text-[#62665e]">Canonical Git-root authorization is enforced by the local server.</p></div></div>
-            <div className="flex items-start gap-3"><Monitor size={21} className="mt-0.5 shrink-0 text-[#d94739]" aria-hidden="true" /><div><h2 className="font-sans text-sm font-bold tracking-tight">Cross-platform engineering</h2><p className="mt-1 text-xs leading-6 text-[#62665e]">The connector targets Windows and macOS. CI validates exact source revisions; live host acceptance remains a separate gate.</p></div></div>
+            <div className="flex items-start gap-3"><Monitor size={21} className="mt-0.5 shrink-0 text-[#d94739]" aria-hidden="true" /><div><h2 className="font-sans text-sm font-bold tracking-tight">Cross-platform engineering</h2><p className="mt-1 text-xs leading-6 text-[#62665e]">The connector targets Windows and macOS. The previous green matrix covered an earlier connector-only revision; beta.5's SQLite queue changes still need exact-source CI and live host acceptance.</p></div></div>
           </div>
         </section>
 
@@ -160,17 +160,17 @@ export default function FoxyPage() {
           <div className="max-w-[760px]">
             <p className="font-mono text-[10px] font-medium uppercase tracking-[.17em] text-[#d94739]">03 / Qualification evidence</p>
             <h2 className="mt-4 font-sans text-3xl font-extrabold leading-tight tracking-[-.05em] sm:text-4xl">Verified on the build. Honest about what remains.</h2>
-            <p className="mt-5 text-sm leading-7 text-[#62665e]">The current candidate passed the automated release workflow on both operating systems. This is reproducible CI evidence for the exact source revision—not a third-party certification or proof of compatibility with every installed agent version.</p>
+            <p className="mt-5 text-sm leading-7 text-[#62665e]">The previous beta.4 connector revision passed its Windows/macOS matrix. The current beta.5 candidate adds a transactional SQLite queue and new multi-process tests; its exact-source CI result is still pending. The earlier run is not evidence for these queue changes.</p>
           </div>
           <div className="mt-10 grid gap-4 lg:grid-cols-2">
             <article className="border border-[#b8c4b5] bg-[#f9faf5] p-6 sm:p-8">
-              <div className="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[#526e55]"><PackageCheck size={16} aria-hidden="true" /> Passed · automated CI</div>
-              <h3 className="mt-5 font-sans text-2xl font-extrabold tracking-tight">Windows + macOS</h3>
+              <div className="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[#6c7068]"><PackageCheck size={16} aria-hidden="true" /> Historical · prior revision</div>
+              <h3 className="mt-5 font-sans text-2xl font-extrabold tracking-tight">Beta.4 connector matrix</h3>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <div className="border border-[#dce3d8] bg-white p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#70796f]">Regression suite</p><p className="mt-2 text-2xl font-extrabold tracking-tight">429 / 429</p><p className="mt-1 text-[11px] text-[#62665e]">per platform</p></div>
                 <div className="border border-[#dce3d8] bg-white p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#70796f]">Connector regressions</p><p className="mt-2 text-2xl font-extrabold tracking-tight">12 / 12</p><p className="mt-1 text-[11px] text-[#62665e]">per platform</p></div>
               </div>
-              <p className="mt-5 text-xs leading-6 text-[#62665e]">Both matrix jobs passed the full source-matched release validator and connector suite. The VibeSane route build, SEO metadata and standalone no-JavaScript preview also passed.</p>
+              <p className="mt-5 text-xs leading-6 text-[#62665e]">Run #75 passed 429/429 regression tests and 12/12 connector checks per platform on the earlier beta.4 connector SHA. It did not include beta.5's SQLite queue, cross-process cancellation or crash-recovery changes.</p>
               <a href="https://github.com/Darkhero766/Vibeguard/actions/workflows/agentshield-cross-platform.yml?query=branch%3Afeat%2Fagentshield-cross-platform-autoconnect" target="_blank" rel="noreferrer" className="vg-focus mt-6 inline-flex items-center gap-2 text-sm font-bold text-[#d94739] hover:underline">Open qualification workflow history <ArrowRight size={15} aria-hidden="true" /></a>
             </article>
             <article className="border border-[#d5d1c8] bg-[#ebe7de] p-6 sm:p-8">
