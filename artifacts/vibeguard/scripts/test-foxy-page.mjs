@@ -23,7 +23,9 @@ assert.ok(mainPageSource.includes('54 checks. The signals that actually matter.'
 assert.ok(mainPageSource.includes('Fifty-four focused rules'), 'Homepage description must match the catalog count.');
 assert.ok(dashboardSource.includes('54 checks, one clear signal.'), 'Signed-in dashboard must match the catalog count.');
 assert.ok(themeSource.includes('54 CHECKS. ONE SECURITY PERIMETER.') && themeSource.includes('SCAN // 54') && themeSource.includes('54 RULES ACTIVE'), 'Animated security console labels must match the catalog count.');
-assert.ok(!/51 checks|51 security checks|50 CHECKS|SCAN \\/\\/ 50|50 RULES ACTIVE/.test(mainPageSource + dashboardSource + themeSource), 'Legacy scanner count remains in the UI.');
+const uiSource = mainPageSource + dashboardSource + themeSource;
+const legacyCountLabels = ['51 checks', '51 security checks', '50 CHECKS', 'SCAN // 50', '50 RULES ACTIVE'];
+assert.ok(!legacyCountLabels.some((label) => uiSource.includes(label)), 'Legacy scanner count remains in the UI.');
 
 for (const token of [
   '<title>Foxy — Local-First MCP Security for AI Coding Agents | VibeSane</title>',
