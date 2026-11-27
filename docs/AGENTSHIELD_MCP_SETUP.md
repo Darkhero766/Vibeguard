@@ -2,7 +2,7 @@
 
 ## One-time beta setup (macOS/Linux)
 
-Requirements: Node.js 24.15+, Git, pnpm, and a trusted VibeSane checkout. Use a disposable Git repository for the first scan. Windows and macOS are included in the automated connector matrix for the current candidate; real installed-host acceptance is still required.
+Requirements: Node.js 24.15+, Git, pnpm, and a trusted VibeSane checkout. Use a disposable Git repository for the first scan. The previous Windows/macOS connector matrix passed on an earlier beta.4 source revision; the beta.5 SQLite queue still needs exact-source Windows/macOS qualification and real installed-host acceptance.
 
 From the VibeSane checkout root, build and create the local, unpublished package:
 
