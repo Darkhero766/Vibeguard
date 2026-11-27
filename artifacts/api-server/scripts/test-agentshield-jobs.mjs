@@ -898,6 +898,54 @@ test('a crashed subprocess lease turns its running job into interrupted on recov
   }
 });
 
+test('stale-worker recovery releases concurrency when the persisted job payload is corrupt', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-corrupt-stale-payload-'));
+  const owner = new ScanJobQueue({
+    storeDir,
+    concurrency: 1,
+    workerLeaseMs: 800,
+    heartbeatIntervalMs: 100,
+    runner: (_input, { signal }) => new Promise((_resolve, reject) => {
+      const abort = () => reject(signal.reason || new Error('aborted'));
+      if (signal.aborted) abort();
+      else signal.addEventListener('abort', abort, { once: true });
+    }),
+  });
+  const recovered = new ScanJobQueue({
+    storeDir,
+    concurrency: 1,
+    workerLeaseMs: 800,
+    heartbeatIntervalMs: 100,
+    runner: async () => complete(),
+  });
+  try {
+    await owner.init();
+    const started = await owner.submit({ workspace: jobWorkspacePath('corrupt-payload-recovery') });
+    for (let attempt = 0; attempt < 100 && owner.getStatus(started.job_id)?.status !== 'running'; attempt++) await tick();
+    assert.equal(owner.getStatus(started.job_id).status, 'running');
+
+    // Simulate an abrupt process stall and corrupt the JSON payload while
+    // retaining its SQL ownership/index columns.
+    clearInterval(owner.heartbeatTimer);
+    owner.heartbeatTimer = null;
+    owner.store.db.prepare('UPDATE jobs SET payload=? WHERE id=?').run('{not-json', started.job_id);
+    owner.store.db.prepare('UPDATE workers SET heartbeat_at=? WHERE id=?')
+      .run(Date.now() - 5000, owner.workerId);
+
+    await recovered.init();
+    const state = recovered.getStatus(started.job_id);
+    assert.equal(state.status, 'interrupted');
+    assert.match(state.error, /metadata was corrupt.*UNKNOWN/i);
+    assert.equal(recovered.getResults(started.job_id).status, 'interrupted');
+    assert.equal(recovered.store.db.prepare('SELECT COUNT(*) AS count FROM workers').get().count, 1,
+      'the corrupt stale owner must be removed; only the recovering worker remains registered');
+  } finally {
+    await owner.close();
+    await recovered.close();
+    await rm(storeDir,{recursive:true,force:true});
+  }
+});
+
 test('configured concurrency is enforced while independent jobs run in parallel', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-concurrency-'));
   let running = 0;
