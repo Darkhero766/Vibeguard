@@ -538,15 +538,16 @@ test('two independent Node processes share one SQLite queue and enforce a global
       ids.push(result.job_id);
     }
     writeSync(1, 'SUBMITTED ' + JSON.stringify({ label, ids }) + '\\n');
-    for (const id of ids) {
-      for (let attempt = 0; attempt < 500; attempt++) {
-        const state = queue.getStatus(id);
-        if (state && ['completed', 'failed', 'cancelled', 'interrupted'].includes(state.status)) {
-          if (state.status !== 'completed') throw new Error('Unexpected terminal state: ' + state.status);
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        if (attempt === 499) throw new Error('Timed out waiting for shared queue job ' + id);
+    // Any process may claim any queued job in the shared queue. Do not close
+    // this worker after only its own submissions finish: it may still own a
+    // peer's job. Wait for the shared store to become fully quiescent first.
+    for (let attempt = 0; attempt < 3000; attempt++) {
+      const jobs = queue.store.listJobs();
+      if (jobs.length === 6 && jobs.every((job) => job.status === 'completed')) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      if (attempt === 2999) {
+        const states = queue.store.listJobs().map((job) => ({ id: job.id, status: job.status, error: job.error }));
+        throw new Error('Timed out waiting for all shared jobs to complete: ' + JSON.stringify(states));
       }
     }
     writeSync(1, 'DONE ' + label + '\\n');
@@ -989,9 +990,15 @@ test('configured concurrency is enforced while independent jobs run in parallel'
     assert.equal(running, 2, 'both configured worker slots should become active');
     assert.equal(peak, 2);
     releaseWorkers();
-    for (let i = 0; i < 240 && ids.some((id) => queue.getStatus(id)?.status !== 'completed'); i++) await tick();
-    assert.ok(ids.every((id) => queue.getStatus(id)?.status === 'completed'),
-      'concurrent persistence must not evict accepted jobs from the live queue');
+    const completionDeadline = Date.now() + 30_000;
+    while (Date.now() < completionDeadline
+      && ids.some((id) => queue.getStatus(id)?.status !== 'completed')) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    const unfinished = ids.map((id) => queue.getStatus(id))
+      .filter((status) => status?.status !== 'completed');
+    assert.deepEqual(unfinished, [],
+      'all durably accepted jobs must finish within 30 seconds: ' + JSON.stringify(unfinished));
   } finally {
     releaseWorkers();
     await queue.close();
@@ -1033,14 +1040,20 @@ test('workspace canonicalization coalesces aliases and rejects a symlink root', 
   await mkdir(workspace);
   const alias = `${parent}-link`;
   await symlink(parent, alias);
-  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  let releaseRunner;
+  const runnerGate = new Promise((resolve) => { releaseRunner = resolve; });
+  const queue = new ScanJobQueue({ storeDir, runner: async () => { await runnerGate; return complete(); } });
   try {
     await assert.rejects(queue.submit({ workspace: alias }), /real directory/);
     const first = await queue.submit({ workspace });
     const second = await queue.submit({ workspace: path.join(alias, 'repo') });
-    assert.equal(second.job_id, first.job_id);
+    assert.equal(second.job_id, first.job_id,
+      'a duplicate request through a symlinked parent must coalesce while the original scan is active');
     assert.equal(second.deduplicated, true);
+    releaseRunner();
+    await queue.wait(first.job_id, 5000);
   } finally {
+    releaseRunner();
     await queue.close();
     await rm(alias, { force: true });
     await rm(parent, { recursive: true, force: true });
