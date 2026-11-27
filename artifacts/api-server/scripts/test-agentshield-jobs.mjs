@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, open, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, open, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -223,7 +223,7 @@ test('a verified stale beta.4 lock blocks migration until operator cleanup', asy
     throw error;
   }
   const queue = new ScanJobQueue({
-    storeDir, legacyStoreDir, authorizedRoots: [workspace],
+    storeDir, legacyStoreDir, authorizedRoots: [await realpath(workspace)],
     runner: async () => complete(),
   });
   try {
@@ -290,7 +290,7 @@ test('beta.4 shared JSON migration imports only jobs under the current MCP allow
   const queue = new ScanJobQueue({
     storeDir,
     legacyStoreDir,
-    authorizedRoots: [allowedWorkspace],
+    authorizedRoots: [await realpath(allowedWorkspace)],
     runner: async () => complete(),
   });
   try {
@@ -343,7 +343,7 @@ test('beta.4 migration resolves symlinked workspace paths before importing findi
   const snapshotText = JSON.stringify(snapshot);
   await writeFile(snapshotPath, snapshotText);
   const queue = new ScanJobQueue({
-    storeDir, legacyStoreDir, authorizedRoots: [authorizedRoot],
+    storeDir, legacyStoreDir, authorizedRoots: [await realpath(authorizedRoot)],
     runner: async () => complete(),
   });
   try {
@@ -394,11 +394,11 @@ test('concurrent beta.5 host stores share a durable beta.4 migration guard witho
   const lockPath = path.join(legacyStoreDir, 'jobs.lock');
   await writeFile(snapshotPath, snapshotText);
   const queueA = new ScanJobQueue({
-    storeDir: storeA, legacyStoreDir, authorizedRoots: [workspaceA],
+    storeDir: storeA, legacyStoreDir, authorizedRoots: [await realpath(workspaceA)],
     runner: async () => complete(),
   });
   const queueB = new ScanJobQueue({
-    storeDir: storeB, legacyStoreDir, authorizedRoots: [workspaceB],
+    storeDir: storeB, legacyStoreDir, authorizedRoots: [await realpath(workspaceB)],
     runner: async () => complete(),
   });
   try {
