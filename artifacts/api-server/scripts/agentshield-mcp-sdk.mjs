@@ -109,7 +109,7 @@ export async function serveFoxyStdio({ env = process.env } = {}) {
   // Resolve roots once for queue scoping and legacy migration. If the allowlist
   // is absent or malformed, the MCP server still starts in a fail-closed
   // authorization state, but it must not import any shared beta.4 job records.
-  const authorizedRoots = await resolveAuthorizedRoots().catch(() => []);
+  const authorizedRoots = await resolveAuthorizedRoots(env.VIBESANE_ALLOWED_ROOTS_JSON).catch(() => []);
   const storeDir = resolveJobStoreDirectory(env);
   const legacyStoreDir = env.VIBESANE_LEGACY_JOB_STORE_DIR
     ? env.VIBESANE_LEGACY_JOB_STORE_DIR
