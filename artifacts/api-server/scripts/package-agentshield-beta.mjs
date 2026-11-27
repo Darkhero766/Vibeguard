@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Build a self-contained, unpublished, offline-installable AgentShield beta tarball.
 // Packaging never publishes to a registry and never executes customer project code.
-import { mkdir, cp, rm, readFile, writeFile, stat } from 'node:fs/promises';
+import { mkdir, cp, rm, readFile, writeFile, stat, readdir, utimes } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
@@ -40,6 +40,41 @@ const scripts = [
   'agentshield-python.mjs',
   'agentshield-sarif.mjs',
 ];
+const PACKAGE_EPOCH = new Date('2020-01-01T00:00:00.000Z');
+const PACKAGE_TEXT_EXTENSIONS = new Set(['.mjs', '.cjs', '.json', '.md', '.txt']);
+
+async function normalizePackageTree(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      await normalizePackageTree(fullPath);
+      await utimes(fullPath, PACKAGE_EPOCH, PACKAGE_EPOCH);
+      continue;
+    }
+    if (!entry.isFile() || !PACKAGE_TEXT_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+      throw new Error('Beta package contains an unexpected non-text or non-regular file: ' + entry.name);
+    }
+    const original = await readFile(fullPath, 'utf8');
+    const normalized = original.replace(/\\r\\n?/g, '\\n');
+    if (normalized !== original) await writeFile(fullPath, normalized);
+    await utimes(fullPath, PACKAGE_EPOCH, PACKAGE_EPOCH);
+  }
+  await utimes(directory, PACKAGE_EPOCH, PACKAGE_EPOCH);
+}
+
+async function packageContentManifest(stageDirectory, files) {
+  const aggregate = createHash('sha256');
+  const fileDigests = [];
+  for (const relativePath of [...files].sort()) {
+    const bytes = await readFile(path.join(stageDirectory, ...relativePath.split('/')));
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    aggregate.update(relativePath).update('\\0').update(String(bytes.length)).update('\\0').update(bytes).update('\\0');
+    fileDigests.push({ path: relativePath, bytes: bytes.length, sha256 });
+  }
+  return { contentSha256: aggregate.digest('hex'), fileDigests };
+}
+
 async function main() {
   const scanner = path.join(root, 'dist', 'agentshield.mjs');
   if (!(await stat(scanner).catch(() => null))?.isFile()) {
@@ -208,6 +243,10 @@ async function main() {
     'Uninstall Claude Code hooks with vibesane uninstall --cwd /absolute/path/to/project; remove the Cursor hook entry manually.',
     '',
   ].join('\n'));
+  // Normalize text bytes and filesystem mtimes before npm packs the archive.
+  // This makes the unpublished package reproducible across Windows and macOS.
+  await normalizePackageTree(stage);
+
   const packArgs = ['pack', '--ignore-scripts', '--json', '--pack-destination', out, stage];
   const { stdout } = await exec('npm', packArgs, {
     timeout: 30000,
@@ -234,12 +273,15 @@ async function main() {
   if (metadata.size > 8_000_000) throw new Error('Beta package unexpectedly exceeds 8 MB.');
   const archive = path.join(out, metadata.filename);
   const digest = createHash('sha256').update(await readFile(archive)).digest('hex');
+  const contentManifest = await packageContentManifest(stage, actual);
   process.stdout.write(JSON.stringify({
     status: 'packaged_local_only',
     version: PACKAGE_VERSION,
     archive,
     sha256: digest,
     archiveBytes: metadata.size,
+    contentSha256: contentManifest.contentSha256,
+    fileDigests: contentManifest.fileDigests,
     fileCount: actual.size,
     contents: [...actual].sort(),
     published: false,
