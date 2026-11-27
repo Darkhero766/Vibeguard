@@ -206,6 +206,9 @@ export async function resolveAuthorizedRoots(raw = process.env[AUTHORIZED_ROOTS_
         throw new Error('authorized root changed');
       }
       authorizedRootIdentities.set(item, identity);
+      // Also pin the canonical spelling so later tool calls can revalidate the
+      // startup snapshot without trusting a subsequently changed environment.
+      authorizedRootIdentities.set(canonical, identity);
       if (!roots.includes(canonical)) roots.push(canonical);
     }
     return roots;
@@ -213,12 +216,17 @@ export async function resolveAuthorizedRoots(raw = process.env[AUTHORIZED_ROOTS_
     throw new Error('Workspace is not authorized. Configure VIBESANE_ALLOWED_ROOTS_JSON.');
   }
 }
-async function canonicalRoot(workspace, signal) {
+async function canonicalRoot(workspace, signal, authorizedRoots) {
   throwIfAborted(signal);
   if (typeof workspace !== 'string' || !workspace.trim() || workspace.length > 4096 || !path.isAbsolute(workspace)) {
     throw new Error('Workspace must be an absolute path.');
   }
-  const roots = await resolveAuthorizedRoots();
+  // When the MCP server supplies its startup snapshot, revalidate that exact
+  // canonical root set against recorded filesystem identities. Never expand
+  // authorization because process.env changed after server initialization.
+  const roots = authorizedRoots === undefined
+    ? await resolveAuthorizedRoots()
+    : await resolveAuthorizedRoots(JSON.stringify(authorizedRoots));
   try {
     const input = path.resolve(workspace);
     const root = await realpath(input);
@@ -236,8 +244,8 @@ async function canonicalRoot(workspace, signal) {
   }
 }
 
-export async function authorizeWorkspace(workspace, { signal } = {}) {
-  return canonicalRoot(workspace, signal);
+export async function authorizeWorkspace(workspace, { signal, authorizedRoots } = {}) {
+  return canonicalRoot(workspace, signal, authorizedRoots);
 }
 function normalizedPath(file) {
   return file.replaceAll('\\', '/');
@@ -338,9 +346,9 @@ async function committedStatus(root, baseCommit, signal) {
 
 // Hash actual changed-file bytes as well as Git status. This invalidates a cached scan
 // even when an already-dirty file changes again without changing its porcelain status.
-export async function workspaceSnapshot(workspace, signal, baseRef = null) {
+export async function workspaceSnapshot(workspace, signal, baseRef = null, authorizedRoots) {
   throwIfAborted(signal);
-  const root = await canonicalRoot(workspace, signal);
+  const root = await canonicalRoot(workspace, signal, authorizedRoots);
   const status = await gitStatus(root, signal);
   const worktreePaths = changedEntries(status);
   const baseCommit = await resolveBaseCommit(root, baseRef, signal);
@@ -568,9 +576,9 @@ async function getBaseline(scanId, root) {
   const current = await getBaselineProvenance();
   return sameProvenance(baseline, current) ? baseline : { ...baseline, stale: true };
 }
-export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, { signal, progress = () => {} } = {}) {
+export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, { signal, progress = () => {}, authorizedRoots } = {}) {
   throwIfAborted(signal);
-  const snapshot = await workspaceSnapshot(workspace, signal, baseRef);
+  const snapshot = await workspaceSnapshot(workspace, signal, baseRef, authorizedRoots);
   if (!snapshot.candidatePaths.length) {
     if (snapshot.unsupportedChangedPaths.length || snapshot.ignoredChangedPaths.length) {
       return {
@@ -607,7 +615,7 @@ export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, 
     throw new Error('AgentShield scanner artifact changed during the scan; results and baseline are UNKNOWN.');
   }
   progress(90);
-  const after = await workspaceSnapshot(snapshot.root, signal, baseRef);
+  const after = await workspaceSnapshot(snapshot.root, signal, baseRef, authorizedRoots);
   progress(98);
   if (snapshot.fingerprint !== after.fingerprint) throw new Error('Workspace changed during the scan; results are UNKNOWN.');
   const scopedResult = snapshot.unsupportedChangedPaths.length || snapshot.ignoredChangedPaths.length ? {
@@ -633,9 +641,9 @@ export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, 
   return scopedResult;
 }
 
-async function fullWorkspaceSnapshot(workspace, signal) {
+async function fullWorkspaceSnapshot(workspace, signal, authorizedRoots) {
   throwIfAborted(signal);
-  const root = await canonicalRoot(workspace, signal);
+  const root = await canonicalRoot(workspace, signal, authorizedRoots);
   const head = (await exec('git', gitArgs(root, ['rev-parse', '--verify', 'HEAD']), {
     timeout: 7000, maxBuffer: 10_000, windowsHide: true, env: FIXED_ENV, signal,
   })).stdout.trim();
@@ -704,9 +712,9 @@ async function fullWorkspaceSnapshot(workspace, signal) {
   };
 }
 
-export async function scanFull({ workspace } = {}, { signal, progress = () => {} } = {}) {
+export async function scanFull({ workspace } = {}, { signal, progress = () => {}, authorizedRoots } = {}) {
   throwIfAborted(signal);
-  const before = await fullWorkspaceSnapshot(workspace, signal);
+  const before = await fullWorkspaceSnapshot(workspace, signal, authorizedRoots);
   progress(10);
   if (!before.paths.length) {
     return { status: 'partial_coverage', scope: 'full', filesScanned: 0, scannedPaths: [], findings: [],
@@ -741,7 +749,7 @@ export async function scanFull({ workspace } = {}, { signal, progress = () => {}
   try { report = JSON.parse(output.stdout); } catch { throw new Error('Full scanner returned malformed JSON.'); }
   progress(90);
   const normalized = normalizeReport(report, before.expectedPaths, { maxFindings: MAX_JOB_FINDINGS });
-  const after = await fullWorkspaceSnapshot(before.root, signal);
+  const after = await fullWorkspaceSnapshot(before.root, signal, authorizedRoots);
   if (before.fingerprint !== after.fingerprint) {
     throw new Error('Workspace changed during the full scan; results are UNKNOWN and must be resubmitted.');
   }
@@ -766,9 +774,9 @@ export async function scanFull({ workspace } = {}, { signal, progress = () => {}
     securityGuarantee: false,
   };
 }
-export async function listFindings(workspace, scanId, { signal, baseRef = null } = {}) {
+export async function listFindings(workspace, scanId, { signal, baseRef = null, authorizedRoots } = {}) {
   throwIfAborted(signal);
-  const snapshot = await workspaceSnapshot(workspace, signal, baseRef);
+  const snapshot = await workspaceSnapshot(workspace, signal, baseRef, authorizedRoots);
   const baseline = await getBaseline(scanId, snapshot.root);
   if (!baseline) {
     return { status: 'baseline_not_found', findings: [], note: 'The scan_id is unknown, expired, or belongs to a different workspace. Run scan_changed again.' };
@@ -790,9 +798,9 @@ export async function listFindings(workspace, scanId, { signal, baseRef = null }
     baselineExpiresInMs: Math.max(0, baseline.expiresAt - Date.now()),
   };
 }
-export async function verifyRemediation(workspace, baselineId, { signal, baseRef = null } = {}) {
+export async function verifyRemediation(workspace, baselineId, { signal, baseRef = null, authorizedRoots } = {}) {
   throwIfAborted(signal);
-  const before = await workspaceSnapshot(workspace, signal, baseRef);
+  const before = await workspaceSnapshot(workspace, signal, baseRef, authorizedRoots);
   const baseline = await getBaseline(baselineId, before.root);
   if (!baseline) return {
     status: 'no_baseline',
@@ -836,7 +844,7 @@ export async function verifyRemediation(workspace, baselineId, { signal, baseRef
   if (!sameProvenance(provenanceBefore, provenanceAfter)) {
     throw new Error('AgentShield scanner artifact changed during remediation verification; status UNKNOWN.');
   }
-  const after = await workspaceSnapshot(before.root, signal, baseRef);
+  const after = await workspaceSnapshot(before.root, signal, baseRef, authorizedRoots);
   if (before.fingerprint !== after.fingerprint) throw new Error('Workspace changed during the verification scan; status UNKNOWN.');
   if (before.unsupportedChangedPaths.length || before.ignoredChangedPaths.length || baseline.result.status !== 'complete' || current.status !== 'complete') {
     return {
@@ -974,7 +982,7 @@ function withModernMetadata(result, { cacheable = false } = {}) {
 function rpcError(id, code, message, data) {
   return { jsonrpc: '2.0', id, error: { code, message, ...(data ? { data } : {}) } };
 }
-export async function handleMessage(message, { signal } = {}) {
+export async function handleMessage(message, { signal, authorizedRoots } = {}) {
   if (!validateRpcMessage(message)) return rpcError(message?.id ?? null, -32600, 'Invalid Request');
   if (message.result !== undefined || message.error !== undefined) return null;
   if (message.id === undefined) return null; // Notifications never trigger a scan.
@@ -1052,9 +1060,9 @@ export async function handleMessage(message, { signal } = {}) {
       if (!validateToolArguments(params.name, args)) throw new Error('Invalid tool arguments or unknown tool.');
       let result;
       if (params.name === 'status') result = await statusTool();
-      else if (params.name === 'scan_changed') result = await scanChanged(args, { signal });
-      else if (params.name === 'list_findings') result = await listFindings(args.workspace, args.scan_id, { signal, baseRef: args.base_ref || null });
-      else if (params.name === 'verify_remediation') result = await verifyRemediation(args.workspace, args.baseline_id, { signal, baseRef: args.base_ref || null });
+      else if (params.name === 'scan_changed') result = await scanChanged(args, { signal, authorizedRoots });
+      else if (params.name === 'list_findings') result = await listFindings(args.workspace, args.scan_id, { signal, baseRef: args.base_ref || null, authorizedRoots });
+      else if (params.name === 'verify_remediation') result = await verifyRemediation(args.workspace, args.baseline_id, { signal, baseRef: args.base_ref || null, authorizedRoots });
       else if (params.name === 'explain_finding') result = explainFinding(args.rule_id);
       else throw new Error('Unknown tool.');
       const publicResult = result && typeof result === 'object'
