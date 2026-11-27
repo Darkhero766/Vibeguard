@@ -227,7 +227,8 @@ test('a verified stale beta.4 lock permits migration but is never deleted automa
   });
   try {
     await queue.init();
-    assert.equal(queue.getStatus(id).status, 'queued');
+    assert.ok(['queued', 'running', 'completed'].includes(queue.getStatus(id)?.status),
+      'the imported job remains visible while the local worker may claim it');
     assert.equal(await readFile(lockPath, 'utf8'), lockText,
       'migration must not automatically delete the legacy lock even after its PID is dead');
     assert.equal(await readFile(snapshotPath, 'utf8'), snapshotText,
@@ -333,7 +334,7 @@ test('legacy shared migration fails closed when an old snapshot exists but no ro
     runner: async () => complete(),
   });
   try {
-    await assert.rejects(queue.init(), /without configured authorized roots/);
+    await assert.rejects(queue.init(), (error) => /without configured authorized roots/.test(String(error?.cause?.message || '')));
     assert.equal(queue.initialized, false);
     assert.equal(await readFile(snapshotPath, 'utf8'), snapshotText);
   } finally {
@@ -1069,7 +1070,7 @@ test('queue refuses a symlinked SQLite database without modifying its target', a
   await symlink(target, databasePath);
   const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
   try {
-    await assert.rejects(queue.init(), /regular file/);
+    await assert.rejects(queue.init(), (error) => /regular file/.test(String(error?.cause?.message || '')));
     assert.equal(await readFile(target, 'utf8'), 'do-not-modify');
     assert.equal(queue.initialized, false);
   } finally {
@@ -1145,7 +1146,7 @@ test('initialization fails closed when the SQLite database path is a directory',
     runner: async () => { runnerCalls++; return complete(); },
   });
   try {
-    await assert.rejects(queue.init(), /regular file/);
+    await assert.rejects(queue.init(), (error) => /regular file/.test(String(error?.cause?.message || '')));
     assert.equal(queue.initialized, false);
     assert.equal(queue.storageFault, true);
     assert.equal(queue.jobs.size, 0);
