@@ -103,7 +103,20 @@ export class ScanJobStore {
     } finally { await verify.close(); }
 
     this.db = new DatabaseSync(this.databasePath);
-    await chmod(this.databasePath, 0o600);
+    const permissionHandle = await open(this.databasePath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    try {
+      const opened = await permissionHandle.stat();
+      if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino) {
+        throw new Error('Foxy SQLite database identity changed while opening; refusing to alter its permissions.');
+      }
+      // chmod through the verified descriptor rather than re-resolving the
+      // path, so a concurrent path swap cannot chmod an unrelated target.
+      await permissionHandle.chmod(0o600);
+      const hardened = await permissionHandle.stat();
+      if (hardened.dev !== before.dev || hardened.ino !== before.ino || (hardened.mode & 0o077) !== 0) {
+        throw new Error('Foxy SQLite database permissions could not be restricted to its owner.');
+      }
+    } finally { await permissionHandle.close(); }
     const after = await lstat(this.databasePath);
     if (!after.isFile() || after.isSymbolicLink() || after.dev !== before.dev || after.ino !== before.ino) {
       this.db.close();
@@ -236,7 +249,14 @@ export class ScanJobStore {
         if (opened.dev !== lockInfo.dev || opened.ino !== lockInfo.ino || opened.size > 4096) {
           throw new Error('Legacy Foxy job lock changed while opening; refusing migration.');
         }
-        legacyOwner = JSON.parse(await lockHandle.readFile('utf8'));
+        const lockText = await lockHandle.readFile('utf8');
+        const afterRead = await lockHandle.stat();
+        if (afterRead.dev !== opened.dev || afterRead.ino !== opened.ino
+          || afterRead.size !== opened.size || afterRead.mtimeMs !== opened.mtimeMs
+          || Buffer.byteLength(lockText, 'utf8') !== opened.size) {
+          throw new Error('Legacy Foxy job lock changed while being read; refusing migration.');
+        }
+        legacyOwner = JSON.parse(lockText);
       } finally { await lockHandle.close(); }
       if (legacyOwner.host !== this.host || !Number.isInteger(legacyOwner.pid) || !legacyOwner.token) {
         throw new Error('Legacy Foxy job lock belongs to another host or is invalid; refusing migration.');
