@@ -635,7 +635,6 @@ export class ScanJobStore {
     return this.#transaction(() => {
       const row = this.db.prepare('SELECT * FROM jobs WHERE id=?').get(job.id);
       if (!row || row.status !== 'running' || row.owner_worker_id !== this.workerId) return null;
-      const current = decodeJob(row);
       const now = this.now();
       if (row.cancel_requested) {
         job.status = 'cancelled';
