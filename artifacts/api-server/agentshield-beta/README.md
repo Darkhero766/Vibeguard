@@ -6,7 +6,7 @@
 
 For the complete copy-and-paste installation flow for Codex and Claude Code, see [`docs/AGENTSHIELD_MCP_SETUP.md`](../../../docs/AGENTSHIELD_MCP_SETUP.md). It builds and installs the unpublished local package, configures the required `VIBESANE_ALLOWED_ROOTS_JSON` allowlist, verifies diagnostics and tool discovery, installs hooks, and documents upgrade, rollback, and uninstall.
 
-Short form from the trusted repository root (Node.js 24.15+, Git, pnpm; exact-source beta.5 Windows/macOS qualification is pending):
+Short form from the trusted repository root (Node.js 24.15+, Git, pnpm; exact-source beta.5 Windows/macOS CI passed on `a777754de234ed2e469cd9822ad4a1f5f881e095`; live-host acceptance and independent review remain open):
 
 ```sh
 pnpm --filter @workspace/api-server run build:agentshield
@@ -30,9 +30,9 @@ The default SQLite path is isolated by host namespace and a SHA-256 scope of `VI
 
 ## First run
 
-The previous Windows/macOS green connector run applies to an earlier beta.4 revision only. It does not qualify the beta.5 SQLite queue or its spawned-process tests. Do not distribute the current candidate until exact-source CI and the real-host acceptance matrix are complete.
+Exact-source beta.5 qualification passed on Windows and macOS in [Actions run #46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747) at `a777754de234ed2e469cd9822ad4a1f5f881e095`: 453/453 regression tests on each OS, MCP stdio integration, accuracy benchmarks, offline package installation and package content-manifest verification all passed. The 29-file package manifest SHA-256 is identical on both platforms (`7e65e968cbea7f9396148cdb3cfa6483efbf492aba4bf899ac675036812c401a`); the outer tarball checksums differ by OS metadata. This does not replace actual coding-agent host acceptance or independent security review. Do not distribute the current candidate until those gates and owner approval are complete.
 
-Use the current trusted VibeSane feature checkout (Node.js >=24.15.0, Git and pnpm). The current beta.5 SQLite queue has not yet passed exact-source Windows/macOS CI or real-host acceptance:
+Use the current trusted VibeSane feature checkout (Node.js >=24.15.0, Git and pnpm). The beta.5 SQLite queue has passed exact-source Windows/macOS CI, but real-host acceptance for Claude Code, Codex CLI, Cursor, Gemini CLI, Roo Code and GitHub Copilot remains open:
 
 1. Follow the linked setup guide to build and locally install the beta package, configure the allowlist on the MCP process, and run both diagnostics.
 2. Connect Codex or Claude Code using the documented absolute executable path. Confirm MCP `status` and all five discovered tools.
