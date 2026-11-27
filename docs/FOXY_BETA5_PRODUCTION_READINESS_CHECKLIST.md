@@ -139,6 +139,8 @@ These items require an approved operating model, not just a code change.
 - [ ] Test reduced-motion behavior and contrast in graphite, lime and warm-white sections.
 - [ ] Verify staging and reviewer previews are noindex and robots-blocked; do not index private beta material.
 - [ ] Check every product claim and number against source evidence. Historical beta.4 metrics remain labeled historical.
+- [ ] Confirm the public rule count matches the source catalog (54 rules at this candidate) in the landing page, public report, signed-in dashboard and animated console.
+- [ ] Review contrast on the lime CTA and light clean/upgrade/dashboard cards in both normal and reduced-motion browser states.
 - [ ] Confirm the scanner remains usable and redesign has not broken auth, GitHub connection, billing or scan flows.
 
 ## 8. Release decision and sign-off
