@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -30,52 +30,52 @@
 }
 
 :root {
-  --background: 45 33% 93%;
-  --foreground: 12 17% 11%;
-  --border: 35 17% 73%;
-  --input: 35 18% 64%;
-  --ring: 5 76% 53%;
-  --card: 45 38% 97%;
-  --card-foreground: 12 17% 11%;
-  --primary: 5 76% 53%;
-  --primary-foreground: 45 38% 97%;
-  --secondary: 44 24% 86%;
-  --secondary-foreground: 12 17% 16%;
-  --muted: 43 24% 88%;
-  --muted-foreground: 25 10% 39%;
-  --accent: 45 92% 61%;
-  --accent-foreground: 12 17% 11%;
-  --destructive: 5 76% 42%;
-  --destructive-foreground: 45 38% 97%;
+  --background: 186 24% 6%;
+  --foreground: 84 27% 95%;
+  --border: 150 13% 21%;
+  --input: 150 13% 29%;
+  --ring: 81 83% 68%;
+  --card: 160 16% 10%;
+  --card-foreground: 84 27% 95%;
+  --primary: 81 83% 68%;
+  --primary-foreground: 186 24% 6%;
+  --secondary: 153 13% 16%;
+  --secondary-foreground: 84 27% 95%;
+  --muted: 153 13% 14%;
+  --muted-foreground: 140 8% 66%;
+  --accent: 84 27% 95%;
+  --accent-foreground: 186 24% 6%;
+  --destructive: 5 72% 58%;
+  --destructive-foreground: 84 27% 95%;
   --app-font-sans: 'Manrope', ui-sans-serif, sans-serif;
   --app-font-mono: 'DM Mono', ui-monospace, monospace;
-  --app-font-display: 'Bebas Neue', Impact, sans-serif;
+  --app-font-display: 'Manrope', ui-sans-serif, sans-serif;
   --radius: 0.08rem;
 }
 
 .dark {
-  --background: 12 17% 11%;
-  --foreground: 45 38% 97%;
-  --border: 25 12% 28%;
-  --input: 25 12% 35%;
-  --ring: 44 92% 61%;
-  --primary: 5 76% 58%;
-  --primary-foreground: 45 38% 97%;
-  --secondary: 25 12% 22%;
-  --secondary-foreground: 45 38% 97%;
-  --muted: 25 12% 21%;
-  --muted-foreground: 35 10% 67%;
-  --accent: 44 70% 26%;
-  --accent-foreground: 45 38% 97%;
-  --destructive: 5 76% 58%;
-  --destructive-foreground: 12 17% 11%;
+  --background: 186 24% 6%;
+  --foreground: 84 27% 95%;
+  --border: 150 13% 21%;
+  --input: 150 13% 29%;
+  --ring: 81 83% 68%;
+  --primary: 81 83% 68%;
+  --primary-foreground: 186 24% 6%;
+  --secondary: 153 13% 16%;
+  --secondary-foreground: 84 27% 95%;
+  --muted: 153 13% 14%;
+  --muted-foreground: 140 8% 66%;
+  --accent: 84 27% 95%;
+  --accent-foreground: 186 24% 6%;
+  --destructive: 5 72% 58%;
+  --destructive-foreground: 84 27% 95%;
 }
 
 @layer base {
   * { @apply border-border; }
   html { background: hsl(var(--background)); }
   body { @apply font-sans antialiased bg-background text-foreground; min-width: 320px; }
-  h1, h2, h3 { font-family: var(--app-font-display); font-weight: 400; letter-spacing: 0.01em; }
+  h1, h2, h3 { font-family: var(--app-font-display); font-weight: 800; letter-spacing: -0.045em; }
   button, input { font: inherit; }
   input[type='text'], input[type='url'], input[type='email'], input[type='password'], textarea, select { border-radius: 0; }
 }
@@ -126,23 +126,23 @@ html[data-vg-admin='true'] main:has(#repo-url) p.mb-4.font-mono::before { conten
 html[data-vg-admin='true'] main:has(#repo-url) p.mb-4.font-mono::after { content: 'UNLIMITED SCANS · ADMIN CONSOLE'; font-size: 10px; letter-spacing: .14em; color: hsl(var(--muted-foreground)); }
 
 /* Animated VibeSane 50-check console. The existing cards remain accessible; this adds a live security sweep behind them. */
-main section[class*="bg-[#0d0d0d]"] { position: relative; overflow: hidden; isolation: isolate; }
-main section[class*="bg-[#0d0d0d]"]::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: -1; background: radial-gradient(circle at 50% 35%, rgba(244,200,66,.10), transparent 32%), linear-gradient(115deg, transparent 0 46%, rgba(244,200,66,.08) 49%, transparent 52%); background-size: auto, 180% 100%; animation: vg-grid-drift 18s linear infinite; }
-main section[class*="bg-[#0d0d0d]"]::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 22%; pointer-events: none; z-index: -1; background: linear-gradient(90deg, transparent, rgba(244,200,66,.13), transparent); filter: blur(2px); animation: vg-console-sweep 6s ease-in-out infinite; }
-main section[class*="bg-[#0d0d0d]"] h2 { position: relative; font-size: 0; }
-main section[class*="bg-[#0d0d0d]"] h2::before { content: '50 CHECKS. ONE SECURITY PERIMETER.'; font: 400 clamp(42px, 7vw, 64px)/.86 var(--app-font-display); letter-spacing: .01em; }
-main section[class*="bg-[#0d0d0d]"] > div > div:first-child::after { content: 'LIVE RULESET · DATABASE · SECRETS · APP · SUPPLY CHAIN · INFRA'; display: block; margin-top: 12px; font: 500 9px/1.5 var(--app-font-mono); letter-spacing: .16em; color: #777b73; }
-main section[class*="bg-[#0d0d0d]"] > div > div:nth-of-type(2) { position: relative; }
-main section[class*="bg-[#0d0d0d]"] > div > div:nth-of-type(2)::before { content: 'SCAN // 50'; position: absolute; right: 0; top: -34px; font: 500 9px/1 var(--app-font-mono); letter-spacing: .18em; color: #f4c842; opacity: .72; }
-main section[class*="bg-[#0d0d0d]"] .group { position: relative; overflow: hidden; }
-main section[class*="bg-[#0d0d0d]"] .group::after { content: ''; position: absolute; top: 0; left: -35%; width: 22%; height: 2px; background: linear-gradient(90deg, transparent, #f4c842, transparent); opacity: 0; animation: vg-console-sweep 5.5s ease-in-out infinite; animation-delay: calc(var(--vg-card-index, 0) * 120ms); }
-main section[class*="bg-[#0d0d0d]"] .group:nth-child(1) { --vg-card-index: 1; }
-main section[class*="bg-[#0d0d0d]"] .group:nth-child(2) { --vg-card-index: 2; }
-main section[class*="bg-[#0d0d0d]"] .group:nth-child(3) { --vg-card-index: 3; }
-main section[class*="bg-[#0d0d0d]"] .group:nth-child(4) { --vg-card-index: 4; }
-main section[class*="bg-[#0d0d0d]"] .group:nth-child(5) { --vg-card-index: 5; }
-main section[class*="bg-[#0d0d0d]"] .group:nth-child(6) { --vg-card-index: 6; }
-main section[class*="bg-[#0d0d0d]"] .group:hover::before { content: ''; position: absolute; width: 6px; height: 6px; right: 18px; bottom: 18px; border-radius: 999px; background: #f4c842; box-shadow: 0 0 0 5px rgba(244,200,66,.08), 0 0 18px rgba(244,200,66,.65); animation: vg-node-pulse 900ms ease-in-out infinite; }
+main section[class*="bg-[#0b1112]"] { position: relative; overflow: hidden; isolation: isolate; }
+main section[class*="bg-[#0b1112]"]::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: -1; background: radial-gradient(circle at 50% 35%, rgba(199,243,106,.10), transparent 32%), linear-gradient(115deg, transparent 0 46%, rgba(199,243,106,.08) 49%, transparent 52%); background-size: auto, 180% 100%; animation: vg-grid-drift 18s linear infinite; }
+main section[class*="bg-[#0b1112]"]::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 22%; pointer-events: none; z-index: -1; background: linear-gradient(90deg, transparent, rgba(199,243,106,.13), transparent); filter: blur(2px); animation: vg-console-sweep 6s ease-in-out infinite; }
+main section[class*="bg-[#0b1112]"] h2 { position: relative; font-size: 0; }
+main section[class*="bg-[#0b1112]"] h2::before { content: '50 CHECKS. ONE SECURITY PERIMETER.'; font: 400 clamp(42px, 7vw, 64px)/.86 var(--app-font-display); letter-spacing: .01em; }
+main section[class*="bg-[#0b1112]"] > div > div:first-child::after { content: 'LIVE RULESET · DATABASE · SECRETS · APP · SUPPLY CHAIN · INFRA'; display: block; margin-top: 12px; font: 500 9px/1.5 var(--app-font-mono); letter-spacing: .16em; color: #777b73; }
+main section[class*="bg-[#0b1112]"] > div > div:nth-of-type(2) { position: relative; }
+main section[class*="bg-[#0b1112]"] > div > div:nth-of-type(2)::before { content: 'SCAN // 50'; position: absolute; right: 0; top: -34px; font: 500 9px/1 var(--app-font-mono); letter-spacing: .18em; color: #c7f36a; opacity: .72; }
+main section[class*="bg-[#0b1112]"] .group { position: relative; overflow: hidden; }
+main section[class*="bg-[#0b1112]"] .group::after { content: ''; position: absolute; top: 0; left: -35%; width: 22%; height: 2px; background: linear-gradient(90deg, transparent, #c7f36a, transparent); opacity: 0; animation: vg-console-sweep 5.5s ease-in-out infinite; animation-delay: calc(var(--vg-card-index, 0) * 120ms); }
+main section[class*="bg-[#0b1112]"] .group:nth-child(1) { --vg-card-index: 1; }
+main section[class*="bg-[#0b1112]"] .group:nth-child(2) { --vg-card-index: 2; }
+main section[class*="bg-[#0b1112]"] .group:nth-child(3) { --vg-card-index: 3; }
+main section[class*="bg-[#0b1112]"] .group:nth-child(4) { --vg-card-index: 4; }
+main section[class*="bg-[#0b1112]"] .group:nth-child(5) { --vg-card-index: 5; }
+main section[class*="bg-[#0b1112]"] .group:nth-child(6) { --vg-card-index: 6; }
+main section[class*="bg-[#0b1112]"] .group:hover::before { content: ''; position: absolute; width: 6px; height: 6px; right: 18px; bottom: 18px; border-radius: 999px; background: #c7f36a; box-shadow: 0 0 0 5px rgba(199,243,106,.08), 0 0 18px rgba(199,243,106,.65); animation: vg-node-pulse 900ms ease-in-out infinite; }
 
 /* Logged-in security radar: turns the existing welcome shield into a live perimeter node. */
 main:has(#repo-url) div[class*="h-12"][class*="w-12"][class*="bg-primary/[0.08]"][class*="border-primary/40"] { position: relative; width: 132px; height: 132px; margin-bottom: 22px; border-radius: 999px; border: 1px solid hsl(var(--primary) / .28); background: radial-gradient(circle at center, hsl(var(--accent) / .95) 0 2px, transparent 3px), repeating-radial-gradient(circle at center, transparent 0 17px, hsl(var(--primary) / .18) 18px 19px, transparent 20px 25px), linear-gradient(90deg, transparent 49.6%, hsl(var(--primary) / .12) 50%, transparent 50.4%), linear-gradient(0deg, transparent 49.6%, hsl(var(--primary) / .12) 50%, transparent 50.4%); box-shadow: 0 0 0 8px hsl(var(--primary) / .035), 0 0 42px hsl(var(--primary) / .09), inset 0 0 34px hsl(var(--primary) / .08); overflow: hidden; }
@@ -163,7 +163,7 @@ main:has(#repo-url) section.vg-rise > div.flex.flex-wrap.items-center.gap-y-3.bo
 @media (max-width: 640px) {
   main:has(#repo-url) h1::before { margin-bottom: 11px; font-size: 9px; }
   main:has(#repo-url) h1::after { margin-top: 10px; }
-  main section[class*="bg-[#0d0d0d]"] > div > div:nth-of-type(2)::before { display: none; }
+  main section[class*="bg-[#0b1112]"] > div > div:nth-of-type(2)::before { display: none; }
   main:has(#repo-url) div[class*="h-12"][class*="w-12"][class*="bg-primary/[0.08]"][class*="border-primary/40"] { width: 108px; height: 108px; margin-bottom: 18px; }
   main:has(#repo-url) section.vg-rise > div.flex.flex-wrap.items-center.gap-y-3.border-t { padding: 14px 12px 56px; }
   main:has(#repo-url) section.vg-rise > div.flex.flex-wrap.items-center.gap-y-3.border-t::after { left: 12px; right: 12px; font-size: 7px; letter-spacing: .08em; }
