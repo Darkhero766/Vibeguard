@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import { AGENTSHIELD_VERSION } from './agentshield-version.mjs';
 import { TOOL_DEFS, authorizeWorkspace, handleMessage, resolveAuthorizedRoots, getBaselineProvenance, restoreBaseline, scanChanged, scanFull } from './agentshield-mcp-server.mjs';
 import { ScanJobQueue } from './agentshield-jobs.mjs';
 
@@ -42,7 +43,7 @@ const textResult = (value, isError = false) => ({
 });
 
 export function createFoxyServer(queue, { authorizedRoots } = {}) {
-  const server = new McpServer({ name: 'vibesane-agentshield', version: '0.7.0-beta.5' }, {
+  const server = new McpServer({ name: 'vibesane-agentshield', version: AGENTSHIELD_VERSION }, {
     instructions: INSTRUCTIONS,
     capabilities: { tools: {} },
     supportedProtocolVersions: PROTOCOLS,
