@@ -75,9 +75,9 @@ export const TOOL_DEFS = [
   {
     name: 'scan_changed',
     title: 'Scan changed files',
-    description: 'Run a synchronous read-only scan of supported changed files for immediate feedback. Its remediation baseline is held in this process; use scan_start with scope changed when the baseline must survive an MCP server restart. Pass the same base_ref to list_findings and verify_remediation. Incomplete coverage or truncated findings is UNKNOWN, never a pass.',
+    description: 'Run a synchronous repository-read-only scan of supported changed files and create a local in-memory remediation baseline for immediate feedback. Its baseline is held in this process; use scan_start with scope changed when the baseline must survive an MCP server restart. Pass the same base_ref to list_findings and verify_remediation. Incomplete coverage or truncated findings is UNKNOWN, never a pass.',
     inputSchema: { type: 'object', properties: { workspace: { type: 'string', minLength: 1, maxLength: 4096 }, base_ref: { type: 'string', minLength: 1, maxLength: 200 } }, required: ['workspace'], additionalProperties: false },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   {
     name: 'list_findings',
@@ -99,7 +99,7 @@ export const TOOL_DEFS = [
       baseline_id: { type: 'string', minLength: 16, maxLength: 80 },
       base_ref: { type: 'string', minLength: 1, maxLength: 200 },
     }, required: ['workspace', 'baseline_id'], additionalProperties: false },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   {
     name: 'explain_finding',
