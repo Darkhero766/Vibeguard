@@ -168,3 +168,12 @@ At the start of a new chat:
 5. After a meaningful change, update this file with the new commit SHA, exact test/run evidence, what failed, and the next bounded tasks.
 
 **Resume phrase:** “Continue VibeSane engineering from `docs/VIBESANE_ENGINEERING_STATE.md`; verify live GitHub state before changing anything.”
+
+
+## Foxy local qualification runner (27 Nov 2026)
+
+- Added `artifacts/api-server/scripts/run-foxy-qualification.mjs` and `qualify:foxy` package script. It runs a curated local build and regression set (MCP, jobs store, smoke, connector, package, release and scanner output tests), then writes JSON and Markdown reports under `artifacts/api-server/.foxy-qualification/` (or `FOXY_REPORT_DIR`).
+- Runner is intentionally local-only: it does not deploy, publish, run migrations or invoke live benchmark scripts. It requires Node 24.15+ and dependencies already installed. It labels host acceptance as not included.
+- Usage from repository root after setup: `pnpm --dir artifacts/api-server run qualify:foxy`. For custom report location: `FOXY_REPORT_DIR=... pnpm --dir artifacts/api-server run qualify:foxy`.
+- Termux is a useful Android execution host, but compatibility, memory and native build constraints apply; Termux results are Android-platform evidence, not Windows/macOS acceptance.
+- This runner has been committed via GitHub API but not executed in this environment; tests/build are therefore **unverified** until run on a Node 24.15+ host with dependencies installed.
