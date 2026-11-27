@@ -7,6 +7,7 @@ import path from 'node:path';
 import { mkdir, lstat, chmod, open, readFile, realpath } from 'node:fs/promises';
 import { constants } from 'node:fs';
 
+const FOXY_SQLITE_APPLICATION_ID = 1447514958; // ASCII 'VGSN'
 const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const MAX_RECORDS = 200;
 const MAX_STATE_BYTES = 8_000_000;
@@ -104,7 +105,21 @@ export class ScanJobStore {
       throw new Error('Foxy SQLite database path changed while opening.');
     }
 
-    this.db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=10000; PRAGMA trusted_schema=OFF;');
+    this.db.exec('PRAGMA busy_timeout=10000; PRAGMA trusted_schema=OFF; PRAGMA secure_delete=ON; PRAGMA wal_autocheckpoint=1000;');
+    const journal = this.db.prepare('PRAGMA journal_mode=WAL').get();
+    if (String(journal?.journal_mode || '').toLowerCase() !== 'wal') {
+      throw new Error('Foxy job store requires SQLite WAL mode on a local filesystem; no weaker journal fallback is permitted.');
+    }
+    this.db.exec('PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;');
+    const applicationId = Number(this.db.prepare('PRAGMA application_id').get()?.application_id || 0);
+    if (applicationId !== 0 && applicationId !== FOXY_SQLITE_APPLICATION_ID) {
+      throw new Error('Refusing to open a SQLite database owned by another application.');
+    }
+    if (applicationId === 0) this.db.exec('PRAGMA application_id=' + FOXY_SQLITE_APPLICATION_ID);
+    const integrity = this.db.prepare('PRAGMA quick_check(1)').get();
+    if (String(Object.values(integrity || {})[0] || '').toLowerCase() !== 'ok') {
+      throw new Error('Foxy SQLite job store failed its integrity check; no scans were accepted.');
+    }
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS queue_meta (
         key TEXT PRIMARY KEY,
