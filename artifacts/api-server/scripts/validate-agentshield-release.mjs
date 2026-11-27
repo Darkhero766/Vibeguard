@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PACKAGE_VERSION } from './package-agentshield-beta.mjs';
+import { PACKAGE_VERSION, verifyPackageFileManifest } from './package-agentshield-beta.mjs';
 
 const exec = promisify(execFile);
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -220,7 +220,8 @@ async function main() {
     && Number.isSafeInteger(packageStep.evidence?.packageBytes) && packageStep.evidence.packageBytes > 0
     && Number.isSafeInteger(packageStep.evidence?.packagedFiles) && packageStep.evidence.packagedFiles >= 20
     && expectedPackageChecks.every(name => packageStep.evidence?.checks?.includes(name))
-    && /^[a-f0-9]{64}$/.test(packageStep.evidence?.packageSha256 || ''));
+    && /^[a-f0-9]{64}$/.test(packageStep.evidence?.packageSha256 || '')
+    && verifyPackageFileManifest(packageStep.evidence));
   const gitRevision = await revision();
   const revisionValid = /^[a-f0-9]{40}$/.test(gitRevision || '');
   const allStepsPassed = results.every(item => item.status === 'passed');
@@ -232,6 +233,7 @@ async function main() {
     ...(!benchmarkEvidenceValid ? ['curated_or_holdout_benchmark_evidence_missing_or_below_threshold'] : []),
     ...(!additionalBenchmarkValid ? ['additional_adversarial_benchmark_evidence_missing_or_malformed'] : []),
     ...(!packageEvidenceValid ? ['offline_package_install_smoke_or_sha256_evidence_missing'] : []),
+    ...(!verifyPackageFileManifest(packageStep?.evidence) ? ['offline_package_content_manifest_missing_or_invalid'] : []),
     ...(!revisionValid ? ['source_git_revision_unavailable_or_invalid'] : []),
   ];
   const allRequiredPassed = qualificationFailures.length === 0;
@@ -260,6 +262,8 @@ async function main() {
     testSuiteValid,
     mcpSmokeValid,
     packageEvidenceValid,
+    packageContentSha256: packageEvidenceValid ? packageStep.evidence.packageContentSha256 : null,
+    packageFileDigests: packageEvidenceValid ? packageStep.evidence.packageFileDigests : [],
     qualificationFailures,
     failedSteps: failed.map(item => item.name),
     skippedSteps: skipped.map(item => item.name),
@@ -289,6 +293,8 @@ async function main() {
     syntaxEvidenceValid,
     testSuiteValid,
     packageEvidenceValid,
+    packageContentSha256: report.packageContentSha256,
+    packageFileCount: report.packageFileDigests.length,
     qualificationFailures,
     failedSteps: report.failedSteps,
   };
