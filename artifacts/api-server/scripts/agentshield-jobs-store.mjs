@@ -52,13 +52,19 @@ function validateLegacyJob(job) {
 }
 
 export class ScanJobStore {
-  constructor({ storeDir, workerId, concurrency, maxQueued, workerLeaseMs = 20_000, now = Date.now } = {}) {
+  constructor({ storeDir, legacyStoreDir = storeDir, authorizedRoots = null, workerId, concurrency, maxQueued, workerLeaseMs = 20_000, now = Date.now } = {}) {
     if (!path.isAbsolute(storeDir || '')) throw new Error('Job store path must be absolute.');
+    if (!path.isAbsolute(legacyStoreDir || '')) throw new Error('Legacy job store path must be absolute.');
+    if (authorizedRoots !== null && (!Array.isArray(authorizedRoots) || authorizedRoots.some((root) => typeof root !== 'string' || !path.isAbsolute(root)))) {
+      throw new Error('Authorized roots for legacy job migration must be canonical absolute paths.');
+    }
     if (typeof workerId !== 'string' || !workerId) throw new TypeError('Worker ID is required.');
     if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4) throw new TypeError('Invalid worker concurrency.');
     if (!Number.isInteger(maxQueued) || maxQueued < 1 || maxQueued > 100) throw new TypeError('Invalid queue bound.');
     if (!Number.isInteger(workerLeaseMs) || workerLeaseMs < 500 || workerLeaseMs > 120_000) throw new TypeError('Worker lease must be between 500 ms and 120 seconds.');
     this.storeDir = storeDir;
+    this.legacyStoreDir = legacyStoreDir;
+    this.authorizedRoots = authorizedRoots === null ? null : [...new Set(authorizedRoots.map((root) => path.resolve(root)))];
     this.workerId = workerId;
     this.concurrency = concurrency;
     this.maxQueued = maxQueued;
@@ -210,16 +216,33 @@ export class ScanJobStore {
     }
   }
 
+  #workspaceWithinAuthorizedRoots(workspace) {
+    if (this.authorizedRoots === null) return true;
+    const candidate = path.resolve(workspace);
+    return this.authorizedRoots.some((root) => {
+      const relative = path.relative(root, candidate);
+      return relative === '' || (!path.isAbsolute(relative)
+        && relative !== '..' && !relative.startsWith('..' + path.sep));
+    });
+  }
+
   async #migrateLegacySnapshot() {
     const marker = this.db.prepare("SELECT value FROM queue_meta WHERE key='json_snapshot_migrated'").get();
     if (marker?.value === '1') return;
-    const legacyPath = path.join(this.storeDir, 'jobs.json');
-    const legacyLockPath = path.join(this.storeDir, 'jobs.lock');
 
-    // A beta.4 process still holding the JSON snapshot lock may write after
-    // we've read it. Never migrate a moving snapshot or race the old writer.
-    const lockInfo = await lstat(legacyLockPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
-    if (lockInfo) {
+    const directories = [...new Set([this.storeDir, this.legacyStoreDir].map((item) => path.resolve(item)))];
+    // Check every historical storage directory before reading any snapshot.
+    // Beta.4 used one shared directory; beta.5 uses per-host/per-root stores.
+    // A live old process can still rewrite the shared snapshot, so do not race it.
+    for (const directory of directories) {
+      const directoryInfo = await lstat(directory).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+      if (!directoryInfo) continue;
+      if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink()) {
+        throw new Error('Legacy Foxy job store directory is unsafe; inspect it before migration.');
+      }
+      const legacyLockPath = path.join(directory, 'jobs.lock');
+      const lockInfo = await lstat(legacyLockPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+      if (!lockInfo) continue;
       if (!lockInfo.isFile() || lockInfo.isSymbolicLink() || lockInfo.size > 4096) {
         throw new Error('Legacy Foxy job lock is unsafe; stop all Foxy processes and inspect the lock before migration.');
       }
@@ -243,14 +266,27 @@ export class ScanJobStore {
       }
     }
 
-    const info = await lstat(legacyPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+    const snapshotPaths = directories.map((directory) => path.join(directory, 'jobs.json'));
+    const snapshots = [];
+    for (const snapshotPath of snapshotPaths) {
+      const info = await lstat(snapshotPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+      if (info) snapshots.push({ snapshotPath, info });
+    }
+    if (snapshots.length > 1) {
+      const identities = new Set(snapshots.map(({ info }) => `${info.dev}:${info.ino}`));
+      if (identities.size > 1) {
+        throw new Error('Multiple legacy Foxy job snapshots exist; refusing ambiguous migration.');
+      }
+    }
+    const snapshot = snapshots[0] || null;
     this.legacyMigration = (async () => {
       let jobs = [];
-      if (info) {
+      if (snapshot) {
+        const { snapshotPath, info } = snapshot;
         if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_STATE_BYTES) {
           throw new Error('Legacy JSON job state is unsafe or over its size limit.');
         }
-        const handle = await open(legacyPath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+        const handle = await open(snapshotPath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
         let raw;
         try {
           const opened = await handle.stat();
@@ -269,9 +305,28 @@ export class ScanJobStore {
         if (parsed?.version !== 1 || !Array.isArray(parsed.jobs) || parsed.jobs.length > MAX_RECORDS) {
           throw new Error('Legacy JSON job state format is invalid.');
         }
-        jobs = parsed.jobs;
-        for (const job of jobs) validateLegacyJob(job);
+        for (const job of parsed.jobs) validateLegacyJob(job);
+        // A beta.4 snapshot is shared across all roots. Copy only records whose
+        // canonical workspace falls inside this MCP configuration's exact
+        // allowlist. Do not fan out another repository's findings/paths into
+        // this host namespace. A live production migration without a valid
+        // allowlist cannot safely import any shared legacy state.
+        if (this.authorizedRoots !== null && this.authorizedRoots.length === 0 && parsed.jobs.length) {
+          throw new Error('Cannot migrate the shared beta.4 queue without configured authorized roots; configure the MCP allowlist and restart.');
+        }
+        jobs = parsed.jobs.filter((job) => this.#workspaceWithinAuthorizedRoots(job.workspace));
       }
+
+      // Re-check locks immediately before the SQL transaction in case an old
+      // process appeared while the snapshot was being validated.
+      for (const directory of directories) {
+        const legacyLockPath = path.join(directory, 'jobs.lock');
+        const lockInfo = await lstat(legacyLockPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+        if (lockInfo) {
+          throw new Error('Legacy Foxy job lock appeared during migration; stop all Foxy processes and retry.');
+        }
+      }
+
       this.#transaction(() => {
         const stillMissing = this.db.prepare("SELECT value FROM queue_meta WHERE key='json_snapshot_migrated'").get();
         if (stillMissing?.value === '1') return;
