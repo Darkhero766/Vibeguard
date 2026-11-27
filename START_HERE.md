@@ -1,11 +1,11 @@
 # VibeSane / AgentShield — start here
 
-**Last maintained:** 26 November 2026  
+**Last maintained:** 27 November 2026  
 **Repository:** `Darkhero766/Vibeguard`  
 **Active Foxy MCP candidates:** [PR #69](https://github.com/Darkhero766/Vibeguard/pull/69) beta.3 and [PR #70](https://github.com/Darkhero766/Vibeguard/pull/70) beta.5 — both draft and unmerged.  
 **SaaS hardening:** [PR #61](https://github.com/Darkhero766/Vibeguard/pull/61) — draft and unmerged.  
 **Durable live checkpoint:** read [docs/VIBESANE_ENGINEERING_STATE.md](docs/VIBESANE_ENGINEERING_STATE.md) first; it records exact heads, workflow evidence, blockers and next tasks.  
-**27 November 2026 checkpoint:** beta.5's latest implementation candidate is `a1d9865a32f9cd0840513086533d92c8e5d1ae3d`; its new SQLite regressions and theme changes have no source-matched Windows/macOS run yet. The beta.4 run #75 is historical only. Keep PR #70 draft/unmerged.  
+**27 November 2026 checkpoint:** beta.5 code candidate `13a74ef706d531c92fbf2c21629b64cac141a36c`. No exact-source Windows/macOS run or passing local build is available. The beta.4 run #75 is historical only. See the [production-readiness checklist](docs/FOXY_BETA5_PRODUCTION_READINESS_CHECKLIST.md). Keep PR #70 draft/unmerged.  
 
 **Production:** do not merge, migrate, publish or deploy without separate explicit approval.
 
