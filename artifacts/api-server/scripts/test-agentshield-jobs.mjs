@@ -1498,8 +1498,13 @@ test('graceful shutdown recovers a corrupt running payload as UNKNOWN and releas
     await started;
     const databasePath = path.join(storeDir, 'jobs.sqlite3');
     queue.store.db.prepare('UPDATE jobs SET payload=? WHERE id=?').run('{corrupt-json', submitted.job_id);
+    // Prevent the in-flight runner's normal finish path from repairing the
+    // payload first. This forces unregisterWorker() to exercise its shutdown
+    // corruption fallback and prove that worker ownership is still released.
+    queue.store.finishJob = () => false;
 
     await queue.close();
+    assert.equal(queue.storageFault, true, 'the failed normal finish must be recorded as a storage fault');
 
     const verify = new DatabaseSync(databasePath, { readOnly: true });
     try {
