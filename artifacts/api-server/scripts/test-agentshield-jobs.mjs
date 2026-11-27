@@ -516,6 +516,45 @@ test('a fingerprint-coalesced idempotency alias remains reserved after the job c
   }
 });
 
+test('fingerprint-coalesced idempotency aliases have a bounded per-job limit', async (t) => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-idempotency-alias-limit-'));
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const queue = new ScanJobQueue({
+    storeDir,
+    runner: async () => { await gate; return complete(); },
+  });
+  try {
+    const first = await queue.submit({ workspace: jobWorkspacePath('alias-limit-repo') });
+    for (let attempt = 0; attempt < 100 && queue.getStatus(first.job_id)?.status !== 'running'; attempt++) await tick();
+    assert.equal(queue.getStatus(first.job_id).status, 'running');
+    for (let index = 0; index < 16; index++) {
+      const alias = await queue.submit({
+        workspace: jobWorkspacePath('alias-limit-repo'),
+        idempotency_key: 'bounded-alias-' + index,
+      });
+      assert.equal(alias.job_id, first.job_id);
+      assert.equal(alias.deduplicated, true);
+    }
+    await assert.rejects(
+      queue.submit({
+        workspace: jobWorkspacePath('alias-limit-repo'),
+        idempotency_key: 'bounded-alias-overflow',
+      }),
+      /idempotency-key alias limit/,
+    );
+    assert.equal(queue.store.db.prepare('SELECT COUNT(*) AS count FROM job_idempotency_keys WHERE job_id=?')
+      .get(first.job_id).count, 16);
+    assert.equal(queue.getStatus(first.job_id).status, 'running');
+    release();
+    assert.equal((await queue.wait(first.job_id, 5000)).status, 'completed');
+  } finally {
+    release();
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
 test('two processes coalesce the same idempotency key and reject key reuse for another scan', async (t) => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-cross-process-idempotency-'));
   const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
