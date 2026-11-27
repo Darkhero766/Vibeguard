@@ -30,7 +30,7 @@ The MCP queue is stored in a local SQLite database using WAL mode, full synchron
 
 The SQLite database is local-machine state; do not put the job store on NFS, SMB, cloud-synced or other network filesystems. Processes on a different host are rejected. Host config namespaces keep unrelated configuration domains separate; clients intentionally sharing a config entry also share that namespace and see the same job history.
 
-An exact legacy JSON snapshot from beta.4 is migrated once into SQLite. The migration refuses to proceed while a legacy Foxy writer is still alive, and retains the original `jobs.json` as a recovery copy. Stop every older Foxy MCP process before the first beta.5 start.
+Beta.4 used one shared `~/.local/state/vibesane/agentshield/jobs.json` for every project. On beta.5 startup, Foxy reads that shared snapshot and migrates only jobs whose canonical workspace is inside the current MCP process's `VIBESANE_ALLOWED_ROOTS_JSON` allowlist. Records belonging to other repositories are never copied into this host/workspace database. The source snapshot is retained untouched as a recovery copy. Migration refuses to proceed while any legacy `jobs.lock` owner is still alive, and fails closed when a shared snapshot exists but the current process has no valid authorized roots. Stop every older Foxy MCP process before the first beta.5 start.
 
 ## Install the local beta
 
