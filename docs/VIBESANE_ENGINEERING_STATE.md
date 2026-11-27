@@ -1,6 +1,6 @@
 # VibeSane engineering state
 
-**Snapshot date:** 26 November 2026  
+**Snapshot date:** 27 November 2026  
 **Repository:** `Darkhero766/Vibeguard`  
 **Purpose:** portable source of truth for new engineering sessions. This file records observed state, not intentions or assumptions. Recheck GitHub refs and runs before every write.
 
@@ -16,17 +16,21 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 
 ## Current branch and PR state
 
-### PR #70 — Foxy beta.4 cross-platform connector
+### PR #70 — Foxy beta.5 cross-platform connector and multi-process queue
 
 - State: **open, draft, unmerged**.
 - Branch: `feat/agentshield-cross-platform-autoconnect`.
-- Functional connector qualification was run against code head `a9b4fc87fa202a0aaeab60f43ed6ec361e5ec01c`. Later code commits now add host-domain queue namespaces and safe migration of exact legacy config entries; no fresh workflow/check run is recorded for the resulting branch head yet.
-- Target branch: `feat/agentshield-beta-coding-agent-install`.
-- PR metadata reported target/base SHA `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`, and `mergeable=false`.
-- Scope: project-scoped MCP auto-connect for Claude Code, Codex CLI, Cursor, Gemini CLI, Roo Code and GitHub Copilot; generic MCP stdio output; canonical Git-root allowlisting; backup/idempotent config; cross-platform path handling; Windows/macOS qualification; Foxy setup page.
-- Code update on this branch: connector commit `8f430780851ca8e6e95d8c15eac14f17f66aaa6f` adds host-domain queue namespaces (`foxy-codex`, `foxy-cursor`, `foxy-gemini`, `foxy-roo`) while Claude/Copilot retain the shared `foxy-workspace-mcp` namespace because they share `.mcp.json`; generic hand-entered MCP uses `foxy-manual`. This isolates distinct host config domains, but it does not solve multiple concurrent Claude/Copilot or same-host processes for the same repository.
-- Safe-upgrade code commit `07ea58f23c385938f45da6eacbee7e886aadcfde` and regression fixture correction `1cda7f2fef7b7de4f95f6bbbb5e4905472f0e6b6`: exact legacy JSON/TOML entries are migrated with backups; customized entries are refused. Requalify these commits on both Windows and macOS before relying on them.
-- Exact-source GitHub Actions run [45861790387](https://github.com/Darkhero766/Vibeguard/actions/runs/45861790387), run #75: **success** on this PR head. PR evidence records 429/429 release-qualification tests and 12/12 connector regression tests on each of Windows and macOS, plus app/page builds and no-JavaScript preview checks. The validators say `validation_passed_review_required`, not security certification.
+- Exact current source head: `0a42b6269c7875f564cbd3d3e0e4a08a4a3f99fb`.
+- Target branch: `feat/agentshield-beta-coding-agent-install`; PR metadata still reports target/base SHA `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`, `mergeable=false`. Do not rebase/force-push/merge without a reviewed ancestry plan and explicit approval.
+- Package version: `0.7.0-beta.5`; minimum runtime is Node.js `24.15.0` because the package uses built-in `node:sqlite`.
+- Prior connector qualification [run #75](https://github.com/Darkhero766/Vibeguard/actions/runs/45861790387) passed on older source head `a9b4fc87fa202a0aaeab60f43ed6ec361e5ec01c`: 429/429 regression tests and 12/12 connector checks on Windows and macOS. That run does **not** qualify the new beta.5 queue or current source.
+- Current-head GitHub Actions status: **no matching workflow run/check surfaced** for `0a42b626...` at this snapshot. Treat the beta.5 changes as unqualified until the exact source SHA runs Windows/macOS qualification.
+- Host namespaces remain isolated by configuration domain: Codex, Cursor, Gemini and Roo use dedicated namespaces; Claude Code and Copilot share the workspace-root `.mcp.json` namespace; generic MCP uses `foxy-manual`.
+- The process-exclusive JSON snapshot queue was replaced by `agentshield-jobs-store.mjs`: SQLite WAL; `BEGIN IMMEDIATE` transactions; atomic claims; global concurrency/backpressure per namespace; worker registration and heartbeats; renewable leases; cross-process cancellation; and crash recovery. A worker whose lease expires has its running jobs marked `interrupted`/UNKNOWN, never automatically resumed as clean.
+- Database startup verifies the database file identity, Foxy application ID, WAL mode and `quick_check`; it enables full synchronous commits and secure delete. SQLite is local-machine storage only, not NFS/SMB/network/cloud-synced storage.
+- Beta.4 `jobs.json` migration runs once, refuses to race an active legacy `jobs.lock` writer, retains the original JSON snapshot as a recovery copy, and marks legacy running jobs interrupted. Stop every old Foxy process before upgrading.
+- Regression tests added (not yet source-matched CI-validated): one-time legacy migration, active-legacy-writer refusal, two independent workers sharing a DB with a global concurrency cap, cross-process cancellation, abrupt worker crash recovery, SQLite file/integrity checks and package engine/manifest checks.
+- Real Claude/Cursor/Codex/Gemini/Roo/Copilot installed-host acceptance and independent security review remain open release gates.
 
 ### PR #69 — Foxy beta.3 MCP/server candidate
 
@@ -52,21 +56,22 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 
 ## What is actually verified
 
-- PR #70 cross-platform automated qualification passed on its functional source head and exact run above.
-- PR #69's official 2026-07-28 MCP conformance gate and full release qualification passed in run #71. The test-only HTTP adapter is loopback-only and uses synthetic resources/prompts/tools; the shipping STDIO server remains the actual 10-tool read-only Foxy catalog. Its smoke test asserts fixture tools are absent.
-- The release artifact records 423 passing unit/integration/regression tests and no failed/skipped release steps. The 120-case and 24-case primary corpora each include one false positive; see exact corpus data in the workflow artifact before making accuracy claims.
-- The report’s additional Tasks, custom-header and JSON Schema extension scenarios are not scored in the frozen 2026-07-28 core requirement profile; do not claim those extensions are supported based on the core pass.
-- Synthetic benchmark scores are synthetic rule-expectation measurements. They are not real-world scanner precision/recall, exploit validation or certification.
-- Real-host installation, restart, approval, tool calls and disconnect have **not** been completed across the host/OS matrix just because platform CI passed.
+- PR #69's official MCP 2026-07-28 conformance gate and full release qualification passed in run #71. The test-only HTTP adapter is loopback-only and uses synthetic resources/prompts/tools; the shipping STDIO server remains the actual 10-tool read-only Foxy catalog. Its smoke test asserts fixture tools are absent.
+- PR #69 release evidence: 423 passing unit/integration/regression tests, with no failed/skipped release steps. Curated and holdout benchmark corpora are synthetic rule-expectation tests; they are not real-world scanner precision/recall, exploit validation or certification.
+- PR #70's earlier connector matrix passed on the older beta.4 source SHA in run #75. The beta.5/SQLite implementation is not covered by that run. No new run on current PR #70 head is available yet.
+- The beta.5 source now includes integration tests for independent Node processes, atomic global job claims, cross-process cancellation, stale-worker interruption, migration and storage integrity. These are **test cases added**, not pass evidence until executed on the exact source revision.
+- Node.js 24.15.0+ is required for the built-in SQLite backend. The store is intended for local filesystems on one machine; do not use a network or cloud-synchronized filesystem.
+- The release report's additional Tasks, custom-header and JSON Schema extension scenarios are not scored in the frozen MCP 2026-07-28 core profile; do not claim those extensions are supported based on the core pass.
+- Real-host installation, restart, approval, tool calls, unauthorized-root denial and disconnect remain uncompleted across the host/OS matrix. Independent human security review remains outstanding.
 
 ## Open engineering work — priority order
 
-1. **Live host acceptance:** test project-scoped install, restart, approval, tool calls, unauthorized-root denial, disconnect and config preservation using disposable repos on every advertised host/OS. Record exact app versions; CI configuration tests are not host acceptance.
-2. **Multi-instance queue isolation:** distinct config domains now receive separate persistent namespaces. Claude/Copilot intentionally share the workspace `.mcp.json` namespace; multiple processes for that namespace or multiple same-host processes can still contend on the queue's exclusive lock. Design a broker / session-safe multi-process store before claiming simultaneous Claude/Copilot or same-host sessions.
-3. **Reconcile the stack:** PR #70 base SHA is stale relative to #69 and reports `mergeable=false`. Review exact ancestry and diffs; no force push or merge without authorization.
-4. **Trigger/obtain fresh PR #70 qualification:** the last green run #75 tested `a9b4fc...`, not the new namespace/migration commits. Do not use that older run as evidence for current code.
-5. **Independent security review:** obtain a real reviewer report against the exact current candidate, with findings, severity, reproducible scenario, remediation and retest. Retrieve the exact 11-finding records before declaring any resolved.
-6. **Installer/config race hardening:** review concurrent host-config edits, atomic replacement semantics, symlink/junction and parent-directory behavior, backup handling and interruption recovery. Add deterministic regression tests before changing the implementation.
+1. **Exact-source qualification:** obtain the Windows/macOS workflow on current PR #70 head `0a42b626...`. Do not reuse beta.4 run #75 as evidence for beta.5. Verify the complete test summary and package artifact.
+2. **Cross-process semantics:** once CI executes the new tests, review any failures closely. Verify global concurrency, fairness/queue progress, cancellation propagation, lease expiry, abrupt process crash, and concurrent legacy migration on both platforms.
+3. **Live host acceptance:** test actual install, restart, trust/approval, tool calls, unauthorized-root denial, disconnect and config preservation for each advertised host/version/OS using disposable synthetic repos.
+4. **Reconcile the stack:** PR #70 base SHA is stale relative to latest #69 head and reports `mergeable=false`. Review exact ancestry/diffs; no force push or merge without authorization.
+5. **Independent security review:** obtain a real reviewer report against the exact candidate, with severity, reproducible scenario, remediation and retest. Retrieve the exact 11-finding evidence set before declaring any closed.
+6. **Installer/config race hardening:** review concurrent host-config edits, atomic replacement, symlink/junction and parent-directory behavior, backup and interruption recovery.
 7. **SaaS release gates:** issue #62 tracks independently labeled scanner-accuracy evidence; issue #63 tracks production security/migration/credentialed staging gates. Both remain separate from Foxy MCP and neither authorizes production changes.
 
 ## Non-negotiable operating constraints
