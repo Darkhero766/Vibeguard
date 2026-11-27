@@ -47,9 +47,21 @@ test('MCP SQLite stores are separated by host namespace and authorized-root scop
     resolveJobStoreDirectory({ ...env, VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify(['/workspace/repo-b']) }, home),
     expected,
   );
+  const customBase = path.join(home, 'custom-store');
+  const customExpected = path.join(customBase, 'foxy-cursor-' + scope);
   assert.equal(
-    resolveJobStoreDirectory({ ...env, VIBESANE_JOB_STORE_DIR: path.join(home, 'custom-store') }, home),
-    path.join(home, 'custom-store'),
+    resolveJobStoreDirectory({ ...env, VIBESANE_JOB_STORE_DIR: customBase }, home),
+    customExpected,
+    'a custom state root must preserve host and authorized-root namespacing',
+  );
+  assert.notEqual(
+    resolveJobStoreDirectory({
+      ...env,
+      VIBESANE_JOB_STORE_NAMESPACE: 'foxy-codex',
+      VIBESANE_JOB_STORE_DIR: customBase,
+    }, home),
+    customExpected,
+    'custom storage paths must not collapse separate host namespaces',
   );
   assert.throws(
     () => resolveJobStoreDirectory({ ...env, VIBESANE_JOB_STORE_NAMESPACE: '../escape' }, home),
@@ -57,7 +69,7 @@ test('MCP SQLite stores are separated by host namespace and authorized-root scop
   );
   assert.throws(
     () => resolveJobStoreDirectory({ ...env, VIBESANE_JOB_STORE_DIR: 'relative-store' }, home),
-    /must be an absolute local path/,
+    /must be an absolute local base directory/,
   );
 });
 
