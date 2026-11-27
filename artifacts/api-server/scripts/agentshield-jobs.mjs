@@ -467,6 +467,14 @@ export class ScanJobQueue extends EventEmitter {
 
   async close() {
     if (this.closingPromise) return this.closingPromise;
+    // A close arriving while store initialization is pending must not return
+    // early and allow the worker to register after shutdown has supposedly
+    // completed. Settle init first, then close the registered worker normally.
+    const pendingInitialization = this.initializingPromise;
+    if (!this.initialized && pendingInitialization) {
+      try { await pendingInitialization; } catch { /* init failure already closed its store */ }
+    }
+    if (this.closingPromise) return this.closingPromise;
     if (!this.initialized) {
       try { this.store?.close(); } catch {}
       return;
