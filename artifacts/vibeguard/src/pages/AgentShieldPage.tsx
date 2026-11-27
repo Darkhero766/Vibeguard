@@ -34,7 +34,7 @@ export default function AgentShieldPage() {
       <Nav />
       <main id="main-content">
         <section className="mx-auto max-w-[1040px] px-5 pb-14 pt-12 sm:px-8 sm:pb-20 sm:pt-20">
-          <div className="inline-flex items-center gap-2 border border-[#d9b64c] bg-[#f9f1cc] px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.15em] text-[#413a1f]">
+          <div className="inline-flex items-center gap-2 border border-[#c7f36a] bg-[#15211b] px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.15em] text-[#c7f36a]">
             <Bot size={13} aria-hidden="true" /> Private-beta developer preview
           </div>
           <h1 className="mt-7 max-w-[840px] text-[clamp(2.4rem,6vw,5.4rem)] font-extrabold leading-[1.03] tracking-[-0.065em]">
