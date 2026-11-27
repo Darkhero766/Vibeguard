@@ -122,3 +122,12 @@ The beta.5 candidate had two further source-review findings, both corrected on t
 2. The first corrupt-shutdown regression allowed the worker's normal finish path to overwrite the malformed payload before shutdown cleanup. The fixture now makes that persistence attempt return false, forcing unregisterWorker() to execute its indexed-column recovery path; it asserts UNKNOWN/interrupted state and worker-row release.
 
 The current queue test file defines 39 cases. These are definitions only. Run them on the exact candidate; do not describe the shutdown-recovery test as passing until CI reports it.
+
+
+## Website source-of-truth and contrast review delta — 27 November 2026
+
+- The current scanner catalog contains 54 rules (11 core + 43 extended). The public scan and GitHub webhook routes both publish `TOTAL_SECURITY_CHECKS` as `checksRun`.
+- The homepage, public report, dashboard and animated console were aligned to 54. A source regression now parses the catalog and checks the displayed count.
+- The global accent now resolves to the lime token. Clean-result, upgrade, signed-in dashboard clean panels and the lime CTA use explicit dark foregrounds. Test guards check the theme token pair and mixed-surface contrast classes.
+- AgentShield's React page and prerendered SEO page now state Node.js 24.15.0+, distinguish runtime targets from the Windows/macOS automated matrix, and link to the current beta.5 install guide.
+- Latest code candidate: `4dec4fb27a9070127904e3c29ece476dad3ad2a4`. These are source/documentation assertions; no browser build or screenshot QA has run.
