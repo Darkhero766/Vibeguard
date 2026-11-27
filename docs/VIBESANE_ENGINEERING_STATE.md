@@ -1,6 +1,6 @@
 # VibeSane engineering state
 
-**Snapshot date:** 27 November 2026 (updated after the beta.5 storage review and design pass)  
+**Snapshot date:** 27 November 2026 (updated after beta.5 release-pipeline and production-readiness review)  
 **Repository:** `Darkhero766/Vibeguard`  
 **Purpose:** portable source of truth for new engineering sessions. This file records observed state, not intentions or assumptions. Recheck GitHub refs and runs before every write.
 
@@ -20,11 +20,11 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 
 - State: **open, draft, unmerged**.
 - Branch: `feat/agentshield-cross-platform-autoconnect`.
-- Latest implementation candidate before the state-handoff commit: `a1d9865a32f9cd0840513086533d92c8e5d1ae3d`. It contains the storage-integrity and corrupt-shutdown fixes plus the first graphite/lime/warm-white design pass across the homepage, shared navigation, Foxy page and AgentShield page.
-- Target branch: `feat/agentshield-beta-coding-agent-install`; base SHA remains `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`, while PR #69 has advanced to `ed5bf64...`. GitHub reports `mergeable=false`. Do not rebase, force-push, retarget or merge until stacked ancestry/diffs are reviewed and the owner approves.
+- Latest code candidate: `13a74ef706d531c92fbf2c21629b64cac141a36c`. It includes SQLite ownership/shutdown hardening, the beta.5 validator/version guard, the accessible static Foxy SEO page, Node 24.15 CI runtime, and frontend/API strict typecheck workflow steps. The later checklist commit `be423b4f47b13b7be1af13b99000ab07bdd94c21` adds the formal production-readiness gate record.
+- Target branch: `feat/agentshield-beta-coding-agent-install`; PR #70 still references the common base `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`. The PR #69 branch is 23 commits ahead of that common base, while the PR #70 branch is 265 commits ahead of it; GitHub reports PR #70 `mergeable=false`. Preserve the current stack. Do not rebase, force-push, retarget or merge until the full ancestry/diff is reviewed and the owner approves.
 - Package version: `0.7.0-beta.5`; minimum runtime Node.js `24.15.0` for built-in `node:sqlite`.
 - Prior connector qualification [run #75](https://github.com/Darkhero766/Vibeguard/actions/runs/45861790387) passed on older source SHA `a9b4fc87fa202a0aaeab60f43ed6ec361e5ec01c`: 429/429 release tests plus 12/12 connector tests on Windows and macOS. It does **not** qualify beta.5, SQLite, migration or current source.
-- Current exact-source status: no Foxy Actions workflow run or commit-status context exists for `a1d9865...`. Do not call beta.5 CI-qualified. The prior run #75 is for beta.4 SHA `a9b4fc...` only. No Actions workflow was triggered because the project handoff reports the Actions quota exhausted; no local result is claimed. The active runtime available for local execution was Node.js 22.16.0, below the package's required Node.js 24.15.0, and a suitable source checkout/runner was not available for this session.
+- Current exact-source status: no Foxy Actions workflow run or commit-status context exists for code candidate `13a74ef...` or the branch head at the time of verification. Do not call beta.5 CI-qualified. Prior run #75 applies to beta.4 SHA `a9b4fc...` only. The workflow is configured for Node.js 24.15 and Windows/macOS; frontend and API strict typechecks were added, but no run has executed. Local runtime is Node.js 22.16.0, the repository is not mounted locally, and outbound GitHub DNS is unavailable; therefore no local test/build result is claimed.
 - Host namespaces: Codex, Cursor, Gemini and Roo have dedicated namespaces; Claude Code and Copilot share workspace-root `.mcp.json`; generic MCP is `foxy-manual`. The default store path appends a SHA-256 fingerprint of the exact `VIBESANE_ALLOWED_ROOTS_JSON` to the namespace. `VIBESANE_JOB_STORE_DIR` is now a relocatable base directory and still receives the namespace/root suffix, so it cannot silently collapse host scopes.
 - The queue uses SQLite WAL and `BEGIN IMMEDIATE` transactions, atomic global claims, per-process heartbeat/leases, cross-process status and cancellation, queue backpressure, and crash recovery. Stale worker jobs become `interrupted`/UNKNOWN and are not automatically retried as clean.
 - SQLite schema v2 has a normalized unique `job_idempotency_keys` table with cascading references. Multiple client keys may alias a fingerprint-coalesced job; any key reuse for a different scan is rejected, including after completion/across processes. Aliases are capped at 16 per job and 3,200 total.
@@ -37,7 +37,7 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 
 - State: **open, draft, unmerged**.
 - Branch: `feat/agentshield-beta-coding-agent-install`.
-- Current head: `ed5bf64a3dced0bd890fd66cf0634e0ae888a951`.
+- Branch status: advanced 23 commits from the PR #70 common base as last compared on 27 November. Re-query the exact head SHA and workflow state before any future stack repair.
 - This session added: full per-check failure diagnostics, a test-only MCP conformance server/fixture catalog sharing the production SDK factory, canonical media-fixture validation, and a production STDIO regression that proves conformance fixtures never enter the real tool catalog.
 - Exact workflow [45878440549](https://github.com/Darkhero766/Vibeguard/actions/runs/45878440549), run #71: **success** on PR head `ed5bf64...`. Backend strict typecheck, 52-file source syntax gate, MCP protocol/queue/real STDIO smoke, official MCP 2026-07-28 server requirements, web static build and full release qualification all passed.
 - The release artifact reports `validation_passed_review_required` / `candidate_for_independent_human_review`; artifact checkout revision `2bf0abeff69a554d0043e4a24e91418250ceffa4` is the PR merge-checkout revision recorded inside the report, while workflow `head_sha` is the PR source head `ed5bf64...`.
@@ -53,7 +53,7 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 - #69 beta.3 packaging is based on #68.
 - #70 beta.4 connector is based on #69.
 
-**Important drift to resolve:** PR #69 now has head `ed5bf64...`, while PR #70 metadata still reports its base SHA as `f6a16dc...` and `mergeable=false`. The beta.4 branch is therefore stale relative to the current beta.3 candidate. Confirm current branch ancestry and review the exact delta before any stack repair. Do not force-push, rewrite history or merge without explicit authorization.
+**Important drift to resolve:** PR #69's branch is 23 commits ahead of the PR #70 common base; PR #70 is 265 commits ahead of that same base and GitHub reports `mergeable=false`. This is a diverged stacked dependency, not an ordinary fast-forward. Preserve both branches and complete a full merge-base/diff review before proposing a stack repair. Do not force-push, rewrite history, retarget or merge without explicit authorization.
 
 ## What is actually verified
 
@@ -61,19 +61,19 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 - PR #69's recorded release evidence: 423 tests passed with no failed/skipped release steps. Benchmark corpora are synthetic rule-expectation fixtures, not real-world scanner accuracy, exploit validation or certification.
 - PR #70's previous connector matrix passed on the older beta.4 source SHA in run #75. That run is not evidence for the current beta.5/SQLite implementation.
 - GitGuardian's separate secret scan reports no secrets on the earlier beta.5 commit `f292e6a...`; this is not a build, test or security review.
-- The implementation candidate `a1d9865...` has no matching Foxy Actions qualification or commit-status context. Queue tests and the website design changes are committed source, not verified passes/build output. A docs-only state-handoff commit will follow these implementation commits.
+- Code candidate `13a74ef...` has no matching Foxy Actions qualification or commit-status context. The test file contains 39 queue test definitions, not 39 confirmed passes. The web build, static route assertions, strict typechecks and package smoke are not verified passes until the exact workflow runs.
 - Node.js 24.15.0+ is required. SQLite storage is local-machine only; Windows storage is restricted to the canonical current-user profile path, while POSIX storage is checked for owner-only mode bits.
 - Real-host install/restart/approval/tool calls/unauthorized-root denial/disconnect and independent human review remain incomplete.
 
 ## Open engineering work — priority order
 
 1. **Exact-source Windows/macOS qualification:** run the Foxy workflow on the exact new branch head when Actions quota is available, using Node.js 24.15.0+; capture per-platform job logs and artifacts. Do not reuse beta.4 run #75.
-2. **Review actual CI results:** inspect Windows/macOS jobs, all 33+ queue tests, cross-process migration/claim/idempotency/cancellation/crash tests, package output, Node engine and generated README.
+2. **Review actual CI results:** inspect Windows/macOS jobs, all 39 queue test cases, cross-process migration/claim/idempotency/cancellation/crash tests, foreign SQLite rejection, corrupt graceful shutdown, frontend/API typechecks, package output, Node engine and generated README.
 3. **Live host acceptance:** install/restart/approve/use/disconnect for real Claude/Codex/Cursor/Gemini/Roo/Copilot versions on Windows/macOS with disposable repos; include simultaneous same-namespace processes and upgrade from beta.4.
 4. **Stack reconciliation:** PR #70 base is stale relative to PR #69 and GitHub says `mergeable=false`. Review complete commit ancestry and diff before any rebase/retarget; no force-push or merge without approval.
 5. **Independent security review:** get an external reviewer report against the exact candidate, with severity, reproduction, remediation and retest evidence. Retrieve the exact prior 11-finding list before calling any issue closed.
 6. **SaaS accuracy/launch gates:** issue #62 tracks independently labeled scanner-accuracy evidence; issue #63 tracks production security/migration/credentialed staging. Neither is resolved by Foxy CI or authorizes a production deployment.
-7. **Website design qualification:** the first graphite `#0B1112` / lime `#C7F36A` / warm-white `#F4F6F0` pass is now committed to the shared design tokens, main scanner landing page, navigation, Foxy and AgentShield pages. Still required: actual Vite production build, route/SEO preview tests, desktop/mobile browser QA, keyboard/reduced-motion/accessibility review, and visual QA against the real signed-in dashboard and report states. The UI changes are not build-verified.
+7. **Website design qualification:** the graphite `#0B1112` / lime `#C7F36A` / warm-white `#F4F6F0` system is committed to shared tokens, navigation, main scanner, Foxy, AgentShield and the regenerated static SEO route. The static route now states Node.js 24.15+, identifies beta.4 metrics as historical and says beta.5 exact-source CI is pending. Still required: actual Vite production build, route/SEO preview tests, desktop/mobile browser QA, keyboard/reduced-motion/accessibility review and signed-in scanner/report QA. The UI changes are not build-verified.
 
 
 ## 27 November 2026 session delta
@@ -103,6 +103,31 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 - No Windows/macOS run or commit-status context exists for the new implementation candidate. Existing beta.4 run #75 is historical.
 - No local test/build result is claimed: available Node.js 22.16.0 is below the required 24.15.0, and no source-matched suitable runner was available.
 - Production remains untouched; PR #70 remains draft and unmerged; no npm publication or public beta distribution.
+
+
+## 27 November 2026 — release-pipeline and production-readiness delta
+
+### Release validator and package version
+
+- Code commit: `12a1bf37ad9d756c46de8fc108e45fab402b0f5e` — release validator imports `PACKAGE_VERSION` from the package builder and uses it both to validate package smoke evidence and populate the qualification report. This removes a stale hardcoded beta.4 gate that would otherwise make beta.5 permanently unqualified.
+- Regression commits: `f362a9b9cd75a9340bd76cb709beec6b3c555d4a`, `52b17cac7876175a9e8af37950ef2ad536daf70b`, `13a74ef706d531c92fbf2c21629b64cac141a36c` — package smoke guards that the validator imports the package version source and contains no beta.4 version gate. The test uses the file's existing assertion helper.
+- This is a code-level consistency fix, not an executed release qualification.
+
+### Static website and CI pipeline
+
+- SEO/route commits: `06b89eb92ea913ccf39541edb5a4155121e870a6`, `8f059e99be3fce8467c9983428f766711d27f66b`, `a83a993fe6425d6d61bf9177ef876cf78cc834cf` — rebuild the prerendered Foxy route with accessible contrast and the current graphite/lime/warm-white design. Remove the obsolete Node 20+ requirement and false claim that the current candidate passed Windows/macOS qualification. Beta.4's 429/429 and 12/12 counts are labeled historical; beta.5 exact-source CI remains pending.
+- Test and workflow commits: `62d897d3c06daa7584c492db3de696732cc193b2`, `c3a462342fbd70f8fabd1d76ec6784b82dbb8c8c`, `f0ae1f34f1c98353f73c71d32c05bd1342477e87`, `15771fcdf7320f746d84945e39a9545a4b45dcd3`, `13a74ef706d531c92fbf2c21629b64cac141a36c` — guard static page runtime/theme/qualification copy, target Node 24.15, add frontend/API strict typechecks, and correct package validator regression guard usage.
+- Static Foxy content is source-controlled in `generate-seo-pages.mjs`; the generated public route and standalone preview tests must pass before staging publication.
+- No build, typecheck, browser, accessibility or preview test has been executed in this session.
+
+### Release process and sign-off
+
+- Added `docs/FOXY_BETA5_PRODUCTION_READINESS_CHECKLIST.md` in commit `be423b4f47b13b7be1af13b99000ab07bdd94c21`. It defines exact-source CI, queue/migration adversarial tests, the six-host/two-OS manual acceptance matrix, independent review, provenance, production operations and web accessibility sign-offs. All are OPEN; production authorization is NOT GRANTED.
+- Updated PR #70 body with the latest code candidate, corrected release gates, environment limitations and the explicit instruction to keep it draft/unmerged; the checklist link is now included.
+- Current code candidate: `13a74ef...`; subsequent branch updates are documentation/checklist records. Re-query the actual branch head before future edits.
+- PR #70 remains open/draft/unmerged with `mergeable=false`. Its branch is 265 commits ahead of common base `f6a16dc...`; PR #69's branch is 23 commits ahead of the same base. Do not rebase/retarget/merge without approval.
+- No workflow run or commit-status context exists for the exact beta.5 code candidate. Local Node is 22.16.0, no checkout is mounted and GitHub clone failed due unavailable DNS; no local execution result is claimed.
+- Production remains untouched; no package published, no merge, no deploy and no Codex use.
 
 ## Non-negotiable operating constraints
 
