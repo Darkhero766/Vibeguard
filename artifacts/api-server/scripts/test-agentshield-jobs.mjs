@@ -313,6 +313,47 @@ test('two independent Node processes share one SQLite queue and enforce a global
   }
 });
 
+test('a fingerprint-coalesced idempotency alias remains reserved after the job completes', async (t) => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-idempotency-alias-'));
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const queue = new ScanJobQueue({
+    storeDir,
+    runner: async () => { await gate; return complete(); },
+  });
+  try {
+    const first = await queue.submit({ workspace: jobWorkspacePath('same-active-fingerprint') });
+    for (let attempt = 0; attempt < 100 && queue.getStatus(first.job_id)?.status !== 'running'; attempt++) await tick();
+    assert.equal(queue.getStatus(first.job_id).status, 'running');
+    const alias = await queue.submit({
+      workspace: jobWorkspacePath('same-active-fingerprint'),
+      idempotency_key: 'fingerprint-coalesced-alias',
+    });
+    assert.equal(alias.job_id, first.job_id);
+    assert.equal(alias.deduplicated, true);
+    const persistedAlias = queue.store.db.prepare(
+      'SELECT job_id,fingerprint FROM job_idempotency_keys WHERE idempotency_key=?',
+    ).get('fingerprint-coalesced-alias');
+    assert.equal(persistedAlias.job_id, first.job_id);
+    assert.equal(persistedAlias.fingerprint, queue.store.getJob(first.job_id).fingerprint);
+
+    release();
+    const terminal = await queue.wait(first.job_id, 5000);
+    assert.equal(terminal.status, 'completed');
+    await assert.rejects(
+      queue.submit({
+        workspace: jobWorkspacePath('different-scan-same-key'),
+        idempotency_key: 'fingerprint-coalesced-alias',
+      }),
+      /idempotency_key was already used for a different scan/,
+    );
+  } finally {
+    release();
+    await queue.close();
+    await rm(storeDir,{recursive:true,force:true});
+  }
+});
+
 test('two processes coalesce the same idempotency key and reject key reuse for another scan', async (t) => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-cross-process-idempotency-'));
   const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
