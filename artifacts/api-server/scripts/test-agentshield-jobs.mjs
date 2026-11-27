@@ -284,8 +284,11 @@ test('two independent Node processes share one SQLite queue and enforce a global
         db.exec('PRAGMA busy_timeout=10000;');
       }
       if (db) {
-        const running = db.prepare("SELECT COUNT(*) AS count FROM jobs WHERE status='running'").get().count;
-        peakRunning = Math.max(peakRunning, running);
+        const schemaReady = db.prepare("SELECT 1 AS ready FROM sqlite_master WHERE type='table' AND name='jobs'").get();
+        if (schemaReady) {
+          const running = db.prepare("SELECT COUNT(*) AS count FROM jobs WHERE status='running'").get().count;
+          peakRunning = Math.max(peakRunning, running);
+        }
       }
       if (children.every((child) => child.exitCode !== null)) break;
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -307,6 +310,87 @@ test('two independent Node processes share one SQLite queue and enforce a global
     await Promise.all(children.map(stopChild));
     db?.close();
     await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
+test('two processes coalesce the same idempotency key and reject key reuse for another scan', async (t) => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-cross-process-idempotency-'));
+  const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
+  const source = `
+    import { ScanJobQueue } from ${JSON.stringify(queueModule)};
+    import { writeSync } from 'node:fs';
+    const [storeDir, label] = process.argv.slice(1);
+    const queue = new ScanJobQueue({
+      storeDir, concurrency: 2, maxQueued: 8,
+      runner: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 180));
+        return { status: 'complete', filesScanned: 1, findings: [], totalFindings: 0,
+          coverage: 'idempotency fixture', findingsTruncated: false };
+      },
+    });
+    await queue.init();
+    const first = await queue.submit({
+      workspace: '/tmp/foxy-shared-idempotency-workspace',
+      idempotency_key: 'shared-across-processes',
+    });
+    writeSync(1, 'FIRST ' + label + ' ' + first.job_id + ' ' + String(first.deduplicated) + '\\n');
+    let state;
+    for (let attempt = 0; attempt < 500; attempt++) {
+      state = queue.getStatus(first.job_id);
+      if (state && ['completed','failed','cancelled','interrupted'].includes(state.status)) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    if (state?.status !== 'completed') throw new Error('Shared idempotent job did not complete: ' + state?.status);
+    let mismatchRejected = false;
+    try {
+      await queue.submit({
+        workspace: '/tmp/foxy-different-idempotency-workspace',
+        idempotency_key: 'shared-across-processes',
+      });
+    } catch (error) {
+      mismatchRejected = /idempotency_key was already used/.test(String(error?.message));
+    }
+    if (!mismatchRejected) throw new Error('Reusing an idempotency key for a different scan was not rejected.');
+    writeSync(1, 'DONE ' + label + '\\n');
+    await queue.close();
+  `;
+  const children = ['alpha','beta'].map((label) => spawn(process.execPath, [
+    '--input-type=module','-e',source,storeDir,label,
+  ], { stdio: ['ignore','pipe','pipe'], windowsHide: true }));
+  let output = '';
+  let errors = '';
+  for (const child of children) {
+    child.stdout.on('data', (chunk) => { output += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { errors += chunk.toString(); });
+  }
+  t.after(() => { for (const child of children) if (child.exitCode === null) child.kill(); });
+  let db = null;
+  try {
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline && !children.every((child) => child.exitCode !== null)) {
+      if (!db && await (await import('node:fs/promises')).stat(path.join(storeDir,'jobs.sqlite3')).then(()=>true).catch(()=>false)) {
+        db = new DatabaseSync(path.join(storeDir,'jobs.sqlite3'));
+        db.exec('PRAGMA busy_timeout=10000;');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.ok(children.every((child) => child.exitCode !== null), 'idempotency processes timed out; '+errors+output);
+    assert.deepEqual(children.map((child) => child.exitCode), [0,0], errors || output);
+    const firstLines = [...output.matchAll(/^FIRST (alpha|beta) ([a-f0-9-]{36}) (true|false)$/gm)];
+    assert.equal(firstLines.length, 2, output);
+    assert.equal(firstLines[0][2], firstLines[1][2], 'both clients must receive the same job ID');
+    assert.deepEqual(new Set(firstLines.map((match) => match[3])), new Set(['true','false']),
+      'exactly one process creates the job while the other deduplicates it');
+    assert.match(output,/DONE alpha/);
+    assert.match(output,/DONE beta/);
+    assert.ok(db);
+    const jobs = db.prepare('SELECT id,status FROM jobs').all();
+    assert.equal(jobs.length,1,'one durable job must exist for the shared idempotency key');
+    assert.equal(jobs[0].status,'completed');
+  } finally {
+    await Promise.all(children.map(stopChild));
+    db?.close();
+    await rm(storeDir,{recursive:true,force:true});
   }
 });
 
