@@ -1,8 +1,8 @@
-# AgentShield MCP (read-only beta 0.7.0-beta.3)
+# AgentShield MCP (read-only beta 0.7.0-beta.5)
 
 ## One-time beta setup (macOS/Linux)
 
-Requirements: Node.js 20+, Git, pnpm, and a trusted VibeSane checkout. Use a disposable Git repository for the first scan. Windows is not supported by the beta CLI/hooks yet.
+Requirements: Node.js 24.15+, Git, pnpm, and a trusted VibeSane checkout. Use a disposable Git repository for the first scan. Windows and macOS are included in the automated connector matrix for the current candidate; real installed-host acceptance is still required.
 
 From the VibeSane checkout root, build and create the local, unpublished package:
 
@@ -15,7 +15,7 @@ The second command prints the local archive path and SHA-256. Install it into a 
 
 ```sh
 npm install --global --prefix "$HOME/.local" --ignore-scripts \
-  "$PWD/artifacts/api-server/dist/vibesane-agentshield-0.7.0-beta.3.tgz"
+  "$PWD/artifacts/api-server/dist/vibesane-agentshield-0.7.0-beta.5.tgz"
 "$HOME/.local/bin/vibesane" --help
 ```
 
@@ -130,7 +130,7 @@ For repository development, run the server with:
 pnpm --filter @workspace/api-server agentshield:mcp
 ```
 
-The MCP server uses the official MCP TypeScript SDK v2 stdio transport. Standard output is reserved for protocol messages; diagnostics are written to standard error. It negotiates protocol revision 2026-07-28 with modern clients and retains legacy initialize compatibility. Cancellation notifications abort active scanner processes.
+The MCP server requires Node.js 24.15 or newer for the built-in `node:sqlite` worker store. Stop pre-beta.5 Foxy processes before first startup so the legacy JSON snapshot can be safely migrated. The MCP server uses the official MCP TypeScript SDK v2 stdio transport. Standard output is reserved for protocol messages; diagnostics are written to standard error. It negotiates protocol revision 2026-07-28 with modern clients and retains legacy initialize compatibility. Cancellation notifications abort active scanner processes.
 
 ## Tools
 
@@ -144,7 +144,7 @@ All tools are annotated read-only. There is no shell, patch, commit, deploy, or 
 
 ### Asynchronous scan workflow
 
-For an agent-managed workflow, prefer `scan_start` with `scope: "changed"`; after completion, `scan_results` returns `scan_id` and `baseline_expires_in_ms`. That completed changed-scan baseline is restored after an MCP server restart for the remainder of its original 30-minute TTL. Use the `scan_id` as `baseline_id` when calling `verify_remediation` after edits. `scan_changed` remains available for immediate synchronous feedback, but its in-memory baseline is not restored after a server restart. For a broader repository scan, call `scan_start` with `scope: "full"`, then use `scan_wait` or `scan_status` and fetch findings with `scan_results` in pages of up to 50. Full scans do not create a changed-file remediation baseline; after edits, run a new `scan_start` with `scope: "changed"` and use its `scan_id` for verification. Jobs are bounded and persisted locally; work still active during a server restart is reported as `interrupted` and must be resubmitted. Completed, complete-coverage changed-scan baselines are rehydrated from the protected job store after restart and remain usable for the remainder of their original 30-minute TTL, subject to the 200-record retention limit. Full scans and partial-coverage scans do not create remediation baselines. A completed job can still have `scan_status: "partial_coverage"`; that is not a clean scan. `scan_cancel` cancels queued work or signals a running scan to stop between analysis stages.
+For an agent-managed workflow, prefer `scan_start` with `scope: "changed"`; after completion, `scan_results` returns `scan_id` and `baseline_expires_in_ms`. That completed changed-scan baseline is restored after an MCP server restart for the remainder of its original 30-minute TTL. Use the `scan_id` as `baseline_id` when calling `verify_remediation` after edits. `scan_changed` remains available for immediate synchronous feedback, but its in-memory baseline is not restored after a server restart. For a broader repository scan, call `scan_start` with `scope: "full"`, then use `scan_wait` or `scan_status` and fetch findings with `scan_results` in pages of up to 50. Full scans do not create a changed-file remediation baseline; after edits, run a new `scan_start` with `scope: "changed"` and use its `scan_id` for verification. Jobs are bounded and persisted in a local SQLite database shared by processes using the same host/workspace namespace. SQLite transactions coordinate idempotency and the global worker limit; each process holds a renewable worker lease. A process crash causes its running jobs to become `interrupted` with an UNKNOWN outcome and they must be resubmitted, while still-queued work remains claimable by another process. The local SQLite store must not be placed on a network or cloud-synchronized filesystem. Completed, complete-coverage changed-scan baselines are rehydrated from the protected job store after restart and remain usable for the remainder of their original 30-minute TTL, subject to the 200-record retention limit. Full scans and partial-coverage scans do not create remediation baselines. A completed job can still have `scan_status: "partial_coverage"`; that is not a clean scan. `scan_cancel` cancels queued work or signals a running scan to stop between analysis stages.
 
 Typical MCP call sequence (replace the absolute workspace path and IDs with returned values):
 
