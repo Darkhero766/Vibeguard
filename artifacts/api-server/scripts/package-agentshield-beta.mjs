@@ -9,12 +9,13 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { AGENTSHIELD_VERSION } from './agentshield-version.mjs';
 
 const exec = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const stage = path.join(root, 'dist', 'agentshield-beta-stage');
 const out = path.join(root, 'dist');
-export const PACKAGE_VERSION = '0.7.0-beta.5';
+export const PACKAGE_VERSION = AGENTSHIELD_VERSION;
 const scripts = [
   'vibesane.mjs',
   'agentshield-connect.mjs',
@@ -29,6 +30,7 @@ const scripts = [
   'agentshield-install.mjs',
   'agentshield-capabilities.mjs',
   'agentshield-hybrid.mjs',
+  'agentshield-version.mjs',
   'agentshield-mcp-server.mjs',
   'agentshield-mcp-sdk.mjs',
   'agentshield-mcp-stdio.mjs',
