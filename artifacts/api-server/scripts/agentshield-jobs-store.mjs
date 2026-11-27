@@ -327,9 +327,18 @@ export class ScanJobStore {
     await this.#assertNoLiveLegacyLocks([directory]);
   }
 
-  #workspaceWithinAuthorizedRoots(workspace) {
+  async #workspaceWithinAuthorizedRoots(workspace) {
     if (this.authorizedRoots === null) return true;
-    const candidate = path.resolve(workspace);
+    if (typeof workspace !== 'string' || !path.isAbsolute(workspace) || workspace.length > 4096) return false;
+    let candidate;
+    try {
+      // Legacy JSON is an untrusted migration input. Resolve symlinks before
+      // checking containment so a path lexically below an allowed root cannot
+      // import findings from a sibling/outside directory.
+      candidate = await realpath(workspace);
+      const info = await lstat(candidate);
+      if (!info.isDirectory() || info.isSymbolicLink()) return false;
+    } catch { return false; }
     return this.authorizedRoots.some((root) => {
       const relative = path.relative(root, candidate);
       return relative === '' || (!path.isAbsolute(relative)
@@ -400,7 +409,10 @@ export class ScanJobStore {
         if (this.authorizedRoots !== null && this.authorizedRoots.length === 0 && parsed.jobs.length) {
           throw new Error('Cannot migrate the shared beta.4 queue without configured authorized roots; configure the MCP allowlist and restart.');
         }
-        jobs = parsed.jobs.filter((job) => this.#workspaceWithinAuthorizedRoots(job.workspace));
+        jobs = [];
+        for (const job of parsed.jobs) {
+          if (await this.#workspaceWithinAuthorizedRoots(job.workspace)) jobs.push(job);
+        }
       }
 
       // Re-run the same PID-aware check after reading and validating the snapshot.
