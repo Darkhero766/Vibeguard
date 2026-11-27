@@ -72,9 +72,9 @@ test('unpublished local beta package contains no server runtime or source corpus
     'scripts/agentshield-codex-stop.mjs', 'scripts/agentshield-connect.mjs', 'scripts/agentshield-controller.mjs', 'scripts/agentshield-cursor-stop.mjs',
     'scripts/agentshield-gate.mjs', 'scripts/agentshield-hook.mjs', 'scripts/agentshield-hybrid.mjs',
     'scripts/agentshield-install.mjs', 'scripts/agentshield-jobs.mjs', 'scripts/agentshield-jobs-store.mjs', 'scripts/agentshield-mcp-sdk.mjs',
-    'scripts/agentshield-mcp-server.mjs', 'scripts/agentshield-mcp-stdio.mjs', 'scripts/agentshield-policy.mjs', 'scripts/agentshield-version.mjs',
+    'scripts/agentshield-mcp-server.mjs', 'scripts/agentshield-mcp-stdio.mjs', 'scripts/agentshield-policy.mjs',
     'scripts/agentshield-python.mjs', 'scripts/agentshield-sarif.mjs', 'scripts/agentshield-stop.mjs',
-    'scripts/agentshield-verifier.mjs', 'scripts/vibesane.mjs', 'skills/vibesane-agentshield/SKILL.md',
+    'scripts/agentshield-verifier.mjs', 'scripts/agentshield-version.mjs', 'scripts/vibesane.mjs', 'skills/vibesane-agentshield/SKILL.md',
   ]);
   assert.equal(pkg.sha256.length, 64);
   assert.ok(pkg.contents.includes('dist/agentshield.mjs'));
