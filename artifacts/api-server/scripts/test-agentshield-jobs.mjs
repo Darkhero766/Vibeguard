@@ -661,6 +661,8 @@ test('fingerprint-coalesced idempotency aliases have a bounded per-job limit', a
     assert.equal(queue.store.db.prepare('SELECT COUNT(*) AS count FROM job_idempotency_keys WHERE job_id=?')
       .get(first.job_id).count, 16);
     assert.equal(queue.getStatus(first.job_id).status, 'running');
+    assert.equal(queue.storageFault, false,
+      'an alias capacity limit must not poison the shared SQLite queue');
     release();
     assert.equal((await queue.wait(first.job_id, 5000)).status, 'completed');
   } finally {
