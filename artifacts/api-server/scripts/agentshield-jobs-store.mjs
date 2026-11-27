@@ -292,6 +292,11 @@ export class ScanJobStore {
       } catch (error) {
         if (error?.code !== 'ESRCH') throw error;
       }
+      // Beta.4 itself may unlink dead-PID locks during its next startup. Do
+      // not migrate past such a lock: require an operator to verify every old
+      // MCP process is stopped, inspect the stale owner, remove the stale lock,
+      // then retry so beta.5 can publish its permanent marker atomically.
+      throw new Error('A stale beta.4 Foxy job lock exists. Verify all beta.4 processes are stopped, inspect and remove the stale jobs.lock manually, then retry beta.5 migration.');
     }
   }
 
