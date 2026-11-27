@@ -346,11 +346,15 @@ test('a second MCP process can cancel a job owned by another process', async (t)
     import { writeSync } from 'node:fs';
     ${workerSource}
   `, storeDir], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  let canceler = null;
   let workerOut = '';
   let workerErr = '';
   worker.stdout.on('data', (chunk) => { workerOut += chunk.toString(); });
   worker.stderr.on('data', (chunk) => { workerErr += chunk.toString(); });
-  t.after(() => { if (worker.exitCode === null) worker.kill(); });
+  t.after(() => {
+    if (worker.exitCode === null) worker.kill();
+    if (canceler?.exitCode === null) canceler.kill();
+  });
   try {
     const readyUntil = Date.now() + 10_000;
     while (!/^RUNNING [a-f0-9-]{36}$/m.test(workerOut) && Date.now() < readyUntil && worker.exitCode === null) {
@@ -359,7 +363,7 @@ test('a second MCP process can cancel a job owned by another process', async (t)
     const id = workerOut.match(/^RUNNING ([a-f0-9-]{36})$/m)?.[1];
     assert.ok(id, 'first process should own a running job; ' + workerErr + workerOut);
 
-    const canceler = spawn(process.execPath, ['--input-type=module', '-e', `
+    canceler = spawn(process.execPath, ['--input-type=module', '-e', `
       import { writeSync } from 'node:fs';
       ${cancelSource}
     `, storeDir, id], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
@@ -384,6 +388,7 @@ test('a second MCP process can cancel a job owned by another process', async (t)
     assert.match(workerOut, /FINAL cancelled/);
   } finally {
     if (worker.exitCode === null) worker.kill();
+    if (canceler?.exitCode === null) canceler.kill();
     await rm(storeDir, { recursive: true, force: true });
   }
 });
