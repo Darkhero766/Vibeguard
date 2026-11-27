@@ -14,6 +14,13 @@ import { ScanJobQueue } from './agentshield-jobs.mjs';
 const complete = (findings = []) => ({ status: 'complete', filesScanned: 1, findings,
   totalFindings: findings.length, coverage: 'synthetic complete fixture', findingsTruncated: false });
 const tick = () => new Promise((resolve) => setTimeout(resolve, 15));
+async function stopChild(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  const exited = new Promise((resolve) => child.once('exit', resolve));
+  child.kill();
+  await exited;
+}
+
 const TEST_BASELINE_PROVENANCE = Object.freeze({
   scannerFingerprint: 'a'.repeat(64),
   rulesetVersion: 'agentshield-test-ruleset-v1',
@@ -219,6 +226,7 @@ test('two independent Node processes share one SQLite queue and enforce a global
   const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
   const childSource = `
     import { ScanJobQueue } from ${JSON.stringify(queueModule)};
+    import { writeSync } from 'node:fs';
     import path from 'node:path';
     const [storeDir, label] = process.argv.slice(1);
     const queue = new ScanJobQueue({
@@ -296,6 +304,7 @@ test('two independent Node processes share one SQLite queue and enforce a global
     assert.equal(rows.find((row) => row.status === 'completed')?.count, 6);
     assert.equal(peakRunning, 1, 'the SQLite transaction must enforce the global concurrency cap across processes');
   } finally {
+    await Promise.all(children.map(stopChild));
     db?.close();
     await rm(storeDir, { recursive: true, force: true });
   }
@@ -387,8 +396,7 @@ test('a second MCP process can cancel a job owned by another process', async (t)
     assert.equal(workerExit, 0, workerErr);
     assert.match(workerOut, /FINAL cancelled/);
   } finally {
-    if (worker.exitCode === null) worker.kill();
-    if (canceler?.exitCode === null) canceler.kill();
+    await Promise.all([stopChild(worker), stopChild(canceler)]);
     await rm(storeDir, { recursive: true, force: true });
   }
 });
@@ -398,6 +406,7 @@ test('a crashed subprocess lease turns its running job into interrupted on recov
   const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
   const source = `
     import { ScanJobQueue } from ${JSON.stringify(queueModule)};
+    import { writeSync } from 'node:fs';
     const [storeDir] = process.argv.slice(1);
     const queue = new ScanJobQueue({
       storeDir, concurrency: 1, workerLeaseMs: 800, heartbeatIntervalMs: 100,
@@ -441,6 +450,7 @@ test('a crashed subprocess lease turns its running job into interrupted on recov
       assert.match(recovered.getStatus(id).error, /UNKNOWN/);
     } finally { await recovered.close(); }
   } finally {
+    await stopChild(child);
     await rm(storeDir, { recursive: true, force: true });
   }
 });
