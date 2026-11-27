@@ -919,6 +919,62 @@ test('queue refuses a symlinked SQLite database without modifying its target', a
 
 
 
+test('worker registration is durably removed when startup pruning fails', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-startup-prune-failure-'));
+  const first = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  const databasePath = path.join(storeDir, 'jobs.sqlite3');
+  let observer = null;
+  const second = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  try {
+    await first.init();
+    await first.close();
+    observer = new DatabaseSync(databasePath);
+    observer.exec('PRAGMA busy_timeout=10000;');
+    const expired = {
+      id: '22222222-2222-4222-8222-222222222222',
+      status: 'failed',
+      createdAt: 1,
+      updatedAt: 1,
+      finishedAt: 1,
+      priority: 0,
+      sequence: 1,
+      fingerprint: 'b'.repeat(64),
+      workspace: jobWorkspacePath('expired-history'),
+      result: null,
+      error: 'expired fixture',
+    };
+    observer.exec(`
+      CREATE TRIGGER reject_expired_history
+      BEFORE DELETE ON jobs
+      WHEN OLD.status IN ('completed','failed','cancelled','interrupted')
+      BEGIN SELECT RAISE(ABORT, 'synthetic retention failure'); END;
+    `);
+    observer.prepare(`INSERT INTO jobs(
+      id,status,created_at,updated_at,finished_at,priority,sequence,fingerprint,idempotency_key,
+      workspace,owner_worker_id,cancel_requested,payload
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      expired.id, expired.status, expired.createdAt, expired.updatedAt, expired.finishedAt,
+      expired.priority, expired.sequence, expired.fingerprint, null, expired.workspace, null, 0, JSON.stringify(expired),
+    );
+    observer.close();
+    observer = null;
+
+    await assert.rejects(second.init(), /SQLite queue initialization failed/);
+    const check = new DatabaseSync(databasePath);
+    try {
+      assert.equal(check.prepare('SELECT COUNT(*) AS count FROM workers').get().count, 0,
+        'failed startup must not leave a worker row counted against shared concurrency');
+      assert.equal(check.prepare('SELECT COUNT(*) AS count FROM jobs WHERE id=?').get(expired.id).count, 1,
+        'retention failure must not erase the expired history fixture');
+    } finally { check.close(); }
+  } finally {
+    observer?.close();
+    await first.close();
+    await second.close();
+    await rm(storeDir,{recursive:true,force:true});
+  }
+});
+
 test('initialization fails closed when the SQLite database path is a directory', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-initial-db-failure-'));
   await mkdir(path.join(storeDir, 'jobs.sqlite3'));
