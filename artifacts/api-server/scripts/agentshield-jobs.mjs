@@ -63,6 +63,8 @@ function validBaselineContext(context, job, now, expectedProvenance) {
 export class ScanJobQueue extends EventEmitter {
   constructor({
     storeDir,
+    legacyStoreDir = storeDir,
+    authorizedRoots = null,
     runner,
     concurrency = 2,
     maxQueued = 16,
@@ -86,6 +88,8 @@ export class ScanJobQueue extends EventEmitter {
       throw new TypeError('Worker heartbeat must be at least three times faster than its 500 ms–120 s lease.');
     }
     this.storeDir = storeDir;
+    this.legacyStoreDir = legacyStoreDir;
+    this.authorizedRoots = authorizedRoots;
     this.runner = runner;
     this.concurrency = concurrency;
     this.maxQueued = maxQueued;
@@ -126,6 +130,8 @@ export class ScanJobQueue extends EventEmitter {
     try {
       this.store = new ScanJobStore({
         storeDir: this.storeDir,
+        legacyStoreDir: this.legacyStoreDir,
+        authorizedRoots: this.authorizedRoots,
         workerId: this.workerId,
         concurrency: this.concurrency,
         maxQueued: this.maxQueued,
