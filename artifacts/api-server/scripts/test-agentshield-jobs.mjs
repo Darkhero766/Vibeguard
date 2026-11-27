@@ -301,6 +301,93 @@ test('two independent Node processes share one SQLite queue and enforce a global
   }
 });
 
+test('a second MCP process can cancel a job owned by another process', async (t) => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-cross-process-cancel-'));
+  const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
+  const workerSource = `
+    import { ScanJobQueue } from ${JSON.stringify(queueModule)};
+    const [storeDir] = process.argv.slice(1);
+    const keepAlive = setInterval(() => {}, 1000);
+    const queue = new ScanJobQueue({
+      storeDir, concurrency: 1, workerLeaseMs: 1200, heartbeatIntervalMs: 100,
+      runner: (_input, { signal }) => new Promise((_resolve, reject) => {
+        const cancel = () => reject(signal.reason || new Error('cancelled'));
+        if (signal.aborted) cancel();
+        else signal.addEventListener('abort', cancel, { once: true });
+      }),
+    });
+    await queue.init();
+    const { job_id: id } = await queue.submit({ workspace: '/tmp/foxy-cross-process-cancel-fixture' });
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (queue.getStatus(id)?.status === 'running') break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    if (queue.getStatus(id)?.status !== 'running') throw new Error('Worker failed to claim cancellation fixture.');
+    writeSync(1, 'RUNNING ' + id + '\\n');
+    const final = await queue.wait(id, 8000);
+    writeSync(1, 'FINAL ' + final?.status + '\\n');
+    await queue.close();
+    clearInterval(keepAlive);
+  `;
+  const cancelSource = `
+    import { ScanJobQueue } from ${JSON.stringify(queueModule)};
+    const [storeDir, id] = process.argv.slice(1);
+    const queue = new ScanJobQueue({
+      storeDir, concurrency: 1, workerLeaseMs: 1200, heartbeatIntervalMs: 100,
+      runner: async () => ({ status: 'complete', filesScanned: 0, findings: [],
+        totalFindings: 0, coverage: 'unused cancel-worker runner', findingsTruncated: false }),
+    });
+    await queue.init();
+    const result = await queue.cancel(id);
+    writeSync(1, 'REQUEST ' + result?.status + '\\n');
+    await queue.close();
+  `;
+  const worker = spawn(process.execPath, ['--input-type=module', '-e', `
+    import { writeSync } from 'node:fs';
+    ${workerSource}
+  `, storeDir], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  let workerOut = '';
+  let workerErr = '';
+  worker.stdout.on('data', (chunk) => { workerOut += chunk.toString(); });
+  worker.stderr.on('data', (chunk) => { workerErr += chunk.toString(); });
+  t.after(() => { if (worker.exitCode === null) worker.kill(); });
+  try {
+    const readyUntil = Date.now() + 10_000;
+    while (!/^RUNNING [a-f0-9-]{36}$/m.test(workerOut) && Date.now() < readyUntil && worker.exitCode === null) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    const id = workerOut.match(/^RUNNING ([a-f0-9-]{36})$/m)?.[1];
+    assert.ok(id, 'first process should own a running job; ' + workerErr + workerOut);
+
+    const canceler = spawn(process.execPath, ['--input-type=module', '-e', `
+      import { writeSync } from 'node:fs';
+      ${cancelSource}
+    `, storeDir, id], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    let cancelOut = '';
+    let cancelErr = '';
+    canceler.stdout.on('data', (chunk) => { cancelOut += chunk.toString(); });
+    canceler.stderr.on('data', (chunk) => { cancelErr += chunk.toString(); });
+    const cancelExit = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Cross-process cancellation client timed out: ' + cancelErr)), 10_000);
+      canceler.once('exit', (code) => { clearTimeout(timer); resolve(code); });
+      canceler.once('error', reject);
+    });
+    assert.equal(cancelExit, 0, cancelErr);
+    assert.match(cancelOut, /REQUEST running/);
+
+    const workerExit = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Worker did not observe cross-process cancellation: ' + workerErr + workerOut)), 10_000);
+      worker.once('exit', (code) => { clearTimeout(timer); resolve(code); });
+      worker.once('error', reject);
+    });
+    assert.equal(workerExit, 0, workerErr);
+    assert.match(workerOut, /FINAL cancelled/);
+  } finally {
+    if (worker.exitCode === null) worker.kill();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
 test('a crashed subprocess lease turns its running job into interrupted on recovery', async (t) => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-process-crash-'));
   const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
