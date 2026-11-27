@@ -1,17 +1,13 @@
-// Bounded local scan queue. State is an atomic JSON snapshot protected by an
-// exclusive process lock; interrupted work is never resumed or reported clean.
+// Bounded cross-process scan queue. SQLite transactions coordinate workers;
+// renewable leases recover crashed work as UNKNOWN, never as a clean result.
 import { randomUUID, createHash } from 'node:crypto';
 import { ScanJobStore } from './agentshield-jobs-store.mjs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { mkdir, lstat, chmod, open, readFile, rename, unlink, realpath } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { lstat, realpath } from 'node:fs/promises';
 
 const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
-const MAX_STATE_BYTES = 8_000_000;
-const MAX_RECORDS = 200;
 const MAX_JOB_FINDINGS = 1000;
-const PRIORITY_AGING_INTERVAL_MS = 15_000;
 const BASELINE_TTL_MS = 30 * 60 * 1000;
 const bounded = (value, max = 300) => String(value ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, max);
 function safeBaselinePath(value) {
@@ -475,6 +471,9 @@ export class ScanJobQueue extends EventEmitter {
       this.closing = true;
       if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
+      // Let an in-flight claim transaction finish observing the closing flag
+      // before unregistering this worker and closing the shared SQLite handle.
+      if (this.pumpingPromise) await this.pumpingPromise;
       for (const controller of this.controllers.values()) controller.abort(new Error('Server shutting down.'));
       await Promise.allSettled([...this.tasks]);
       try {
