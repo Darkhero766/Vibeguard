@@ -91,8 +91,8 @@ try {
     'Packaging must remain local-only.');
   assert(packaged.version === '0.7.0-beta.5', 'Unexpected AgentShield beta package version.');
   const releaseValidatorSource = await readFile(path.join(scriptsDir, 'validate-agentshield-release.mjs'), 'utf8');
-  assert(releaseValidatorSource.includes("import { PACKAGE_VERSION } from './package-agentshield-beta.mjs';"),
-    'Release validator must derive its expected version from the package builder.');
+  assert(releaseValidatorSource.includes("import { PACKAGE_VERSION, verifyPackageFileManifest } from './package-agentshield-beta.mjs';"),
+    'Release validator must derive its expected version and verify package content-manifest evidence from the package builder.');
   assert(!releaseValidatorSource.includes('0.7.0-beta.4'),
     'Release validator must not retain a stale beta.4 version gate.');
   assert(typeof packaged.archive === 'string' && typeof packaged.sha256 === 'string',
