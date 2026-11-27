@@ -399,6 +399,12 @@ try {
   const tools = mcpResult.tools;
   assert(Array.isArray(tools) && tools.some(tool => tool.name === 'scan_changed')
     && tools.some(tool => tool.name === 'verify_remediation'), 'Packaged MCP tool discovery is incomplete.');
+  const byName = new Map(tools.map(tool => [tool.name, tool]));
+  assert(byName.get('scan_start')?.annotations?.readOnlyHint === false
+    && byName.get('scan_cancel')?.annotations?.readOnlyHint === false
+    && byName.get('scan_status')?.annotations?.readOnlyHint === true
+    && byName.get('scan_results')?.annotations?.readOnlyHint === true,
+  'Packaged MCP tool annotations must distinguish local queue mutations from read-only queries.');
   assert(mcpResult.status.content?.length > 0 && !mcpResult.status.isError,
     'Packaged MCP status call failed.');
   assert(mcpResult.scan.content?.some(x => x.text.includes('no_changed_files')),
