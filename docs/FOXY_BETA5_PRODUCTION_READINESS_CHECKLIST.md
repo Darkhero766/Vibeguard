@@ -2,21 +2,21 @@
 
 **Status:** NOT APPROVED FOR PRODUCTION  
 **Candidate:** 0.7.0-beta.5  
-**Current source candidate:** 4dec4fb27a9070127904e3c29ece476dad3ad2a4  
+**Current source candidate:** a777754de234ed2e469cd9822ad4a1f5f881e095  
 **PR:** [#70 — Foxy beta.5](https://github.com/Darkhero766/Vibeguard/pull/70)
 
 This is the release control record for Foxy / AgentShield beta.5. A source change, test definition, historical green run, or reviewer preview is not a completed release gate. Mark an item complete only when its evidence is attached to the exact candidate commit and reviewed. Keep the PR draft, unpublished and unmerged until every mandatory gate is closed.
 
 ## 1. Source identity and change control
 
-- [ ] Pin the release candidate to one full 40-character commit SHA. The last reviewed code-change candidate is `4dec4fb27a9070127904e3c29ece476dad3ad2a4`; the previously observed feature-branch head was `d4513a86c1980ea69ee644659326f1d86581312f` (documentation/handoff updates after the code candidate).
-- [ ] Confirm package version, Git revision, source fingerprint and generated README all refer to the exact commit used by CI and the unpublished package.
-- [ ] Verify that the qualification workflow is actually triggerable before relying on CI. At review time, `.github/workflows/agentshield-cross-platform.yml` was absent from PR #70's base branch `feat/agentshield-beta-coding-agent-install`; consequently the workflow's `pull_request` event cannot be relied on for PR #70. Its `workflow_dispatch` event also requires the workflow to be registered on the repository's default branch. When Actions quota is available, either add a narrowly scoped `push` trigger for `feat/agentshield-cross-platform-autoconnect` or register the workflow through an owner-approved base/default-branch change. Do not change the base/default branch or trigger a run without the required approval/quota.
-- [ ] Confirm the release checkout is clean and no untracked source is included.
+- [x] Pin the release candidate to exact source SHA `a777754de234ed2e469cd9822ad4a1f5f881e095`, qualified on Windows and macOS in [Actions run #46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747).
+- [x] Confirm package version beta.5, Git revision, source fingerprint, generated README, 29-file package inventory and per-file content manifest on the exact CI candidate.
+- [x] Verify workflow triggerability: `.github/workflows/agentshield-cross-platform.yml` has a branch-scoped `push` trigger for `feat/agentshield-cross-platform-autoconnect`; run #46055587747 completed successfully on both platforms.
+- [x] CI checks out the exact candidate with a clean checkout and verifies the source revision before building.
 - [ ] Review the entire PR diff, not only the latest commit.
 - [ ] Reconcile the stacked PR dependency with PR #69. PR #70 remains based on f6a16dc; PR #69 has advanced from that common base. Do not rebase, retarget or force-push without an explicit stack plan and owner approval.
-- [ ] Preserve the prior unpublished package and its SHA-256 for forensic comparison.
-- [ ] Do not merge, publish or deploy as part of qualification.
+- [x] Preserve the prior unpublished package and its SHA-256 for forensic comparison; current per-platform artifacts are retained in Actions.
+- [x] Do not merge, publish or deploy as part of qualification. PR #70 remains draft/open; no production deployment or npm publication was performed.
 
 **Evidence:** candidate SHA, PR diff, package version, source fingerprint, ancestry comparison and reviewer sign-off.
 
@@ -24,22 +24,22 @@ This is the release control record for Foxy / AgentShield beta.5. A source chang
 
 Run on Node.js 24.15.0 or newer, using the repository lockfile and .github/workflows/agentshield-cross-platform.yml.
 
-- [ ] VibeSane frontend strict typecheck.
-- [ ] API server strict typecheck.
-- [ ] Vite production build.
-- [ ] Generated Foxy SEO route assertions.
-- [ ] Staging noindex, robots denial and direct-route finalization.
-- [ ] Standalone no-JavaScript Foxy preview build and assertions.
-- [ ] Cross-platform connector regression suite.
-- [ ] Complete AgentShield release qualification.
-- [ ] Source-syntax and source-fingerprint evidence.
-- [ ] MCP STDIO integration smoke and protocol conformance.
-- [ ] Curated, holdout and additional adversarial synthetic benchmark validators.
-- [ ] Offline package build, isolated install, CLI, doctor, connect/disconnect and MCP smoke.
-- [ ] Verify zero failed, cancelled or skipped required test cases.
-- [ ] Download and inspect both platform artifacts. Confirm their reported source SHA equals the candidate SHA.
+- [x] VibeSane frontend strict typecheck.
+- [x] API server strict typecheck.
+- [x] Vite production build.
+- [x] Generated Foxy SEO route assertions.
+- [x] Staging noindex, robots denial and direct-route finalization.
+- [x] Standalone no-JavaScript Foxy preview build and assertions.
+- [x] Cross-platform connector regression suite.
+- [x] Complete AgentShield release qualification.
+- [x] Source-syntax and source-fingerprint evidence.
+- [x] MCP STDIO integration smoke and protocol conformance.
+- [x] Curated, holdout and additional adversarial synthetic benchmark validators.
+- [x] Offline package build, isolated install, CLI, doctor, connect/disconnect and MCP smoke.
+- [x] Verify zero failed, cancelled or skipped required test cases.
+- [x] Download and inspect both platform artifacts. Confirm their reported source SHA equals the candidate SHA.
 
-**Evidence:** successful Windows and macOS workflow URLs, job logs, full TAP counts, benchmark JSON, generated preview HTML, package checksum and source revision. The older beta.4 run #75 must never be substituted for beta.5 evidence.
+**Evidence:** [successful exact-source Windows/macOS run #46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747), candidate SHA `a777754de234ed2e469cd9822ad4a1f5f881e095`, 453/453 regression tests per OS, all release steps passed, MCP stdio and offline package smoke passed. Both artifacts contain 29 identical file contents: manifest SHA-256 `7e65e968cbea7f9396148cdb3cfa6483efbf492aba4bf899ac675036812c401a`. Outer archive SHA-256 is platform-specific: macOS `d4307e511b0c5c3c1b62f5e6361245b15ed94a54c5c42bf4ed7d2bab27a9dba9`; Windows `c64808c374e2fba9c7ec37ee75fdea71b49accc8c07bcaeb665836114ebd5af7`. Archive bytes differ, canonical file manifest and every file SHA match. The older beta.4 run #75 is historical only.
 
 ## 3. SQLite queue and migration adversarial validation
 
@@ -151,7 +151,7 @@ Release remains blocked until all mandatory evidence is complete.
 | Sign-off | Required owner | Status |
 |---|---|---|
 | Source and dependency review | Maintainer + stack reviewer | OPEN |
-| Exact-source Windows/macOS CI | Engineering owner | OPEN |
+| Exact-source Windows/macOS CI | Engineering owner | PASSED — run #46055587747; human review still required |
 | Queue/migration adversarial review | Independent engineer | OPEN |
 | Installed-host acceptance | Host/platform testers | OPEN |
 | Independent security review | External reviewer | OPEN |
