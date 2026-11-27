@@ -153,11 +153,38 @@ export class ScanJobStore {
       CREATE INDEX IF NOT EXISTS jobs_fingerprint_status ON jobs(fingerprint, status);
       CREATE INDEX IF NOT EXISTS jobs_idempotency ON jobs(idempotency_key);
       CREATE INDEX IF NOT EXISTS jobs_owner_status ON jobs(owner_worker_id, status);
-      INSERT INTO queue_meta(key,value) VALUES('schema_version','1')
+      CREATE TABLE IF NOT EXISTS job_idempotency_keys (
+        idempotency_key TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+        fingerprint TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS job_idempotency_job ON job_idempotency_keys(job_id);
+      INSERT INTO queue_meta(key,value) VALUES('schema_version','2')
         ON CONFLICT(key) DO NOTHING;
     `);
     const schemaVersion = this.db.prepare("SELECT value FROM queue_meta WHERE key='schema_version'").get()?.value;
-    if (schemaVersion !== '1') throw new Error('Unsupported Foxy SQLite queue schema version.');
+    if (schemaVersion === '1') {
+      // Upgrade an intermediate beta.5 schema atomically: keys already stored
+      // on legacy job rows become durable aliases in the normalized key table.
+      const legacyKeys = this.db.prepare(
+        'SELECT idempotency_key, id, fingerprint, created_at FROM jobs WHERE idempotency_key IS NOT NULL ORDER BY created_at, id',
+      ).all();
+      const insertKey = this.db.prepare(
+        'INSERT OR IGNORE INTO job_idempotency_keys(idempotency_key,job_id,fingerprint,created_at) VALUES(?,?,?,?)',
+      );
+      for (const key of legacyKeys) {
+        const existing = this.db.prepare('SELECT fingerprint FROM job_idempotency_keys WHERE idempotency_key=?')
+          .get(key.idempotency_key);
+        if (existing && existing.fingerprint !== key.fingerprint) {
+          throw new Error('Legacy queue contains an idempotency key reused for a different scan; refusing schema migration.');
+        }
+        insertKey.run(key.idempotency_key, key.id, key.fingerprint, key.created_at);
+      }
+      this.db.prepare("UPDATE queue_meta SET value='2' WHERE key='schema_version'").run();
+    } else if (schemaVersion !== '2') {
+      throw new Error('Unsupported Foxy SQLite queue schema version.');
+    }
 
     await this.#migrateLegacySnapshot();
     this.#transaction(() => {
@@ -251,6 +278,9 @@ export class ScanJobStore {
         const insert = this.db.prepare(`INSERT OR IGNORE INTO jobs(
           id,status,created_at,updated_at,finished_at,priority,sequence,fingerprint,idempotency_key,workspace,owner_worker_id,cancel_requested,payload
         ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+        const insertKey = this.db.prepare(
+          'INSERT OR IGNORE INTO job_idempotency_keys(idempotency_key,job_id,fingerprint,created_at) VALUES(?,?,?,?)',
+        );
         for (const source of jobs) {
           const job = { ...source };
           let status = job.status;
@@ -266,6 +296,14 @@ export class ScanJobStore {
             job.id, status, job.createdAt, job.updatedAt, job.finishedAt ?? null, job.priority, job.sequence ?? job.createdAt,
             job.fingerprint, job.idempotencyKey ?? null, job.workspace, null, 0, encodeJob(job),
           );
+          if (job.idempotencyKey) {
+            const existing = this.db.prepare('SELECT fingerprint FROM job_idempotency_keys WHERE idempotency_key=?')
+              .get(job.idempotencyKey);
+            if (existing && existing.fingerprint !== job.fingerprint) {
+              throw new Error('Legacy JSON queue reused an idempotency key for a different scan; refusing migration.');
+            }
+            insertKey.run(job.idempotencyKey, job.id, job.fingerprint, job.createdAt);
+          }
         }
         this.db.prepare("INSERT INTO queue_meta(key,value) VALUES('json_snapshot_migrated','1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
       });
@@ -306,20 +344,35 @@ export class ScanJobStore {
     return this.#transaction(() => {
       this.#recoverStaleWorkersTx(this.now());
       if (job.idempotencyKey) {
-        const existing = this.db.prepare('SELECT * FROM jobs WHERE idempotency_key=? ORDER BY created_at DESC LIMIT 1').get(job.idempotencyKey);
+        const existing = this.db.prepare('SELECT job_id,fingerprint FROM job_idempotency_keys WHERE idempotency_key=?')
+          .get(job.idempotencyKey);
         if (existing) {
-          const prior = decodeJob(existing);
-          if (prior.fingerprint !== job.fingerprint) throw new Error('idempotency_key was already used for a different scan.');
-          return { job: prior, deduplicated: true };
+          if (existing.fingerprint !== job.fingerprint) throw new Error('idempotency_key was already used for a different scan.');
+          const prior = this.db.prepare('SELECT * FROM jobs WHERE id=?').get(existing.job_id);
+          if (!prior) throw new Error('Foxy idempotency index points to a missing job; storage integrity is uncertain.');
+          return { job: decodeJob(prior), deduplicated: true };
         }
       }
       const active = this.db.prepare("SELECT * FROM jobs WHERE fingerprint=? AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1").get(job.fingerprint);
-      if (active) return { job: decodeJob(active), deduplicated: true };
+      if (active) {
+        // Bind every supplied key to the coalesced job. Without this alias row,
+        // a key consumed by an active-fingerprint dedup could later be reused
+        // for an unrelated scan without the idempotency contract noticing.
+        if (job.idempotencyKey) {
+          this.db.prepare('INSERT INTO job_idempotency_keys(idempotency_key,job_id,fingerprint,created_at) VALUES(?,?,?,?)')
+            .run(job.idempotencyKey, active.id, job.fingerprint, this.now());
+        }
+        return { job: decodeJob(active), deduplicated: true };
+      }
       const limits = this.db.prepare('SELECT MIN(max_queued) AS max_queued FROM workers').get();
       const maxQueued = limits?.max_queued ?? this.maxQueued;
       const queued = this.db.prepare("SELECT COUNT(*) AS count FROM jobs WHERE status='queued'").get().count;
       if (queued >= maxQueued) throw new Error('Scan queue is full; wait for a slot and retry.');
       this.#insertJobTx(job);
+      if (job.idempotencyKey) {
+        this.db.prepare('INSERT INTO job_idempotency_keys(idempotency_key,job_id,fingerprint,created_at) VALUES(?,?,?,?)')
+          .run(job.idempotencyKey, job.id, job.fingerprint, job.createdAt);
+      }
       this.#pruneTx(this.now());
       return { job: { ...job, workerId: null, cancelRequested: false }, deduplicated: false };
     });
