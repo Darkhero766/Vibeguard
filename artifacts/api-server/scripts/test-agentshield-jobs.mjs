@@ -187,6 +187,57 @@ test('legacy JSON migration checks the old shared beta.4 lock before reading its
   }
 });
 
+test('a verified stale beta.4 lock permits migration but is never deleted automatically', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-stale-lock-'));
+  const storeDir = path.join(root, 'namespaced-store');
+  const legacyStoreDir = path.join(root, 'shared-beta4-store');
+  await mkdir(legacyStoreDir, { recursive: true });
+  const workspace = jobWorkspacePath('stale-lock-repo');
+  const now = Date.now();
+  const id = '66666666-6666-4666-8666-666666666666';
+  const snapshot = {
+    version: 1,
+    jobs: [{
+      id, type: 'scan_full', scope: 'full', status: 'queued', priority: 0,
+      sequence: now, workspace, baseRef: null, idempotencyKey: null,
+      fingerprint: 'f'.repeat(64), progress: 0, createdAt: now, updatedAt: now,
+      retries: 0, result: null, error: null,
+    }],
+  };
+  const snapshotPath = path.join(legacyStoreDir, 'jobs.json');
+  const lockPath = path.join(legacyStoreDir, 'jobs.lock');
+  const snapshotText = JSON.stringify(snapshot);
+  const lockText = JSON.stringify({
+    pid: 2147483647,
+    host: os.hostname(),
+    token: 'verified-dead-legacy-writer',
+  });
+  await writeFile(snapshotPath, snapshotText);
+  await writeFile(lockPath, lockText);
+  try {
+    assert.throws(() => process.kill(2147483647, 0), (error) => error?.code === 'ESRCH',
+      'the stale-lock fixture PID must not refer to a live process');
+  } catch (error) {
+    await rm(root, { recursive: true, force: true });
+    throw error;
+  }
+  const queue = new ScanJobQueue({
+    storeDir, legacyStoreDir, authorizedRoots: [workspace],
+    runner: async () => complete(),
+  });
+  try {
+    await queue.init();
+    assert.equal(queue.getStatus(id).status, 'queued');
+    assert.equal(await readFile(lockPath, 'utf8'), lockText,
+      'migration must not automatically delete the legacy lock even after its PID is dead');
+    assert.equal(await readFile(snapshotPath, 'utf8'), snapshotText,
+      'the shared beta.4 snapshot remains an untouched recovery copy');
+  } finally {
+    await queue.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('beta.4 shared JSON migration imports only jobs under the current MCP allowlist', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-root-filter-'));
   const storeDir = path.join(root, 'host-scoped-store');
