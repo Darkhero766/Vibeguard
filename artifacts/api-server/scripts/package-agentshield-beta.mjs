@@ -69,7 +69,7 @@ async function packageContentManifest(stageDirectory, files) {
   for (const relativePath of [...files].sort()) {
     const bytes = await readFile(path.join(stageDirectory, ...relativePath.split('/')));
     const sha256 = createHash('sha256').update(bytes).digest('hex');
-    aggregate.update(relativePath).update('\0').update(String(bytes.length)).update('\0').update(bytes).update('\0');
+    aggregate.update(relativePath).update('\0').update(String(bytes.length)).update('\0').update(sha256).update('\0');
     fileDigests.push({ path: relativePath, bytes: bytes.length, sha256 });
   }
   return { contentSha256: aggregate.digest('hex'), fileDigests };
