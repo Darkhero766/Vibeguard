@@ -53,7 +53,7 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 - #69 beta.3 packaging is based on #68.
 - #70 beta.4 connector is based on #69.
 
-**Important drift to resolve:** PR #69's branch is 23 commits ahead of the PR #70 common base; PR #70 is 296 commits ahead of that same base and GitHub reports `mergeable=false`. This is a diverged stacked dependency, not an ordinary fast-forward. Preserve both branches and complete a full merge-base/diff review before proposing a stack repair. Do not force-push, rewrite history, retarget or merge without explicit authorization.
+**Important drift to resolve:** the PR #70 feature branch is 357 commits ahead and 23 commits behind its target branch from common base `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`; GitHub reports `mergeable=false`. This is a diverged stacked dependency, not an ordinary fast-forward. Preserve both branches and complete a full merge-base/diff review before proposing a stack repair. Do not force-push, rewrite history, retarget or merge without explicit authorization.
 
 ## What is actually verified
 
