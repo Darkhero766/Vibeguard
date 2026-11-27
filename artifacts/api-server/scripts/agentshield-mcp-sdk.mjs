@@ -106,10 +106,23 @@ export function createFoxyServer(queue) {
 }
 
 export async function serveFoxyStdio({ env = process.env } = {}) {
-  await resolveAuthorizedRoots().catch(() => null);
+  // Resolve roots once for queue scoping and legacy migration. If the allowlist
+  // is absent or malformed, the MCP server still starts in a fail-closed
+  // authorization state, but it must not import any shared beta.4 job records.
+  const authorizedRoots = await resolveAuthorizedRoots().catch(() => []);
   const storeDir = resolveJobStoreDirectory(env);
+  const legacyStoreDir = env.VIBESANE_LEGACY_JOB_STORE_DIR
+    ? env.VIBESANE_LEGACY_JOB_STORE_DIR
+    : path.join(homedir(), '.local', 'state', 'vibesane', 'agentshield');
+  if (!path.isAbsolute(legacyStoreDir)) {
+    throw new Error('VIBESANE_LEGACY_JOB_STORE_DIR must be an absolute local path.');
+  }
   const baselineProvenance = await getBaselineProvenance();
-  const queue = new ScanJobQueue({ storeDir, baselineProvenance,
+  const queue = new ScanJobQueue({
+    storeDir,
+    legacyStoreDir,
+    authorizedRoots,
+    baselineProvenance,
     concurrency: Number(env.VIBESANE_JOB_CONCURRENCY || 2),
     maxQueued: Number(env.VIBESANE_JOB_QUEUE_LIMIT || 16),
     timeoutMs: Number(env.VIBESANE_JOB_TIMEOUT_MS || 60_000),
