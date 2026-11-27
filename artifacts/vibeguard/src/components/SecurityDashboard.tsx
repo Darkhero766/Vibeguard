@@ -174,11 +174,11 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
         </div>
 
         <div className={`border p-6 shadow-[3px_3px_0_hsl(var(--foreground)/0.08)] sm:p-7 ${isClear ? 'border-[#b7ca83] bg-[#f1f4e9]' : 'border-border bg-card'}`}>
-          <div className="flex items-start justify-between gap-4"><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Selected repository</p><ShieldCheck size={18} className={isClear ? 'text-[#66763e]' : 'text-muted-foreground'} /></div>
-          <p className="mt-7 truncate text-[18px] font-bold">{selectedRepo ?? 'No repository selected'}</p>
-          {protectedRepo && !selectedScan && <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">Protected · waiting for scan data</p>}
+          <div className="flex items-start justify-between gap-4"><p className={`font-mono text-[10px] uppercase tracking-[0.16em] ${isClear ? 'text-[#59665d]' : 'text-muted-foreground'}`}>Selected repository</p><ShieldCheck size={18} className={isClear ? 'text-[#66763e]' : 'text-muted-foreground'} /></div>
+          <p className={`mt-7 truncate text-[18px] font-bold ${isClear ? 'text-[#0b1112]' : 'text-foreground'}`}>{selectedRepo ?? 'No repository selected'}</p>
+          {protectedRepo && !selectedScan && <p className={`mt-1 font-mono text-[9px] uppercase tracking-[0.1em] ${isClear ? 'text-[#59665d]' : 'text-muted-foreground'}`}>Protected · waiting for scan data</p>}
           <div className="mt-3 flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-[0.1em]">{critical > 0 && <span className="border border-[#e5c8c1] bg-[#f6e9e5] px-2 py-1 text-[#963f34]">{critical} critical</span>}{high > 0 && <span className="border border-[#e7d3b3] bg-[#f8efe1] px-2 py-1 text-[#a06427]">{high} high</span>}{medium > 0 && <span className="border border-[#d2dbc1] bg-[#eef1e4] px-2 py-1 text-[#66763e]">{medium} medium</span>}{isClear && <span className="border border-[#b7ca83] bg-[#e4ead8] px-2 py-1 text-[#66763e]">0 findings · clear</span>}</div>
-          <button type="button" onClick={openSecurityCenter} disabled={!selectedScan && totalFindings === 0} className="vg-focus mt-8 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-primary disabled:opacity-40">View security center <ArrowRight size={12} /></button>
+          <button type="button" onClick={openSecurityCenter} disabled={!selectedScan && totalFindings === 0} className={`vg-focus mt-8 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] ${isClear ? 'text-[#536a46]' : 'text-primary'} disabled:opacity-40`}>View security center <ArrowRight size={12} /></button>
         </div>
       </div>
 
@@ -198,7 +198,7 @@ export function SecurityDashboard({ firstName, lastScan, usage, isAtLimit, onVie
       <ProtectionActivity session={session} />
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <div className="border border-border bg-card p-5"><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Repositories</p><p className="mt-3 text-[30px] font-black tracking-[-0.05em]">{protectedRepos.length}</p><p className="mt-1 text-[12px] text-muted-foreground">currently protected</p></div>
-        <div className={`border p-5 ${isClear ? 'border-[#b7ca83] bg-[#f1f4e9]' : 'border-border bg-card'}`}><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Findings</p><p className={`mt-3 text-[30px] font-black tracking-[-0.05em] ${isClear ? 'text-[#66763e]' : ''}`}>{totalFindings}</p><p className="mt-1 text-[12px] text-muted-foreground">{isClear ? 'all checks passed' : selectedScan ? 'from selected scan' : hasProtection ? 'waiting for scan data' : 'from latest scan'}</p></div>
+        <div className={`border p-5 ${isClear ? 'border-[#b7ca83] bg-[#f1f4e9]' : 'border-border bg-card'}`}><p className={`font-mono text-[10px] uppercase tracking-[0.12em] ${isClear ? 'text-[#59665d]' : 'text-muted-foreground'}`}>Findings</p><p className={`mt-3 text-[30px] font-black tracking-[-0.05em] ${isClear ? 'text-[#66763e]' : ''}`}>{totalFindings}</p><p className={`mt-1 text-[12px] ${isClear ? 'text-[#59665d]' : 'text-muted-foreground'}`}>{isClear ? 'all checks passed' : selectedScan ? 'from selected scan' : hasProtection ? 'waiting for scan data' : 'from latest scan'}</p></div>
         <div className="border border-border bg-card p-5"><p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Scans remaining</p><p className="mt-3 text-[30px] font-black tracking-[-0.05em]">{remaining ?? '—'}</p><p className="mt-1 text-[12px] text-muted-foreground">this month · {isPro ? 'Pro' : 'Free'}</p></div>
       </div>
 
