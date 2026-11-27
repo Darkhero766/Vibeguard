@@ -152,6 +152,189 @@ test('running cancellation and restart recovery never turn interrupted work into
   }
 });
 
+test('legacy JSON queue state migrates once into SQLite and interrupted work stays UNKNOWN', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-migration-'));
+  const now = Date.now();
+  const legacyId = '11111111-1111-4111-8111-111111111111';
+  const legacy = {
+    version: 1,
+    jobs: [{
+      id: legacyId,
+      type: 'scan_full',
+      scope: 'full',
+      status: 'running',
+      priority: 0,
+      sequence: now - 1000,
+      workspace: jobWorkspacePath('legacy-repo'),
+      baseRef: null,
+      idempotencyKey: null,
+      fingerprint: 'a'.repeat(64),
+      progress: 35,
+      createdAt: now - 1000,
+      updatedAt: now - 500,
+      retries: 0,
+      result: null,
+      error: null,
+    }],
+  };
+  await writeFile(path.join(storeDir, 'jobs.json'), JSON.stringify(legacy));
+  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  try {
+    await queue.init();
+    assert.equal(queue.getStatus(legacyId).status, 'interrupted');
+    assert.match(queue.getStatus(legacyId).error, /UNKNOWN/);
+    assert.equal(queue.store.db.prepare("SELECT value FROM queue_meta WHERE key='json_snapshot_migrated'").get().value, '1');
+    assert.equal(JSON.parse(await readFile(path.join(storeDir, 'jobs.json'), 'utf8')).jobs.length, 1,
+      'the original snapshot is retained as a migration recovery copy');
+  } finally {
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
+test('two independent Node processes share one SQLite queue and enforce a global worker limit', async (t) => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-multiprocess-'));
+  const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
+  const childSource = `
+    import { ScanJobQueue } from ${JSON.stringify(queueModule)};
+    import path from 'node:path';
+    const [storeDir, label] = process.argv.slice(1);
+    const queue = new ScanJobQueue({
+      storeDir, concurrency: 1, maxQueued: 12,
+      runner: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        return { status: 'complete', filesScanned: 1, findings: [], totalFindings: 0,
+          coverage: 'cross-process synthetic fixture', findingsTruncated: false };
+      },
+    });
+    await queue.init();
+    const ids = [];
+    for (let i = 0; i < 3; i++) {
+      const result = await queue.submit({
+        workspace: path.join(process.cwd(), 'foxy-multiprocess-' + label + '-' + i),
+        idempotency_key: label + '-' + i,
+      });
+      ids.push(result.job_id);
+    }
+    process.stdout.write('SUBMITTED ' + JSON.stringify({ label, ids }) + '\\n');
+    for (const id of ids) {
+      for (let attempt = 0; attempt < 500; attempt++) {
+        const state = queue.getStatus(id);
+        if (state && ['completed', 'failed', 'cancelled', 'interrupted'].includes(state.status)) {
+          if (state.status !== 'completed') throw new Error('Unexpected terminal state: ' + state.status);
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        if (attempt === 499) throw new Error('Timed out waiting for shared queue job ' + id);
+      }
+    }
+    process.stdout.write('DONE ' + label + '\\n');
+    await queue.close();
+  `;
+  const start = (label) => spawn(process.execPath, ['--input-type=module', '-e', childSource, storeDir, label], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  const children = [start('alpha'), start('beta')];
+  t.after(() => { for (const child of children) if (child.exitCode === null) child.kill(); });
+  let output = '';
+  let errors = '';
+  for (const child of children) {
+    child.stdout.on('data', (chunk) => { output += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { errors += chunk.toString(); });
+  }
+  const submitted = new Set();
+  const dbPath = path.join(storeDir, 'jobs.sqlite3');
+  let db = null;
+  let peakRunning = 0;
+  try {
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
+      for (const label of ['alpha', 'beta']) {
+        if (output.includes('SUBMITTED ' + JSON.stringify({ label }).slice(0, -1))) submitted.add(label);
+      }
+      if (!db && await (await import('node:fs/promises')).stat(dbPath).then(() => true).catch(() => false)) {
+        db = new DatabaseSync(dbPath);
+        db.exec('PRAGMA busy_timeout=10000;');
+      }
+      if (db) {
+        const running = db.prepare("SELECT COUNT(*) AS count FROM jobs WHERE status='running'").get().count;
+        peakRunning = Math.max(peakRunning, running);
+      }
+      if (children.every((child) => child.exitCode !== null)) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    const exits = await Promise.all(children.map((child) => child.exitCode !== null
+      ? Promise.resolve(child.exitCode)
+      : new Promise((resolve) => child.once('exit', (code) => resolve(code)))));
+    assert.deepEqual(exits, [0, 0], errors || output);
+    assert.match(output, /SUBMITTED .*alpha/);
+    assert.match(output, /SUBMITTED .*beta/);
+    assert.match(output, /DONE alpha/);
+    assert.match(output, /DONE beta/);
+    assert.ok(db, 'both workers must have used the same on-disk database');
+    const rows = db.prepare('SELECT status,COUNT(*) AS count FROM jobs GROUP BY status').all();
+    assert.equal(rows.reduce((sum, row) => sum + row.count, 0), 6);
+    assert.equal(rows.find((row) => row.status === 'completed')?.count, 6);
+    assert.equal(peakRunning, 1, 'the SQLite transaction must enforce the global concurrency cap across processes');
+  } finally {
+    db?.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
+test('a crashed subprocess lease turns its running job into interrupted on recovery', async (t) => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-process-crash-'));
+  const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
+  const source = `
+    import { ScanJobQueue } from ${JSON.stringify(queueModule)};
+    const [storeDir] = process.argv.slice(1);
+    const queue = new ScanJobQueue({
+      storeDir, concurrency: 1, workerLeaseMs: 800, heartbeatIntervalMs: 100,
+      runner: () => new Promise(() => {}),
+    });
+    await queue.init();
+    const result = await queue.submit({ workspace: '/tmp/foxy-crashed-worker-fixture' });
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (queue.getStatus(result.job_id)?.status === 'running') {
+        process.stdout.write('RUNNING ' + result.job_id + '\\n');
+        process.exit(0);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error('Worker did not claim its scan before the crash fixture timed out.');
+  `;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', source, storeDir], {
+    stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+  });
+  t.after(() => { if (child.exitCode === null) child.kill(); });
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+  child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+  try {
+    const exitCode = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Crash fixture subprocess timed out. ' + stderr)), 10_000);
+      child.once('exit', (code) => { clearTimeout(timer); resolve(code); });
+      child.once('error', reject);
+    });
+    assert.equal(exitCode, 0, stderr);
+    const id = stdout.trim().match(/^RUNNING ([a-f0-9-]{36})$/)?.[1];
+    assert.ok(id, stdout);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const recovered = new ScanJobQueue({
+      storeDir, runner: async () => complete(), workerLeaseMs: 800, heartbeatIntervalMs: 100,
+    });
+    try {
+      await recovered.init();
+      assert.equal(recovered.getStatus(id).status, 'interrupted');
+      assert.match(recovered.getStatus(id).error, /UNKNOWN/);
+    } finally { await recovered.close(); }
+  } finally {
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
+
 test('configured concurrency is enforced while independent jobs run in parallel', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-concurrency-'));
   let running = 0;
