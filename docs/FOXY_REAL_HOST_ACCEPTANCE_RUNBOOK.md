@@ -94,30 +94,26 @@ CI runner evidence does not replace these tests on real intended machines.
 
 ## Multi-instance SQLite queue acceptance gate
 
-The beta.5 candidate replaces the process-exclusive JSON snapshot with a local SQLite WAL database. Connections to the same host-namespace/authorized-root store coordinate writes through short `BEGIN IMMEDIATE` transactions. Each MCP process registers a worker row and refreshes a lease; job claims are atomic and the global concurrency/backpressure policy is enforced per shared store. Cancellation is stored centrally and observed by the owning worker's heartbeat. A stale worker lease turns that worker's running jobs into `interrupted`/UNKNOWN, never into clean results or automatic retries.
+Beta.5 replaces the process-exclusive JSON snapshot with a local SQLite WAL database. Processes sharing a host namespace and authorized-root scope share one store; short `BEGIN IMMEDIATE` transactions coordinate worker registration, global job claims, backpressure, idempotency and cancellation. Each process renews a worker lease. A stale worker's active jobs become `interrupted`/UNKNOWN; they are never automatically resumed or marked clean.
 
-The runtime path is derived from the host's `VIBESANE_JOB_STORE_NAMESPACE` plus a SHA-256 scope of the exact `VIBESANE_ALLOWED_ROOTS_JSON` value. Claude/Copilot share the workspace-root `.mcp.json` namespace; Codex, Cursor, Gemini and Roo each use dedicated namespaces; generic hand-entered MCP uses `foxy-manual`. Processes with the same namespace and exact allowlist share queue history, idempotency, worker cap and cancellation state. Different host namespaces or different allowlists resolve to distinct store directories.
+The default database path appends the host's `VIBESANE_JOB_STORE_NAMESPACE` and a SHA-256 fingerprint of the exact `VIBESANE_ALLOWED_ROOTS_JSON`. An explicit `VIBESANE_JOB_STORE_DIR` is a relocatable base directory and still receives this isolation suffix. Claude/Copilot share the workspace-root `.mcp.json` namespace; Codex, Cursor, Gemini and Roo each use dedicated namespaces; generic MCP uses `foxy-manual`.
 
-The SQLite schema uses a normalized `job_idempotency_keys` table with a unique primary key and cascading foreign key. This lets multiple client idempotency keys safely alias one fingerprint-coalesced job. Reuse of an existing key for a different fingerprint must be rejected even when the original job is already terminal or another process created it.
+The SQLite database must be on one machine's local filesystem, never NFS/SMB/network/cloud-synced storage. Startup verifies the database file identity, Foxy application ID, WAL mode and `quick_check`. POSIX store directories/files must remain owner-only. On Windows, the canonical store path must remain under the current user profile so normal profile ACL inheritance applies; Node POSIX mode bits are not treated as ACL proof.
 
-**Hard storage boundary:** this database uses SQLite WAL and must live on one machine's local filesystem. Do not place it on NFS, SMB, network shares, or cloud-synchronized directories. Startup must reject non-WAL mode, an unrelated database application ID, failed `quick_check`, unsafe file identity and a live worker on another host. Database permissions must stay owner-only.
+The `job_idempotency_keys` table has a unique key and cascading job reference. Multiple request keys may alias one fingerprint-coalesced job; reusing a key for a different scan must be rejected even after completion or from another process. Per-job and total alias caps are enforced.
 
-**Beta.4 migration fixture:** close every beta.4-enabled host and ensure no old Foxy MCP process can auto-relaunch during the upgrade. Create a shared legacy snapshot containing at least two records with distinct sibling Git roots. Launch beta.5 with an allowlist that authorizes only one root. Verify only that root's record appears in the new SQLite database; the sibling job ID must be not-found; the original shared JSON must remain byte-for-byte unchanged. Repeat with an absent/invalid allowlist and assert startup refuses to migrate any records. Place a live beta.4 lock in the old shared directory and verify migration refuses before importing the snapshot. Place a lock whose PID is confirmed absent (`ESRCH`) and verify migration may proceed but never deletes or rewrites the stale lock; the operator must inspect and clean stale locks manually. Do not start an older beta.4 process while a beta.5 migration is in progress.
+**Beta.4 migration fixture:** beta.4 used one shared `~/.local/state/vibesane/agentshield/jobs.json`. Beta.5 reads that snapshot into each scoped DB but imports only rows whose canonical workspace falls beneath the current process's authorized roots. Other repositories' records are excluded and the source JSON remains byte-for-byte untouched. Missing/invalid roots with legacy jobs fails closed. A live beta.4 `jobs.lock` blocks migration. When no lock exists, beta.5 atomically publishes `FOXY_BETA5_MIGRATION_GUARD_V1` at the old exclusive-create lock path before reading the snapshot; the marker is retained as a downgrade barrier, so beta.4 cannot acquire its legacy lock. A previously existing verified stale beta.4 lock is preserved untouched and must be manually inspected. Stop all beta.4 hosts before upgrading; downgrade to beta.4 after migration is unsupported.
 
-The exact-source qualification suite must prove, on both Windows and macOS:
-- independent processes can register against one DB without startup races;
-- duplicate submissions with the same idempotency key coalesce to one durable job, including terminal-job retries;
-- fingerprint coalescing persists additional idempotency aliases, and key reuse for a different scan is rejected across processes;
-- the SQL worker-claim transaction never exceeds the shared concurrency limit and backpressure remains bounded;
-- a process can observe another process's status/results and request cancellation;
-- cancellation wins over a completion race and the owning process persists `cancelled`;
-- abrupt termination expires the worker lease and marks only that worker's active jobs interrupted/UNKNOWN, while surviving workers continue queued work;
-- beta.4 `jobs.json` migrates once, a live legacy `jobs.lock` owner prevents migration, and an interrupted legacy job never appears clean;
-- if startup pruning fails after worker registration, deregistration still commits and no ghost worker remains;
-- calling close during asynchronous initialization waits for registration to settle and then releases the worker;
-- graceful close, bounded byte-accurate retention, local permissions, WAL/integrity checks and store-path namespace isolation remain correct.
+The exact-source Windows/macOS suite must prove:
+- two independent workers register against one DB and never exceed the global concurrency cap;
+- simultaneous beta.5 startups with different authorized-root scopes can safely read one beta.4 snapshot while importing only their own root's records;
+- a legacy beta.4 process cannot acquire the old lock after beta.5 publishes the marker; a live beta.4 lock prevents migration; a stale lock is not removed or rewritten;
+- idempotent retries/aliases coalesce correctly and key reuse with a different fingerprint is rejected across processes;
+- cross-process status/results/cancellation work; cancellation wins over a completion race;
+- abrupt process death expires only that worker's lease, marks its running work UNKNOWN, and leaves queued work claimable by surviving workers;
+- no-roots migration refusal, migration snapshot identity, database identity/WAL/integrity, owner-only POSIX permissions, Windows profile boundary, byte-accurate retention, concurrent init/close and no-ghost-worker cleanup all pass.
 
-These are code/test expectations until the workflow for the exact current PR head completes. Do not claim unrestricted simultaneous host support from the architecture alone.
+These remain source/test expectations, not release evidence, until the exact PR head completes both OS jobs. Do not claim simultaneous host support as release-verified from architecture alone.
 
 ## Security review gate
 
