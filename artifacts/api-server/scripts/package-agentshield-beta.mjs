@@ -159,7 +159,7 @@ async function main() {
     name: '@vibesane/agentshield',
     version: PACKAGE_VERSION,
     private: true,
-    description: 'VibeSane AgentShield local security beta with Claude Code and Codex Stop hooks, Cursor Stop integration and read-only MCP server (unpublished)',
+    description: 'VibeSane AgentShield local security beta with Claude Code and Codex Stop hooks, Cursor Stop integration and a repository-read-only MCP stdio server with local queue and baseline state (unpublished)',
     type: 'module',
     bin: {
       vibesane: './scripts/vibesane.mjs',
@@ -236,7 +236,7 @@ async function main() {
     '',
     'AgentShield scans supported changed files using static heuristics and exports SARIF 2.1.0 with severity, confidence, engine and selected CWE references. Unsupported languages, incomplete scans, and unverified behavior must not be described as clean.',
     'Supported changed files: JavaScript/TypeScript, Python, SQL, JSON, YAML and .env. Markdown, Dockerfiles, arbitrary manifests, binary/generated files and other unsupported extensions are not scanned; enforced completion blocks on unsupported changed paths.',
-    'MCP exposes read-only tools; it does not expose shell, patch, commit, deploy, or network capabilities.',
+    'MCP never modifies repository files or executes project code. scan_changed and verify_remediation update Foxy-managed in-memory baseline state; scan_start and scan_cancel update only the local SQLite queue. Queue and baseline state stays in Foxy-managed local storage. No shell, patch, commit, deploy, or network tools are exposed.',
     'Foxy project setup writes only explicit project-level MCP config after resolving the Git root. A website cannot silently install it; host approval remains required.',
     'The optional AST/hybrid checks are experimental and opt-in. Local AI, when configured separately, is advisory only.',
     'No source code is uploaded by the local scanner. Run only against repositories the host is authorized to access.',
