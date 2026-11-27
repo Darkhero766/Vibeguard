@@ -9,7 +9,7 @@
 VibeSane has separate but related workstreams:
 
 1. **VibeSane web/GitHub SaaS** — remote repository analysis, account and repository ownership, billing, quotas, scan reporting, SUE product audit and GitHub integration.
-2. **Foxy / AgentShield local MCP** — a local stdio MCP server and CLI for coding-agent workflows. Its documented MCP surface is read-only; the coding agent edits through its own host permissions. Local scanning does not make the SaaS release gates complete.
+2. **Foxy / AgentShield local MCP** — a local stdio MCP server and CLI for coding-agent workflows. Its MCP tools are repository-read-only: they never edit repository files or execute project code. Scan baselines and asynchronous job state are written only to Foxy-managed in-memory/user-scoped local storage; the coding agent edits through its own host permissions. Local scanning does not make the SaaS release gates complete.
 3. **AgentShield lifecycle hooks** — separate, optional host hooks. MCP registration does not install hooks, grant permission, or make host completion enforcement tamper-proof.
 
 Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP conformance evidence.
@@ -57,7 +57,7 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 
 ## What is actually verified
 
-- PR #69's official MCP 2026-07-28 conformance gate and release qualification passed in run #71. The conformance HTTP adapter is test-only/loopback and uses synthetic fixtures; the shipping STDIO surface remains read-only.
+- PR #69's official MCP 2026-07-28 conformance gate and release qualification passed in run #71. The conformance HTTP adapter is test-only/loopback and uses synthetic fixtures; the shipping STDIO surface is repository-read-only, with scan baselines and job queue state confined to Foxy-managed local storage.
 - PR #69's recorded release evidence: 423 tests passed with no failed/skipped release steps. Benchmark corpora are synthetic rule-expectation fixtures, not real-world scanner accuracy, exploit validation or certification.
 - PR #70's previous connector matrix passed on the older beta.4 source SHA in run #75. That run is not evidence for the current beta.5/SQLite implementation.
 - GitGuardian's separate secret scan reports no secrets on the earlier beta.5 commit `f292e6a...`; this is not a build, test or security review.
