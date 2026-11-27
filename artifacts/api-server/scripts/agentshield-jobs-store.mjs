@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import path from 'node:path';
-import { mkdir, lstat, chmod, open, readFile, realpath } from 'node:fs/promises';
+import { mkdir, lstat, chmod, open, readFile, realpath, link, unlink } from 'node:fs/promises';
 import { constants } from 'node:fs';
 
 const FOXY_SQLITE_APPLICATION_ID = 1447514958; // ASCII 'VGSN'
@@ -291,18 +291,22 @@ export class ScanJobStore {
       return;
     }
 
-    // Reuse beta.4's exclusive-create lock path. If beta.4 wins the race,
-    // its live PID is detected and migration fails. If beta.5 wins, the old
-    // writer sees EEXIST and cannot mutate jobs.json while it is imported.
+    // Publish a fully-written marker atomically at beta.4's exclusive-create
+    // lock path. A direct open('wx') exposes an empty file before writeFile
+    // completes, which can make a second beta.5 process misread the lock.
+    const temporaryPath = path.join(directory, 'jobs.lock.beta5-' + randomUUID() + '.tmp');
+    const handle = await open(temporaryPath, 'wx', 0o600);
     try {
-      const handle = await open(lockPath, 'wx', 0o600);
-      try {
-        await handle.writeFile(LEGACY_MIGRATION_GUARD, 'utf8');
-        await handle.sync();
-      } finally { await handle.close(); }
+      await handle.writeFile(LEGACY_MIGRATION_GUARD, 'utf8');
+      await handle.sync();
+    } finally { await handle.close(); }
+    try {
+      await link(temporaryPath, lockPath);
     } catch (error) {
       if (error?.code !== 'EEXIST') throw error;
       await this.#assertNoLiveLegacyLocks([directory]);
+    } finally {
+      await unlink(temporaryPath).catch((error) => { if (error?.code !== 'ENOENT') throw error; });
     }
     await this.#assertNoLiveLegacyLocks([directory]);
   }
