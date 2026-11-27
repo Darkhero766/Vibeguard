@@ -233,7 +233,7 @@ export class ScanJobQueue extends EventEmitter {
     try {
       created = this.store.createJob(job);
     } catch (error) {
-      if (/queue is full|idempotency_key was already used/.test(String(error?.message))) throw error;
+      if (/queue is full|idempotency_key was already used|idempotency-key alias limit|idempotency index is full/i.test(String(error?.message))) throw error;
       this.#markStorageFault(error);
       throw new Error('Foxy could not commit the scan job to the shared SQLite queue; no scan was accepted.');
     }
