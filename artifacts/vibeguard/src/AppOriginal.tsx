@@ -218,7 +218,7 @@ function CleanResult({ report }: { report: ScanReport }) {
       </div>
       <h2 className="mt-6 text-[24px] font-bold tracking-[-0.035em]">No high-signal issues found.</h2>
       <p className="mt-2.5 max-w-xl text-[14px] leading-6 text-muted-foreground">
-        VibeGuard checked all {report.filesScanned} files and did not find any of the security patterns it looks for.
+        VibeSane checked all {report.filesScanned} files and did not find any of the security patterns it looks for.
       </p>
       <div className="mt-6 flex flex-wrap gap-5 font-mono text-[11px] uppercase tracking-[0.1em] text-[#66763e]">
         <span>{report.filesScanned} files scanned</span>
@@ -267,7 +267,7 @@ function UpgradeWall() {
 function BadgeSnippet({ report }: { report: ScanReport }) {
   const [copied, setCopied] = useState(false);
   const badgeUrl = `${window.location.origin}/api/badge/${report.repo}`;
-  const markdown = `![VibeGuard](${badgeUrl})`;
+  const markdown = `![VibeSane](${badgeUrl})`;
 
   const copy = async () => {
     try {
@@ -510,11 +510,11 @@ function ChecksGrid() {
   };
 
   return (
-    <section className="relative -mx-5 mt-20 bg-[#0d0d0d] px-5 pb-14 pt-16 text-[#f4f1ea] sm:-mx-8 sm:px-8">
+    <section className="relative -mx-5 mt-20 bg-[#0b1112] px-5 pb-14 pt-16 text-[#f4f6f0] sm:-mx-8 sm:px-8">
       <div className="mx-auto max-w-[1040px]">
-      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#f4c842]">
-        <span className="inline-block h-1.5 w-1.5 bg-[#f4c842]" />
-        What VibeGuard catches
+      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#c7f36a]">
+        <span className="inline-block h-1.5 w-1.5 bg-[#c7f36a]" />
+        What VibeSane catches
       </div>
       <h2 className="vg-display mt-5 max-w-lg text-[42px] leading-[.86] tracking-[0.01em] sm:text-[64px]">
         51 checks. The signals that actually matter.
@@ -524,9 +524,9 @@ function ChecksGrid() {
       </p>
       <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {checks.map((check) => (
-          <div key={check.title} className={`group border border-[#30302b] bg-[#121212] p-7 transition hover:border-[#f4c842]/70 hover:bg-[#181817] ${check.severity === 'Critical' ? 'border-t-2 border-t-[#e34a3b]' : 'border-t-2 border-t-[#f4c842]'}`}>
+          <div key={check.title} className={`group border border-[#33413b] bg-[#111b18] p-7 transition hover:border-[#c7f36a]/70 hover:bg-[#1a2821] ${check.severity === 'Critical' ? 'border-t-2 border-t-[#e34a3b]' : 'border-t-2 border-t-[#c7f36a]'}`}>
             <div className="flex items-start justify-between gap-2">
-               <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#f4c842]/50 bg-[#f4c842]/10 text-[#f4c842] transition-colors group-hover:border-[#f4c842]">
+               <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#c7f36a]/50 bg-[#c7f36a]/10 text-[#c7f36a] transition-colors group-hover:border-[#c7f36a]">
                 {check.icon}
               </div>
               <span className={`inline-flex items-center border px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-[0.12em] ${badgeColor[check.severity]}`}>
@@ -595,7 +595,7 @@ function HowItWorks() {
       icon: <FileSearch size={22} strokeWidth={1.6} />,
       num: '02',
       title: 'We scan for six security patterns',
-      desc: 'VibeGuard checks for RLS gaps, unauthenticated database writes, client-side service_role keys, unprotected SECURITY DEFINER functions, committed .env secrets, and real credentials hidden in .env.example files.',
+      desc: 'VibeSane checks for RLS gaps, unauthenticated database writes, client-side service_role keys, unprotected SECURITY DEFINER functions, committed .env secrets, and real credentials hidden in .env.example files.',
     },
     {
       icon: <Lock size={22} strokeWidth={1.6} />,
@@ -862,7 +862,7 @@ function Home() {
   const handleCopy = async () => {
     if (!displayReport) return;
     const text = [
-      `VibeGuard report — ${displayReport.repo}`,
+      `VibeSane report — ${displayReport.repo}`,
       `Repository: ${displayReport.repoUrl}`,
       `Scanned: ${formatDate(displayReport.scannedAt)}`,
       `Files scanned: ${displayReport.filesScanned}`,
