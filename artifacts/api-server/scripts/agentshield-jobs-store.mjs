@@ -75,6 +75,7 @@ export class ScanJobStore {
     this.now = now;
     this.db = null;
     this.databasePath = null;
+    this.workerRegistered = false;
     this.host = hostname();
   }
 
@@ -230,6 +231,9 @@ export class ScanJobStore {
       this.db.prepare('INSERT INTO workers(id,pid,host,started_at,heartbeat_at,concurrency,max_queued) VALUES(?,?,?,?,?,?,?)')
         .run(this.workerId, process.pid, this.host, now, now, this.concurrency, this.maxQueued);
     });
+    // Set only after COMMIT succeeds. Startup cleanup must not run SQL against
+    // an untrusted/uninitialized database when failure happened before register.
+    this.workerRegistered = true;
     this.#prune();
   }
 
@@ -658,6 +662,7 @@ export class ScanJobStore {
   }
 
   unregisterWorker() {
+    if (!this.db || !this.workerRegistered) return;
     // Commit ownership release and UNKNOWN recovery independently of history
     // pruning. A pruning trigger/disk-space error must not roll back the worker
     // deletion and leave a ghost process counted against global concurrency.
@@ -676,6 +681,7 @@ export class ScanJobStore {
       }
       this.db.prepare('DELETE FROM workers WHERE id=?').run(this.workerId);
     });
+    this.workerRegistered = false;
     // Retention is best-effort after worker release has been durably committed.
     this.#prune();
   }
