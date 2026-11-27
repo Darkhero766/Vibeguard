@@ -11,6 +11,8 @@ const FOXY_SQLITE_APPLICATION_ID = 1447514958; // ASCII 'VGSN'
 const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const MAX_RECORDS = 200;
 const MAX_STATE_BYTES = 8_000_000;
+const MAX_IDEMPOTENCY_KEYS_PER_JOB = 16;
+const MAX_IDEMPOTENCY_KEYS_TOTAL = MAX_RECORDS * MAX_IDEMPOTENCY_KEYS_PER_JOB;
 const TERMINAL_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 function encodeJob(job) {
@@ -431,6 +433,7 @@ export class ScanJobStore {
         // a key consumed by an active-fingerprint dedup could later be reused
         // for an unrelated scan without the idempotency contract noticing.
         if (job.idempotencyKey) {
+          this.#assertIdempotencyKeyCapacity(active.id);
           this.db.prepare('INSERT INTO job_idempotency_keys(idempotency_key,job_id,fingerprint,created_at) VALUES(?,?,?,?)')
             .run(job.idempotencyKey, active.id, job.fingerprint, this.now());
         }
@@ -442,12 +445,24 @@ export class ScanJobStore {
       if (queued >= maxQueued) throw new Error('Scan queue is full; wait for a slot and retry.');
       this.#insertJobTx(job);
       if (job.idempotencyKey) {
+        this.#assertIdempotencyKeyCapacity(job.id);
         this.db.prepare('INSERT INTO job_idempotency_keys(idempotency_key,job_id,fingerprint,created_at) VALUES(?,?,?,?)')
           .run(job.idempotencyKey, job.id, job.fingerprint, job.createdAt);
       }
       this.#pruneTx(this.now());
       return { job: { ...job, workerId: null, cancelRequested: false }, deduplicated: false };
     });
+  }
+
+  #assertIdempotencyKeyCapacity(jobId) {
+    const perJob = this.db.prepare('SELECT COUNT(*) AS count FROM job_idempotency_keys WHERE job_id=?').get(jobId).count;
+    if (perJob >= MAX_IDEMPOTENCY_KEYS_PER_JOB) {
+      throw new Error('This scan has reached its idempotency-key alias limit.');
+    }
+    const total = this.db.prepare('SELECT COUNT(*) AS count FROM job_idempotency_keys').get().count;
+    if (total >= MAX_IDEMPOTENCY_KEYS_TOTAL) {
+      throw new Error('The Foxy idempotency index is full; wait for retained jobs to expire.');
+    }
   }
 
   #insertJobTx(job) {
