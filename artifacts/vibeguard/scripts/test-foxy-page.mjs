@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const html = await readFile(path.join(root, 'dist', 'public', 'foxy', 'index.html'), 'utf8');
+const agentShieldHtml = await readFile(path.join(root, 'dist', 'public', 'agentshield', 'index.html'), 'utf8');
 
 for (const token of [
   '<title>Foxy — Local-First MCP Security for AI Coding Agents | VibeSane</title>',
@@ -32,4 +33,9 @@ assert.ok(html.includes('beta.5 exact-source CI pending'), 'The beta.5 qualifica
 assert.ok(html.includes('#0b1112') && html.includes('#c7f36a'), 'Static page must match the graphite/lime visual system.');
 assert.ok(!html.includes('Node.js 20+'), 'Static page must not advertise the obsolete runtime floor.');
 assert.ok(!html.includes('The current candidate passed automated release qualification'), 'Historical beta.4 CI must not be attributed to beta.5.');
+assert.ok(agentShieldHtml.includes('Node.js 24.15.0 or newer'), 'AgentShield SEO route must state the package runtime floor.');
+assert.ok(agentShieldHtml.includes('automated release matrix covers Windows and macOS'), 'AgentShield SEO route must distinguish automated matrix coverage from other runtime targets.');
+assert.ok(!agentShieldHtml.includes('Node.js 20+'), 'AgentShield SEO route must not advertise the obsolete runtime floor.');
+assert.ok(!agentShieldHtml.includes('macOS or Linux'), 'AgentShield SEO route must not advertise the obsolete platform matrix.');
+assert.ok(agentShieldHtml.includes('live authenticated Claude Code validation'), 'AgentShield SEO route must retain the live-host release gate.');
 console.log('Foxy page route, responsive theme, qualification evidence, semantics and metadata passed.');
