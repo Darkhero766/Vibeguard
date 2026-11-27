@@ -99,3 +99,17 @@ The earlier note above stating that the cross-platform workflow had not run is s
 This closes the **automated cross-platform CI** evidence gap for that precise SHA only. It does not close the actual installed-host acceptance matrix, independent security review, package provenance review, the separate 11-finding evidence review, or owner approval. The review packet itself remains a request for independent scrutiny, not a completed review.
 
 PR #69 subsequently advanced to `b98f0a8bea4d50a67d1bb9c0caae5bc1801e1cb8` and its official MCP conformance job is being re-run with improved failure diagnostics. PR #70's reported base SHA remains `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`; verify and reconcile this stacked dependency against the live #69 branch before any merge proposal.
+
+
+## Additional storage-integrity review delta — 27 November 2026
+
+**Candidate implementation commit:** `a1d9865a32f9cd0840513086533d92c8e5d1ae3d` (source changes on PR #70's existing feature branch).
+
+A source-level review of the beta.5 SQLite queue found two failure-path weaknesses. The candidate now contains fixes and regression cases; they have **not yet been executed or source-matched CI-qualified**:
+
+1. **Database ownership mutation order.** The previous initialization sequence enabled persistent WAL mode and tightened POSIX file permissions before checking SQLite's Foxy application ID. A pre-existing unrelated SQLite file at the configured path could therefore be modified before the queue rejected its identity. Initialization now checks the application ID, rejects a non-empty unowned schema, and runs SQLite integrity validation before claiming an empty database, tightening file permissions, or enabling WAL. New regression cases assert that rejected foreign/unowned files retain their original DELETE journal mode, schema and POSIX permissions.
+2. **Corrupt active payload during graceful shutdown.** The stale-lease recovery path already reconstructed a minimal UNKNOWN record from indexed columns, but graceful `unregisterWorker()` previously parsed active payload JSON without that recovery. Corrupt persisted data could abort shutdown cleanup before the worker row was removed. Graceful shutdown now validates payload/index agreement, reconstructs an interrupted/UNKNOWN record from indexed columns on corruption, and releases the worker in the same transaction. A regression test checks UNKNOWN status and confirms the worker slot is released.
+
+The queue test file now defines 39 test cases. This is a source count, not a passing count. Reviewers should independently inspect the transaction boundaries, descriptor/path identity assumptions, foreign-database fixtures, corrupt-payload fallback, and the exact package contents.
+
+No database migration, package publication, CI dispatch, production change, or PR merge was performed by this review. The beta.4 run #75 remains historical evidence for its exact older SHA only.
