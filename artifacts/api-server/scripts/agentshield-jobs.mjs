@@ -141,6 +141,10 @@ export class ScanJobQueue extends EventEmitter {
     } catch (error) {
       this.initialized = false;
       this.storageFault = true;
+      // Initialization can fail after the worker row was registered but before
+      // the queue became available. Remove that row so other processes do not
+      // count a failed starter until its lease expires.
+      try { this.store?.unregisterWorker(); } catch {}
       try { this.store?.close(); } catch {}
       throw new Error('Foxy SQLite queue initialization failed; no scans were accepted. Repair the local queue database and restart the MCP server.', { cause: error });
     }
