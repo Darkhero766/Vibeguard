@@ -1304,12 +1304,19 @@ test('queue does not expose baseline IDs when persisted finding metadata is malf
 
 test('Windows SQLite store directories must remain inside the current user profile', async () => {
   if (process.platform !== 'win32') return;
-  const storeDir = path.parse(os.homedir()).root;
+  // The parent of USERPROFILE is an existing, deterministic out-of-profile
+  // directory. Avoid using the drive root, whose filesystem semantics differ
+  // across hosted Windows images before the ACL-boundary check is reached.
+  const storeDir = path.dirname(os.homedir());
   const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
   try {
-    await assert.rejects(queue.init(), (error) =>
-      /must remain inside the current user profile/.test(errorCauseMessages(error)),
-    'Windows store rejection must preserve the user-profile boundary error through initialization wrappers.');
+    await assert.rejects(queue.init(), (error) => {
+      const messages = errorCauseMessages(error);
+      assert.match(String(error?.message || ''), /Foxy SQLite queue initialization failed/);
+      assert.match(messages, /must remain inside the current user profile/,
+        'unexpected Windows store rejection: ' + messages);
+      return true;
+    });
     assert.equal(queue.initialized, false);
     assert.equal(queue.store?.db, null,
       'an out-of-profile path must be rejected before opening a SQLite database');
