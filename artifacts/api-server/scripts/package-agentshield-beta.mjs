@@ -160,7 +160,7 @@ async function main() {
     '',
     'Local static security scanning, Claude Code and Codex Stop hooks, Cursor Stop feedback, and a read-only MCP server.',
     'Requires Node.js >=24.15.0 and Git. The automated qualification matrix covers Windows and macOS; live installed-host acceptance and independent security review are still release gates. Linux is not in the current two-platform qualification matrix. This is an opt-in beta, not a security certification.',
-    'The asynchronous MCP queue uses the built-in node:sqlite module with transactional multi-process job claims, per-process heartbeats, cancellation propagation, and crash recovery. The store must reside on a local filesystem, never a network or cloud-synchronized folder.',
+    'The asynchronous MCP queue uses SQLite through Node's built-in node:sqlite module with transactional multi-process job claims, per-process heartbeats, cancellation propagation, and crash recovery. The store must reside on a local filesystem, never a network or cloud-synchronized folder.',
     'On first beta.5 startup, an exact beta.4 jobs.json snapshot is migrated into SQLite only after the legacy lock is confirmed inactive. The original JSON file is retained as a recovery copy. Stop every older Foxy process before upgrading.'
     '',
     '## Install locally',
