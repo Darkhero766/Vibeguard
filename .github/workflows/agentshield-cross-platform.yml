@@ -1,6 +1,22 @@
 name: Foxy qualification
 
 on:
+  # The qualification workflow is intentionally branch-scoped. This lets the
+  # feature branch qualify its exact own head without requiring a workflow-file
+  # change on the stacked base branch or default branch.
+  push:
+    branches:
+      - feat/agentshield-cross-platform-autoconnect
+    paths:
+      - "artifacts/api-server/scripts/**"
+      - "artifacts/api-server/package.json"
+      - "artifacts/api-server/skills/**"
+      - "artifacts/vibeguard/src/**"
+      - "artifacts/vibeguard/scripts/**"
+      - "artifacts/vibeguard/package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/agentshield-cross-platform.yml"
   pull_request:
     branches:
       - feat/agentshield-beta-coding-agent-install
