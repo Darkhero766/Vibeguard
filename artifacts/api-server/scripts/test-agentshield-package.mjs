@@ -95,7 +95,7 @@ try {
   const packagedReadme = await run('tar', ['-xOf', archive, 'package/README.md']);
   const requiredReadmeText = [
     'vibesane connect', '--completion-gate enforce', '--base-ref origin/main',
-    'VIBESANE_ALLOWED_ROOTS_JSON', 'mcp-doctor', 'Codex Stop hooks',
+    'VIBESANE_ALLOWED_ROOTS_JSON', 'mcp-doctor', 'Codex Stop hooks', 'Node.js 24.15.0', 'SQLite',
     'init-codex', 'connect --agent cursor', 'connect --agent copilot', 'uninstall-mcp --host claude',
   ];
   const missingReadmeText = requiredReadmeText.filter((item) => !packagedReadme.stdout.includes(item));
@@ -108,6 +108,12 @@ try {
   const packageRoot = process.platform === 'win32'
     ? path.join(installPrefix, 'node_modules', '@vibesane', 'agentshield')
     : path.join(installPrefix, 'lib', 'node_modules', '@vibesane', 'agentshield');
+  const installedManifest = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
+  assert(installedManifest.engines?.node === '>=24.15.0',
+    'Installed package must declare its built-in SQLite runtime requirement.');
+  const sqliteStoreSource = await readFile(path.join(packageRoot, 'scripts', 'agentshield-jobs-store.mjs'), 'utf8');
+  assert(sqliteStoreSource.includes("from 'node:sqlite'") && sqliteStoreSource.includes('BEGIN IMMEDIATE'),
+    'Installed package must contain the transactional SQLite queue store.');
   const cli = path.join(packageRoot, 'scripts', 'vibesane.mjs');
   const mcp = path.join(packageRoot, 'scripts', 'agentshield-mcp-stdio.mjs');
   async function runCli(args, options = {}) {
