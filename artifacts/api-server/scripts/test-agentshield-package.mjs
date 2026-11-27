@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Offline install/CLI/MCP smoke test for the unpublished AgentShield beta.
 // Uses only a synthetic disposable Git repository; never runs customer project code.
+import { createHash } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
@@ -425,11 +426,20 @@ try {
   assert(mcpResult.invalidArgumentsRejected, 'Installed MCP did not reject unexpected tool arguments.');
   assert(cancelledScan.cancelled.status === 'cancelled', 'Installed MCP could not cancel a queued scan job.');
 
+  const manifestHash = createHash('sha256');
+  for (const file of packaged.fileDigests) {
+    manifestHash.update(file.path).update('\\0').update(String(file.bytes)).update('\\0')
+      .update(file.sha256).update('\\0');
+  }
+  assert.equal(manifestHash.digest('hex'), packaged.contentSha256,
+    'Package content manifest digest does not match its canonical file records.');
   process.stdout.write(JSON.stringify({
     status: 'package_smoke_passed',
     version: packaged.version,
     packageSha256: packaged.sha256,
     packageBytes: packaged.archiveBytes,
+    packageContentSha256: packaged.contentSha256,
+    packageFileDigests: packaged.fileDigests,
     packagedFiles: packaged.fileCount,
     checks: ['build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'doctor',
       'one-command-agent-connect', 'one-command-agent-disconnect', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall'],
