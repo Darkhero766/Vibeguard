@@ -120,6 +120,13 @@ try {
   const sqliteStoreSource = await readFile(path.join(packageRoot, 'scripts', 'agentshield-jobs-store.mjs'), 'utf8');
   assert(sqliteStoreSource.includes("from 'node:sqlite'") && sqliteStoreSource.includes('BEGIN IMMEDIATE'),
     'Installed package must contain the transactional SQLite queue store.');
+  const versionSource = await readFile(path.join(packageRoot, 'scripts', 'agentshield-version.mjs'), 'utf8');
+  const mcpServerSource = await readFile(path.join(packageRoot, 'scripts', 'agentshield-mcp-server.mjs'), 'utf8');
+  const mcpSdkSource = await readFile(path.join(packageRoot, 'scripts', 'agentshield-mcp-sdk.mjs'), 'utf8');
+  assert(versionSource.includes("AGENTSHIELD_VERSION = '0.7.0-beta.5'")
+    && mcpServerSource.includes("version: AGENTSHIELD_VERSION")
+    && mcpSdkSource.includes("version: AGENTSHIELD_VERSION"),
+    'Installed CLI package and both MCP entrypoints must share one immutable version source.');
   const cli = path.join(packageRoot, 'scripts', 'vibesane.mjs');
   const mcp = path.join(packageRoot, 'scripts', 'agentshield-mcp-stdio.mjs');
   async function runCli(args, options = {}) {
