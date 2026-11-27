@@ -400,11 +400,17 @@ try {
   assert(Array.isArray(tools) && tools.some(tool => tool.name === 'scan_changed')
     && tools.some(tool => tool.name === 'verify_remediation'), 'Packaged MCP tool discovery is incomplete.');
   const byName = new Map(tools.map(tool => [tool.name, tool]));
-  assert(byName.get('scan_start')?.annotations?.readOnlyHint === false
+  assert(byName.get('scan_changed')?.annotations?.readOnlyHint === false
+    && byName.get('verify_remediation')?.annotations?.readOnlyHint === false
+    && byName.get('list_findings')?.annotations?.readOnlyHint === true
+    && byName.get('explain_finding')?.annotations?.readOnlyHint === true
+    && byName.get('status')?.annotations?.readOnlyHint === true
+    && byName.get('scan_start')?.annotations?.readOnlyHint === false
     && byName.get('scan_cancel')?.annotations?.readOnlyHint === false
     && byName.get('scan_status')?.annotations?.readOnlyHint === true
-    && byName.get('scan_results')?.annotations?.readOnlyHint === true,
-  'Packaged MCP tool annotations must distinguish local queue mutations from read-only queries.');
+    && byName.get('scan_results')?.annotations?.readOnlyHint === true
+    && byName.get('scan_wait')?.annotations?.readOnlyHint === true,
+  'Packaged MCP annotations must disclose local baseline and queue mutations without marking read-only queries as writes.');
   assert(mcpResult.status.content?.length > 0 && !mcpResult.status.isError,
     'Packaged MCP status call failed.');
   assert(mcpResult.scan.content?.some(x => x.text.includes('no_changed_files')),
