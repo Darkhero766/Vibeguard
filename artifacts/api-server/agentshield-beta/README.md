@@ -6,13 +6,13 @@
 
 For the complete copy-and-paste installation flow for Codex and Claude Code, see [`docs/AGENTSHIELD_MCP_SETUP.md`](../../../docs/AGENTSHIELD_MCP_SETUP.md). It builds and installs the unpublished local package, configures the required `VIBESANE_ALLOWED_ROOTS_JSON` allowlist, verifies diagnostics and tool discovery, installs hooks, and documents upgrade, rollback, and uninstall.
 
-Short form from the trusted repository root (Node.js 20+, Git, pnpm; Windows remains qualification-gated):
+Short form from the trusted repository root (Node.js 24.15+, Git, pnpm; Windows remains qualification-gated):
 
 ```sh
 pnpm --filter @workspace/api-server run build:agentshield
 node artifacts/api-server/scripts/package-agentshield-beta.mjs
 npm install --global --prefix "$HOME/.local" --ignore-scripts \
-  "$PWD/artifacts/api-server/dist/vibesane-agentshield-0.7.0-beta.4.tgz"
+  "$PWD/artifacts/api-server/dist/vibesane-agentshield-0.7.0-beta.5.tgz"
 VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/disposable-repo"]' \
   "$HOME/.local/bin/vibesane" mcp-doctor
 ```
@@ -23,7 +23,7 @@ This is a disposable, synthetic demonstration of local code scanning and coding-
 
 ## First run
 
-Use the current trusted VibeSane feature checkout (Node.js >=20, Git and pnpm). Windows remains an unqualified candidate until Windows CI and real-host acceptance pass:
+Use the current trusted VibeSane feature checkout (Node.js >=24.15.0, Git and pnpm). Windows remains an unqualified candidate until Windows CI and real-host acceptance pass:
 
 1. Follow the linked setup guide to build and locally install the beta package, configure the allowlist on the MCP process, and run both diagnostics.
 2. Connect Codex or Claude Code using the documented absolute executable path. Confirm MCP `status` and all five discovered tools.
