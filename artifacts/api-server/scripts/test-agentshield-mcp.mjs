@@ -125,15 +125,16 @@ test('MCP SQLite stores are separated by host namespace and authorized-root scop
   );
 });
 
-test('exposes only documented read-only tools with strict input schemas', () => {
+test('exposes repository-scoped MCP tools with accurate local-state side-effect annotations', () => {
   assert.deepEqual(TOOL_DEFS.map((tool) => tool.name), [
     'scan_changed', 'list_findings', 'verify_remediation', 'explain_finding', 'status',
   ]);
+  const mutatesLocalBaseline = new Set(['scan_changed', 'verify_remediation']);
   for (const tool of TOOL_DEFS) {
-    assert.equal(tool.annotations.readOnlyHint, true);
-    assert.equal(tool.annotations.destructiveHint, false);
-    assert.equal(tool.annotations.openWorldHint, false);
-    assert.equal(tool.inputSchema.additionalProperties, false);
+    assert.equal(tool.annotations.readOnlyHint, !mutatesLocalBaseline.has(tool.name), tool.name + ' readOnlyHint');
+    assert.equal(tool.annotations.destructiveHint, false, tool.name + ' destructiveHint');
+    assert.equal(tool.annotations.openWorldHint, false, tool.name + ' openWorldHint');
+    assert.equal(tool.inputSchema.additionalProperties, false, tool.name + ' strict schema');
   }
 });
 
