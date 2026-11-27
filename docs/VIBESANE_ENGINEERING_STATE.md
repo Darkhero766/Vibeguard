@@ -21,7 +21,7 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 - State: **open, draft, unmerged**.
 - Branch: `feat/agentshield-cross-platform-autoconnect`.
 - Latest code candidate: `4dec4fb27a9070127904e3c29ece476dad3ad2a4`. It contains SQLite ownership and corrupt-shutdown hardening (including a test fixture that forces the shutdown recovery fallback), the beta.5 package-version validator fix, Node.js 24.15 and frontend/API typecheck CI updates, accessible prerendered Foxy/AgentShield routes, and the graphite/lime/warm-white website pass with 54-rule source-of-truth counts and mixed-surface contrast guards. The production-readiness checklist is maintained at `docs/FOXY_BETA5_PRODUCTION_READINESS_CHECKLIST.md`.
-- Target branch: `feat/agentshield-beta-coding-agent-install`; PR #70 still references the common base `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`. The PR #69 branch is 23 commits ahead of that common base, while the PR #70 branch is 265 commits ahead of it; GitHub reports PR #70 `mergeable=false`. Preserve the current stack. Do not rebase, force-push, retarget or merge until the full ancestry/diff is reviewed and the owner approves.
+- Target branch: `feat/agentshield-beta-coding-agent-install`; PR #70 still references the common base `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`. The PR #69 branch is 23 commits ahead of that common base, while the PR #70 branch is 296 commits ahead of it; GitHub reports PR #70 `mergeable=false`. Preserve the current stack. Do not rebase, force-push, retarget or merge until the full ancestry/diff is reviewed and the owner approves.
 - Package version: `0.7.0-beta.5`; minimum runtime Node.js `24.15.0` for built-in `node:sqlite`.
 - Prior connector qualification [run #75](https://github.com/Darkhero766/Vibeguard/actions/runs/45861790387) passed on older source SHA `a9b4fc87fa202a0aaeab60f43ed6ec361e5ec01c`: 429/429 release tests plus 12/12 connector tests on Windows and macOS. It does **not** qualify beta.5, SQLite, migration or current source.
 - Current exact-source status: no Foxy Actions workflow run or commit-status context exists for code candidate `4dec4fb...` or the branch head at the time of verification. Do not call beta.5 CI-qualified. Prior run #75 applies to beta.4 SHA `a9b4fc...` only. The workflow file is present on the PR #70 feature branch, but a live file lookup returned 404 on its target/base branch `feat/agentshield-beta-coding-agent-install`. Therefore its `pull_request` trigger is not currently registered for this PR. Its `workflow_dispatch` trigger is not a dependable workaround unless the workflow is also present on the repository default branch. When quota is available, add a feature-branch-scoped `push` trigger or register the workflow through an owner-approved base/default-branch change, then verify a run against the exact head SHA. No Actions run was started. Local runtime is Node.js 22.16.0, the repository is not mounted locally, and outbound GitHub DNS is unavailable; therefore no local test/build result is claimed.
@@ -53,7 +53,7 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 - #69 beta.3 packaging is based on #68.
 - #70 beta.4 connector is based on #69.
 
-**Important drift to resolve:** PR #69's branch is 23 commits ahead of the PR #70 common base; PR #70 is 265 commits ahead of that same base and GitHub reports `mergeable=false`. This is a diverged stacked dependency, not an ordinary fast-forward. Preserve both branches and complete a full merge-base/diff review before proposing a stack repair. Do not force-push, rewrite history, retarget or merge without explicit authorization.
+**Important drift to resolve:** PR #69's branch is 23 commits ahead of the PR #70 common base; PR #70 is 296 commits ahead of that same base and GitHub reports `mergeable=false`. This is a diverged stacked dependency, not an ordinary fast-forward. Preserve both branches and complete a full merge-base/diff review before proposing a stack repair. Do not force-push, rewrite history, retarget or merge without explicit authorization.
 
 ## What is actually verified
 
@@ -127,7 +127,7 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 - Added `docs/FOXY_BETA5_PRODUCTION_READINESS_CHECKLIST.md` in commit `be423b4f47b13b7be1af13b99000ab07bdd94c21`. It defines exact-source CI, queue/migration adversarial tests, the six-host/two-OS manual acceptance matrix, independent review, provenance, production operations and web accessibility sign-offs. All are OPEN; production authorization is NOT GRANTED.
 - Updated PR #70 body with the latest code candidate, corrected release gates, environment limitations and the explicit instruction to keep it draft/unmerged; the checklist link is now included.
 - Current code candidate: `4dec4fb...`; subsequent branch updates are documentation/checklist records. Re-query the actual branch head before future edits.
-- PR #70 remains open/draft/unmerged with `mergeable=false`. Its branch is 265 commits ahead of common base `f6a16dc...`; PR #69's branch is 23 commits ahead of the same base. Do not rebase/retarget/merge without approval.
+- PR #70 remains open/draft/unmerged with `mergeable=false`. Its branch is 296 commits ahead of common base `f6a16dc...`; PR #69's branch is 23 commits ahead of the same base. Do not rebase/retarget/merge without approval.
 - No workflow run or commit-status context exists for the exact beta.5 code candidate. Local Node is 22.16.0, no checkout is mounted and GitHub clone failed due unavailable DNS; no local execution result is claimed.
 - Production remains untouched; no package published, no merge, no deploy and no Codex use.
 
@@ -138,6 +138,16 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 - Commits `61f29aa39a0fc4ae05b8116eef35143498d97eba`, `65d5870b234c0cf9bd15a2df4f6cb28210420171`, `42f08d9d9a79fd1c52c7c8382622d1fcc4ab6468`, `9c4813e9e775c5f0afade7d1a8d348c96d32f8d2` and `142b07e0823b0608f12d938b32068db5b190c0d3` align the homepage, public scan report, dashboard and console labels to 54 and add a regression assertion that counts the actual catalog entries.
 - Commits `6408572cb42d54913aea4943b79427cebc029842`, `4089b1f393ee8be29aecfa256d5a313df5c27a3f`, `2b2be4c52b3bf486441b83ef4861f6dcacbb0c27`, `2cbcea5be0e41c8c2a421de5d1c2d4a9a1f7e2af` and `4dec4fb27a9070127904e3c29ece476dad3ad2a4` set the accent token to lime, ensure readable dark foregrounds on light CTA/clean/upgrade/dashboard cards, and add regression guards for both accent theme declarations and mixed-surface contrast classes.
 - The last visual/code candidate is now `4dec4fb...`. These tests and copy corrections have not run in a real frontend build or browser.
+
+
+### 27 November 2026 — workflow trigger and PR ancestry recheck
+
+- Rechecked PR #70 at branch head `f6f52e133ded54815bb9e2e7dbf054e8904add86` before this documentation update. PR #70 is still open, draft, unmerged and `mergeable=false`.
+- The feature branch contains `.github/workflows/agentshield-cross-platform.yml`; fetching that exact path from the PR target branch `feat/agentshield-beta-coding-agent-install` returned GitHub 404. Its `pull_request` trigger therefore cannot be relied on for PR #70. `workflow_dispatch` is not an available workaround unless the workflow is registered on the repository's default branch. No workflow run or status exists for the checked head.
+- Do not trigger or broaden CI while the Actions quota is exhausted. Once available, add a narrowly scoped `push` trigger for `feat/agentshield-cross-platform-autoconnect`, or register the workflow through an owner-approved base/default-branch change. Then verify the resulting Windows and macOS jobs against the exact PR head.
+- Recompared both branches to common base `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`: PR #69 head `ed5bf64a3dced0bd890fd66cf0634e0ae888a951` is 23 commits ahead; PR #70 is 296 commits ahead. The comparison is still diverged and PR #70 remains not mergeable. No rebase, force-push, retarget or merge was performed.
+- Updated the PR description and production-readiness checklist to record the CI trigger blocker and exact-head qualification requirement. The two documentation commits are the only changes in this recheck; no product code was modified and no tests were run.
+
 
 ## Non-negotiable operating constraints
 
