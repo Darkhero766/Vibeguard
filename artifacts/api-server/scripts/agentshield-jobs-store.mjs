@@ -2,7 +2,7 @@
 // SQLite serializes writers; worker leases recover jobs after process crashes.
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
-import { hostname } from 'node:os';
+import { hostname, homedir } from 'node:os';
 import path from 'node:path';
 import { mkdir, lstat, chmod, open, readFile, realpath, link, unlink } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -82,8 +82,18 @@ export class ScanJobStore {
     await mkdir(this.storeDir, { recursive: true, mode: 0o700 });
     const beforeDir = await lstat(this.storeDir);
     if (!beforeDir.isDirectory() || beforeDir.isSymbolicLink()) throw new Error('Job store must be a real directory.');
-    await chmod(this.storeDir, 0o700);
+    if (process.platform !== 'win32') await chmod(this.storeDir, 0o700);
     this.storeDir = await realpath(this.storeDir);
+    if (process.platform === 'win32') {
+      // Windows does not expose POSIX chmod bits as a trustworthy ACL check.
+      // Keep the database below the current user profile so its directory ACL
+      // inheritance follows the OS-managed user-profile security boundary.
+      const profileRoot = await realpath(homedir());
+      const relative = path.relative(profileRoot, this.storeDir);
+      if (path.isAbsolute(relative) || relative === '..' || relative.startsWith('..' + path.sep)) {
+        throw new Error('On Windows, Foxy SQLite storage must remain inside the current user profile for inherited ACL protection.');
+      }
+    }
     this.databasePath = path.join(this.storeDir, 'jobs.sqlite3');
 
     let before = await lstat(this.databasePath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
