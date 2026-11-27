@@ -46,7 +46,8 @@
     "test:agentshield:baselines": "node --test ./scripts/test-agentshield-baselines.mjs",
     "test:agentshield:package": "node ./scripts/test-agentshield-package.mjs",
     "test:agentshield:release-qualification": "node ./scripts/validate-agentshield-release.mjs",
-    "test:agentshield:connect": "node --test ./scripts/test-agentshield-connect.mjs"
+    "test:agentshield:connect": "node --test ./scripts/test-agentshield-connect.mjs",
+    "qualify:foxy": "node ./scripts/run-foxy-qualification.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",
