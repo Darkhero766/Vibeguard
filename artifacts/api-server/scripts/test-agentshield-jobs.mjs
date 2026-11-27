@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, open, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, open, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -187,7 +187,7 @@ test('legacy JSON migration checks the old shared beta.4 lock before reading its
   }
 });
 
-test('a verified stale beta.4 lock permits migration but is never deleted automatically', async () => {
+test('a verified stale beta.4 lock blocks migration until operator cleanup', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'foxy-legacy-stale-lock-'));
   const storeDir = path.join(root, 'namespaced-store');
   const legacyStoreDir = path.join(root, 'shared-beta4-store');
@@ -227,13 +227,20 @@ test('a verified stale beta.4 lock permits migration but is never deleted automa
     runner: async () => complete(),
   });
   try {
-    await queue.init();
-    assert.ok(['queued', 'running', 'completed'].includes(queue.getStatus(id)?.status),
-      'the imported job remains visible while the local worker may claim it');
+    await assert.rejects(queue.init(), /stale beta\.4 Foxy job lock exists/);
+    assert.equal(queue.initialized, false);
+    assert.equal(queue.store.db, null, 'migration failure closes the unregistered SQLite handle');
     assert.equal(await readFile(lockPath, 'utf8'), lockText,
-      'migration must not automatically delete the legacy lock even after its PID is dead');
+      'a stale beta.4 lock must be left untouched for operator inspection');
     assert.equal(await readFile(snapshotPath, 'utf8'), snapshotText,
-      'the shared beta.4 snapshot remains an untouched recovery copy');
+      'migration must not touch the source snapshot while a stale lock exists');
+    assert.equal(await access(path.join(storeDir, 'jobs.sqlite3')).then(() => true), true,
+      'the isolated database may exist, but migration must not register a worker or import records');
+    const check = new DatabaseSync(path.join(storeDir, 'jobs.sqlite3'));
+    try {
+      assert.equal(check.prepare('SELECT COUNT(*) AS count FROM workers').get().count, 0);
+      assert.equal(check.prepare('SELECT COUNT(*) AS count FROM jobs').get().count, 0);
+    } finally { check.close(); }
   } finally {
     await queue.close();
     await rm(root, { recursive: true, force: true });
