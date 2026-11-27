@@ -27,6 +27,7 @@ import {
   authorizeWorkspace,
   resolveAuthorizedRoots,
 } from './agentshield-mcp-server.mjs';
+import { AGENTSHIELD_VERSION } from './agentshield-version.mjs';
 
 const exec = promisify(execFile);
 process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([os.tmpdir()]);
@@ -295,7 +296,7 @@ test('modern tools/list and tools/call include required stateless result metadat
     params: { name: 'explain_finding', arguments: { rule_id: 'rls' }, _meta: modernMeta },
   });
   assert.equal(called.result.resultType, 'complete');
-  assert.equal(called.result._meta['io.modelcontextprotocol/serverInfo'].version, '0.7.0-beta.5');
+  assert.equal(called.result._meta['io.modelcontextprotocol/serverInfo'].version, AGENTSHIELD_VERSION);
   const payload = JSON.parse(called.result.content[0].text);
   assert.equal(payload.ruleId, 'rls');
 });
