@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PACKAGE_VERSION } from './package-agentshield-beta.mjs';
 
 const exec = promisify(execFile);
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -214,7 +215,7 @@ async function main() {
   ];
   const packageEvidenceValid = Boolean(packageStep && packageStep.status === 'passed'
     && packageStep.evidence?.status === 'package_smoke_passed'
-    && packageStep.evidence?.version === '0.7.0-beta.4'
+    && packageStep.evidence?.version === PACKAGE_VERSION
     && packageStep.evidence?.published === false
     && Number.isSafeInteger(packageStep.evidence?.packageBytes) && packageStep.evidence.packageBytes > 0
     && Number.isSafeInteger(packageStep.evidence?.packagedFiles) && packageStep.evidence.packagedFiles >= 20
@@ -238,7 +239,7 @@ async function main() {
     schemaVersion: 1,
     product: 'VibeSane Foxy (AgentShield runtime)',
     qualificationName: 'Foxy qualification',
-    packageVersion: '0.7.0-beta.4',
+    packageVersion: PACKAGE_VERSION,
     status: allRequiredPassed && benchmarkTargetsMet ? 'validation_passed_review_required' : 'not_qualified',
     releaseDecision: allRequiredPassed && benchmarkTargetsMet
       ? 'candidate_for_independent_human_review'
