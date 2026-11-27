@@ -9,8 +9,9 @@ This is the release control record for Foxy / AgentShield beta.5. A source chang
 
 ## 1. Source identity and change control
 
-- [ ] Pin the release candidate to one full 40-character commit SHA.
-- [ ] Confirm package version, Git revision, source fingerprint and generated README all refer to that candidate.
+- [ ] Pin the release candidate to one full 40-character commit SHA. The last reviewed code-change candidate is `4dec4fb27a9070127904e3c29ece476dad3ad2a4`; the previously observed feature-branch head was `d4513a86c1980ea69ee644659326f1d86581312f` (documentation/handoff updates after the code candidate).
+- [ ] Confirm package version, Git revision, source fingerprint and generated README all refer to the exact commit used by CI and the unpublished package.
+- [ ] Verify that the qualification workflow is actually triggerable before relying on CI. At review time, `.github/workflows/agentshield-cross-platform.yml` was absent from PR #70's base branch `feat/agentshield-beta-coding-agent-install`; consequently the workflow's `pull_request` event cannot be relied on for PR #70. Its `workflow_dispatch` event also requires the workflow to be registered on the repository's default branch. When Actions quota is available, either add a narrowly scoped `push` trigger for `feat/agentshield-cross-platform-autoconnect` or register the workflow through an owner-approved base/default-branch change. Do not change the base/default branch or trigger a run without the required approval/quota.
 - [ ] Confirm the release checkout is clean and no untracked source is included.
 - [ ] Review the entire PR diff, not only the latest commit.
 - [ ] Reconcile the stacked PR dependency with PR #69. PR #70 remains based on f6a16dc; PR #69 has advanced from that common base. Do not rebase, retarget or force-push without an explicit stack plan and owner approval.
