@@ -1158,6 +1158,21 @@ test('queue does not expose baseline IDs when persisted finding metadata is malf
 });
 
 
+test('Windows SQLite store directories must remain inside the current user profile', async () => {
+  if (process.platform !== 'win32') return;
+  const storeDir = path.parse(os.homedir()).root;
+  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  try {
+    await assert.rejects(queue.init(), (error) =>
+      /must remain inside the current user profile/.test(error?.cause?.message || ''));
+    assert.equal(queue.initialized, false);
+    assert.equal(queue.store?.db, null,
+      'an out-of-profile path must be rejected before opening a SQLite database');
+  } finally {
+    await queue.close();
+  }
+});
+
 test('queue refuses a symlinked SQLite database without modifying its target', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-db-symlink-'));
   const target = path.join(storeDir, 'attacker-controlled-target');
