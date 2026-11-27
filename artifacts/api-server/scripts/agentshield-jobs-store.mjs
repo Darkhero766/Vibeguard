@@ -172,6 +172,35 @@ export class ScanJobStore {
     const marker = this.db.prepare("SELECT value FROM queue_meta WHERE key='json_snapshot_migrated'").get();
     if (marker?.value === '1') return;
     const legacyPath = path.join(this.storeDir, 'jobs.json');
+    const legacyLockPath = path.join(this.storeDir, 'jobs.lock');
+
+    // A beta.4 process still holding the JSON snapshot lock may write after
+    // we've read it. Never migrate a moving snapshot or race the old writer.
+    const lockInfo = await lstat(legacyLockPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+    if (lockInfo) {
+      if (!lockInfo.isFile() || lockInfo.isSymbolicLink() || lockInfo.size > 4096) {
+        throw new Error('Legacy Foxy job lock is unsafe; stop all Foxy processes and inspect the lock before migration.');
+      }
+      const lockHandle = await open(legacyLockPath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+      let legacyOwner;
+      try {
+        const opened = await lockHandle.stat();
+        if (opened.dev !== lockInfo.dev || opened.ino !== lockInfo.ino || opened.size > 4096) {
+          throw new Error('Legacy Foxy job lock changed while opening; refusing migration.');
+        }
+        legacyOwner = JSON.parse(await lockHandle.readFile('utf8'));
+      } finally { await lockHandle.close(); }
+      if (legacyOwner.host !== this.host || !Number.isInteger(legacyOwner.pid) || !legacyOwner.token) {
+        throw new Error('Legacy Foxy job lock belongs to another host or is invalid; refusing migration.');
+      }
+      try {
+        process.kill(legacyOwner.pid, 0);
+        throw new Error('A legacy Foxy process is still using jobs.json. Stop it cleanly before starting this SQLite queue.');
+      } catch (error) {
+        if (error?.code !== 'ESRCH') throw error;
+      }
+    }
+
     const info = await lstat(legacyPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
     this.legacyMigration = (async () => {
       let jobs = [];
