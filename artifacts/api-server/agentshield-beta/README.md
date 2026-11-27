@@ -21,6 +21,11 @@ Run `vibesane connect` from the project root to register MCP for detected Claude
 
 This is a disposable, synthetic demonstration of local code scanning and coding-agent hook responses. Do not deploy these fixtures, connect production credentials, or assume a clean static scan proves application security.
 
+
+## Beta.4 queue upgrade
+
+Beta.4 stored all local job history in one shared `~/.local/state/vibesane/agentshield/jobs.json`. Beta.5 creates a separate SQLite database per MCP host namespace and authorized-root scope. On first startup it reads the beta.4 snapshot and imports only jobs whose canonical workspace is inside that process's `VIBESANE_ALLOWED_ROOTS_JSON`; data belonging to other repositories is never copied into this store. The source JSON is retained untouched. Migration refuses to proceed while an older beta.4 process holds `jobs.lock`, and it fails closed if legacy jobs exist but the current server has no valid allowlist. Stop all beta.4 Foxy processes before the first beta.5 launch.
+
 ## First run
 
 The previous Windows/macOS green connector run applies to an earlier beta.4 revision only. It does not qualify the beta.5 SQLite queue or its spawned-process tests. Do not distribute the current candidate until exact-source CI and the real-host acceptance matrix are complete.
