@@ -305,16 +305,18 @@ export class ScanJobStore {
     // lock path. A direct open('wx') exposes an empty file before writeFile
     // completes, which can make a second beta.5 process misread the lock.
     const temporaryPath = path.join(directory, 'jobs.lock.beta5-' + randomUUID() + '.tmp');
-    const handle = await open(temporaryPath, 'wx', 0o600);
     try {
-      await handle.writeFile(LEGACY_MIGRATION_GUARD, 'utf8');
-      await handle.sync();
-    } finally { await handle.close(); }
-    try {
-      await link(temporaryPath, lockPath);
-    } catch (error) {
-      if (error?.code !== 'EEXIST') throw error;
-      await this.#assertNoLiveLegacyLocks([directory]);
+      const handle = await open(temporaryPath, 'wx', 0o600);
+      try {
+        await handle.writeFile(LEGACY_MIGRATION_GUARD, 'utf8');
+        await handle.sync();
+      } finally { await handle.close(); }
+      try {
+        await link(temporaryPath, lockPath);
+      } catch (error) {
+        if (error?.code !== 'EEXIST') throw error;
+        await this.#assertNoLiveLegacyLocks([directory]);
+      }
     } finally {
       await unlink(temporaryPath).catch((error) => { if (error?.code !== 'ENOENT') throw error; });
     }
