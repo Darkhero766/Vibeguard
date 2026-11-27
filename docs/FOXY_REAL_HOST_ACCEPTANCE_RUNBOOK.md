@@ -54,7 +54,7 @@ Repeat the sequence after a clean reinstall and after a second connect to confir
 - **Cursor:** validate .cursor/mcp.json, restart, and enterprise MCP controls if applicable.
 - **Gemini CLI:** validate .gemini/settings.json and the MCP approval behavior for the installed CLI version.
 - **Roo Code:** validate .roo/mcp.json and its MCP server enable/approval flow.
-- **GitHub Copilot in VS Code and Copilot CLI:** The current beta uses the portable workspace-root .mcp.json format, which is also Claude Code's project file. Both clients can read that workspace entry. The global $COPILOT_HOME/mcp-config.json or ~/.copilot/mcp-config.json destination is not written by vibesane connect. The shared Claude/Copilot entry uses `foxy-workspace-mcp`; this does not establish safe simultaneous processes because the persistent queue holds an exclusive lock. Until the queue broker / same-host multi-instance design is completed, test these hosts one at a time on a given repository and do not claim simultaneous Claude/Copilot sessions. Other host-specific config files use dedicated namespaces, but same-host simultaneous instances also remain unverified.
+- **GitHub Copilot in VS Code and Copilot CLI:** The current beta uses the workspace-root `.mcp.json`, which is also Claude Code's project file. Both clients share the `foxy-workspace-mcp` local SQLite queue namespace; simultaneous processes are intended to coordinate through transactional claims, worker leases and cancellation state. The global `$COPILOT_HOME/mcp-config.json` or `~/.copilot/mcp-config.json` destination is not written by `vibesane connect`. The new multi-process tests are pending exact-source Windows/macOS CI and real-host acceptance. Do not describe concurrency as release-verified until those checks pass.
 
 ## Platform-specific coverage
 
@@ -68,7 +68,7 @@ For both Windows and macOS, exercise:
 - Malformed JSON/TOML, oversized config, symlinked config file and symlinked config directory refusal.
 - A customized managed entry and a conflicting server name; both must be left untouched.
 - Interruption/failure during setup; no partial JSON/TOML file should be presented as a successful install.
-- Two distinct host processes for the same authorized repository launched concurrently. Record whether each starts and can submit/read jobs without lock contention. The current queue lock intentionally permits one process per host-namespace/workspace store; do not count this as passed unless concurrent isolation is verified.
+- Two or more distinct host processes for the same authorized repository launched concurrently. Confirm they attach to the same SQLite DB when their host config shares a namespace; submit unique and duplicate idempotency keys; verify only one execution per idempotency key and the global worker cap; verify both processes can read job state and results; cancel a job from a different process; then terminate one worker abruptly and confirm only its running jobs become interrupted/UNKNOWN while another worker continues processing queued work.
 - A second host session after restart, including a tool call and explicit disconnect.
 
 CI runner evidence does not replace these tests on real intended machines.
@@ -92,9 +92,26 @@ CI runner evidence does not replace these tests on real intended machines.
 | Copilot CLI | Windows | Pending | Pending | Pending | Pending | Pending | Pending | |
 | Copilot CLI | macOS | Pending | Pending | Pending | Pending | Pending | Pending | |
 
-## Multi-instance queue acceptance gate
+## Multi-instance SQLite queue acceptance gate
 
-The job queue uses a process-exclusive store lock. Connector namespaces isolate distinct host configuration domains, but multiple MCP processes using the same namespace and allowed-root scope still contend for that lock. The current safe operating assumption is one Foxy process per host-namespace/workspace store at a time. To close this limitation, complete a broker or transactional multi-process store design, then prove concurrent submit/status/result/cancel, process crash/restart recovery, idempotency and cleanup on Windows and macOS. Until that proof exists, do not claim unrestricted concurrent host sessions.
+The beta.5 candidate replaces the process-exclusive JSON snapshot with a local SQLite WAL database. Connections to the same host-namespace/workspace store coordinate writes through short BEGIN IMMEDIATE transactions. Each MCP process registers a worker row and refreshes a lease; job claims are atomic and the global concurrency/backpressure policy is enforced per shared store. Cancellation is stored centrally and observed by the owning worker's heartbeat. A stale worker lease turns that worker's running jobs into interrupted/UNKNOWN, never into clean results or automatic retries.
+
+Host namespaces determine which MCP processes share a queue: Claude/Copilot share the workspace-root .mcp.json namespace; Codex, Cursor, Gemini and Roo each have dedicated namespaces; generic hand-entered MCP uses its own namespace. Same-namespace processes intentionally share queue history, idempotency and concurrency policy.
+
+**Hard storage boundary:** this database uses SQLite WAL and must live on one machine's local filesystem. Do not place it on NFS, SMB, network shares, or cloud-synchronized directories. Startup must reject non-WAL mode, an unrelated database application ID, failed quick_check, and a live worker on another host.
+
+The exact-source qualification suite must prove, on both Windows and macOS:
+- independent processes can register against one DB without startup races;
+- duplicate submissions with the same idempotency key coalesce and key reuse with a different fingerprint is rejected;
+- the SQL worker-claim transaction never exceeds the shared concurrency limit;
+- a process can observe another process's status/results and request cancellation;
+- cancellation wins over a completion race and the owning process persists cancelled;
+- abrupt termination expires the worker lease and marks only that worker's active jobs interrupted/UNKNOWN;
+- queued work is subsequently claimable by surviving workers;
+- two simultaneous beta.5 startups migrate a beta.4 snapshot exactly once, and startup refuses while the old jobs.lock owner is alive;
+- graceful close, bounded retention, local permissions, and DB integrity remain correct.
+
+These are code/test expectations until the workflow for the exact current PR head completes. Do not claim unrestricted simultaneous host support from the architecture alone.
 
 ## Security review gate
 
