@@ -442,7 +442,7 @@ function TrustBar() {
   const items = [
     { icon: <Lock size={12} strokeWidth={2} />, label: 'Read-only clone' },
     { icon: <ShieldCheck size={12} strokeWidth={2} />, label: 'No code stored' },
-    { icon: <Eye size={12} strokeWidth={2} />, label: '51 security checks' },
+    { icon: <Eye size={12} strokeWidth={2} />, label: '54 security checks' },
     { icon: <Wifi size={12} strokeWidth={2} />, label: 'Results in seconds' },
   ];
   return (
@@ -517,10 +517,10 @@ function ChecksGrid() {
         What VibeSane catches
       </div>
       <h2 className="vg-display mt-5 max-w-lg text-[42px] leading-[.86] tracking-[0.01em] sm:text-[64px]">
-        51 checks. The signals that actually matter.
+        54 checks. The signals that actually matter.
       </h2>
       <p className="mt-4 max-w-[520px] text-[14px] leading-6 text-[#a4aaa3]">
-        Fifty focused signals across database access, secrets, injection, dependencies, containers, browser APIs, and infrastructure patterns commonly introduced by AI-assisted development.
+        Fifty-four focused rules across database access, secrets, injection, dependencies, containers, browser APIs, and infrastructure patterns commonly introduced by AI-assisted development.
       </p>
       <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {checks.map((check) => (
