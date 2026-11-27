@@ -111,12 +111,15 @@ export class ScanJobStore {
       if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino) {
         throw new Error('Foxy SQLite database identity changed while opening; refusing to alter its permissions.');
       }
-      // chmod through the verified descriptor rather than re-resolving the
-      // path, so a concurrent path swap cannot chmod an unrelated target.
-      await permissionHandle.chmod(0o600);
+      // POSIX permissions are enforced through the verified descriptor
+      // rather than re-resolving the path. Windows ACLs are inherited from the
+      // user-profile-backed store directory; Node's POSIX mode bits are not a
+      // reliable representation of Windows access-control entries.
+      if (process.platform !== 'win32') await permissionHandle.chmod(0o600);
       const hardened = await permissionHandle.stat();
-      if (hardened.dev !== before.dev || hardened.ino !== before.ino || (hardened.mode & 0o077) !== 0) {
-        throw new Error('Foxy SQLite database permissions could not be restricted to its owner.');
+      if (hardened.dev !== before.dev || hardened.ino !== before.ino
+        || (process.platform !== 'win32' && (hardened.mode & 0o077) !== 0)) {
+        throw new Error('Foxy SQLite database identity or POSIX owner-only permissions could not be verified.');
       }
     } finally { await permissionHandle.close(); }
     const after = await lstat(this.databasePath);
