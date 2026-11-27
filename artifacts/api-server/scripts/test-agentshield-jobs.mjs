@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
 
 const jobWorkspacePath = (name) => path.join(os.tmpdir(), 'foxy-job-workspaces', name);
 import { ScanJobQueue } from './agentshield-jobs.mjs';
@@ -125,22 +128,28 @@ test('running cancellation and restart recovery never turn interrupted work into
     if (signal.aborted) { reject(signal.reason); return; }
     signal.addEventListener('abort', () => reject(new Error('shutdown')), { once: true });
   });
-  const queue2 = new ScanJobQueue({ storeDir, runner: persistentRunner });
+  const queue2 = new ScanJobQueue({
+    storeDir, runner: persistentRunner, workerLeaseMs: 1000, heartbeatIntervalMs: 100,
+  });
   const { job_id: interruptedId } = await queue2.submit({ workspace: jobWorkspacePath('repo-interrupted') });
   for (let i = 0; i < 40 && queue2.getStatus(interruptedId)?.status !== 'running'; i++) await tick();
-  await queue2.close();
-  await writeFile(path.join(storeDir, 'jobs.json'), JSON.stringify({ version: 1, jobs: [{
-    id: interruptedId, type: 'scan_full', scope: 'full', status: 'running', priority: 0,
-    sequence: 1, workspace: jobWorkspacePath('repo-interrupted'), baseRef: null, idempotencyKey: null,
-    fingerprint: 'a'.repeat(64), progress: 20, createdAt: 1, updatedAt: 2, retries: 0,
-    result: null, error: null,
-  }] }));
-  const queue3 = new ScanJobQueue({ storeDir, runner: async () => complete() });
+  assert.equal(queue2.getStatus(interruptedId).status, 'running');
+  // Simulate a process that stopped heartbeating without graceful shutdown.
+  clearInterval(queue2.heartbeatTimer);
+  queue2.store.db.prepare('UPDATE workers SET heartbeat_at=? WHERE id=?')
+    .run(Date.now() - 5000, queue2.workerId);
+  const queue3 = new ScanJobQueue({
+    storeDir, runner: async () => complete(), workerLeaseMs: 1000, heartbeatIntervalMs: 100,
+  });
   try {
     await queue3.init();
     assert.equal(queue3.getStatus(interruptedId).status, 'interrupted');
     assert.equal(queue3.getResults(interruptedId).status, 'interrupted');
-  } finally { await queue3.close(); await rm(storeDir, { recursive: true, force: true }); }
+    await queue3.close();
+  } finally {
+    await queue2.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
 });
 
 test('configured concurrency is enforced while independent jobs run in parallel', async () => {
@@ -244,8 +253,8 @@ test('persistence retention never evicts an active job', async () => {
       await queue.cancel(submitted.job_id);
     }
     assert.equal(queue.getStatus(activeId)?.status, 'running');
-    assert.ok(JSON.parse(await (await import('node:fs/promises')).readFile(path.join(storeDir, 'jobs.json'), 'utf8'))
-      .jobs.some((job) => job.id === activeId && job.status === 'running'));
+    const persisted = queue.store.db.prepare('SELECT status FROM jobs WHERE id=?').get(activeId);
+    assert.equal(persisted.status, 'running', 'SQLite retention must never evict an active job');
     release();
   } finally { release(); await queue.close(); await rm(storeDir, { recursive: true, force: true }); }
 });
@@ -271,19 +280,16 @@ test('wait timeout removes its waiter instead of retaining stale callbacks', asy
 
 test('failed durable submission rolls back the unaccepted job and fails closed', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-persist-failure-'));
-  const statePath = path.join(storeDir, 'jobs.json');
   const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
   try {
     await queue.init();
-    await rm(statePath, { force: true });
-    await mkdir(statePath);
-    await assert.rejects(queue.submit({ workspace: jobWorkspacePath('foxy-persist-failure') }), /could not persist the scan job/i);
+    queue.store.db.exec('PRAGMA query_only=ON');
+    await assert.rejects(queue.submit({ workspace: jobWorkspacePath('foxy-persist-failure') }), /could not commit the scan job/i);
     assert.equal(queue.jobs.size, 0);
     assert.equal(queue.active, 0);
     assert.equal(queue.storageFault, true);
     await assert.rejects(queue.submit({ workspace: jobWorkspacePath('foxy-next-submit') }), /storage is unhealthy/i);
   } finally {
-    await rm(statePath, { recursive: true, force: true });
     await queue.close();
     await rm(storeDir, { recursive: true, force: true });
   }
@@ -366,7 +372,6 @@ test('completed changed-scan jobs expose recoverable baseline records after rest
 
 test('queued cancellation persistence failure fails closed instead of pretending it was durable', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-cancel-persist-failure-'));
-  const statePath = path.join(storeDir, 'jobs.json');
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
   const queue = new ScanJobQueue({ storeDir, concurrency: 1, runner: async () => { await gate; return complete(); } });
@@ -374,17 +379,15 @@ test('queued cancellation persistence failure fails closed instead of pretending
     const first = await queue.submit({ workspace: jobWorkspacePath('foxy-cancel-running') });
     for (let i = 0; i < 40 && queue.getStatus(first.job_id)?.status !== 'running'; i++) await tick();
     const queued = await queue.submit({ workspace: jobWorkspacePath('foxy-cancel-queued') });
-    await rm(statePath, { force: true });
-    await mkdir(statePath);
+    queue.store.db.exec('PRAGMA query_only=ON');
     await assert.rejects(queue.cancel(queued.job_id), /could not persist cancellation/i);
     assert.equal(queue.storageFault, true);
-    assert.equal(queue.getStatus(queued.job_id).status, 'failed');
-    assert.match(queue.getStatus(queued.job_id).error, /UNKNOWN/);
+    assert.equal(queue.getStatus(queued.job_id).status, 'queued',
+      'a failed cancellation write must not be reported as durable cancellation');
     assert.equal(queue.active, 1);
   } finally {
     release();
     await queue.close();
-    await rm(statePath, { recursive: true, force: true });
     await rm(storeDir, { recursive: true, force: true });
   }
 });
@@ -469,15 +472,15 @@ test('queue does not expose baseline IDs when persisted finding metadata is malf
 });
 
 
-test('queue refuses a symlinked process lock without modifying its target', async () => {
-  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-lock-symlink-'));
+test('queue refuses a symlinked SQLite database without modifying its target', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-db-symlink-'));
   const target = path.join(storeDir, 'attacker-controlled-target');
-  const lockPath = path.join(storeDir, 'jobs.lock');
+  const databasePath = path.join(storeDir, 'jobs.sqlite3');
   await writeFile(target, 'do-not-modify');
-  await symlink(target, lockPath);
+  await symlink(target, databasePath);
   const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
   try {
-    await assert.rejects(queue.init(), /Job store lock is unreadable/);
+    await assert.rejects(queue.init(), /regular file/);
     assert.equal(await readFile(target, 'utf8'), 'do-not-modify');
     assert.equal(queue.initialized, false);
   } finally {
@@ -488,40 +491,34 @@ test('queue refuses a symlinked process lock without modifying its target', asyn
 
 
 
-test('initial queue checkpoint failure leaves the queue uninitialized and releases its lock', async () => {
-  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-initial-checkpoint-failure-'));
+test('initialization fails closed when the SQLite database path is a directory', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-initial-db-failure-'));
+  await mkdir(path.join(storeDir, 'jobs.sqlite3'));
   let runnerCalls = 0;
   const queue = new ScanJobQueue({
     storeDir,
     runner: async () => { runnerCalls++; return complete(); },
-    writeSnapshot: async () => { throw new Error('deterministic initial checkpoint failure'); },
   });
   try {
-    await assert.rejects(queue.init(), /initial durable checkpoint/i);
+    await assert.rejects(queue.init(), /regular file/);
     assert.equal(queue.initialized, false);
     assert.equal(queue.storageFault, true);
     assert.equal(queue.jobs.size, 0);
     assert.equal(runnerCalls, 0);
     await assert.rejects(queue.submit({ workspace: jobWorkspacePath('foxy-initial-failure') }), /initialization previously failed/i);
-    await assert.rejects(readFile(path.join(storeDir, 'jobs.lock'), 'utf8'), { code: 'ENOENT' });
   } finally {
     await queue.close();
     await rm(storeDir, { recursive: true, force: true });
   }
 });
 
-test('concurrent init calls share one initial durable checkpoint', async () => {
+test('concurrent init calls share one SQLite worker registration', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-concurrent-init-'));
-  let writes = 0;
-  const queue = new ScanJobQueue({
-    storeDir,
-    runner: async () => complete(),
-    writeSnapshot: async () => { writes++; await tick(); },
-  });
+  const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
   try {
     await Promise.all([queue.init(), queue.init(), queue.init()]);
     assert.equal(queue.initialized, true);
-    assert.equal(writes, 1);
+    assert.equal(queue.store.db.prepare('SELECT COUNT(*) AS count FROM workers').get().count, 1);
   } finally {
     await queue.close();
     await rm(storeDir, { recursive: true, force: true });
