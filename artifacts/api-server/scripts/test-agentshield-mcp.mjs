@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { mkdtemp, mkdir, writeFile, rm, rename } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, rename, realpath } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { cursorStopEligibility } from './agentshield-controller.mjs';
-import { JOB_TOOLS, resolveJobStoreDirectory } from './agentshield-mcp-sdk.mjs';
+import { JOB_TOOLS, getJobToolAnnotations, resolveJobStoreDirectory } from './agentshield-mcp-sdk.mjs';
 import { createHash } from 'node:crypto';
 import {
   TOOL_DEFS,
@@ -70,12 +70,15 @@ test('MCP authorization stays pinned to startup roots and detects root replaceme
 
 test('MCP queue tool annotations disclose local state mutations', () => {
   for (const tool of JOB_TOOLS) {
+    const annotations = getJobToolAnnotations(tool.name);
     const mutatesQueueState = ['scan_start', 'scan_cancel'].includes(tool.name);
-    assert.equal(tool.annotations.readOnlyHint, !mutatesQueueState, tool.name + ' readOnlyHint');
-    assert.equal(tool.annotations.destructiveHint, false, tool.name + ' destructiveHint');
-    assert.equal(tool.annotations.idempotentHint, tool.name !== 'scan_start', tool.name + ' idempotentHint');
-    assert.equal(tool.annotations.openWorldHint, false, tool.name + ' openWorldHint');
+    assert.equal(annotations.readOnlyHint, !mutatesQueueState, tool.name + ' readOnlyHint');
+    assert.equal(annotations.destructiveHint, false, tool.name + ' destructiveHint');
+    assert.equal(annotations.idempotentHint, tool.name !== 'scan_start', tool.name + ' idempotentHint');
+    assert.equal(annotations.openWorldHint, false, tool.name + ' openWorldHint');
+    assert.equal(Object.isFrozen(annotations), true, tool.name + ' immutable annotations');
   }
+  assert.throws(() => getJobToolAnnotations('unknown'), /Unknown Foxy queue tool/);
 });
 
 test('MCP SQLite stores are separated by host namespace and authorized-root scope', () => {
