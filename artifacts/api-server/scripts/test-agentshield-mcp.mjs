@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, rename } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { cursorStopEligibility } from './agentshield-controller.mjs';
@@ -24,10 +24,48 @@ import {
   validateRpcMessage,
   validateToolArguments,
   workspaceSnapshot,
+  authorizeWorkspace,
+  resolveAuthorizedRoots,
 } from './agentshield-mcp-server.mjs';
 
 const exec = promisify(execFile);
 process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([os.tmpdir()]);
+
+test('MCP authorization stays pinned to startup roots and detects root replacement', async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), 'foxy-pinned-roots-'));
+  const allowed = path.join(parent, 'allowed');
+  const outside = path.join(parent, 'outside');
+  const moved = path.join(parent, 'allowed-original');
+  const previous = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+  await mkdir(allowed);
+  await mkdir(outside);
+  try {
+    await exec('git', ['init', '-q', allowed]);
+    await exec('git', ['init', '-q', outside]);
+    const startupRoots = await resolveAuthorizedRoots(JSON.stringify([allowed]));
+    process.env.VIBESANE_ALLOWED_ROOTS_JSON = JSON.stringify([outside]);
+
+    assert.equal(await authorizeWorkspace(allowed, { authorizedRoots: startupRoots }), await realpath(allowed));
+    await assert.rejects(
+      authorizeWorkspace(outside, { authorizedRoots: startupRoots }),
+      /Workspace is not authorized/,
+      'changing process environment after startup must not expand MCP workspace authority',
+    );
+
+    await rename(allowed, moved);
+    await mkdir(allowed);
+    await exec('git', ['init', '-q', allowed]);
+    await assert.rejects(
+      authorizeWorkspace(allowed, { authorizedRoots: startupRoots }),
+      /Workspace is not authorized/,
+      'replacing the configured root directory must invalidate the startup identity',
+    );
+  } finally {
+    if (previous === undefined) delete process.env.VIBESANE_ALLOWED_ROOTS_JSON;
+    else process.env.VIBESANE_ALLOWED_ROOTS_JSON = previous;
+    await rm(parent, { recursive: true, force: true });
+  }
+});
 
 test('MCP SQLite stores are separated by host namespace and authorized-root scope', () => {
   const home = path.join(os.tmpdir(), 'foxy-store-path-home');
