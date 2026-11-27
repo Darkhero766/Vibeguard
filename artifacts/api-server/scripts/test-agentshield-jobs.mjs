@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { writeSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 const jobWorkspacePath = (name) => path.join(os.tmpdir(), 'foxy-job-workspaces', name);
@@ -14,6 +14,15 @@ import { ScanJobQueue } from './agentshield-jobs.mjs';
 const complete = (findings = []) => ({ status: 'complete', filesScanned: 1, findings,
   totalFindings: findings.length, coverage: 'synthetic complete fixture', findingsTruncated: false });
 const tick = () => new Promise((resolve) => setTimeout(resolve, 15));
+function errorCauseMessages(error) {
+  const messages = [];
+  const seen = new Set();
+  for (let current = error; current && !seen.has(current); current = current.cause) {
+    seen.add(current);
+    if (typeof current.message === 'string') messages.push(current.message);
+  }
+  return messages.join('\\n');
+}
 function queueInitFailure(pattern) {
   return (error) => {
     assert.match(String(error?.message || ''), /Foxy SQLite queue initialization failed/);
@@ -516,7 +525,7 @@ test('two independent Node processes share one SQLite queue and enforce a global
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-multiprocess-'));
   const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
   const childSource = `
-    import { ScanJobQueue } from ${JSON.stringify(queueModule)};
+    import { ScanJobQueue } from ${JSON.stringify(pathToFileURL(queueModule).href)};
     import { writeSync } from 'node:fs';
     import path from 'node:path';
     const [storeDir, label] = process.argv.slice(1);
@@ -691,7 +700,7 @@ test('two processes coalesce the same idempotency key and reject key reuse for a
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-cross-process-idempotency-'));
   const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
   const source = `
-    import { ScanJobQueue } from ${JSON.stringify(queueModule)};
+    import { ScanJobQueue } from ${JSON.stringify(pathToFileURL(queueModule).href)};
     import { writeSync } from 'node:fs';
     const [storeDir, label] = process.argv.slice(1);
     const queue = new ScanJobQueue({
@@ -772,7 +781,7 @@ test('a second MCP process can cancel a job owned by another process', async (t)
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-cross-process-cancel-'));
   const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
   const workerSource = `
-    import { ScanJobQueue } from ${JSON.stringify(queueModule)};
+    import { ScanJobQueue } from ${JSON.stringify(pathToFileURL(queueModule).href)};
     const [storeDir] = process.argv.slice(1);
     const keepAlive = setInterval(() => {}, 1000);
     const queue = new ScanJobQueue({
@@ -797,7 +806,7 @@ test('a second MCP process can cancel a job owned by another process', async (t)
     clearInterval(keepAlive);
   `;
   const cancelSource = `
-    import { ScanJobQueue } from ${JSON.stringify(queueModule)};
+    import { ScanJobQueue } from ${JSON.stringify(pathToFileURL(queueModule).href)};
     const [storeDir, id] = process.argv.slice(1);
     const queue = new ScanJobQueue({
       storeDir, concurrency: 1, workerLeaseMs: 1200, heartbeatIntervalMs: 100,
@@ -863,7 +872,7 @@ test('a crashed subprocess lease turns its running job into interrupted on recov
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-process-crash-'));
   const queueModule = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agentshield-jobs.mjs');
   const source = `
-    import { ScanJobQueue } from ${JSON.stringify(queueModule)};
+    import { ScanJobQueue } from ${JSON.stringify(pathToFileURL(queueModule).href)};
     import { writeSync } from 'node:fs';
     const [storeDir] = process.argv.slice(1);
     const queue = new ScanJobQueue({
@@ -1299,7 +1308,9 @@ test('Windows SQLite store directories must remain inside the current user profi
   const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
   try {
     await assert.rejects(queue.init(), (error) =>
-      /must remain inside the current user profile/.test(error?.cause?.message || ''));
+      /must remain inside the current user profile/.test(errorCauseMessages(error)),
+    'Windows store rejection must preserve the user-profile boundary error through initialization wrappers: '
+      + errorCauseMessages);
     assert.equal(queue.initialized, false);
     assert.equal(queue.store?.db, null,
       'an out-of-profile path must be rejected before opening a SQLite database');
