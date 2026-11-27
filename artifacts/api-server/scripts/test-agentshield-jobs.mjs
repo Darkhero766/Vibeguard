@@ -1307,6 +1307,54 @@ test('queue refuses a symlinked SQLite database without modifying its target', a
 
 
 
+test('SQLite store rejects foreign and untagged databases before changing journal mode or file permissions', async () => {
+  const cases = [
+    { name: 'foreign application identity', applicationId: 123456789 },
+    { name: 'unowned non-empty schema', applicationId: 0 },
+  ];
+  for (const fixture of cases) {
+    const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-foreign-db-'));
+    const databasePath = path.join(storeDir, 'jobs.sqlite3');
+    const foreign = new DatabaseSync(databasePath);
+    foreign.exec('CREATE TABLE unrelated_data(value TEXT);');
+    foreign.exec('PRAGMA application_id=' + fixture.applicationId + '; PRAGMA journal_mode=DELETE;');
+    foreign.close();
+
+    let originalMode = null;
+    if (process.platform !== 'win32') {
+      const file = await open(databasePath, 'r+');
+      try { await file.chmod(0o644); originalMode = (await file.stat()).mode & 0o777; }
+      finally { await file.close(); }
+    }
+
+    const queue = new ScanJobQueue({ storeDir, runner: async () => complete() });
+    try {
+      await assert.rejects(queue.init(), (error) => {
+        const message = String(error?.cause?.message || '');
+        return fixture.applicationId === 0
+          ? /non-empty SQLite database without Foxy application identity/.test(message)
+          : /owned by another application/.test(message);
+      });
+      const verify = new DatabaseSync(databasePath, { readOnly: true });
+      try {
+        assert.equal(verify.prepare('PRAGMA journal_mode').get().journal_mode, 'delete',
+          'rejected storage must not be converted to WAL');
+        assert.equal(verify.prepare('PRAGMA application_id').get().application_id, fixture.applicationId);
+        assert.equal(verify.prepare("SELECT COUNT(*) AS count FROM sqlite_schema WHERE name='unrelated_data'").get().count, 1,
+          'rejected storage must retain its original schema');
+      } finally { verify.close(); }
+      if (originalMode !== null) {
+        const file = await open(databasePath, 'r');
+        try { assert.equal((await file.stat()).mode & 0o777, originalMode, 'rejected storage permissions must remain unchanged'); }
+        finally { await file.close(); }
+      }
+    } finally {
+      await queue.close();
+      await rm(storeDir, { recursive: true, force: true });
+    }
+  }
+});
+
 test('worker registration is durably removed when startup pruning fails', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-startup-prune-failure-'));
   const first = new ScanJobQueue({ storeDir, runner: async () => complete() });
@@ -1427,6 +1475,49 @@ test('concurrent init calls share one SQLite worker registration', async () => {
   }
 });
 
+
+test('graceful shutdown recovers a corrupt running payload as UNKNOWN and releases its worker slot', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-shutdown-corrupt-'));
+  let signalStarted;
+  const started = new Promise((resolve) => { signalStarted = resolve; });
+  const queue = new ScanJobQueue({
+    storeDir,
+    concurrency: 1,
+    runner: async (_input, { signal }) => {
+      signalStarted();
+      await new Promise((resolve, reject) => {
+        const abort = () => reject(signal.reason || new Error('aborted'));
+        if (signal.aborted) abort();
+        else signal.addEventListener('abort', abort, { once: true });
+      });
+      return complete();
+    },
+  });
+  try {
+    const submitted = await queue.submit({ workspace: jobWorkspacePath('foxy-shutdown-corrupt'), scope: 'full' });
+    await started;
+    const databasePath = path.join(storeDir, 'jobs.sqlite3');
+    queue.store.db.prepare('UPDATE jobs SET payload=? WHERE id=?').run('{corrupt-json', submitted.job_id);
+
+    await queue.close();
+
+    const verify = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      assert.equal(verify.prepare('SELECT COUNT(*) AS count FROM workers').get().count, 0,
+        'graceful shutdown must not strand a worker row after payload corruption');
+      const row = verify.prepare('SELECT status,owner_worker_id,payload FROM jobs WHERE id=?').get(submitted.job_id);
+      assert.equal(row.status, 'interrupted');
+      assert.equal(row.owner_worker_id, null);
+      const recovered = JSON.parse(row.payload);
+      assert.equal(recovered.status, 'interrupted');
+      assert.equal(recovered.result, null);
+      assert.match(recovered.error, /UNKNOWN/i);
+    } finally { verify.close(); }
+  } finally {
+    await queue.close();
+    await rm(storeDir, { recursive: true, force: true });
+  }
+});
 
 test('queue priority aging prevents older normal jobs being starved by newer urgent work', async () => {
   const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-priority-aging-'));
