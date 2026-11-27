@@ -99,12 +99,12 @@ export default function AgentShieldPage() {
               <div className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.15em] text-primary"><Terminal size={15} aria-hidden="true" /> Local developer setup</div>
               <h2 className="mt-4 text-3xl font-bold tracking-[-0.045em]">Installation is currently restricted to development testing.</h2>
               <p className="mt-4 text-sm leading-7 text-muted-foreground">
-                The unpublished prototype requires Node.js 20+, Git, macOS or Linux, and an authenticated Claude Code installation for the full experience. The local CLI does not require VibeSane API credentials.
+                The unpublished beta requires Node.js 24.15.0 or newer, Git, and an authenticated Claude Code installation for this hook-based workflow. The package runtime targets Windows, macOS and Linux; the current automated release matrix covers Windows and macOS, while live installed-host acceptance remains pending. The local CLI does not require VibeSane API credentials.
               </p>
               <p className="mt-4 text-sm leading-7 text-muted-foreground">
                 Authorized reviewers can build the scanner from the project source, run <code className="font-mono">doctor</code> on a disposable repository, and verify hook installation and removal using the technical guide. No public download or npm command is provided while release validation remains open.
               </p>
-              <a href="https://github.com/Darkhero766/Vibeguard/blob/feat/agentshield-week4-private-beta/artifacts/api-server/AGENTSHIELD_WEEK4.md"
+              <a href="https://github.com/Darkhero766/Vibeguard/blob/feat/agentshield-cross-platform-autoconnect/docs/AGENTSHIELD_CODING_AGENT_BETA_INSTALL.md"
                  target="_blank" rel="noopener noreferrer" className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline">
                 Read developer preview documentation <ArrowRight size={15} aria-hidden="true" />
               </a>
