@@ -49,7 +49,9 @@ Older repository notes refer to a separate “11 findings” evidence set, but t
 
 For each claim, find the exact current source lines, inspect adjacent error paths, construct at least one counterexample attempt, and decide whether the claimed invariant truly holds. Do not merely restate the tests.
 
-## Exact-source automated evidence — context, not certification
+## Historical beta.5 automated evidence — superseded, context only
+
+The counts and package manifest immediately below belong to the earlier beta.5 review snapshot. They are not the beta.6 evidence. Use the 479/479, 33-file package manifest and exact-source run in the current target block at the end of this brief.
 
 The Windows `win32 x64` and macOS `darwin arm64` artifacts for the exact SHA above each report:
 - 462/462 regression tests; zero failed/cancelled/skipped.
