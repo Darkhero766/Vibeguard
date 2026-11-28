@@ -167,3 +167,17 @@ Regression coverage was added/extended in `test-agentshield-baselines.mjs`, `tes
 **Qualification chronology:** run [#46108972740](https://github.com/Darkhero766/Vibeguard/actions/runs/46108972740) on the initial commit `089c2ac...` returned `not_qualified`: 451/454 regression tests passed and MCP STDIO integration smoke failed. Diagnosis showed that `BaselineStore.restore()` dropped the runtime fingerprint, the async changed-scan context did not carry it, and one queue test referenced a block-scoped job ID. Follow-up commits `e3edce0...` and `65cd27b...` fix these exact issues while retaining strict validation. The current exact-source Windows/macOS run [#46109329318](https://github.com/Darkhero766/Vibeguard/actions/runs/46109329318) on `65cd27b...` was still in progress when this packet update was prepared. Do not treat the current tests as passed until both jobs complete. The old passing run #46055587747 applies only to `a777754...`.
 
 **Independent reviewer tasks:** confirm that the six-file inventory covers every module that can change workspace authorization, scan orchestration, baseline interpretation or queue restoration; inspect package inclusion and fstat checks; reproduce both runtime-drift and missing-provenance behavior; inspect whether a partial package update can result in a mixed runtime; and confirm a stale baseline never becomes a clean or verifiable result.
+
+
+## 28 November 2026 — current candidate status override
+
+This section supersedes older candidate-SHA and in-progress-status notes earlier in this document.
+
+- **Current code candidate:** `8ff17de5c5f9ce788e3447ae47263c77136cc3db`.
+- **Exact-source Windows/macOS qualification:** [run #46109758971](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971) was queued after this source update. Do not claim it passed until both jobs and both qualification reports are successful.
+- **Current PR state:** PR #70 remains draft, open and unmerged. No production deployment or package publication was performed.
+- **Earlier source results:** `a777754...` passed the prior 453/453-per-platform run #46055587747. Runtime-provenance candidate `089c2ac...` failed its source-matched run #46108972740 due to missing provenance propagation and a test-scope issue; follow-up commits fixed those. Candidate `65cd27b...` passed macOS but failed Windows at 453/454 in run #46109329318 due to a concurrent SQLite WAL-initialization lock. These failures remain part of the qualification history.
+- **Latest fixes:** commit `24e08b1...` adds the installed bundled `agentshield-mcp-stdio.mjs` executable to the MCP runtime fingerprint. Commit `8ff17de...` adds bounded retries only for SQLite BUSY/LOCKED during WAL initialization, then restores the normal busy timeout. It still refuses any journal mode other than WAL.
+
+
+The current independent review scope also includes the Windows WAL startup retry and the installed bundled STDIO fingerprint. Reproduce the one-process-versus-two-process initialization race, verify no weaker SQLite mode is accepted, confirm timeout behavior is UNKNOWN/fail-closed, and verify that changing the bundled entrypoint invalidates persisted baseline provenance after restart. The review packet is a request for review, not a completed independent review.
