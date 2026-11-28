@@ -1,0 +1,58 @@
+Fix two bugs in the VibeGuard scanner (artifacts/api-server/src/lib/scanner.ts).
+Do not change the detection logic of any of the five checks — only add
+deduplication and a self-scan exclusion around them.
+
+BUG 1 — Duplicate findings at the same file/line:
+The scan results currently show the same finding multiple times for the
+same file, line, and message (confirmed by scanning our own repo, where
+scanner.ts line 225 showed up 3 times identically). After collecting all
+findings from every check, deduplicate them before returning the results.
+Add this after findings are collected in scanPublicRepository, right
+before the final sort:
+
+function deduplicateFindings(findings: Finding[]): Finding[] {
+  const seen = new Set<string>();
+  const deduped: Finding[] = [];
+
+  for (const finding of findings) {
+    const key = `${finding.filePath}:${finding.line}:${finding.check}:${finding.title}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(finding);
+    }
+  }
+
+  return deduped;
+}
+
+Apply it to the findings array before sorting and returning it.
+
+BUG 2 — Scanner flags its own source code as vulnerable when someone
+scans the VibeGuard repo itself:
+scanClientServiceRole searches file content for the string
+"service_role" — but scanner.ts itself necessarily contains that exact
+string as part of its own detection pattern, causing false positives
+against our own codebase. Add a self-exclusion so any file under the
+scanner's own detection-logic path is skipped entirely during the
+service-role and RLS checks (these checks legitimately need to mention
+"service_role" in their own source, unlike a real user's app).
+
+Add this constant near the top of scanner.ts, and reference it inside
+shouldRead:
+
+const SELF_EXCLUDED_PATHS = [
+  "artifacts/api-server/src/lib/scanner.ts",
+];
+
+function shouldRead(path: string): boolean {
+  return (
+    (SOURCE_EXTENSIONS.test(path) || /(^|\/)\.env(\.[\w-]+)?$/i.test(path)) &&
+    !path.split("/").some((part) => IGNORED_PATH_PARTS.has(part)) &&
+    !SELF_EXCLUDED_PATHS.includes(path)
+  );
+}
+
+After both fixes, re-run a scan against
+https://github.com/Darkhero766/Vibeguard itself and confirm scanner.ts
+no longer appears in the findings, and that no finding appears more than
+once for the same file/line/check combination.

@@ -1,0 +1,3 @@
+Webhook delivery test commit.
+
+This file was added to verify that GitHub push events reach VibeSane protection.

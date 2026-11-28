@@ -1,0 +1,2 @@
+VibeSane live webhook test.
+Created to verify that pushes to main reach the VibeSane GitHub App webhook.

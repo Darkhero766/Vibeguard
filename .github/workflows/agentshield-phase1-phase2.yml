@@ -1,0 +1,287 @@
+name: AgentShield Phase 1+2 — Security & Scanner Validation
+on:
+  push:
+    branches:
+      - feat/agentshield-phase1-phase2-security
+  pull_request:
+    branches:
+      - feat/agentshield-week5-launch-readiness
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  full-regression:
+    name: Release builds, original suites and new phase tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Install exact locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build shared types
+        run: pnpm run typecheck:libs
+      - name: Frontend build
+        run: pnpm --filter @workspace/vibeguard run build
+      - name: Staging static checkout and direct-link route contracts
+        env:
+          VITE_DEPLOYMENT_ENV: staging
+        run: |
+          node artifacts/vibeguard/scripts/staging-postbuild.mjs
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import {readFileSync} from "node:fs";
+            for (const route of ["checkout","pricing","auth","scan-public","dashboard","audit/report"]) {
+              const page=readFileSync("artifacts/vibeguard/dist/public/"+route+"/index.html","utf8");
+              assert.match(page,/name="robots" content="noindex, nofollow, noarchive"/);
+              assert.match(page,/<div id="root"/);
+            }
+          '
+      - name: Frontend strict typecheck
+        run: pnpm --filter @workspace/vibeguard run typecheck
+      - name: Backend build
+        run: pnpm --filter @workspace/api-server run build
+      - name: Backend strict typecheck
+        run: pnpm --filter @workspace/api-server run typecheck
+      - name: Build standalone security scanner
+        run: pnpm --filter @workspace/api-server run build:agentshield
+      - name: VibeSane PR findings diagnostic (fails on new Critical/High)
+        run: node artifacts/api-server/scripts/diagnose-vibesane-pr.mjs
+      - name: VibeSane GitHub check metadata and privacy tests
+        run: pnpm --filter @workspace/api-server run test:vibesane:check-output
+      - name: Week 1 tests
+        run: pnpm --filter @workspace/api-server run test:agentshield
+      - name: Week 2 tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week2
+      - name: Week 3 tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week3
+      - name: Week 4 packaging and regression tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week4
+      - name: Week 5 web integration tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:week5
+      - name: Local AI safety tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:hybrid
+      - name: AST tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:ast
+      - name: Taint tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:taint
+      - name: Existing release security contracts
+        run: pnpm --filter @workspace/api-server run test:agentshield:release
+      - name: Phase 1+2 security and evaluation tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:phase12
+      - name: Real-world benchmark schema and scorer regression (offline; no external source execution)
+        run: |
+          node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --validate artifacts/api-server/benchmarks/real-world/pilot-manifest.v1.json
+          node --test artifacts/api-server/scripts/test-vibesane-benchmark-evidence.mjs
+          node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --validate artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json
+          node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --validate artifacts/api-server/benchmarks/real-world/phase2-app-holdout-22.v1.json
+          node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs --manifest artifacts/api-server/benchmarks/real-world/phase2-app-holdout-22.v1.json --output-dir /tmp/vibesane-app-holdout-dry-run --all --engine api_core_plus_extended_v2 --dry-run > /dev/null
+          node --test artifacts/api-server/scripts/test-vibesane-realworld-runner.mjs
+          node --test artifacts/api-server/scripts/test-vibesane-independent-review-gate.mjs
+          node --test artifacts/api-server/scripts/test-vibesane-independent-review-packet.mjs
+          node --test artifacts/api-server/scripts/test-vibesane-solo-founder-gate.mjs
+          node --test artifacts/api-server/scripts/test-vibesane-solo-review-prep.mjs
+          node --test artifacts/api-server/scripts/test-vibesane-solo-fixtures.mjs
+          node --test artifacts/api-server/scripts/test-phase2-critical-context.mjs
+          node --test artifacts/api-server/scripts/test-phase2-external-missed-class-regressions.mjs
+          node --test artifacts/api-server/scripts/test-vibesane-realvuln8.mjs
+          node artifacts/api-server/scripts/benchmark-vibesane-solo-fixtures.mjs
+          node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json --output-dir /tmp/vibesane-benchmark-dry-run --all --dry-run > /dev/null
+          node artifacts/api-server/scripts/vibesane-benchmark-evidence.mjs --score artifacts/api-server/benchmarks/real-world/pilot-manifest.v1.json artifacts/api-server/benchmarks/real-world/scans.empty.v1.json artifacts/api-server/benchmarks/real-world/reviews.empty.v1.json > /dev/null
+      - name: First-pass Phase 2 cross-file and Next.js accuracy metrics
+        run: pnpm --filter @workspace/api-server run benchmark:agentshield:phase2
+      - name: New adversarial synthetic holdout (untuned, informational)
+        run: node artifacts/api-server/scripts/benchmark-agentshield-phase2-fresh-holdout.mjs
+      - name: Pinned external NodeGoat source smoke (read-only, informational)
+        run: node artifacts/api-server/scripts/benchmark-agentshield-public-repo-smoke.mjs
+
+      - name: Bounded Phase 2 AST throughput (synthetic, informational)
+        run: pnpm --filter @workspace/api-server run benchmark:agentshield:phase2:performance
+      - name: Hosted staging HTTP readiness + isolation smoke (public surface, no secrets)
+        run: node artifacts/api-server/scripts/test-hosted-staging-smoke.mjs
+      - name: Existing SUE regression
+        run: pnpm --filter @workspace/api-server run test:sue
+      - name: Synthetic taint benchmark (tuned, not holdout)
+        run: pnpm --filter @workspace/api-server run benchmark:agentshield:taint
+      - name: Experimental AST benchmark (synthetic)
+        run: pnpm --filter @workspace/api-server run benchmark:agentshield:ast
+
+  usage-privilege-proof:
+    name: Rehearse usage entitlement lockdown in isolated PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: agentshield_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d agentshield_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test proposed billing entitlement grants using only synthetic data
+        env:
+          PGPASSWORD: disposable_ci_only
+        run: |
+          psql -h 127.0.0.1 -U postgres -d agentshield_test \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/review-only/test-usage-entitlement-lockdown.sql.fixture
+
+  token-privilege-proof:
+    name: Rehearse token and audit lockdown in isolated PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: token_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d token_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify proposed token and audit grants against simulated user roles
+        env:
+          PGPASSWORD: disposable_ci_only
+        run: |
+          psql -h 127.0.0.1 -U postgres -d token_test \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/review-only/test-token-audit-lockdown.sql.fixture
+
+  public-source-collection:
+    name: Opt-in 30 pinned public-source metadata collection (unreviewed)
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[collect-30-public]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      CI: "true"
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Install exact locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Read ONLY pinned PUBLIC GitHub source and collect scanner metadata
+        run: |
+          node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs \
+            --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json \
+            --output-dir /tmp/vibesane-phase2-public-source-evidence --all --engine api_core_plus_extended_v2
+      - name: Generate separate blinded and candidate review packets (metadata only)
+        run: |
+          mkdir -p /tmp/vibesane-phase2-review-packets
+          node artifacts/api-server/scripts/prepare-vibesane-independent-review-packet.mjs \
+            --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json \
+            --scan-dir /tmp/vibesane-phase2-public-source-evidence --mode blind \
+            --output /tmp/vibesane-phase2-review-packets/blind-source-scope.json
+          node artifacts/api-server/scripts/prepare-vibesane-independent-review-packet.mjs \
+            --manifest artifacts/api-server/benchmarks/real-world/phase2-30-manifest.v1.json \
+            --scan-dir /tmp/vibesane-phase2-public-source-evidence --mode adjudication \
+            --output /tmp/vibesane-phase2-review-packets/adjudication-candidates.json
+      - name: Upload blind source-review packet only
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-30-blind-source-scope
+          path: /tmp/vibesane-phase2-review-packets/blind-source-scope.json
+          retention-days: 14
+      - name: Upload separately held scanner-adjudication packet
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-30-adjudication-after-blind
+          path: /tmp/vibesane-phase2-review-packets/adjudication-candidates.json
+          retention-days: 14
+      - name: Upload only source-free unreviewed scan metadata (even when partial)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-30-public-source-metadata
+          path: /tmp/vibesane-phase2-public-source-evidence/*.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  app-holdout-source-collection:
+    name: Collect 22 frozen app-source subsets (unreviewed; read-only)
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[collect-app-holdout-22]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      CI: "true"
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Install exact locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Read ONLY pinned PUBLIC app sources, no fetched code execution
+        run: |
+          node artifacts/api-server/scripts/run-vibesane-realworld-benchmark.mjs \
+            --manifest artifacts/api-server/benchmarks/real-world/phase2-app-holdout-22.v1.json \
+            --output-dir /tmp/vibesane-app-holdout-evidence --all --engine api_core_plus_extended_v2
+      - name: Upload only source-free metadata (even if incomplete)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-app-holdout-22-source-metadata
+          path: /tmp/vibesane-app-holdout-evidence/*.json
+          if-no-files-found: warn
+          retention-days: 7

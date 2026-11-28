@@ -1,0 +1,349 @@
+2026-10-27 — SUE production verification gate (live results; incomplete checks are NOT passes)
+- GitHub main baseline before this documentation entry: 36c4622ba2129bea32d8ed113c996a8a167f80e0 (PR #52).
+- Render workspace explicitly confirmed by user: My Workspace (tea-cu9p2kpu0jms73fi9stg).
+- PASS — Render API Vibeguard-api, deploy dep-db76l5cs728c739n2l4g: live, commit 36c4622ba2129bea32d8ed113c996a8a167f80e0, finished 2026-10-13T17:30:51Z; matched baseline main.
+- PASS — Render frontend Vibeguard, deploy dep-db76l5cs728c739n2ld0: live, commit 36c4622ba2129bea32d8ed113c996a8a167f80e0, finished 2026-10-13T17:30:26Z; matched baseline main.
+- NOT VERIFIED — Vercel frontend deployed commit: no Vercel deployment inspection integration available in this execution. Render static site is confirmed, but vibesane.app hosting origin has not been independently established.
+- FAIL (execution/verification, NOT asserted product defect) — Live vibesane.app desktop/mobile SUE scan and viewport overlap/headline check: no successful production audit response or rendered viewport captured. Public web fetch of https://vibesane.app/audit returned 'Internal Error / URL not accessible via this tool'; container HTTPS failed DNS resolution for vibesane.app. No PASS claim.
+- FAIL (execution/verification, NOT asserted product defect) — Live Wikipedia article classification: no successful live /api/audit response; cannot establish zero commercial/pricing findings.
+- FAIL (execution/verification, NOT asserted product defect) — Live privacy-without-terms route isolation: no successful live /api/audit response; cannot establish expected Terms status.
+- FAIL (execution/verification, NOT asserted product defect) — Live no-accessibility-statement T03: no successful live /api/audit response; cannot establish REVIEW vs MISSING.
+- API reachability evidence: public web fetch of https://vibeguard-api-zs2y.onrender.com/api/audit returned 'Internal Error / URL not accessible via this tool'; container HTTPS failed DNS resolution for vibeguard-api-zs2y.onrender.com. These are tool/network failures, not endpoint HTTP status codes.
+- GATE NOT SATISFIED: four live checks have no observed PASS; no audit verification timestamp/confidence label or new SUE feature work authorized. A future operator must run real production POST /api/audit with representative URLs and capture responses plus desktop/mobile screenshots, then record each observed result before any polish.
+- Documentation-only change to plan.txt will advance main and may initiate automatic Render deploys; re-check deployment commit against updated main before claiming it current again.
+
+2026-10-13 — SUE mobile layout fix
+- On mobile, make the global header non-sticky so it cannot overlay the SUE hero while the user scrolls; retain sticky navigation from the small-screen breakpoint upward.
+- Scale the SUE audit headline fluidly for narrow screens while preserving the existing desktop size.
+- Focused branch: fix/mobile-sue-audit-layout. Verify build and `/audit` at mobile widths before merge/deploy.
+
+2026-10-12 — SUE policy crawl regression guard and cross-site benchmark
+- Added post-write verification to generate-seo-pages.mjs: generated route HTML is read back from disk and the expected route-specific title/static policy body must exist or the build fails.
+- Added VibeSane production as a labelled target in benchmark-sue-vibecoded.mjs for /terms and /privacy, alongside the existing public vibecoded products and four control sites.
+- Benchmark output now flags a generic VibeSane app-shell response separately from an actual verified legal document. This is intended to make the reported 47-character response a reproducible observable failure rather than infer success from build logs.
+- Important: the build artifact assertion is not proof of production route serving. Run the cross-site benchmark against live sites after deployment and confirm VibeSane's known policy pages are fetched and verified before claiming the issue fixed.
+
+2026-10-12 — SUE self-audit crawlability and trust-page fixes
+- Live report showed five REVIEW and three MISSING findings despite visible Terms/Privacy links. Source inspection found the actual root cause: Vite's static SEO generator emitted an empty #root for /terms and only changed metadata; SUE's public crawler does not execute client JavaScript, so it could not verify legal page body text.
+- Added static crawlable content snapshots for /terms, /privacy, /contact, /security-disclosure, and /accessibility; added app routes for Contact, Security Disclosure, and Accessibility, linked them from the footer, and added them to the sitemap.
+- Updated the Privacy Policy to accurately disclose saved SUE audit report data (public URL, timestamp, score, check statuses, product-context signals, and short public-page evidence excerpts). Repository scan results and SUE audit reports have different storage behavior.
+- Improved SUE Terms & Conditions detection and added a conservative governing-law evidence quality gate. A mention of governing law is not enough to pass when no actual jurisdiction is named.
+- Added regression coverage for Terms & Conditions with ampersand, privacy rights, legal-page reachability, and jurisdiction specificity.
+- L10 Business Identity remains unresolved pending the actual legal operator name/entity. Do not invent legal identity. L12 remains REVIEW until the real jurisdiction-specific clause is reviewed and added.
+- Branch/PR: fix/sue-self-audit-legal-rendering-v2 / PR #49. SUE Live Benchmark run #148 passed API/frontend build checks, typechecks, SUE regression, accuracy, real-world vibecoded policy, and five-site live core benchmarks. Production deployment and fresh VibeSane scan remain pending; do not claim fixed until verified.
+
+VIBESANE / VIBEGUARD — PROJECT PLAN & CHANGE LOG
+================================================
+Purpose
+-------
+Single source of truth for major project actions, decisions, repository changes, deployments, environment changes, bugs, fixes, and next steps. This file MUST be updated after every major offline or online action and every meaningful commit. Before major work, read this file first.
+
+PROJECT BASELINE
+----------------
+- Product: VibeSane / VibeGuard developer-security platform.
+- Core workflow: GitHub repository connection, security scanning, findings, security health, repository protection, and Pro functionality.
+- Hosting context: frontend on Vercel; backend/API on Render.
+- GitHub integration is active and supports repository access/workflows.
+- Pro supports multiple protected repositories; current target is up to 5 repositories.
+- Payment provider: Dodo Payments.
+
+CHANGE LOG
+----------
+2026-09-09 — Multi-repository Review & Fix CTA
+- Problem: Review & Fix Findings CTA could disappear when the selected protected repository had persisted finding counts but was not the current lastScan record.
+- Root cause: CTA rendering was gated on selectedScan instead of the selected repository's available finding counts.
+- Action: Updated artifacts/vibeguard/src/components/SecurityDashboard.tsx so the Review & Fix Findings CTA is driven by total findings and remains usable for a selected protected repository even when detailed scan data is not the current lastScan.
+- Also added safer fallback behavior for opening the latest available security report.
+- Repository: Darkhero766/Vibeguard.
+- Important follow-up: FindingDetail currently needs the remembered/desired “Get Prompt” workflow restored if that UI is still expected.
+
+2026-09-09 — Dodo Payments production activation
+- Existing Dodo Payments integration was inspected before changing configuration.
+- Backend expects these environment variables: DODO_PAYMENTS_API_KEY, DODO_PAYMENTS_ENVIRONMENT, DODO_PRO_PRODUCT_ID, DODO_WEBHOOK_SECRET.
+- Backend mode logic is exact/case-sensitive: test_mode uses the test API; every other value uses the live API.
+- Production mode value must therefore be exactly live_mode.
+- DODO_PRO_PRODUCT_ID must contain the live Dodo Pro product ID (pdt_...).
+- DODO_PAYMENTS_API_KEY must contain the LIVE API key, not a product ID.
+- User updated Render environment variables to activate live mode.
+- Do NOT record or expose secret API key/webhook-secret values in this file.
+
+2026-09-09 — Dodo live checkout authentication failure
+- First real production checkout attempt reached the backend successfully but Dodo returned HTTP 401 during checkout creation.
+- Root cause class: Dodo rejected the backend's payment API credentials for the selected live environment.
+- Action: Verify LIVE DODO_PAYMENTS_API_KEY, exact live_mode, matching live product ID, and redeploy.
+- No secret values recorded here.
+
+2026-09-09 — SEO / Google indexing investigation
+- Google Search Console reported “Page with redirect” for pages on the VibeSane site.
+- Existing SEO setup was reviewed: robots.txt, sitemap.xml, homepage canonical, and index/follow directives were already present.
+- Conclusion: “Page with redirect” means the redirecting URL itself is excluded; it does not by itself mean the VibeSane homepage is blocked from indexing.
+- Main remaining concern: brand indexing/ranking and whether old VibeSane URLs/results are outranking the current site.
+
+2026-09-06 — Public-domain / network issue
+- Public-domain page was reported as not opening on both iPad and another device on the same Wi-Fi.
+- Likely network/DNS/router-level issue rather than device-specific; keep as separate infrastructure investigation unless revisited.
+
+2026-09-09 — Dodo live-mode $0 test product created
+- User created an additional Dodo product for a controlled live-mode checkout test without charging.
+- Live test product ID: pdt_0NnCwrdKUXghcYu8rP3SN.
+- Result: $0 live checkout succeeded. Live Dodo authentication, checkout-session creation, and hosted checkout flow are confirmed working.
+- Next: restore the paid live Pro product ID in Render before production sales.
+
+2026-09-09 — Purchased Pro pricing state
+- Product decision: users who already have an active Pro entitlement should not be shown the normal Pro purchase CTA as if they need to buy Pro again.
+- Action: Updated artifacts/vibeguard/src/pages/PricingPage.tsx to read authoritative Pro state from AuthContext usage.plan.
+- Code commit: ba74bb1c3630ef6476fddf4ae2735ee65082be82.
+- Deployment status: code committed; Vercel verification pending.
+
+2026-09-09 — Pro commit/PR live security alert UX
+- Pro users should receive an immediate in-app alert when a protected repository's new commit or pull request introduces security findings.
+- Existing backend already handles GitHub push/pull_request events, delta scans, GitHub Check Runs, and protection events.
+- Updated artifacts/vibeguard/src/components/ProtectionActivity.tsx with new-event detection and VibeSane Security Alert UI containing repository, SHA, findings, severity counts, and Review & Fix Findings action.
+- Code commit: 1c82fb208443030566957041ce44ceadabc870ed.
+- Deployment status: production verification pending.
+
+2026-09-10 — Referral/Affiliate program intentionally paused
+- Existing referral/affiliate UI is preserved: artifacts/vibeguard/src/components/AffiliateWelcomePopup.tsx and artifacts/vibeguard/src/pages/AffiliatePage.tsx remain in the repository.
+- Added a local REFERRALS_ENABLED feature flag set to false so the new-account referral popup is not displayed and referral logic does not run.
+- Referral page/assets remain preserved. Full referral tracking/reward activation is deferred until approximately the first 100 customers.
+- Code commit: ac399c2784f3d174d5f46afb34c93ecc94e6cdc7.
+- Deployment status: frontend verification pending.
+
+2026-09-10 — Pro split scan quota: protected repositories + public URL scans
+- Pro has 10 total monthly manual scan credits, split into two independent buckets: 5 protected-repository setup scans and 5 public-repository URL scans.
+- Protected setup scans are consumed only by creating a new protected repository; updating/reprotecting an existing protected repository does not consume another setup credit.
+- Public URL scans consume only the public bucket and remain available after all 5 protected-repository slots are used.
+- Both buckets reset together on the monthly reset cycle; aggregate scans_used/scans_limit remain compatible with existing UI.
+- Backend split quota logic exists in artifacts/api-server/src/lib/plan.ts with consumeProtectedScan/consumePublicScan and separate counters.
+- Code commits: 35d804392b8fd7ee974acbdd756bc71a1a59a2ed, 6ef3df61e2831ba0669992db6cf077f2eca1e3ad, 1458b50c0f3ff705fd8c72b04e284e833f408037.
+- Deployment status: backend deployment/end-to-end verification pending.
+
+2026-09-10 — Dedicated public repository scan UX
+- Bug confirmed: the Protect Repository panel still exposed a “Paste URL” tab that submitted the URL to /api/protection. Once 5 protected repositories existed, this incorrectly showed “Repository limit reached (5)” even though the user still had 5 separate public URL scan credits.
+- Product decision: public URL scanning must be a separate workflow from repository protection.
+- Added artifacts/vibeguard/src/pages/PublicScanPage.tsx at /scan-public. It accepts a public GitHub URL, calls the standalone /api/scans endpoint, shows a dedicated loading/scan state with the repository URL and progress details, then shows the temporary result with file/finding/severity details.
+- Public scan results are intentionally ephemeral: no localStorage report persistence, no protected_repository record, no GitHub event protection, and no permanent repository history. The only persisted effect is the required server-side public scan quota consumption.
+- The result page explicitly states that the scan is temporary and not saved to repository history. User can scan another public repo after a completed result.
+- Updated artifacts/vibeguard/src/App.tsx to route /scan-public to PublicScanPage.
+- Updated artifacts/vibeguard/src/components/ProtectRepositoryPanel.tsx to remove the Paste URL protection path. The protection modal now uses My repos for protection and provides a dedicated “Scan public repository” link to /scan-public.
+- This guarantees that having 5 protected repositories does not block the separate public scan allowance.
+- Code commits: 59bcbe09b38c9e76aa90d12465be6e37d3015e55 (new page), 9ebd440889331dc04990f4d5c317953e5dd77250 (route), 9a7749404c531468bea2d028158c1596f732afae (protection panel).
+- Deployment status: Vercel deployment and live end-to-end UI/quota verification pending.
+
+2026-09-10 — Restore Paste URL / My repos tab UX and launch public scan page
+- User feedback: the two-tab scan UI (Paste URL / My repos) must remain in the main security-center flow. The Paste URL tab is the public one-time scan entry point; My repos remains the protected-repository flow.
+- Action: preserved the existing ScanForm tab UI in artifacts/vibeguard/src/AppOriginal.tsx and added a flow bridge in artifacts/vibeguard/src/App.tsx so submitting a valid Paste URL navigates to /scan-public instead of consuming the protected-repository path.
+- The /scan-public page now auto-starts the pasted URL scan after navigation, giving the requested dedicated page/loading animation and repository details before the temporary result.
+- The public scan allowance display now falls back to 5 for Pro when the usage payload does not yet expose public_scans_limit, preventing the incorrect “0 of 0 public scans” display while preserving server-side enforcement.
+- Protected repository protection remains separate; the My repos tab continues to be the protected workflow.
+- Code commits: 004758570a555b401a6ed5a3bf30d8ad04adf2b5 (tab-to-public-scan flow bridge), eeae48750d9cba19b87b8d84dd5f4cb17da34ff3 (public quota display fallback).
+- Deployment status: Vercel deployment and mobile verification pending.
+
+2026-09-10 — Restore two-tab UX in Protect Repository panel
+- User reported that the deployed/mobile Protect Repository panel still showed the newer “Different job, different quota” public-scan card instead of the original two-tab interface.
+- Root cause: artifacts/vibeguard/src/components/ProtectRepositoryPanel.tsx had been changed to a single My repos flow with a separate public-scan card, which did not preserve the requested Paste URL / My repos tab presentation.
+- Action: restored the two-tab UI directly in ProtectRepositoryPanel.tsx: “Paste URL” and “My repos”. Paste URL accepts a public GitHub URL and navigates to /scan-public with the URL; My repos remains the protected-repository picker and /api/protection flow.
+- Public URL scanning remains separate from protection and does not create/save a protected repository. The dedicated /scan-public page remains responsible for the scanning animation and temporary results.
+- Code commit: 37bd5f74110faeee82c33d03dfb27a5b1a24497f.
+- Deployment status: Vercel deployment and mobile verification pending.
+
+2026-09-10 — Public scan repeat-scan 404 + stale quota counter fix
+- User reproduced two production issues: after repeated public scans the /scan-public flow could fall into the app's 404/not-found route until refresh, and the “public scans remaining” counter did not decrease immediately after a successful scan.
+- Root cause for the counter: /api/scans correctly consumes the server-side public bucket only after a successful scan, but PublicScanPage did not refresh AuthContext usage afterward. The frontend therefore displayed the stale pre-scan usage row.
+- Root cause/risk for repeat-scan navigation: App.tsx used a second effect in PublicScanFlowBridge to simulate a click on the dedicated scan page's form after navigation. That introduced timing/routing races on repeated navigation. The scan page now owns query-driven auto-start after the authenticated session is ready, and the bridge only performs the main Paste URL -> /scan-public navigation.
+- Action: extended UsageRow with protected/public quota fields; PublicScanPage now refreshes authoritative usage immediately after successful scans; query URL scanning now passes the query URL directly to runScan; removed the simulated form-click effect from App.tsx; “Scan another public repo” also clears the query URL before another scan.
+- Code commits: 7316aa7884ef25bed985423628a9dac141807041 (UsageRow quota fields), 08bf7df53879fd91d72435eb573d2da5aaa5b83b (quota refresh/repeat-flow hardening), 213785b4c0ee41d8b48bb305c49095122aa39b28 (query URL passed directly to scan), 8b3bd203fdf49250090c1fa8fdf7ae07c545b63e (remove route-bridge auto-click race).
+- Deployment status: code committed; Vercel/Render deployment and live mobile verification required before marking production fixed.
+
+2026-09-10 — Repeat-scan route hardening + quota reset bug fix
+- User reproduced that /scan-public could still show the Wouter 404 screen after repeated scans, and the Pro aggregate “scans remaining” stayed at 10 after a successful public scan.
+- Additional root cause found: the production entrypoint could still reach the legacy AppOriginal Wouter router for /scan-public, whose route list does not include /scan-public. The entrypoint now hard-renders PublicScanPage for /scan-public before App/AppOriginal routing can run.
+- PublicScanPage now removes the ?repo= query immediately after capturing it, preventing refresh from accidentally triggering another scan, while still auto-starting the captured repository after authentication is ready.
+- Critical quota bug found in AuthContext: a temporary TEST_USAGE_RESET_MARKER was resetting scans_used back to zero whenever refreshUsage ran after a scan. That test-only reset defeated the real split-quota counters. The reset logic was removed; refreshUsage now reads the authoritative usage row without mutating scan counts.
+- PublicScanPage continues to refresh usage after every successful public scan, so the visible public and aggregate counters now update immediately.
+- Code commits: f8f2735e066434865f12bf9919118ee747be0745 (entrypoint route fallback), 435bc1d5b12b1a085ddf25f4adcd5d4a59c6e479 (repeat-scan/query hardening), 8b37f8657e44b31ce907b75cd14500a482a6b27a (remove test quota reset).
+- Deployment status: code committed; Vercel/Render deployment and live mobile verification required before marking production fixed.
+
+2026-09-14 — Professional Settings / Account Control Center
+- Product decision: add a dedicated /settings page appropriate for a production SaaS/security startup while preserving the existing VibeSane visual language.
+- Added artifacts/vibeguard/src/pages/SettingsPage.tsx with responsive sections for Account, Plan & Billing, Security, Notifications, Scan & Repository Data, Appearance, and a Danger Zone.
+- UI uses existing VibeSane typography/theme tokens plus block shadows, security-console grid, status lights, layered circular/radar-style decoration, and 3D offset cards. It is designed for mobile and desktop.
+- Settings exposes the existing authenticated identity, Pro/Admin state, scan allowance, GitHub connection state, logout, notification preferences, theme selection, public-scan data behavior, and billing/dashboard links without inventing unsupported backend operations.
+- Account deletion is intentionally gated as a verified deletion-flow placeholder rather than pretending a client-side button can safely delete a Supabase account. Server-side deletion should be implemented only after the exact data-retention/cascade policy is defined.
+- Added /settings routing in artifacts/vibeguard/src/App.tsx.
+- Added Settings entry to the authenticated desktop account dropdown and mobile navigation in artifacts/vibeguard/src/components/Nav.tsx.
+- Code commits: 0e511caf94750986a3fada61f59a758832e0f08c (SettingsPage), 8deb34a8346abf7cb4026d2c6af23a7188a4defd (route), d38d7da5b4226b91363168442f5f05f1556b96fb (navigation).
+- Deployment status: code committed; Vercel build/mobile verification pending.
+- Important safety rule: do not claim Supabase account deletion/export is functional until corresponding server-side operations and database cascade behavior are implemented and tested.
+
+2026-09-14 — Settings direct-route 404 + visual contrast fix
+- User reported that opening https://vibesane.app/settings directly returned the static host's 404 page even though App.tsx already contained the /settings client route.
+- Root cause: the static deployment served the SPA entrypoint for client-side navigation but did not generate a physical /settings/index.html route for direct browser requests. The client router therefore never received the request on a cold/direct load.
+- Action: updated artifacts/vibeguard/scripts/generate-seo-pages.mjs to generate /settings/index.html from the Vite SPA template during every production build, with Settings-specific title, description, canonical and structured-data metadata. This makes direct /settings loads work on the existing static hosting setup without changing the router architecture.
+- Action: redesigned artifacts/vibeguard/src/pages/SettingsPage.tsx for stronger contrast and a more premium VibeSane security-console appearance. Replaced low-contrast muted text with explicit foreground opacity, strengthened section headers, borders, status chips, 3D offset shadows, account perimeter card, and responsive spacing while preserving the existing functional controls.
+- Action: updated artifacts/vibeguard/src/components/Nav.tsx so authenticated desktop users see Settings directly beside Pricing instead of needing to open the account dropdown. Existing dropdown/mobile Settings access remains intact.
+- Code commits from this action: 6b0bdd7c24a6ad2f22d5c2455f9f8bcd87029cc3 (Settings UI), cd885cf6e0fff18bfb4d71d279e0788d9c14b4f1 (desktop Settings nav), 289a4e4fca74547d2c025abb25521c2b06ea2faa (direct static route generation).
+- Deployment status: commits are on main; Render/Vercel must complete the next production build before live /settings verification. No Supabase data or account records were changed by this UI fix.
+
+2026-09-14 — Launch checkout price + mandatory Terms acceptance
+- Product decision: VibeSane Pro is displayed as US$12.00/month across the public Pricing and Checkout UI.
+- Updated artifacts/vibeguard/src/pages/PricingPage.tsx to display $12.00/month for the Pro purchase card.
+- Updated artifacts/vibeguard/src/pages/CheckoutPage.tsx so the plan price, line item, total, and Buy Now CTA all display $12.00.
+- Added a mandatory Terms & Conditions checkbox immediately before Buy Now. The customer must actively accept the Terms & Conditions before the checkout request can start; the Terms link opens /terms in a new tab.
+- Updated artifacts/vibeguard/src/pages/TermsPage.tsx with a production-oriented Terms & Conditions document covering authorization, automated-analysis limitations, third-party dependencies, accounts, billing, cancellation/refunds, privacy, intellectual property, prohibited use, disclaimers, limitation of liability, indemnification, termination, mandatory statutory rights, and changes to terms.
+- Updated artifacts/vibeguard/src/App.tsx to route /terms directly to TermsPage so the agreement is reachable as a standalone page and from checkout.
+- Code commits: df8e88d11ed777490b25d685cedd02d1afe76584 (Checkout), 286d08e659666d9bbcd387c289a215b01c9017e9 (Pricing), ae965a293071d2c21da881a0ba95262e69668bbc (Terms), db3a937fadf50aaa91d1007f1f4ed7e156db95d7 (Terms route).
+- Important payment note: the displayed $12.00 is a frontend price label. The actual amount charged is controlled by the Dodo product referenced by DODO_PRO_PRODUCT_ID. Before launch, verify that the LIVE Dodo Pro product itself is priced at US$12.00; code changes cannot change the provider-side product price.
+- Legal note: the Terms are risk-reduction language, not a guarantee against lawsuits or liability. A qualified lawyer should review the final Terms, refund policy, privacy policy, company/entity details, and governing-law/dispute provisions before relying on them in production.
+- Deployment status: code committed to main; production build and live checkout verification required.
+
+2026-09-14 — Direct /terms static route hardening
+- Because the production frontend uses generated static route entrypoints, /terms must be generated physically just like /settings for cold/direct browser loads.
+- Updated artifacts/vibeguard/scripts/generate-seo-pages.mjs to generate /terms/index.html with Terms-specific title, description, canonical URL, Open Graph/Twitter metadata, and WebPage structured data.
+- Code commit: 539f3e55302e084552ce0db60fdf616aae06e071.
+- Deployment status: code committed; production build required before verifying direct /terms from a new browser tab.
+
+2026-09-14 — Explicit checkout Terms acceptance payload
+- Updated artifacts/vibeguard/src/pages/CheckoutPage.tsx to send terms_accepted=true and the Terms version 2026-09-14 with every checkout request after the mandatory checkbox is selected.
+- This complements the disabled-until-accepted UI gate and gives the API a clear signal that the customer explicitly accepted the displayed Terms version.
+- Backend enforcement/storage of this field is not yet implemented; do not represent this client payload alone as durable legal evidence.
+- Code commit: db16bd3a1203d4a989ba375e155e65bc3dcbd49c.
+- Deployment status: production build and live checkout verification required.
+
+2026-09-14 — No-refund-by-default launch policy
+- Updated artifacts/vibeguard/src/pages/TermsPage.tsx section 8 to make the commercial policy explicit: subscriptions are non-refundable by default; cancellation stops future renewals but does not automatically reverse the current billing period.
+- The policy preserves mandatory consumer/statutory rights and any refund that VibeSane expressly agrees to provide.
+- Code commit: ffd8772b25d6c7cdd0d2c2d872427f1fcbba12b9.
+- Deployment status: production build and direct /terms verification required.
+- Legal note: this is a no-refund-by-default policy, not a guarantee against claims or chargebacks; local counsel should review it before launch.
+
+2026-09-14 — Pre-launch PR/push security-alert audit
+- Audited artifacts/api-server/src/routes/githubWebhook.ts: protected push events and pull_request events (opened, reopened, synchronize) create GitHub Check Runs, run delta security scans, complete the check with success/neutral/failure, and record a protection event.
+- Audited artifacts/vibeguard/src/components/ProtectionActivity.tsx: it polls protection events, detects a newly received event, and opens an in-app VibeSane Security Alert when the new event contains findings. The alert shows repository, SHA, finding count, severity counts, and a Review & Fix Findings action; critical/high findings are explicitly flagged before merge.
+- Important limitation: this audit confirms the implementation path exists, but a live end-to-end GitHub push and pull-request test has NOT yet been performed after the latest deployment. Do not mark this feature production-verified until a real protected-repository push and PR synchronization are tested and the popup, Check Run, event record, and Review & Fix flow are observed.
+- Deployment status: implementation present; live PR/push verification pending.
+
+2026-09-14 — Settings navigation and UI hardening
+- User reproduced that clicking Settings could show the application's 404 screen until a manual refresh. Root cause: the top-level App component read window.location.pathname only once, so Wouter client-side navigation changed the URL without causing the custom route switch in App.tsx to re-evaluate.
+- Action: updated artifacts/vibeguard/src/App.tsx to subscribe to Wouter navigation with useLocation(). This makes /settings, /terms, /checkout and /scan-public route switches react immediately to in-app navigation instead of requiring a refresh.
+- Action: replaced the low-contrast SettingsPage styling with an explicit warm-cream/charcoal VibeSane palette, high-contrast text, stronger borders, restrained red/yellow security accents, 3D offset shadows, grid/radar decoration, and responsive mobile/desktop cards. Functional settings controls were preserved; no Supabase account/data mutation was added.
+- Code commits: fefd491a943669b461e446e06c1ca86267877a8b (App navigation fix), 4c653897d63107b5cc1a0cb258736ca9cd0d213c (Settings UI hardening).
+- Deployment status: code committed to main; production build and live /settings click + refresh verification required.
+
+2026-10-08 — SUE applicability architecture cleanup
+- Audited the 50-check SUE applicability pipeline and removed redundant imperative overrides from artifacts/api-server/src/lib/sue-checks.ts.
+- Corrected the declarative rules for L05 Cancellation Policy (subscription/auto-renewal only) and P08 DPA information (SaaS/developer-tool product types only), eliminating the need for imperative compensation logic.
+- L01 Terms of Service remains the sole intentional imperative applicability exception because its composite legal/product relevance is not represented by the simple Rule type.
+- Added regression assertions for ecommerce P08 N/A and SaaS P08 applicability in artifacts/api-server/scripts/test-sue-applicability.mjs.
+- Updated .github/workflows/sue-live-benchmark.yml so the 50-check applicability regression suite runs before the existing SUE benchmarks on pull requests.
+- Supabase production schema was inspected: public.usage already contains audit_scans_used with RLS enabled, so no database migration was required for this cleanup. Security advisors reported existing unrelated RLS-without-policy tables and disabled leaked-password protection; no unrelated schema/auth changes were made as part of SUE applicability cleanup.
+- Branch: sue/applicability-cleanup. Production main was not directly modified.
+
+2026-10-08 — SUE end-to-end verification + durable audit history
+- Verified the merged applicability cleanup through GitHub Actions: 13 scenarios × 50 checks = 650 evaluations PASS; applicability benchmark 82/82 expected assertions correct (100%); live benchmark reached 4/5 reachable public sites with the only non-pass being OpenAI API returning HTTP 403, not an SUE detection failure.
+- Added durable public.audit_runs storage with owner scoping, score/count fields, product context JSON, full 50-check JSON, URL, timestamp, and RLS owner-select policy.
+- Updated POST /api/audit to persist completed reports and return auditId; added authenticated GET /api/audit/:id for owner-scoped retrieval.
+- Updated SUE client report types to retain auditId. A full API-server typecheck was attempted and exposed pre-existing monorepo typecheck debt, so it was not made a blocking SUE gate; the focused SUE build/benchmark gates remain authoritative.
+- Applied the audit_runs schema directly to the production Supabase project and committed the matching migration at supabase/migrations/20261008100000_create_audit_runs.sql.
+- PR #13 merged to main as a4390fb96fcb35189bacc0e725aabc3f9cac7585 after all focused SUE CI gates passed. Supabase schema is already applied. Production deployment remains subject to the hosting provider's normal deployment pipeline.
+
+2026-10-08 — SUE AI accuracy hardening
+- Hardened AI data-processing detection so provider/data language only becomes an AI-data signal when actual AI product functionality is present.
+- Hardened high-impact AI detection so medical, hiring, credit, insurance, legal, financial, biometric and fraud vocabulary alone is insufficient; an AI/model/automated decision relationship is required.
+- Added adversarial regression cases for editorial AI mentions, high-impact hiring, and AI document processing.
+- PR #18 merged to main as 8e3f7b69283e893dc849eff0914bb0d4c61e200f.
+- Verification passed after corrections: SUE applicability regression, accuracy benchmark, and live benchmark all green.
+
+WORKING RULES
+-------------
+1. Every meaningful code commit MUST be recorded here with date, purpose, files, and commit SHA when available.
+2. Every major online change (Render/Vercel settings, production environment, payment configuration, domains, webhooks, GitHub settings) MUST be recorded here.
+3. Every major offline change/decision must also be recorded here, even if no commit is created.
+4. Never store secrets, API keys, webhook secrets, passwords, tokens, or private credentials in this file.
+5. Before making major changes, read this file and preserve existing architecture/decisions unless intentionally changing them.
+6. When a change affects production, record deployment/verification status separately from code-complete status.
+7. Referral UI may remain in the repository while the referral program is disabled until approximately 100 customers; do not remove the existing page/assets when pausing it.
+8. Pro manual scan quota is permanently defined as 5 protected-repository setup scans + 5 public GitHub URL scans per monthly cycle unless intentionally changed and recorded here.
+9. Public URL scanning must never call the repository-protection endpoint or create a protected repository. It is a temporary scan workflow and uses only the public scan bucket.
+10. The main security-center ScanForm must retain the two-tab UX: Paste URL and My repos. Paste URL launches the temporary public scan flow; My repos is for protected repositories.
+11. Do not replace the two-tab Paste URL / My repos UX with a separate public-scan card unless intentionally approved and recorded first.
+12. PublicScanPage owns the lifecycle of /scan-public query-driven scans; do not add simulated button-click effects in the global route bridge.
+13. After every successful public scan, the frontend MUST refresh authoritative usage so the public quota counter changes immediately.
+14. Test-only quota reset logic must never run in production; testing limits must be changed explicitly in the database or through a clearly isolated test mechanism.
+
+2026-10-08 — Finalized AI impact/data accuracy hardening is merged to main in PR #22; fresh SUE regression, accuracy, and live benchmark gates passed.
+
+2026-10-08 — Personal-data applicability hardening merged in PR #23. Analytics/tracking no longer alone cascades into P01/P02/P09/P11; analytics disclosure remains separately applicable. Fresh SUE regression, accuracy, and live benchmark gates passed.
+
+2026-10-08 — SUE production-hardening pass
+- Applicability accuracy: analytics no longer cascades into personal-data findings; AI generation/data/high-impact signals require contextual evidence; DPA/subprocessor findings require explicit processor/B2B or AI-data evidence.
+- Privacy accuracy: sensitive-data disclosures/fields count as personal-data evidence; sparse dynamic shells preserve UNKNOWN/REVIEW instead of false N/A.
+- Benchmarks: expanded adversarial privacy scenarios; SUE regression, accuracy benchmark, and live benchmark all passed after the hardening changes.
+- Security: public audit SSRF boundary retains DNS/IP pinning, redirect revalidation, private-range rejection, response/page budgets; persisted/API-visible audit URLs now redact sensitive query parameters.
+- Quotas: per-user usage initialization/monthly resets are serialized with a PostgreSQL advisory transaction lock to prevent concurrent counter loss.
+- CI: SUE gate now includes focused compilation of quota and audit-route code plus the existing regression/accuracy/live suites.
+- UX: score label changed from READY to STRONG SIGNAL to avoid implying legal/compliance readiness.
+- Merged PRs: #23, #25, #26, #27, #28, #29.
+- Current baseline commit: 0f02289e21705692e050b30543f84abc8a9a5ead.
+- Remaining production work is operational rather than another blind batch of SUE rules: live deployment verification, Supabase production/RLS verification, observability/alerting, retention policy decision, rate limiting/abuse controls, and a larger external-product evaluation corpus.
+
+2026-10-08 — Final production infrastructure pass
+- Live Supabase project verified ACTIVE_HEALTHY on Postgres 17.
+- Security advisors reduced to one dashboard-only Auth warning: leaked-password protection.
+- RLS hardening applied live: service-owned tables have explicit deny-by-default client policies; audit ownership policy optimized.
+- Audit retention: 90-day cleanup trigger installed on audit_runs.
+- Distributed API rate limiting added via Supabase api_rate_limits, applied to audit/scans/protection/checkout/billing-sync.
+- API request bodies bounded (2MB JSON / 256KB URL-encoded), Render proxy trust configured, and /api/readyz checks database readiness.
+- SUE gate now also compiles the API app entrypoint; latest production API PR #30 merged.
+- Live Supabase migrations verified through 20261008060445 and 20261008060541.
+- Remaining manual production action: enable Supabase Auth leaked-password protection in Dashboard → Authentication → Providers/Password security (requires Pro+ according to current Supabase docs).
+
+2026-10-11 — SUE V1 core launch scope merged (PR #41)
+- Merged PR #41, “feat(sue): launch V1 with 12 core checks”, to main. Merge commit: b9b8e00b5ae6985bcc97a1f2e75b7fd365d67f55.
+- Report UI now defaults to the 12 core launch-readiness checks and exposes the full 50-check engine behind an explicitly labelled beta view. The existing 50-check engine and applicability contract are preserved.
+- Added/updated SUE regression coverage, the real-world vibecoded policy benchmark, and the five-site core-check smoke benchmark. The PR's previously inspected GitHub Actions run passed typechecking, build, regression, benchmark, and artifact-upload steps; this is test evidence, not proof of production accuracy or deployment.
+- Related merged SUE fixes: PR #38 policy evidence/benchmark quality (60a972d1e9b31032b9f31f90e3550b53acca91b4), PR #39 explicit security-scanning product classification (8bf0b1c9416b5176f8ba59b48c6e45322aaab882), and PR #40 explicit security-contact evidence (af1912d6392d05b23bb7f7c83f283618fa5bb69c).
+- Deployment status: code is merged to main; live Vercel/Render deployment and production rescan are NOT confirmed in this entry.
+- Known follow-up before calling SUE production-ready: investigate false positive product classification (Wikipedia was classified as SaaS in the homepage smoke test), improve linked legal/policy page discovery and evaluate against labelled policy fixtures, correct core-vs-beta attention/prompt scope consistency if still present, and perform a real multi-page production rescan.
+- Workflow preference: avoid unnecessary GitHub Actions runs when an equivalent focused local/tool-based validation is available; do not skip required security/regression validation. Do not report deployment as complete without checking the hosting provider/runtime.
+
+2026-10-11 — SUE pricing-signal regression correction (PR #42 follow-up)
+- Root cause confirmed from run #131: `test:sue` failed because article text on an encyclopedia fixture created `context.signals.pricing=true`. The API build command includes this regression suite, so Render's API build fails at the same assertion; later benchmark steps are skipped when this gate fails.
+- Code correction implemented: constrain pricing, price-amount, recurring-subscription, auto-renewal, paid-pricing, paid-billing and checkout-action text evidence to the homepage or an explicit first-party commercial/product route. Do not suppress real pricing routes or recurring billing evidence.
+- Regression coverage now asserts article-only pricing/subscription language is ignored and a genuine first-party `/pricing` route still detects recurring billing.
+- Code status: branch `fix/sue-informational-site-classification`; PR #42 has merged, so this correction is a follow-up for a new PR. Run the focused regression suite and all downstream benchmarks before merging or declaring deployment-ready.
+
+
+2026-10-11 — SUE core applicability false-N/A correction (branch: fix/sue-core-applicability-vibesane)
+- Root cause: core Contact, Business Identity, Governing Law, Privacy Rights, Accessibility and Legal-Page Reachability applicability relied too heavily on secondary signals. A recognizable SaaS/security product could be marked N/A when crawl coverage missed a signal.
+- Action: expanded the six core rules to recognize relevant product types, without forcing a PASS or asserting legal compliance. Added a VibeSane-like regression fixture; it asserts those checks remain applicable/review and the engine remains exactly 50 checks with 12 core checks.
+- Preserved policy evidence-quality gates, N/A score exclusions, the 50-check engine, 12-check V1 scope, and existing SSRF protections. No production configuration, database, or customer data changed.
+- Files: artifacts/api-server/src/lib/sue-checks.ts; artifacts/api-server/scripts/test-sue-applicability.mjs; CHANGELOG.md; plan.txt.
+- Commit/PR and validation: pending. Do not merge or claim production fixed until focused regression, accuracy, policy, and live core benchmarks pass; then verify the deployed production report.
+
+
+2026-10-12 — SUE accessibility evidence status correction (branch: fix/sue-accessibility-missing-vs-review)
+- Finding from fresh VibeSane production screenshots: T03 Accessibility Signal was marked Missing despite its rationale explicitly stating that absence of a visible statement is not proof of legal non-compliance.
+- Change: when T03 is applicable and no accessibility signal is found, surface Review with a clear uncertainty explanation; do not infer conformance or non-compliance from absence alone.
+- Added regression for a developer security scanner without crawler-detectable accessibility evidence. Preserves all 50 checks and 12 core checks, N/A scoring, policy content gates, and SSRF protections.
+- Files: artifacts/api-server/src/lib/sue-checks.ts; artifacts/api-server/scripts/test-sue-applicability.mjs; CHANGELOG.md; plan.txt.
+- Validation/deployment: pending focused SUE regression, accuracy, policy, and five-site live core benchmarks. Do not claim production fixed until PR validation passes and a fresh production scan confirms the status.
+
+
+2026-10-12 — SUE policy-route-specific review correction (branch: fix/sue-policy-route-specific-review-v2)
+- Root cause: one unverified policy-like route globally downgraded unrelated policy checks to REVIEW.
+- Change: tie uncertainty to the policy family relevant to each check; preserve review when a relevant route is a generic SPA shell, but do not let an unrelated unverified route obscure independent evidence.
+- Regression coverage ensures an unverified Terms route does not make absent Privacy/Cookie evidence appear uncertain.
+- Files: artifacts/api-server/src/lib/sue-checks.ts; artifacts/api-server/scripts/test-sue-applicability.mjs; CHANGELOG.md; plan.txt.
+- Validation/deployment: pending SUE regression, accuracy, policy, and five-site live core benchmarks. Production rescan remains required.
+
+
+2026-10-12 — SUE policy discovery, verification, and evidence map (branch: fix/sue-policy-inventory-and-review-v3)
+- Build-failure root cause: the route-family helper inspected body/navigation text, so a homepage Privacy link could be mistaken for an unverified Privacy page and force unrelated checks into REVIEW.
+- Fix: use route identity plus document-owned title/headings for uncertainty matching.
+- Added policyInventory API data: verified, needs_review, and not_crawled_or_unavailable states, with URLs, family, title, content length, and reasons. Linked routes are discovery hints only, never proof of policy content.
+- Added coreEvidenceMap API data for all 12 core checks with status, applicability, source URLs, evidence excerpts/signals/confidence, explanation, and recommendation. Existing stored checks rebuild the map for history.
+- Inventory persisted inside existing product_context JSON to avoid a schema migration.
+- Regression covers Terms-only shell not obscuring Privacy/Cookie findings and a real /privacy shell triggering REVIEW for privacy content.
+- Files: artifacts/api-server/src/lib/sue-checks.ts; artifacts/api-server/scripts/test-sue-applicability.mjs; artifacts/api-server/src/routes/audit.ts; CHANGELOG.md; plan.txt.
+- Validation/deployment: pending focused SUE regression, accuracy, real-world policy, five-site live core benchmark, and fresh production rescan.

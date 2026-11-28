@@ -1,0 +1,59 @@
+# VibeGuard
+
+VibeGuard scans public Next.js + Supabase repositories for three high-signal security issues without running repository code.
+
+## Run & Operate
+
+- `pnpm --filter @workspace/vibeguard run dev` — run the VibeGuard web app (port 19155)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
+- `pnpm --filter @workspace/vibeguard run build` — build the frontend and emit crawlable HTML for the public SEO landing pages
+- `pnpm run typecheck` — full typecheck across all packages
+- `PORT=19155 BASE_PATH=/ pnpm run build` — typecheck + build all packages
+- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
+- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- Required env:
+  - `VITE_SUPABASE_URL` — Supabase project URL, stored as a Replit Secret
+  - `VITE_SUPABASE_ANON_KEY` — Supabase anon/public key, stored as a Replit Secret
+  - `SUPABASE_DB_URL` — Supabase Postgres connection string for the API server, stored as a Replit Secret
+  - `GITHUB_TOKEN_ENCRYPTION_KEY` — 64-character hex key used to encrypt GitHub OAuth tokens, stored as a Replit Secret
+
+## Stack
+
+- pnpm workspaces, Node.js 24, TypeScript 5.9
+- API: Express 5
+- DB: PostgreSQL + Drizzle ORM
+- Validation: Zod (`zod/v4`), `drizzle-zod`
+- API codegen: Orval (from OpenAPI spec)
+- Build: esbuild (CJS bundle)
+
+## Where things live
+
+- `artifacts/vibeguard` — React/Vite single-page interface and report flow
+- `artifacts/api-server/src/lib/scanner.ts` — stateless Git object reader and deterministic checks
+- `artifacts/api-server/src/routes/scans.ts` — scan endpoint
+- `lib/api-spec/openapi.yaml` — source of truth for the scan contract
+
+## Architecture decisions
+
+- Repository input is limited to public `github.com/owner/repo` URLs.
+- Scans use a shallow Git fetch with `--no-checkout`, inspect only tracked JS/TS/SQL blobs, and always remove the temporary directory.
+- No repository dependencies, hooks, scripts, or application code are executed.
+- The scan is stateless; findings are returned directly and never persisted.
+
+## Product
+
+Users can submit a public GitHub repository, review findings for disabled Supabase RLS, unauthenticated API database writes, and client-side service_role references, re-scan, and copy a text report.
+
+## User preferences
+
+- Keep `CHANGELOG.md` updated with a short, human-readable summary after each project change, then commit and push it to the configured GitHub remote.
+
+## Gotchas
+
+- GitHub fetches can take up to two minutes for a large public repository and are bounded by file and byte limits.
+- Run `pnpm --filter @workspace/api-spec run codegen` after changing the OpenAPI contract.
+- The public SEO pages are listed in `artifacts/vibeguard/public/sitemap.xml`; submit `https://vibesane.app/sitemap.xml` in Google Search Console after publishing.
+
+## Pointers
+
+- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details

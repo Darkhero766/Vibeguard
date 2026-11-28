@@ -1,0 +1,64 @@
+Do a final pre-launch pass on VibeGuard. Work through these in order,
+and confirm each one before moving to the next — don't skip ahead if
+something doesn't fully work.
+
+1. VERIFY DEDUP AND SELF-EXCLUSION FIX
+Re-run a scan against https://github.com/Darkhero766/Vibeguard (this
+repo itself) and confirm:
+- scanner.ts no longer appears anywhere in the findings
+- no finding appears more than once for the same file/line/check
+If either of these still happens, the earlier fix to scanRls,
+scanUnauthenticatedWrites, scanClientServiceRole, and shouldRead
+didn't fully apply — find where it's incomplete and fix it before
+moving on.
+
+2. FIX THE REAL FINDING IN App.tsx
+Look at artifacts/vibeguard/src/App.tsx around line 287. If it's an
+actual reference to a service_role key (import, hardcoded value, env
+var usage), remove/fix it so no real key is exposed client-side. If
+it's just descriptive text (e.g. copy in a "how it works" section
+that mentions "service_role" as an example), that's a false positive
+from the same pattern-matching issue as scanner.ts — add this specific
+file path to a documentation/copy exclusion list so descriptive UI
+text doesn't get flagged, similar to how scanner.ts was excluded, but
+only exclude the specific lines that are UI copy, not the whole file,
+in case real code elsewhere in App.tsx should still be checked.
+
+3. GENERIC SECRETS CHECK (extends the existing service_role check)
+Add a new function scanGenericSecrets that searches non-server-only
+files for common hardcoded secret patterns beyond just Supabase:
+- Stripe: /sk_live_[a-zA-Z0-9]{20,}/
+- AWS access key: /AKIA[0-9A-Z]{16}/
+- Generic "secret"-looking assignment: /(?:api[_-]?key|secret[_-]?key)\s*[:=]\s*["'][a-zA-Z0-9_\-]{20,}["']/i
+Flag each as Critical, same severity tier as the existing service_role
+check, with a message explaining which pattern matched and why hardcoding
+it in source (rather than an env var) is the issue. Wire it into the
+same findings array as the other checks, and apply the same self-exclusion
+list from bug 2 above so it doesn't flag scanner.ts's own regex definitions.
+
+4. CORS WILDCARD CHECK
+Add a new function scanCorsWildcard that checks next.config.js (or
+equivalent config files) for Access-Control-Allow-Origin set to "*".
+Flag as Medium severity if found, with a message explaining this allows
+any website to make authenticated requests to the API from JavaScript.
+
+5. REPLACE PLACEHOLDER LEGAL TEXT
+Find the Terms and Privacy pages added in the earlier auth/navigation
+update. Replace any obviously generic placeholder text (e.g. "Lorem
+ipsum" or template boilerplate that doesn't mention VibeGuard by name)
+with real, specific copy that covers: VibeGuard only scans public
+repositories, does not store submitted code, results are automated
+and not a substitute for a professional security audit, and the free
+tier is limited to 1 scan per account.
+
+6. MOBILE PASS
+Open the deployed frontend at a mobile viewport width (375px). Check:
+signup form, the repo-URL input and scan button, and the findings
+cards all render without horizontal scroll or cut-off text. Fix any
+layout that breaks at that width.
+
+After all six steps, re-run the full flow once end to end: sign up as
+a new test user, run the 1 free scan against
+https://github.com/BestOne69/Checking, confirm results render
+correctly, confirm the "0 scans left" state blocks a second scan with
+the upgrade message

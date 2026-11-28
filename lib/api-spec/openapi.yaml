@@ -1,0 +1,128 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: scans
+    description: Stateless repository security scans
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /scans:
+    post:
+      operationId: createScan
+      tags: [scans]
+      summary: Scan a public GitHub repository
+      description: Scans a public GitHub repository with a bounded set of supported security checks; findings require human review.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanInput"
+      responses:
+        "200":
+          description: Scan report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanReport"
+        "400":
+          description: Invalid repository URL or scan request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Repository not found or is not public
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: GitHub could not be reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ScanInput:
+      type: object
+      properties:
+        repoUrl:
+          type: string
+          minLength: 1
+          pattern: "^https://github\\.com/[-A-Za-z0-9_.]+/[-A-Za-z0-9_.]+/?$"
+      required:
+        - repoUrl
+    Finding:
+      type: object
+      properties:
+        id:
+          type: string
+        severity:
+          type: string
+          enum: [Critical, High, Medium]
+        title:
+          type: string
+        description:
+          type: string
+        filePath:
+          type: string
+        line:
+          type: integer
+          minimum: 1
+        check:
+          type: string
+          enum: [rls, unauthenticated_write, service_role_client, unprotected_rpc, role_self_promotion, privileged_account_recovery, privileged_entitlement_write, committed_env_file, hardcoded_secret, cors_wildcard, fake_env_example, rls_policy_missing, sql_grant_public, sql_grant_anon, storage_public, storage_policy_broad, sql_execute_public, security_definer_search_path, hardcoded_jwt_secret, google_api_key, github_token, private_key, database_url, plaintext_password_storage, hardcoded_password, hardcoded_bearer, sendgrid_key, twilio_token, slack_token, npm_token, vercel_token, netlify_token, child_process_exec, eval_usage, function_constructor, innerhtml_assignment, dangerous_html, document_write, postmessage_wildcard, open_redirect, cors_all_origins, cookie_missing_httponly, cookie_insecure, cookie_samesite_none, http_url, debug_endpoint, wildcard_dependency, git_dependency, npmrc_token, docker_socket, weak_hash, weak_random, path_traversal, command_injection]
+      required: [id, severity, title, description, filePath, line, check]
+    ScanReport:
+      type: object
+      properties:
+        repo:
+          type: string
+        repoUrl:
+          type: string
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Finding"
+        filesScanned:
+          type: integer
+          minimum: 0
+        scannedAt:
+          type: string
+      required: [repo, repoUrl, findings, filesScanned, scannedAt]
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+

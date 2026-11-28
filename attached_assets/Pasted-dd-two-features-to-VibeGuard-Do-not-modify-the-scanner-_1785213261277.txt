@@ -1,0 +1,63 @@
+dd two features to VibeGuard. Do not modify the scanner logic
+(scanner.ts) or existing auth flow — only add the following.
+
+FEATURE 1 — Disconnect GitHub button
+
+1. In the account menu (where the user's name and "X scans left" show),
+   add a "Disconnect GitHub" option — only show it if the user
+   currently has a stored GitHub token (check the github_tokens table
+   for a row matching their user id).
+
+2. On click, show a confirmation dialog: "This will remove VibeGuard's
+   access to your GitHub repositories. You can also revoke access
+   directly from GitHub's settings (Settings > Applications >
+   Authorized OAuth Apps). Continue?"
+
+3. On confirm, add a new backend endpoint DELETE /api/github/token that:
+   - Requires auth (use the existing requireAuth middleware)
+   - Deletes the row from github_tokens where owner = the authenticated
+     user's id
+   - Returns a JSON success response
+   - Wrap the delete in the same error-handling pattern as the existing
+     github.ts routes (try/catch, return JSON error on failure, never
+     let an error fall through to the default Express handler)
+
+4. After a successful disconnect, update the frontend UI to hide the
+   private-repo picker and show only the manual public-URL scan input
+   again, same as a user who never connected GitHub.
+
+FEATURE 2 — Cache the GitHub repo list to avoid hitting rate limits
+
+Currently GET /api/github/repos likely calls GitHub's API fresh on
+every request. Add a short-lived cache so repeated page loads/refreshes
+don't re-hit GitHub's API every time:
+
+1. Add a simple in-memory cache (a Map keyed by user id, storing
+   { repos: [...], cachedAt: timestamp }) in the github.ts route file
+   or a new lib/repoCache.ts file.
+
+2. In the GET /api/github/repos handler, before calling GitHub's API,
+   check the cache: if an entry exists for this user and is less than
+   5 minutes old, return the cached repos array directly instead of
+   calling GitHub again.
+
+3. If no cache entry exists, or it's older than 5 minutes, call
+   GitHub's API as normal, store the result in the cache with the
+   current timestamp, then return it.
+
+4. Add a query parameter support: if the request includes
+   ?refresh=true, skip the cache and force a fresh fetch (for a
+   "refresh repo list" button on the frontend, optional to add the
+   button itself, but the backend should support the parameter
+   regardless).
+
+Note: an in-memory cache resets on every server restart/redeploy —
+that's an acceptable tradeoff for now given Render's free/starter
+tier setup; don't add Redis or a persistent cache layer for this,
+it's unnecessary complexity at this stage.
+
+After both features, test end to end: disconnect GitHub as a test
+user, confirm the repo picker disappears and github_tokens no longer
+has a row for that user, then reconnect and confirm the repo list
+loads fresh the first time and instantly (from cache) on a second
+page load within 5 minutes
