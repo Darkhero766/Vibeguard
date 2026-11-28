@@ -43,7 +43,7 @@ for (const token of [
   'Security context for your AI agent.', 'Not extra authority.',
   'Claude Code', 'Codex CLI', 'Cursor', 'Gemini CLI', 'Roo Code', 'GitHub Copilot',
   'foxy install --agent auto', 'foxy doctor', 'npx -y @vibesane/foxy@beta install',
-  'No repository writes', 'Foxy maintains only its own local scan, baseline and queue state',
+  'Repository files are never modified', 'Foxy maintains only its own local scan, baseline and queue state',
   'No shell, patch, commit, or deploy tools are exposed', 'canonical Git root',
   '472 / 472', 'Regression suite', 'Windows + macOS + Ubuntu/Linux', '10 tools', '30 files',
   'real-host acceptance', 'independent security review',
