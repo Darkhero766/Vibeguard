@@ -1,6 +1,6 @@
 # Foxy Universal Installer — Design and Acceptance Plan
 
-Status: design proposal for PR #70; no install, publication, production deployment, or host configuration performed by this document.
+Status: implementation candidate for PR #70. The beta.6 package candidate has passed exact-source automated qualification on Windows, macOS and Linux; no package publication, production deployment, or customer/host configuration has been performed.
 
 ## Implementation status
 
@@ -13,9 +13,11 @@ A first CLI implementation is now present on `feat/agentshield-cross-platform-au
 - Offline package smoke covers non-interactive consent denial, dry-run/no-write, explicit-consent installation, idempotent repeat and managed-entry disconnect.
 - The release validator now requires installer-specific package evidence.
 
-The installer engine has passed an exact-source Windows/macOS CI qualification on commit `ebb1d887d03aad38496f286b78c08ac191832f63` ([run #46122257414](https://github.com/Darkhero766/Vibeguard/actions/runs/46122257414)): 472/472 regression tests and 24/24 installer/connect tests on each platform, including MCP STDIO and offline package/CLI smoke. This evidence applies to that exact source SHA.
+The complete beta.6 candidate has passed exact-source qualification at commit `ef99246f903ca9ec606f314a99fee37984a1ef63` in [workflow run #46129976047](https://github.com/Darkhero766/Vibeguard/actions/runs/46129976047) on Windows, macOS and Ubuntu/Linux. Each platform passed 472/472 regression tests, 24/24 installer/connect tests, MCP STDIO integration, curated/holdout/adversarial synthetic benchmarks, and the offline package/CLI/MCP smoke. All three qualification reports returned `validation_passed_review_required` / `candidate_for_independent_human_review`, with no qualification failures.
 
-A follow-on bootstrap candidate now changes the local package identity to `@vibesane/foxy`, adds the `foxy` executable expected by `npx`, and bumps the candidate version to `0.7.0-beta.6`. Those newer package changes are **not yet covered by that earlier run** and require a fresh exact-source qualification. The package is not published, and registry ownership/availability of `@vibesane/foxy` has not been verified. See [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md).
+The packaged candidate is `@vibesane/foxy@0.7.0-beta.6`, 30 files, Node.js `>=24.15.0`, with both `foxy` and `vibesane` executable aliases mapped to the same CLI. Its canonical package-content SHA-256 is `d0567eb6f8a301d4379a75e8f958a6c48d8fb6eb1c14afaac817e731b01f389c` on all three operating systems. The package builder and smoke test report `published: false`; no npm publication has occurred. The `@vibesane` namespace ownership/availability has not been verified.
+
+The npm metadata uses the `beta` dist-tag. After (and only after) registry ownership is confirmed and an owner-approved beta publication, the channel-specific command is `npx @vibesane/foxy@beta install`. The untagged `npx @vibesane/foxy install` resolves the registry's `latest` tag and is the intended stable-channel UX after a stable release. Neither command works from this unpublished local candidate. See [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md).
 
 ## Product objective
 
@@ -25,7 +27,7 @@ Make Foxy installation a short, predictable, auditable flow. Preferred user expe
 npx @vibesane/foxy install
 ```
 
-The local package candidate now declares `@vibesane/foxy` with a `foxy` executable mapped to the consent-first installer, and the package smoke test exercises the installed executable and a non-mutating install dry run. The intended registry command is still **not available** until the exact candidate passes fresh qualification, the npm scope/name is confirmed under the owner's account, release/provenance requirements are satisfied, and the owner explicitly approves publication. No registry publish is performed by packaging or tests.
+The locally packed candidate declares `@vibesane/foxy` with a `foxy` executable mapped to the consent-first installer. Cross-platform package smoke invokes the npm-generated executable (or inspects the Windows shim and executes its target), checks CLI dispatch, runs `foxy install --dry-run`, and proves that the dry run leaves the target configuration absent. The exact package has passed Windows/macOS/Linux automated qualification, but **the public registry command is still unavailable**: the package remains unpublished, the scope's ownership/availability has not been verified, and independent human review, live-host acceptance and explicit release approval remain required.
 
 ## Principles and non-goals
 
