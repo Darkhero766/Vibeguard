@@ -27,7 +27,7 @@ jobs:
       - name: Checkout exact release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -73,7 +73,7 @@ jobs:
       - name: Checkout exact release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -137,7 +137,7 @@ jobs:
       - name: Checkout exact release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -184,11 +184,20 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import path from 'node:path';
+          import { verifyPackageFileManifest } from './artifacts/api-server/scripts/package-agentshield-beta.mjs';
           const result = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/foxy-package.json', 'utf8'));
           const stage = path.resolve('artifacts/api-server/dist/agentshield-beta-stage');
           const manifest = JSON.parse(fs.readFileSync(path.join(stage, 'package.json'), 'utf8'));
           const expectedVersion = process.env.GITHUB_REF_NAME.slice('foxy-v'.length);
           const requiredFiles = ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.txt'];
+          const packageEvidence = {
+            packagedFiles: result.fileCount,
+            packageFileDigests: result.fileDigests,
+            packageContentSha256: result.contentSha256,
+          };
+          if (!verifyPackageFileManifest(packageEvidence)) {
+            throw new Error('Package content manifest is invalid or non-canonical.');
+          }
           if (result.status !== 'packaged_local_only' || result.published !== false) {
             throw new Error('Package generation must remain local-only and explicitly unpublished.');
           }
