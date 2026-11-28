@@ -1,8 +1,25 @@
 # VibeSane engineering state
 
-**Snapshot date:** 28 November 2026 (Beta.6 three-platform qualification passed; Install MCP website and SQLite startup race fix validated)  
+**Snapshot date:** 28 November 2026 (Beta.6 479/479 three-platform package qualification passed; post-qualification web evidence changes await exact-head recheck)  
 **Repository:** `Darkhero766/Vibeguard`  
 **Purpose:** portable source of truth for new engineering sessions. This file records observed state, not intentions or assumptions. Recheck GitHub refs and runs before every write.
+
+## Latest verified Foxy checkpoint — 28 November 2026, 479-test run
+
+- Repository: `Darkhero766/Vibeguard`; PR #70 branch `feat/agentshield-cross-platform-autoconnect`.
+- PR #70 branch tip before this state-note update: `48af00a84af7a2a7d8ab5de798a502dbf4211e9c`; open/draft/unmerged; GitHub reported `mergeable=false`. Its base is PR #69's feature branch, so the #69/#70 dependency stack still needs a deliberate reconciliation plan.
+- Latest completed package qualification: source `a0651317c1cb16170d563867adcf5ddff08d5927`, [Actions run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820). Windows, macOS and Ubuntu/Linux all passed 479/479 regression tests, all qualification steps, and identical 33-file package manifests.
+- Package: `@vibesane/foxy@0.7.0-beta.6`; canonical package-content SHA-256 `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`; npm publication status remains false/unpublished.
+- The current pre-documentation PR head was four commits after the qualified package source. The diff is limited to `FoxyPage.tsx`, SEO generation and related page/preview assertions. It does not change packaged Foxy runtime files or the publish workflow. Those latest website/SEO changes have not had an exact-head Actions rerun; do not claim every file at the current PR head is freshly qualified.
+- The earlier license qualification run #46159923973 failed 3 stale assertions out of 475; corrected follow-up tests passed in run #46169706820. The later result supersedes that failure.
+- Apache-2.0 is scoped to the Foxy distribution; NOTICE attributes 2026 Foxy-authored material to Md Faizal. The author must still verify legal ownership/assignment and third-party rights. npm `@vibesane` ownership, GitHub `npm-release` environment protection and npm OIDC Trusted Publishing are not yet configured.
+- Independent security review and real-host acceptance remain open. The completion gate is cooperative, not tamper-proof. CI and synthetic benchmarks are not certification or real-world accuracy evidence.
+- Actual host pilot remains owner-run on a disposable synthetic repository; start with Codex Codespaces from the qualified source. Claude Code, Cursor, Gemini CLI, Roo and Copilot each require separate acceptance before claims of support.
+- GitGuardian event 35188914 was triaged in the PR conversation as a pre-existing public Supabase anon-key finding at `.replit:65` (`role=anon`), with identical content on main and the PR base. Verify the role in Supabase settings and resolve only that exact event; do not suppress any privileged-key finding. The previously reported VibeSane Security critical score remains a separate signal needing its own current source disposition.
+- PR #71 (Clerk) remains a separate draft/unmerged change with the feature flag off; no provider config or production Auth change is authorized.
+- No PR merge, npm publication, production deployment, production secret/config mutation, production SQL or production service operation was performed or authorized.
+
+**Resume from:** re-run the website build/page/preview assertions at the latest PR head (without touching production), then send current code and evidence to independent review and conduct owner-run disposable-host acceptance. Keep #70/#71 draft, package unpublished and production untouched.
 
 ## Product boundaries
 
