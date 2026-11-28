@@ -149,7 +149,7 @@ The current queue test file defines 39 cases. These are definitions only. Run th
 
 ## MCP runtime-provenance hardening delta — 28 November 2026
 
-**Initial implementation commit:** `089c2ac60d5679c71dde4ef1fe0dd3d1f23177a1` on PR #70. Follow-up fixes: `e3edce0e880c074b00030e418eb1df568a00c960` and `65cd27b474db7863e1795a7d4dd59d44045e7177`. Current source candidate: `65cd27b474db7863e1795a7d4dd59d44045e7177`.
+**Initial implementation commit:** `089c2ac60d5679c71dde4ef1fe0dd3d1f23177a1` on PR #70. Follow-up fixes: `e3edce0e880c074b00030e418eb1df568a00c960` and `65cd27b474db7863e1795a7d4dd59d44045e7177`. The current qualified code candidate is `8ff17de5c5f9ce788e3447ae47263c77136cc3db`; the earlier six-module inventory below is historical and was subsequently extended to include the installed bundled STDIO entrypoint.
 
 The queue's persisted remediation-baseline context previously compared the standalone scanner artifact fingerprint, ruleset/version string and report-schema version. The candidate adds a required `runtimeFingerprint` computed from the exact bytes of these packaged modules:
 
