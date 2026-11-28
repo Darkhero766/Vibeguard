@@ -31,7 +31,8 @@ const hosts = [
 ];
 
 const boundaries = [
-  'Read-only MCP tools. No shell, patch, commit, or deploy capability.',
+  'Repository files are never modified. Foxy maintains only its own local scan, baseline and queue state.',
+  'No shell, patch, commit, or deploy tools are exposed.',
   'Only the canonical Git root selected during setup is authorized.',
   'The connector does not execute repository scripts or project code.',
   'Existing host configuration is backed up and unrelated entries are preserved.',
@@ -62,7 +63,7 @@ export default function FoxyPage() {
     document.title = 'Foxy — Local-first MCP security for AI coding agents | VibeSane';
     const meta = document.querySelector('meta[name="description"]');
     const prior = meta?.getAttribute('content');
-    meta?.setAttribute('content', 'Foxy is a local-first, workspace-scoped, read-only MCP security installer for Claude Code, Codex, Cursor, Gemini CLI, Roo Code and GitHub Copilot. Beta.6 passed automated Windows, macOS and Linux qualification; live host acceptance and independent security review remain open.');
+    meta?.setAttribute('content', 'Foxy is a local-first, workspace-scoped MCP security integration for Claude Code, Codex, Cursor, Gemini CLI, Roo Code and GitHub Copilot. It never modifies repository files or executes project code; scan, baseline and queue operations update only Foxy-managed local state. Beta.6 passed automated Windows, macOS and Linux qualification; live host acceptance and independent security review remain open.');
     return () => {
       document.title = previousTitle;
       if (meta && prior != null) meta.setAttribute('content', prior);
@@ -99,7 +100,7 @@ export default function FoxyPage() {
                 </a>
               </div>
               <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[9px] uppercase leading-5 tracking-[.14em] text-[#87958b]">
-                <span>Beta 0.7.0-beta.6</span><span>Node.js 24.15+</span><span>Windows · macOS · Linux</span><span>Read-only MCP</span>
+                <span>Beta 0.7.0-beta.6</span><span>Node.js 24.15+</span><span>Windows · macOS · Linux</span><span>No repository writes</span>
               </div>
             </div>
 
@@ -117,14 +118,14 @@ export default function FoxyPage() {
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <div className="border border-white/10 bg-white/[.03] p-4">
                   <p className="font-mono text-[9px] uppercase tracking-[.14em] text-[#9eaaa1]">Access model</p>
-                  <p className="mt-2 text-lg font-bold tracking-tight text-[#c7f36a]">Read-only</p>
+                  <p className="mt-2 text-lg font-bold tracking-tight text-[#c7f36a]">No repo writes</p>
                 </div>
                 <div className="border border-white/10 bg-white/[.03] p-4">
                   <p className="font-mono text-[9px] uppercase tracking-[.14em] text-[#9eaaa1]">Workspace scope</p>
                   <p className="mt-2 text-lg font-bold tracking-tight text-[#c7f36a]">One Git root</p>
                 </div>
               </div>
-              <p className="mt-6 border-t border-white/10 pt-4 text-[11px] leading-6 text-[#aab5ad]">The npm package remains unpublished. The local reviewer build uses the same consent-first installer; this website cannot write to your computer or approve an AI host.</p>
+              <p className="mt-6 border-t border-white/10 pt-4 text-[11px] leading-6 text-[#aab5ad]">The npm package remains unpublished. The website cannot write to your computer or approve an AI host. In a local session, Foxy may update its own scan, baseline and queue state, but it never modifies repository files.</p>
             </aside>
           </div>
         </section>
