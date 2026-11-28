@@ -77,14 +77,10 @@ fi
 printf 'Installing ${PACKAGE}@${CHANNEL} from the official npm registry…\n'
 npm install --global --ignore-scripts --no-audit --no-fund --registry="$REGISTRY" "${PACKAGE}@${CHANNEL}"
 
-if command -v foxy >/dev/null 2>&1; then
-  foxy_command="$(command -v foxy)"
-else
-  global_prefix="$(npm prefix --global)"
-  candidate="$global_prefix/bin/foxy"
-  [[ -x "$candidate" ]] || fail "Foxy was installed, but '$candidate' is not executable. Check your npm global PATH."
-  foxy_command="$candidate"
-fi
+global_prefix="$(npm prefix --global)"
+candidate="$global_prefix/bin/foxy"
+[[ -x "$candidate" ]] || fail "Foxy was installed, but '$candidate' is not executable. Check your npm global PATH."
+foxy_command="$candidate"
 
 printf 'Starting the project-scoped, consent-first Foxy installer…\n'
 "$foxy_command" install --agent "$agent" "${forward_args[@]}"
