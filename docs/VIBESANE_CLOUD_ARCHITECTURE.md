@@ -78,6 +78,31 @@ No schema migration is proposed by this ADR. When team features are approved, pr
 
 Every exposed table must have RLS enabled and ownership-aware policies. Membership writes and role changes must be authorized server-side. Use explicit `USING` and `WITH CHECK` rules for updates. Views exposed to clients must use invoker security where applicable. Never ship the Supabase service-role key to the browser or local Foxy package.
 
+## 4A. Read-only staging database snapshot — 28 November 2026
+
+The connected Supabase project named `VibeSane-staging` (project ref `aojmjxxmsgnipbbrtvlz`) reported `ACTIVE_HEALTHY`. A read-only catalog inspection found eight public tables:
+
+- `usage`
+- `github_tokens`
+- `github_app_installations`
+- `protected_repositories`
+- `protection_events`
+- `audit_runs`
+- `api_rate_limits`
+- `dodo_webhook_events`
+- `hackathon_redemptions`
+
+Correction: the catalog inspection returns **nine** public tables (the list above includes all nine).
+
+All listed tables reported RLS enabled. A read-only `pg_policies` / role-grants inspection found:
+- `anon`: no direct table grants in the public schema.
+- `authenticated`: SELECT on `usage` and `audit_runs`; INSERT, SELECT and DELETE on `hackathon_redemptions`.
+- The `hackathon_redemptions` policies bind insert/select/delete to `auth.uid() = owner`.
+- The `usage` and `audit_runs` SELECT policies bind rows to `auth.uid() = owner`.
+- No direct `anon` or `authenticated` grants were present for GitHub token storage, GitHub App installation records, protected repositories, protection events, API rate limits or Dodo webhook events.
+
+This is a limited metadata snapshot, not a full authorization audit. It does not inspect Render service-role code paths, function grants, storage policies, RPCs, secrets, Auth provider configuration or the production Supabase project. Re-run policy and grants review after any schema migration and before enabling new client-facing cloud tables.
+
 ## 5. Local-to-cloud protocol
 
 Cloud synchronization is a later, optional capability. Its default must be off.
