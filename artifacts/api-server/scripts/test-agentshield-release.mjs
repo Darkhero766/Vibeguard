@@ -181,3 +181,20 @@ test('frontend does not falsely report successful GitHub disconnect after API fa
   assert.match(src,/if \(!response\.ok\) throw new Error\('GitHub disconnection failed'\)/);
   assert.match(src,/setHasGithubToken\(null\)/);
 });
+
+test('Foxy publication workflow is manual, version-bound, protected and OIDC-only', async () => {
+  const workflow = await read('.github/workflows/foxy-publish.yml');
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /confirm_publication:[\\s\\S]*?default:\\s*false/);
+  assert.match(workflow, /refs\\/tags\\/foxy-v/);
+  assert.match(workflow, /merge-base --is-ancestor/);
+  assert.match(workflow, /environment:\\s*\\n\\s+name:\\s*npm-release/);
+  assert.match(workflow, /id-token:\\s*write/);
+  assert.match(workflow, /package-manager-cache:\\s*false/);
+  assert.match(workflow, /npm publish "\\$FOXY_ARCHIVE" --access public --tag beta --provenance --ignore-scripts/);
+  assert.match(workflow, /inputs\\.confirm_publication == true/);
+  assert.match(workflow, /needs:\\s*\\[validate-ref, qualify\\]/);
+  assert.match(workflow, /requiredFiles = \\['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES\\.txt'\\]/);
+  assert.doesNotMatch(workflow, /NODE_AUTH_TOKEN\\s*:\\s*\\$\\{\\{\\s*secrets\\./);
+  assert.doesNotMatch(workflow, /^\\s{2}(?:push|release):/m);
+});
