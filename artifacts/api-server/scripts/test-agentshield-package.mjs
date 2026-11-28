@@ -587,7 +587,12 @@ try {
     path.join(uninstallFixture, '.mcp.json'), 'utf8',
   ));
   assert.ok(!claudeMcpAfterFullUninstall.mcpServers?.['vibesane-agentshield']);
-  const privateBackups = await readdir(path.join(isolatedState, 'vibesane', 'foxy', 'backups'));
+  const expectedFoxyState = process.platform === 'win32'
+    ? path.join(isolatedHome, 'AppData', 'Local', 'VibeSane', 'Foxy')
+    : process.platform === 'darwin'
+      ? path.join(isolatedHome, 'Library', 'Application Support', 'VibeSane', 'Foxy')
+      : path.join(isolatedState, 'vibesane', 'foxy');
+  const privateBackups = await readdir(path.join(expectedFoxyState, 'backups'));
   assert.ok(privateBackups.length > 0, 'Full uninstall must preserve out-of-workspace recovery backups.');
   assert.ok(fullUninstall.preserved.includes('global npm package')
     && fullUninstall.preserved.includes('baselines'),
