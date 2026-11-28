@@ -3,7 +3,7 @@ Copyright 2026 Md Faizal
 
 The copyright notice above applies to the original Foxy-authored material
 distributed in the @vibesane/foxy package, subject to the scope and exclusions
-described in docs/FOXY_LICENSE_AND_OWNERSHIP.md.
+of the Foxy package license and these notices.
 
 Third-party components and bundled dependencies remain the property of their
 respective copyright holders and are distributed under their own licenses.
