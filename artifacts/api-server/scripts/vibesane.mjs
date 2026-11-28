@@ -503,7 +503,7 @@ async function updateGlobal(args) {
     } catch {
       throw new Error('The official npm beta dist-tag returned invalid JSON.');
     }
-    const semverPattern = /^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$/;
+    const semverPattern = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
     if (typeof publishedVersion !== 'string' || !semverPattern.test(publishedVersion)) {
       throw new Error('The official npm beta dist-tag did not return a valid semantic package version.');
     }
