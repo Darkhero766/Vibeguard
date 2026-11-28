@@ -90,13 +90,18 @@ Before release, Md Faizal must confirm that the copyright attribution is support
 
 First verify that the `vibesane` npm organization exists and that the intended publishing account has owner/admin rights. Enable 2FA, restrict write/publish membership, and confirm that `@vibesane/foxy` is available to the organization. A 404 from `npm view` is not proof that the scope is unowned.
 
-Only after a separate publish workflow is authored and independently reviewed, configure npm Trusted Publishing for:
+An owner-gated publisher workflow is now included on draft PR #70 at `.github/workflows/foxy-publish.yml`. Its exact npm Trusted Publisher workflow filename is `foxy-publish.yml` (npm asks for the filename, not the path).
+
+The workflow is manual-only and has no push or release trigger. Its `confirm_publication` input defaults to `false`; a false run performs validation and the three-OS qualification without publishing. It rejects non-`foxy-v<package-version>` tags and tags that do not point to a commit already reachable from `main`. The publish job can run only after Windows, macOS and Ubuntu/Linux qualification succeeds, only when the owner explicitly sets `confirm_publication=true`, and only after the protected `npm-release` environment's review gate. It uses npm OIDC/provenance and does not use a long-lived npm token. The job also verifies the package name, exact version, Apache-2.0 metadata, required notice files and archive SHA-256 before invoking npm.
+
+Configure npm Trusted Publishing for:
 - package: `@vibesane/foxy`;
 - GitHub owner: `Darkhero766`;
 - repository: `Vibeguard`;
-- exact publish workflow filename and protected GitHub environment (for example, `npm-release`).
+- workflow filename: `foxy-publish.yml`;
+- GitHub environment: `npm-release`.
 
-No publishing workflow or Trusted Publisher has been configured by this licensing change. Do not create an npm token or enable publishing until the ownership and independent security gates are complete.
+The workflow currently exists only on draft PR #70 and is not runnable from the default branch until the PR stack is reviewed and safely integrated. No npm Trusted Publisher has been configured and no package has been published. Do not create a long-lived npm token or set `confirm_publication=true` until package ownership, legal rights and independent security gates are complete.
 
 The workflow must use GitHub-hosted runners (self-hosted runners are not currently supported), grant only `id-token: write` plus `contents: read`, and use npm CLI 11.5.1+ with Node.js 22.14.0+ (the Foxy runtime requirement of Node.js 24.15.0 already exceeds this). Use current, full-SHA-pinned GitHub Actions; configure `actions/setup-node` with `registry-url: https://registry.npmjs.org` and disable package-manager caching in the publish job. The `repository.url` in the generated package must exactly match `https://github.com/Darkhero766/Vibeguard.git`. npm validates the exact trusted-publisher workflow filename and, when configured, environment name; verify spelling and case. For a public package from this public repository, npm Trusted Publishing automatically generates provenance. Provenance provides cryptographic workflow/source traceability; it is not a security certification. These requirements are separate from the read-only qualification workflow.
 
