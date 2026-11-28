@@ -249,6 +249,138 @@ export function buildCodexMcpBlock({ nodePath, serverPath, workspaceRoot }) {
   ].join('\n');
 }
 
+function stripTomlComment(line) {
+  let quote = null;
+  let escaped = false;
+  for (let index = 0; index < line.length; index++) {
+    const char = line[index];
+    if (quote === '"') {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') quote = null;
+    } else if (quote === "'") {
+      if (char === "'") quote = null;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === '#') {
+      return line.slice(0, index);
+    }
+  }
+  return line;
+}
+
+function parseTomlDottedKey(input) {
+  const value = String(input);
+  const parts = [];
+  let index = 0;
+  while (index < value.length) {
+    while (/\s/.test(value[index] || '')) index++;
+    if (value[index] === '"' || value[index] === "'") {
+      const quote = value[index++];
+      let token = '';
+      let escaped = false;
+      let closed = false;
+      while (index < value.length) {
+        const char = value[index++];
+        if (quote === '"' && escaped) {
+          token += '\\' + char;
+          escaped = false;
+        } else if (quote === '"' && char === '\\') {
+          escaped = true;
+        } else if (char === quote) {
+          closed = true;
+          break;
+        } else {
+          token += char;
+        }
+      }
+      if (!closed || escaped) return null;
+      if (quote === '"' && /[\r\n]/.test(token)) return null;
+      if (quote === '"' && /[^A-Za-z0-9_-]/.test(token)) {
+        try { token = JSON.parse('"' + token.replaceAll('"', '\\"') + '"'); } catch { return null; }
+      }
+      parts.push(token);
+    } else {
+      const match = /^[A-Za-z0-9_-]+/.exec(value.slice(index));
+      if (!match) return null;
+      parts.push(match[0]);
+      index += match[0].length;
+    }
+    while (/\s/.test(value[index] || '')) index++;
+    if (index === value.length) break;
+    if (value[index] !== '.') return null;
+    index++;
+    if (index === value.length) return null;
+  }
+  return parts.length ? parts : null;
+}
+
+function findTomlAssignment(line) {
+  let quote = null;
+  let escaped = false;
+  for (let index = 0; index < line.length; index++) {
+    const char = line[index];
+    if (quote === '"') {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') quote = null;
+    } else if (quote === "'") {
+      if (char === "'") quote = null;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === '=') {
+      return index;
+    }
+  }
+  return -1;
+}
+
+// Conservative conflict detection for Codex MCP configuration. TOML table
+// headers allow quoted and dotted key segments, so a narrow regex can miss
+// an existing entry and append a duplicate table. If relevant syntax is
+// ambiguous, refuse instead of rewriting a user's configuration.
+export function codexHasMcpConflict(source) {
+  let currentTable = [];
+  for (const originalLine of String(source).split(/\r?\n/)) {
+    const line = stripTomlComment(originalLine).trim();
+    if (!line) continue;
+    if (line.startsWith('[')) {
+      const arrayTable = line.startsWith('[[') && line.endsWith(']]');
+      const regularTable = !arrayTable && line.endsWith(']');
+      if (!arrayTable && !regularTable) {
+        if (/mcp_servers/i.test(line)) return true;
+        continue;
+      }
+      const inner = line.slice(arrayTable ? 2 : 1, arrayTable ? -2 : -1).trim();
+      const table = parseTomlDottedKey(inner);
+      if (!table) {
+        if (/mcp_servers/i.test(line)) return true;
+        currentTable = [];
+        continue;
+      }
+      currentTable = table;
+      if (table[0] === 'mcp_servers' && table[1] === 'vibesane_agentshield') return true;
+      continue;
+    }
+    const equals = findTomlAssignment(line);
+    if (equals < 0) {
+      if (/mcp_servers/i.test(line)) return true;
+      continue;
+    }
+    const key = parseTomlDottedKey(line.slice(0, equals).trim());
+    if (!key) {
+      if (/mcp_servers/i.test(line)) return true;
+      continue;
+    }
+    const fullKey = [...currentTable, ...key];
+    if (fullKey[0] === 'mcp_servers' && fullKey[1] === 'vibesane_agentshield') return true;
+    // Any root-level mcp_servers assignment (notably inline tables) has a
+    // user-defined shape; refuse to merge by regex into an unknown TOML value.
+    if (currentTable.length === 0 && key.length === 1 && key[0] === 'mcp_servers') return true;
+  }
+  return false;
+}
+
 function buildLegacyCodexMcpBlock({ nodePath, serverPath, workspaceRoot }) {
   const allowlist = JSON.stringify([workspaceRoot]);
   return [
@@ -600,9 +732,8 @@ async function configureCodex(root, nodePath, serverPath, stateRoot) {
       await atomicWrite(file, existing.slice(0, start) + block + tail, originalRaw);
       return { host: 'codex', status: 'migrated', configFile: file, backup };
     }
-    if (/^\s*\[mcp_servers\.vibesane_agentshield\]\s*$/m.test(existing)
-      || /^\s*mcp_servers\s*=\s*\{/m.test(existing)) {
-      throw new Error('A conflicting Codex MCP entry exists; it was left untouched.');
+    if (codexHasMcpConflict(existing)) {
+      throw new Error('A conflicting or ambiguous Codex MCP entry exists; it was left untouched.');
     }
     const backup = await backupFile(file, originalRaw);
     const newline = String.fromCharCode(10);
