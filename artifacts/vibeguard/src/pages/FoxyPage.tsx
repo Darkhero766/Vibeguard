@@ -195,7 +195,7 @@ export default function FoxyPage() {
               </p>
               <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:flex-wrap">
                 <a href="https://github.com/Darkhero766/Vibeguard/blob/feat/agentshield-cross-platform-autoconnect/docs/FOXY_UNIVERSAL_INSTALLER_PILOT.md" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-semibold text-[#c7f36a] hover:underline">Local reviewer install guide <ArrowRight size={15} aria-hidden="true" /></a>
-                <a href="https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-semibold text-[#c7f36a] hover:underline">Cross-platform evidence <ArrowRight size={15} aria-hidden="true" /></a>
+                <a href="https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-semibold text-[#c7f36a] hover:underline">Cross-platform evidence <ArrowRight size={15} aria-hidden="true" /></a>
               </div>
             </div>
           </div>
@@ -277,9 +277,9 @@ export default function FoxyPage() {
                 <div className="border border-white/10 bg-white/[.03] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Package</p><p className="mt-2 text-xl font-bold">30 files</p><p className="mt-1 text-[11px] text-[#9eaaa1]">same content hash</p></div>
                 <div className="border border-white/10 bg-white/[.03] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Failure count</p><p className="mt-2 text-xl font-bold">0</p><p className="mt-1 text-[11px] text-[#9eaaa1]">qualification steps</p></div>
               </div>
-              <p className="mt-6 break-all font-mono text-[10px] leading-6 text-[#87958b]">Package SHA-256 · f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14</p>
+              <p className="mt-6 break-all font-mono text-[10px] leading-6 text-[#87958b]">Package SHA-256 · edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8</p>
               <div className="mt-6 flex flex-wrap gap-4">
-                <a href="https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-bold text-[#c7f36a] hover:underline">Open exact-source run <ArrowRight size={15} aria-hidden="true" /></a>
+                <a href="https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-bold text-[#c7f36a] hover:underline">Open exact-source run <ArrowRight size={15} aria-hidden="true" /></a>
                 <a href="https://github.com/Darkhero766/Vibeguard/pull/70" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-bold text-[#c7f36a] hover:underline">Review engineering PR <ArrowRight size={15} aria-hidden="true" /></a>
               </div>
             </article>
