@@ -2,6 +2,17 @@
 
 Status: design proposal for PR #70; no install, publication, production deployment, or host configuration performed by this document.
 
+## Implementation status
+
+A first CLI implementation is now present on `feat/agentshield-cross-platform-autoconnect`:
+
+- `artifacts/api-server/scripts/agentshield-universal-install.mjs` implements plan, consent, detection, connector delegation, idempotent re-open verification and conservative rollback.
+- `artifacts/api-server/scripts/vibesane.mjs` exposes `vibesane install`.
+- The offline beta package builder includes the installer entrypoint.
+- Unit tests cover plan parsing, host targeting, success verification, rollback and preservation of migrations.
+
+This is implementation-in-progress, not a release-qualified installer. Tests have been added but have not yet been executed in the current environment. Prior beta.5 qualification for `f8d2baf` does not cover these subsequent code changes. See [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md).
+
 ## Product objective
 
 Make Foxy installation a short, predictable, auditable flow. Preferred user experience:
