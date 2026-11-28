@@ -1625,3 +1625,53 @@ test('queue priority aging prevents older normal jobs being starved by newer urg
     await rm(storeDir, { recursive: true, force: true });
   }
 });
+
+
+test('SQLite payload/index disagreement cannot be surfaced as a completed or clean scan', async () => {
+  const storeDir = await mkdtemp(path.join(os.tmpdir(), 'foxy-index-payload-mismatch-'));
+  let signalStarted;
+  const started = new Promise((resolve) => { signalStarted = resolve; });
+  const queue = new ScanJobQueue({
+    storeDir,
+    concurrency: 1,
+    runner: async (_input, { signal }) => {
+      signalStarted();
+      await new Promise((resolve, reject) => {
+        const abort = () => reject(signal.reason || new Error('aborted'));
+        if (signal.aborted) abort();
+        else signal.addEventListener('abort', abort, { once: true });
+      });
+      return complete();
+    },
+  });
+  let jobId;
+  try {
+    const submitted = await queue.submit({ workspace: jobWorkspacePath('index-payload-mismatch') });
+    jobId = submitted.job_id;
+    await started;
+    for (let attempt = 0; attempt < 40 && queue.store.getJob(jobId)?.status !== 'running'; attempt++) await tick();
+
+    const row = queue.store.db.prepare('SELECT status,payload FROM jobs WHERE id=?').get(jobId);
+    assert.equal(row.status, 'running');
+    const forged = JSON.parse(row.payload);
+    forged.status = 'completed';
+    forged.result = complete();
+    forged.finishedAt = Date.now();
+    queue.store.db.prepare('UPDATE jobs SET payload=? WHERE id=?').run(JSON.stringify(forged), jobId);
+
+    assert.throws(() => queue.getStatus(jobId), /integrity validation failed.*UNKNOWN/i);
+    assert.equal(queue.storageFault, true);
+    assert.throws(() => queue.getResults(jobId), /integrity validation failed.*UNKNOWN/i);
+  } finally {
+    await queue.close();
+    const verify = new DatabaseSync(path.join(storeDir, 'jobs.sqlite3'), { readOnly: true });
+    try {
+      const state = verify.prepare('SELECT status,payload FROM jobs WHERE id=?').get(jobId);
+      assert.notEqual(state.status, 'completed');
+      assert.notEqual(JSON.parse(state.payload).status, 'completed');
+    } finally {
+      verify.close();
+      await rm(storeDir, { recursive: true, force: true });
+    }
+  }
+});

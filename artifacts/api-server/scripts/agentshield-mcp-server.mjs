@@ -404,7 +404,9 @@ export async function workspaceSnapshot(workspace, signal, baseRef = null, autho
       }
       const bytes = await handle.readFile();
       const afterRead = await handle.stat();
-      if (afterRead.size !== opened.size || afterRead.mtimeMs !== opened.mtimeMs || bytes.byteLength !== opened.size) {
+      if (afterRead.dev !== opened.dev || afterRead.ino !== opened.ino
+        || afterRead.size !== opened.size || afterRead.mtimeMs !== opened.mtimeMs
+        || afterRead.ctimeMs !== opened.ctimeMs || bytes.byteLength !== opened.size) {
         throw new Error('Changed file mutated while its content was being fingerprinted.');
       }
       totalBytes += bytes.byteLength - before.size;
@@ -582,11 +584,17 @@ export async function getBaselineProvenance() {
   const handle = await open(SCANNER, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
   let bytes;
   try {
-    const info = await handle.stat();
-    if (!info.isFile() || info.size < 1 || info.size > 50_000_000) {
+    const before = await handle.stat();
+    if (!before.isFile() || before.size < 1 || before.size > 50_000_000) {
       throw new Error('AgentShield scanner artifact is missing or outside its size budget.');
     }
     bytes = await handle.readFile();
+    const after = await handle.stat();
+    if (after.dev !== before.dev || after.ino !== before.ino
+      || after.size !== before.size || after.mtimeMs !== before.mtimeMs
+      || after.ctimeMs !== before.ctimeMs || bytes.byteLength !== before.size) {
+      throw new Error('AgentShield scanner artifact changed while its provenance was being fingerprinted.');
+    }
   } finally {
     await handle.close();
   }
@@ -735,7 +743,7 @@ async function fullWorkspaceSnapshot(workspace, signal, authorizedRoots) {
       const afterRead = await handle.stat();
       if (afterRead.dev !== opened.dev || afterRead.ino !== opened.ino
         || afterRead.size !== opened.size || afterRead.mtimeMs !== opened.mtimeMs
-        || bytes.byteLength !== opened.size) {
+        || afterRead.ctimeMs !== opened.ctimeMs || bytes.byteLength !== opened.size) {
         throw new Error('Full-scan source changed while its content was fingerprinted.');
       }
       observations.push([relativePath, sha256(bytes), bytes.byteLength, opened.mtimeMs]);
@@ -780,6 +788,7 @@ export async function scanFull({ workspace } = {}, { signal, progress = () => {}
   const ready = await statusTool();
   if (!ready.scannerBuilt) throw new Error('AgentShield scanner is not built.');
   progress(20);
+  const provenanceBefore = await getBaselineProvenance();
   let output;
   try {
     output = await exec(process.execPath, [SCANNER, 'scan', '--all', '--cwd', before.root, '--format', 'json'], {
@@ -789,6 +798,10 @@ export async function scanFull({ workspace } = {}, { signal, progress = () => {}
     if ((error?.code === 1 || error?.code === 2) && typeof error.stdout === 'string') output = { stdout: error.stdout };
     else throw new Error('Full scanner failed, timed out or exceeded its output budget.');
   }
+  const provenanceAfter = await getBaselineProvenance();
+  if (!sameProvenance(provenanceBefore, provenanceAfter)) {
+    throw new Error('AgentShield scanner artifact changed during the full scan; results are UNKNOWN.');
+  }
   let report;
   try { report = JSON.parse(output.stdout); } catch { throw new Error('Full scanner returned malformed JSON.'); }
   progress(90);
@@ -796,6 +809,10 @@ export async function scanFull({ workspace } = {}, { signal, progress = () => {}
   const after = await fullWorkspaceSnapshot(before.root, signal, authorizedRoots);
   if (before.fingerprint !== after.fingerprint) {
     throw new Error('Workspace changed during the full scan; results are UNKNOWN and must be resubmitted.');
+  }
+  const provenanceFinal = await getBaselineProvenance();
+  if (!sameProvenance(provenanceAfter, provenanceFinal)) {
+    throw new Error('AgentShield scanner artifact changed before the full-scan result could be returned; status UNKNOWN.');
   }
   progress(98);
   const incomplete = before.unscannedPaths.length > 0

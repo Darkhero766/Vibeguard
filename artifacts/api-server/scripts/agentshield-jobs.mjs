@@ -365,8 +365,17 @@ export class ScanJobQueue extends EventEmitter {
       });
   }
 
+  #readStoredJob(id) {
+    try {
+      return this.store?.getJob(id) || null;
+    } catch (error) {
+      this.#markStorageFault(error);
+      throw new Error('Foxy queue state integrity validation failed; scan result is UNKNOWN. Restart the MCP server after inspecting its local queue database.', { cause: error });
+    }
+  }
+
   getStatus(id) {
-    const job = this.store?.getJob(id) || null;
+    const job = this.#readStoredJob(id);
     if (!job) {
       this.jobs.delete(id);
       return null;
@@ -397,7 +406,7 @@ export class ScanJobQueue extends EventEmitter {
   }
 
   getResults(id, { offset = 0, limit = 20 } = {}) {
-    const job = this.store?.getJob(id) || null;
+    const job = this.#readStoredJob(id);
     if (!job) {
       this.jobs.delete(id);
       return null;

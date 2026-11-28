@@ -22,11 +22,39 @@ function encodeJob(job) {
   return JSON.stringify(persisted);
 }
 
+function storedPayloadMatchesRow(row, job) {
+  if (!job || typeof job !== 'object' || Array.isArray(job)) return false;
+  const unknownInterrupted = job.status === 'interrupted' && job.scope === 'unknown' && job.type === 'unknown';
+  try {
+    // Unknown/interrupted is the deliberately minimal recovery record created
+    // when an untrusted payload cannot be safely reconstructed.
+    validateLegacyJob(unknownInterrupted ? { ...job, scope: 'changed' } : job);
+  } catch {
+    return false;
+  }
+  return job.id === row.id
+    && job.status === row.status
+    && job.workspace === row.workspace
+    && job.fingerprint === row.fingerprint
+    && job.createdAt === row.created_at
+    && job.updatedAt === row.updated_at
+    && (job.finishedAt ?? null) === row.finished_at
+    && job.priority === row.priority
+    && (job.sequence ?? job.createdAt) === row.sequence
+    && (job.idempotencyKey ?? null) === row.idempotency_key;
+}
+
 function decodeJob(row) {
   if (!row) return null;
   let job;
-  try { job = JSON.parse(row.payload); } catch { throw new Error('Foxy SQLite job payload is not valid JSON.'); }
-  return { ...job, workerId: row.owner_worker_id || null, cancelRequested: Boolean(row.cancel_requested) };
+  try { job = JSON.parse(row.payload); } catch {
+    throw new Error('Foxy SQLite job payload is not valid JSON; result is UNKNOWN.');
+  }
+  if (!storedPayloadMatchesRow(row, job)) {
+    throw new Error('Foxy SQLite job payload does not match its indexed columns; result is UNKNOWN.');
+  }
+  return { ...job, sequence: job.sequence ?? job.createdAt,
+    workerId: row.owner_worker_id || null, cancelRequested: Boolean(row.cancel_requested) };
 }
 
 async function enableWalModeWithRetry(database) {
@@ -515,7 +543,7 @@ export class ScanJobStore {
     const stale = this.db.prepare('SELECT id FROM workers WHERE heartbeat_at < ?').all(cutoff);
     const update = this.db.prepare('UPDATE jobs SET status=?,updated_at=?,finished_at=?,owner_worker_id=NULL,cancel_requested=0,payload=? WHERE id=?');
     const runningForWorker = this.db.prepare(
-      "SELECT id,payload,workspace,fingerprint,created_at,priority,sequence,idempotency_key FROM jobs WHERE status='running' AND owner_worker_id=?",
+      "SELECT * FROM jobs WHERE status='running' AND owner_worker_id=?",
     );
     for (const { id } of stale) {
       const rows = runningForWorker.all(id);
@@ -524,8 +552,7 @@ export class ScanJobStore {
         let malformed = false;
         try {
           job = JSON.parse(row.payload);
-          validateLegacyJob(job);
-          if (job.id !== row.id || job.workspace !== row.workspace || job.fingerprint !== row.fingerprint) {
+          if (!storedPayloadMatchesRow(row, job)) {
             throw new Error('Persisted job payload does not match its indexed columns.');
           }
         } catch {
@@ -769,14 +796,13 @@ export class ScanJobStore {
     // deletion and leave a ghost process counted against global concurrency.
     const now = this.now();
     this.#transaction(() => {
-      const rows = this.db.prepare("SELECT id,payload,workspace,fingerprint,created_at,priority,sequence,idempotency_key FROM jobs WHERE status='running' AND owner_worker_id=?").all(this.workerId);
+      const rows = this.db.prepare("SELECT * FROM jobs WHERE status='running' AND owner_worker_id=?").all(this.workerId);
       for (const row of rows) {
         let job;
         let malformed = false;
         try {
           job = JSON.parse(row.payload);
-          validateLegacyJob(job);
-          if (job.id !== row.id || job.workspace !== row.workspace || job.fingerprint !== row.fingerprint) {
+          if (!storedPayloadMatchesRow(row, job)) {
             throw new Error('Persisted job payload does not match its indexed columns.');
           }
         } catch {
