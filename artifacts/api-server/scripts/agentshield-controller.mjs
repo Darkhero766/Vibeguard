@@ -29,7 +29,7 @@ async function rootOf(cwd) {
 async function safeJSON(file, max = 256_000) {
   let info;
   try { info = await lstat(file); }
-  catch (e) { if (e?.code === 'ENOENT') return null; throw e; }
+  catch (e) { if (e?.code === 'ENOENT') return undefined; throw e; }
   if (!info.isFile() || info.isSymbolicLink() || info.size > max) throw new Error('Unsafe or oversized AgentShield data file.');
   return JSON.parse(await readFile(file, 'utf8'));
 }
@@ -44,7 +44,7 @@ async function atomicJSON(file, value) {
 function userConfigFile(root) { return path.join(configDir, digest(root) + '.json'); }
 async function configFor(root) {
   const value = await safeJSON(userConfigFile(root), 15_000);
-  return parseConfig(value || {});
+  return parseConfig(value === undefined ? {} : value);
 }
 function projectStateDir(root) { return path.join(stateBase, digest(root)); }
 function sessionFile(root, session) { return path.join(projectStateDir(root), digest(session) + '.json'); }
@@ -61,9 +61,30 @@ async function latestStateFile(root) {
   return best;
 }
 async function readState(file, config) {
-  const doc = file && await safeJSON(file);
-  if (!doc || doc.version !== 2 || !doc.files || typeof doc.files !== 'object') return freshState();
-  if (!config.privacy.retentionHours || Date.now() - Number(doc.updatedAt || 0) > config.privacy.retentionHours * 3600000) return freshState();
+  if (!file) return freshState();
+  const doc = await safeJSON(file);
+  if (doc === undefined) return freshState();
+  const validDocument = doc && typeof doc === 'object' && !Array.isArray(doc)
+    && doc.version === 2 && doc.files && typeof doc.files === 'object' && !Array.isArray(doc.files)
+    && Number.isSafeInteger(doc.updatedAt) && doc.updatedAt >= 0
+    && Object.keys(doc.files).length <= 200
+    && (doc.prunedEntries === undefined
+      || (Number.isSafeInteger(doc.prunedEntries) && doc.prunedEntries >= 0));
+  const validEntries = validDocument && Object.entries(doc.files).every(([filePath, entry]) =>
+    typeof filePath === 'string' && filePath.length > 0 && filePath.length <= 4096
+    && entry && typeof entry === 'object' && !Array.isArray(entry)
+    && entry.filePath === filePath
+    && typeof entry.signature === 'string' && /^[a-f0-9]{28}$/.test(entry.signature)
+    && Number.isSafeInteger(entry.attempts) && entry.attempts >= 0
+    && Number.isSafeInteger(entry.firstSeen) && entry.firstSeen >= 0
+    && Number.isSafeInteger(entry.updatedAt) && entry.updatedAt >= 0
+    && Array.isArray(entry.active) && entry.active.length <= 10_000
+    && Array.isArray(entry.history) && entry.history.length <= 16);
+  if (!validDocument || !validEntries) {
+    throw new Error('AgentShield persisted state is invalid or incompatible; security status is UNKNOWN.');
+  }
+  if (!config.privacy.retentionHours
+    || Date.now() - doc.updatedAt > config.privacy.retentionHours * 3600000) return freshState();
   return doc;
 }
 async function pruneExpiredSessions(root, config) {

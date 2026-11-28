@@ -299,6 +299,18 @@ test('malformed persistent state produces explicit unknown status instead of a p
   assert.match(result.data?.hookSpecificOutput?.additionalContext || '', /UNKNOWN/);
 });
 
+test('valid JSON with an unsupported state schema fails closed without resetting retry metadata', async t => {
+  const f = await fixture(t, 'src/auth.ts', danger);
+  await f.send(post);
+  const hash = text => createHash('sha256').update(text).digest('hex').slice(0, 28);
+  const file = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, hash(await realpath(f.root)), hash('test-week3') + '.json');
+  const invalidState = JSON.stringify({ version: 2, files: [], updatedAt: Date.now() });
+  await writeFile(file, invalidState);
+  const result = await f.send(post);
+  assert.match(result.data?.hookSpecificOutput?.additionalContext || '', /UNKNOWN/);
+  assert.equal(await readFile(file, 'utf8'), invalidState);
+});
+
 test('local state never stores synthetic secret values or source excerpts', async t => {
   const f = await fixture(t, 'src/auth.ts', danger);
   await f.send(post);
