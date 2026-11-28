@@ -193,7 +193,7 @@ async function main() {
   const manifest = {
     name: '@vibesane/foxy',
     version: PACKAGE_VERSION,
-    description: 'VibeSane Foxy local security CLI and read-only MCP server for AI coding agents',
+    description: 'VibeSane Foxy local security CLI and repository-non-mutating MCP server for AI coding agents',
     type: 'module',
     repository: { type: 'git', url: 'https://github.com/Darkhero766/Vibeguard.git' },
     publishConfig: { access: 'public', tag: 'beta' },
@@ -232,7 +232,7 @@ async function main() {
   await writeFile(path.join(stage, 'README.md'), [
     '# VibeSane Foxy ' + PACKAGE_VERSION + ' (unpublished beta candidate)',
     '',
-    'Consent-first, project-scoped MCP installer and local static security-scanning CLI for AI coding agents, with optional Codex Stop hooks. The read-only MCP server never modifies customer repositories or executes project code.',
+    'Consent-first, project-scoped MCP installer and local static security-scanning CLI for AI coding agents, with optional Codex Stop hooks. The MCP surface never modifies customer repository files or executes project code. Scan, verification, baseline and queue operations may update Foxy-managed local state.',
     '**Trust boundary:** Foxy is a cooperative local verification gate, not a tamper-proof security boundary. A coding agent or process running with the same OS-user permissions can alter local configuration, disable hooks, bypass MCP calls, or modify files directly. Enforce delivery independently with required CI checks, protected branches and human review.',
     'Requires Node.js 24.15.0 or newer (Node.js >=24.15.0) and Git. The automated release-qualification matrix runs on Windows, macOS, and Ubuntu/Linux. It covers regression tests, installer/connect behavior, typechecks/builds, MCP STDIO, synthetic benchmarks, and offline package/CLI smoke. Actual live-host acceptance, independent human security review, and explicit release approval are separate gates. This opt-in beta is not a security certification.',
     `The asynchronous MCP queue uses SQLite through Node's built-in node:sqlite module with transactional multi-process job claims, per-process heartbeats, cancellation propagation, and crash recovery. Its default store path includes the host namespace and an allowlist-scope fingerprint. VIBESANE_JOB_STORE_DIR relocates the base directory only; the same isolation suffix remains. On Windows the final store path must remain inside the current user profile. The store must reside on a local filesystem, never a network or cloud-synchronized folder.`,
