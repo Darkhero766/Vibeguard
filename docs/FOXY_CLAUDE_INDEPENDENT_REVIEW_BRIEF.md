@@ -1,10 +1,10 @@
 # Claude independent security review brief — Foxy beta.6
 
-**Exact code candidate to review:** `3ec649c01506ae077639595794fd0b0cc445db04`  
+**Exact code candidate to review:** `ca9de05d00672d9a3148deec13ee2e280f1996eb`  
 **Package:** `@vibesane/foxy@0.7.0-beta.6` (unpublished local candidate)  
 **Pull request:** [Darkhero766/Vibeguard #70](https://github.com/Darkhero766/Vibeguard/pull/70), still draft/open/unmerged  
-**Exact-source CI evidence:** [run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) — Windows, macOS and Ubuntu/Linux passed; 472/472 regression tests per OS  
-**Package manifest:** 30 files; identical three-platform SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`  
+**Exact-source CI evidence:** [run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) — Windows, macOS and Ubuntu/Linux passed; 472/472 regression tests per OS  
+**Package manifest:** 30 files; identical three-platform SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`  
 **Review status:** not yet reviewed by an independent party.
 
 ## Instructions to the reviewer
@@ -106,3 +106,14 @@ The package is `@vibesane/foxy@0.7.0-beta.6`, 30 files, package-content SHA-256 
 In addition to the original areas below, inspect the new consent-first universal installer and package path: agent detection for Claude/Codex/Cursor/Gemini/Roo/Copilot, generic MCP fallback, canonical Git root handling, exact target previews, consent boundaries, no-write dry-run, connector lock/snapshot semantics, post-write verification, rollback and ambiguous outcomes, and the Windows executable shim. Check that the README and package evidence describe the same tested source and do not overstate host acceptance.
 
 Keep this review strictly read-only. PR #70 must remain draft/open/unmerged; do not publish, merge, rebase, deploy or modify the candidate. No real credentials, customer repositories or production services.
+
+
+## Final Beta.6 review target — 28 November 2026
+
+The latest qualified source is `ca9de05d00672d9a3148deec13ee2e280f1996eb`; [workflow #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) passed on Windows, macOS and Ubuntu/Linux. Each OS passed 472/472 regression tests per OS, 30 package files and identical package-content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`. The package remains unpublished.
+
+Inspect the new concurrent SQLite initialization fix in agentshield-jobs-store.mjs: application identity, schema-object inspection, quick-check and first-time application-ID assignment now occur in an immediate transaction, preventing a stale application-ID read from being combined with another process's newly created tables. Reproduce the two-process first-open race and ensure unrelated non-empty SQLite databases are still refused without persistent changes.
+
+Also inspect the website Install MCP panel and the static/no-JavaScript SEO preview. The beta command copy action must remain disabled unless the explicit public build flag VITE_FOXY_BETA_INSTALL_ENABLED=true is set after owner-approved publication/provenance review. The website must not imply it can install or write local host configuration; the CLI still shows the target plan and requires user consent. Check focus/disabled/status accessibility and confirm no lifecycle hook or completion gate is silently enabled.
+
+Keep this review read-only. PR #70 remains draft/open/unmerged; no package publication or production deployment is authorized.
