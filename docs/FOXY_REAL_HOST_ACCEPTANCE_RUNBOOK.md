@@ -1,3 +1,5 @@
+> **Current exact-source evidence (28 November 2026):** `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`, [three-OS Actions run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859): Windows, macOS and Ubuntu/Linux all passed; 477/477 regression tests per OS; 33-file package content SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. Every packaged file digest matches across OSes. The release report remains `candidate_for_independent_human_review`; this is not independent review or launch approval. Later commits on the PR branch after this code SHA are documentation-only.
+
 # Foxy real-host acceptance runbook
 
 ## Purpose
@@ -6,7 +8,7 @@ This runbook captures the real application acceptance that automated Windows/mac
 
 A green CI run is necessary but not sufficient for distribution. The host matrix below remains a human-controlled release gate.
 
-**Automated evidence context (2026-11-28):** exact code SHA `ca9de05d00672d9a3148deec13ee2e280f1996eb` passed Windows, macOS and Ubuntu/Linux in [Foxy qualification run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503). Each report confirms 472/472 regression tests, no failed qualification steps, MCP STDIO and offline package/CLI/MCP smoke passed, and status `validation_passed_review_required`. The identical 30-file package-content digest is `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`. This is automated evidence only. All real-host rows below remain **Pending** until tested by a human on that host and OS.
+**Automated evidence context (2026-11-28):** exact code SHA `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6` passed Windows, macOS and Ubuntu/Linux in [Foxy qualification run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859). Each report confirms 477/477 regression tests, no failed qualification steps, MCP STDIO and offline package/CLI/MCP smoke passed, and status `validation_passed_review_required`. The identical 33-file package-content digest is `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. This is automated evidence only. All real-host rows below remain **Pending** until tested by a human on that host and OS.
 
 ## Candidate evidence
 
@@ -186,18 +188,18 @@ Backups must match the exact bytes read by the operation. Immediately before ren
 
 ## Current universal-installer Codespaces pilot — 28 November 2026
 
-For the owner's first actual Codex host session, use [FOXY_UNIVERSAL_INSTALLER_PILOT.md](FOXY_UNIVERSAL_INSTALLER_PILOT.md). It targets exact code SHA `ca9de05d00672d9a3148deec13ee2e280f1996eb`, package `@vibesane/foxy@0.7.0-beta.6` and a disposable repository with synthetic files. Build/package locally from the qualified source and install the local archive into an isolated npm prefix; the registry package is unpublished. Preview with `foxy install --dry-run --agent codex --cwd <fixture>` and run the interactive `foxy install --agent codex --cwd <fixture>` only after reviewing the target/config preview. Do not run a public `npx` command yet. Capture actual Codex MCP discovery, `/mcp` tools, `status`, authorized/unauthorized workspace behavior and `/hooks` trust separately from CI. Keep completion policy advisory for the initial run and use no production repositories.
+For the owner's first actual Codex host session, use [FOXY_UNIVERSAL_INSTALLER_PILOT.md](FOXY_UNIVERSAL_INSTALLER_PILOT.md). It targets exact code SHA `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`, package `@vibesane/foxy@0.7.0-beta.6` and a disposable repository with synthetic files. Build/package locally from the qualified source and install the local archive into an isolated npm prefix; the registry package is unpublished. Preview with `foxy install --dry-run --agent codex --cwd <fixture>` and run the interactive `foxy install --agent codex --cwd <fixture>` only after reviewing the target/config preview. Do not run a public `npx` command yet. Capture actual Codex MCP discovery, `/mcp` tools, `status`, authorized/unauthorized workspace behavior and `/hooks` trust separately from CI. Keep completion policy advisory for the initial run and use no production repositories.
 
-The final automated evidence is [run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) on source SHA `ca9de05d00672d9a3148deec13ee2e280f1996eb`; Windows, macOS and Ubuntu/Linux all passed 472/472 tests and package smoke with 30 files and canonical package-content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`. All real-host matrix rows remain pending.
+The final automated evidence is [run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859) on source SHA `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`; Windows, macOS and Ubuntu/Linux all passed 477/477 tests and package smoke with 33 files and canonical package-content SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. All real-host matrix rows remain pending.
 
 
 ## Final Beta.6 evidence override — 28 November 2026
 
 This is the current source of truth; older Beta.5 and pre-fix Beta.6 evidence blocks above are historical.
 
-- Exact code candidate: `ca9de05d00672d9a3148deec13ee2e280f1996eb`; workflow [#46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) passed on Windows, macOS and Ubuntu/Linux.
-- All three reports: 472/472 regression tests, successful workspace/frontend/API typechecks and builds, connector regression, MCP STDIO, curated/holdout/additional-adversarial benchmarks, offline install/CLI/MCP smoke; zero failed qualification steps.
-- Package: `@vibesane/foxy@0.7.0-beta.6`, 30 files, Node.js >=24.15.0, content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`; unpublished.
+- Exact code candidate: `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`; workflow [#46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859) passed on Windows, macOS and Ubuntu/Linux.
+- All three reports: 477/477 regression tests, successful workspace/frontend/API typechecks and builds, connector regression, MCP STDIO, curated/holdout/additional-adversarial benchmarks, offline install/CLI/MCP smoke; zero failed qualification steps.
+- Package: `@vibesane/foxy@0.7.0-beta.6`, 33 files, Node.js >=24.15.0, content SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`; unpublished.
 - The intended post-approval beta command is `npx @vibesane/foxy@beta install`; it is not available until the owner approves publication and npm namespace/provenance checks pass.
 - Real-host matrix remains pending for each host/OS version. Automated CI does not verify that a live coding-agent app loads or trusts its MCP entry, runs hooks, or enforces completion behavior.
 - Do not enable enforcement in the first pilot. Use disposable repositories and fake data only. Keep PR #70 draft/unmerged; no npm publication, production deployment or production configuration was performed.
@@ -207,9 +209,9 @@ This is the current source of truth; older Beta.5 and pre-fix Beta.6 evidence bl
 
 This section supersedes earlier exact-source Beta.6 blocks above.
 
-- **Exact code source:** `ca9de05d00672d9a3148deec13ee2e280f1996eb`.
-- **Qualification:** [run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) passed Windows, macOS and Ubuntu/Linux. Each platform reports 472/472 tests, 0 failed/cancelled/skipped and 0 failed qualification steps.
-- **Package:** `@vibesane/foxy@0.7.0-beta.6`, 30 files, identical package-content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`; local-only and unpublished.
+- **Exact code source:** `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`.
+- **Qualification:** [run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859) passed Windows, macOS and Ubuntu/Linux. Each platform reports 477/477 tests, 0 failed/cancelled/skipped and 0 failed qualification steps.
+- **Package:** `@vibesane/foxy@0.7.0-beta.6`, 33 files, identical package-content SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`; local-only and unpublished.
 - **SQLite first-open fix:** application identity, schema-object count, integrity check and app-ID assignment now share an immediate transaction. The two-process fresh-queue startup test passes on all three platforms. Keep this test in every future release qualification.
 - **Website:** the `/foxy` page includes an Install MCP entry point, copy panel and static no-JavaScript preview. The beta command `npx -y @vibesane/foxy@beta install` is displayed but copying remains disabled until the explicit public build flag `VITE_FOXY_BETA_INSTALL_ENABLED=true` is set after approved publication and provenance checks.
 - The page cannot write local MCP configuration. It must direct the user to a terminal where the CLI resolves the canonical Git root, previews exact targets, asks for consent and verifies connector changes. Agent host trust remains host-controlled; hooks/skills and completion enforcement remain separate opt-ins.
