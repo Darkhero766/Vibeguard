@@ -201,6 +201,81 @@ async function ensureSafeDirectory(directory) {
   }
 }
 
+async function withHostConfigLock(file, operation) {
+  const lockPath = file + '.agentshield.lock';
+  const token = randomUUID();
+  let handle = null;
+  let identity = null;
+  let operationError = null;
+  try {
+    try {
+      handle = await open(lockPath, 'wx', 0o600);
+    } catch (error) {
+      if (error?.code === 'EEXIST') {
+        throw new Error('Host configuration is locked by another Foxy operation or a stale lock exists at '
+          + lockPath + '. Inspect its PID and remove it only after confirming no Foxy operation is active.');
+      }
+      throw error;
+    }
+    identity = await handle.stat();
+    const lockRecord = JSON.stringify({
+      pid: process.pid,
+      host: os.hostname(),
+      createdAt: new Date().toISOString(),
+      token,
+    }) + '\n';
+    await handle.writeFile(lockRecord, 'utf8');
+    await handle.sync();
+    return await operation();
+  } catch (error) {
+    operationError = error;
+    throw error;
+  } finally {
+    if (handle) {
+      try {
+        await handle.close();
+        if (!identity) throw new Error('Foxy host configuration lock identity was not established.');
+        const before = await lstat(lockPath);
+        if (!before.isFile() || before.isSymbolicLink()
+          || before.dev !== identity.dev || before.ino !== identity.ino || before.size > 4096) {
+          throw new Error('Foxy host configuration lock changed; refusing to remove it automatically.');
+        }
+        const verify = await open(lockPath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+        try {
+          const opened = await verify.stat();
+          if (!opened.isFile() || opened.dev !== identity.dev || opened.ino !== identity.ino || opened.size > 4096) {
+            throw new Error('Foxy host configuration lock identity changed before release.');
+          }
+          const raw = await verify.readFile('utf8');
+          const after = await verify.stat();
+          if (after.dev !== opened.dev || after.ino !== opened.ino || after.size !== opened.size
+            || after.mtimeMs !== opened.mtimeMs || Buffer.byteLength(raw, 'utf8') !== opened.size) {
+            throw new Error('Foxy host configuration lock changed while being read.');
+          }
+          let record;
+          try { record = JSON.parse(raw); } catch {
+            throw new Error('Foxy host configuration lock metadata is malformed; refusing automatic removal.');
+          }
+          if (record?.token !== token) {
+            throw new Error('Foxy host configuration lock ownership changed; refusing automatic removal.');
+          }
+          const current = await lstat(lockPath);
+          if (!current.isFile() || current.isSymbolicLink()
+            || current.dev !== opened.dev || current.ino !== opened.ino) {
+            throw new Error('Foxy host configuration lock was replaced before release.');
+          }
+          await unlink(lockPath);
+        } finally { await verify.close(); }
+      } catch (releaseError) {
+        if (!operationError) {
+          throw new Error('Foxy could not safely release the host configuration lock at '
+            + lockPath + '. Inspect the lock before retrying.', { cause: releaseError });
+        }
+      }
+    }
+  }
+}
+
 async function readRegularHostConfig(file, description = 'host MCP configuration') {
   const before = await lstat(file);
   if (!before.isFile() || before.isSymbolicLink() || before.size > MAX_HOST_CONFIG_BYTES) {
@@ -237,16 +312,22 @@ async function readJsonConfig(file) {
     const raw = await readRegularHostConfig(file);
     const value = JSON.parse(raw);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed host MCP configuration.');
-    return value;
+    return { value, raw };
   } catch (error) {
-    if (error?.code === 'ENOENT') return {};
+    if (error?.code === 'ENOENT') return { value: {}, raw: null };
     throw error;
   }
 }
 
-async function backupFile(file) {
+async function backupFile(file, expectedRaw = undefined) {
   const before = await lstat(file).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
-  if (!before) return null;
+  if (!before) {
+    if (expectedRaw !== undefined && expectedRaw !== null) {
+      throw new Error('Host configuration disappeared after it was read; refusing to replace it.');
+    }
+    return null;
+  }
+  if (expectedRaw === null) throw new Error('Host configuration appeared after it was read; refusing to replace it.');
   if (!before.isFile() || before.isSymbolicLink() || before.size > MAX_HOST_CONFIG_BYTES) {
     throw new Error('Refusing to back up a non-regular, symlinked or oversized host configuration.');
   }
@@ -265,10 +346,11 @@ async function backupFile(file) {
       bytesRead += chunk.bytesRead;
     }
     const after = await handle.stat();
+    const raw = buffer.toString('utf8');
     if (after.dev !== opened.dev || after.ino !== opened.ino
-      || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs
-      || bytesRead !== opened.size) {
-      throw new Error('Host configuration changed or was truncated during backup.');
+      || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs || after.ctimeMs !== opened.ctimeMs
+      || bytesRead !== opened.size || (expectedRaw !== undefined && raw !== expectedRaw)) {
+      throw new Error('Host configuration changed or no longer matches the version being backed up.');
     }
     const backup = file + '.vibesane-backup-' + new Date().toISOString().replaceAll(':', '-') + '-' + randomUUID();
     try {
@@ -284,10 +366,20 @@ async function backupFile(file) {
   }
 }
 
-async function atomicWrite(file, content) {
+async function atomicWrite(file, content, expectedExistingRaw) {
+  if (expectedExistingRaw === undefined) {
+    throw new TypeError('Host configuration replacement requires an expected original content value.');
+  }
   const temp = file + '.agentshield-' + randomUUID() + '.tmp';
   try {
     await writeFile(temp, content, { flag: 'wx', mode: 0o600 });
+    const currentRaw = await readRegularHostConfig(file).catch((error) => {
+      if (error?.code === 'ENOENT') return null;
+      throw error;
+    });
+    if (currentRaw !== expectedExistingRaw) {
+      throw new Error('Host configuration changed after it was read; refusing to overwrite concurrent edits.');
+    }
     await rename(temp, file);
   } catch (error) {
     await unlink(temp).catch(() => {});
@@ -313,65 +405,72 @@ async function configureJsonHost(host, root, nodePath, serverPath) {
   const file = host === 'cursor' ? path.join(configDir, 'mcp.json')
     : host === 'gemini' ? path.join(configDir, 'settings.json')
       : host === 'roo' ? path.join(configDir, 'mcp.json') : path.join(root, '.mcp.json');
-  const config = await readJsonConfig(file);
-  if (config.mcpServers != null && (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers))) {
-    throw new Error('Refusing malformed mcpServers configuration.');
-  }
-  const servers = config.mcpServers || {};
-  const desired = buildJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
-  if (servers[SERVER_LABEL] != null) {
-    if (sameJson(servers[SERVER_LABEL], desired)) return { host, status: 'already_configured', configFile: file };
-    const legacy = buildLegacyJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
-    if (!sameJson(servers[SERVER_LABEL], legacy)) {
-      throw new Error('A different or customized MCP entry already uses ' + SERVER_LABEL + '; it was left untouched.');
+  return withHostConfigLock(file, async () => {
+    const { value: config, raw: originalRaw } = await readJsonConfig(file);
+    if (config.mcpServers != null && (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers))) {
+      throw new Error('Refusing malformed mcpServers configuration.');
     }
-    const backup = await backupFile(file);
+    const servers = config.mcpServers || {};
+    const desired = buildJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
+    if (servers[SERVER_LABEL] != null) {
+      if (sameJson(servers[SERVER_LABEL], desired)) return { host, status: 'already_configured', configFile: file };
+      const legacy = buildLegacyJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
+      if (!sameJson(servers[SERVER_LABEL], legacy)) {
+        throw new Error('A different or customized MCP entry already uses ' + SERVER_LABEL + '; it was left untouched.');
+      }
+      const backup = await backupFile(file, originalRaw);
+      config.mcpServers = { ...servers, [SERVER_LABEL]: desired };
+      await atomicWrite(file, JSON.stringify(config, null, 2) + '\n', originalRaw);
+      return { host, status: 'migrated', configFile: file, backup };
+    }
+    const backup = await backupFile(file, originalRaw);
     config.mcpServers = { ...servers, [SERVER_LABEL]: desired };
-    await atomicWrite(file, JSON.stringify(config, null, 2) + '\n');
-    return { host, status: 'migrated', configFile: file, backup };
-  }
-  const backup = await backupFile(file);
-  config.mcpServers = { ...servers, [SERVER_LABEL]: desired };
-  await atomicWrite(file, JSON.stringify(config, null, 2) + '\n');
-  return { host, status: 'configured', configFile: file, backup };
+    await atomicWrite(file, JSON.stringify(config, null, 2) + '\n', originalRaw);
+    return { host, status: 'configured', configFile: file, backup };
+  });
 }
 
 async function configureCodex(root, nodePath, serverPath) {
   const directory = path.join(root, '.codex');
   await ensureSafeDirectory(directory);
   const file = path.join(directory, 'config.toml');
-  let existing = '';
-  try {
-    existing = await readRegularHostConfig(file, 'Codex config.toml');
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error;
-  }
-  const block = buildCodexMcpBlock({ nodePath, serverPath, workspaceRoot: root });
-  const marker = '# BEGIN VIBESANE AGENTSHIELD MANAGED MCP ENTRY';
-  if (existing.includes(marker)) {
-    const start = existing.indexOf(marker);
-    const endMarker = '# END VIBESANE AGENTSHIELD MANAGED MCP ENTRY';
-    const end = existing.indexOf(endMarker, start);
-    if (end < 0) throw new Error('The managed Codex MCP block is damaged; refusing to rewrite it.');
-    const current = existing.slice(start, end + endMarker.length);
-    if (current === block) return { host: 'codex', status: 'already_configured', configFile: file };
-    const legacy = buildLegacyCodexMcpBlock({ nodePath, serverPath, workspaceRoot: root });
-    if (current !== legacy) {
-      throw new Error('The managed Codex MCP block was customized; refusing to overwrite it.');
+  return withHostConfigLock(file, async () => {
+    let existing = '';
+    let originalRaw = null;
+    try {
+      existing = await readRegularHostConfig(file, 'Codex config.toml');
+      originalRaw = existing;
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
     }
-    const backup = await backupFile(file);
-    const tail = existing.slice(end + endMarker.length);
-    await atomicWrite(file, existing.slice(0, start) + block + tail);
-    return { host: 'codex', status: 'migrated', configFile: file, backup };
-  }
-  if (/^\s*\[mcp_servers\.vibesane_agentshield\]\s*$/m.test(existing)
-    || /^\s*mcp_servers\s*=\s*\{/m.test(existing)) {
-    throw new Error('A conflicting Codex MCP entry exists; it was left untouched.');
-  }
-  const backup = await backupFile(file);
-  const prefix = existing && !existing.endsWith('\n') ? existing + '\n' : existing;
-  await atomicWrite(file, prefix + (prefix ? '\n' : '') + block + '\n');
-  return { host: 'codex', status: 'configured', configFile: file, backup };
+    const block = buildCodexMcpBlock({ nodePath, serverPath, workspaceRoot: root });
+    const marker = '# BEGIN VIBESANE AGENTSHIELD MANAGED MCP ENTRY';
+    if (existing.includes(marker)) {
+      const start = existing.indexOf(marker);
+      const endMarker = '# END VIBESANE AGENTSHIELD MANAGED MCP ENTRY';
+      const end = existing.indexOf(endMarker, start);
+      if (end < 0) throw new Error('The managed Codex MCP block is damaged; refusing to rewrite it.');
+      const current = existing.slice(start, end + endMarker.length);
+      if (current === block) return { host: 'codex', status: 'already_configured', configFile: file };
+      const legacy = buildLegacyCodexMcpBlock({ nodePath, serverPath, workspaceRoot: root });
+      if (current !== legacy) {
+        throw new Error('The managed Codex MCP block was customized; refusing to overwrite it.');
+      }
+      const backup = await backupFile(file, originalRaw);
+      const tail = existing.slice(end + endMarker.length);
+      await atomicWrite(file, existing.slice(0, start) + block + tail, originalRaw);
+      return { host: 'codex', status: 'migrated', configFile: file, backup };
+    }
+    if (/^\s*\[mcp_servers\.vibesane_agentshield\]\s*$/m.test(existing)
+      || /^\s*mcp_servers\s*=\s*\{/m.test(existing)) {
+      throw new Error('A conflicting Codex MCP entry exists; it was left untouched.');
+    }
+    const backup = await backupFile(file, originalRaw);
+    const newline = String.fromCharCode(10);
+    const prefix = existing && !existing.endsWith(newline) ? existing + newline : existing;
+    await atomicWrite(file, prefix + (prefix ? newline : '') + block + newline, originalRaw);
+    return { host: 'codex', status: 'configured', configFile: file, backup };
+  });
 }
 
 async function disconnectJsonHost(host, root, nodePath, serverPath) {
@@ -386,56 +485,62 @@ async function disconnectJsonHost(host, root, nodePath, serverPath) {
   const file = host === 'cursor' ? path.join(configDir, 'mcp.json')
     : host === 'gemini' ? path.join(configDir, 'settings.json')
       : host === 'roo' ? path.join(configDir, 'mcp.json') : path.join(root, '.mcp.json');
-  const config = await readJsonConfig(file);
-  if (config.mcpServers != null && (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers))) {
-    throw new Error('Refusing malformed mcpServers configuration.');
-  }
-  const servers = config.mcpServers || {};
-  const existing = servers[SERVER_LABEL];
-  if (existing == null) return { host, status: 'not_configured', configFile: file };
-  const desired = buildJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
-  const legacy = buildLegacyJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
-  if (!sameJson(existing, desired) && !sameJson(existing, legacy)) {
-    throw new Error('The AgentShield MCP entry was customized; refusing to remove it automatically.');
-  }
-  const backup = await backupFile(file);
-  delete servers[SERVER_LABEL];
-  if (Object.keys(servers).length) config.mcpServers = servers;
-  else delete config.mcpServers;
-  await atomicWrite(file, JSON.stringify(config, null, 2) + '\n');
-  return { host, status: 'removed', configFile: file, backup };
+  return withHostConfigLock(file, async () => {
+    const { value: config, raw: originalRaw } = await readJsonConfig(file);
+    if (config.mcpServers != null && (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers))) {
+      throw new Error('Refusing malformed mcpServers configuration.');
+    }
+    const servers = config.mcpServers || {};
+    const existing = servers[SERVER_LABEL];
+    if (existing == null) return { host, status: 'not_configured', configFile: file };
+    const desired = buildJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
+    const legacy = buildLegacyJsonMcpEntry({ host, nodePath, serverPath, workspaceRoot: root });
+    if (!sameJson(existing, desired) && !sameJson(existing, legacy)) {
+      throw new Error('The AgentShield MCP entry was customized; refusing to remove it automatically.');
+    }
+    const backup = await backupFile(file, originalRaw);
+    delete servers[SERVER_LABEL];
+    if (Object.keys(servers).length) config.mcpServers = servers;
+    else delete config.mcpServers;
+    await atomicWrite(file, JSON.stringify(config, null, 2) + '\n', originalRaw);
+    return { host, status: 'removed', configFile: file, backup };
+  });
 }
 
 async function disconnectCodex(root, nodePath, serverPath) {
   const directory = path.join(root, '.codex');
   if (!await isDirectory(directory)) return { host: 'codex', status: 'not_configured', configFile: path.join(directory, 'config.toml') };
   const file = path.join(directory, 'config.toml');
-  let existing = '';
-  try {
-    existing = await readRegularHostConfig(file, 'Codex config.toml');
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error;
-  }
-  const marker = '# BEGIN VIBESANE AGENTSHIELD MANAGED MCP ENTRY';
-  const endMarker = '# END VIBESANE AGENTSHIELD MANAGED MCP ENTRY';
-  const start = existing.indexOf(marker);
-  if (start < 0) return { host: 'codex', status: 'not_configured', configFile: file };
-  const end = existing.indexOf(endMarker, start);
-  if (end < 0) throw new Error('The managed Codex MCP block is damaged; refusing to rewrite it.');
-  const expected = buildCodexMcpBlock({
-    nodePath,
-    serverPath,
-    workspaceRoot: root,
+  return withHostConfigLock(file, async () => {
+    let existing = '';
+    let originalRaw = null;
+    try {
+      existing = await readRegularHostConfig(file, 'Codex config.toml');
+      originalRaw = existing;
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+    const marker = '# BEGIN VIBESANE AGENTSHIELD MANAGED MCP ENTRY';
+    const endMarker = '# END VIBESANE AGENTSHIELD MANAGED MCP ENTRY';
+    const start = existing.indexOf(marker);
+    if (start < 0) return { host: 'codex', status: 'not_configured', configFile: file };
+    const end = existing.indexOf(endMarker, start);
+    if (end < 0) throw new Error('The managed Codex MCP block is damaged; refusing to rewrite it.');
+    const expected = buildCodexMcpBlock({ nodePath, serverPath, workspaceRoot: root });
+    const current = existing.slice(start, end + endMarker.length);
+    const legacy = buildLegacyCodexMcpBlock({ nodePath, serverPath, workspaceRoot: root });
+    if (current !== expected && current !== legacy) {
+      throw new Error('The managed Codex MCP entry was customized; refusing to remove it automatically.');
+    }
+    const backup = await backupFile(file, originalRaw);
+    const newline = String.fromCharCode(10);
+    const carriageReturn = String.fromCharCode(13);
+    const suffix = existing.slice(end + endMarker.length);
+    const tail = suffix.startsWith(carriageReturn + newline) ? suffix.slice(2)
+      : suffix.startsWith(newline) ? suffix.slice(1) : suffix;
+    await atomicWrite(file, existing.slice(0, start) + tail, originalRaw);
+    return { host: 'codex', status: 'removed', configFile: file, backup };
   });
-  const current = existing.slice(start, end + endMarker.length);
-  const legacy = buildLegacyCodexMcpBlock({ nodePath, serverPath, workspaceRoot: root });
-  if (current !== expected && current !== legacy) {
-    throw new Error('The managed Codex MCP block was customized; refusing to remove it automatically.');
-  }
-  const backup = await backupFile(file);
-  const tail = existing.slice(end + endMarker.length).replace(/^\r?\n/, '');
-  await atomicWrite(file, existing.slice(0, start) + tail);
-  return { host: 'codex', status: 'removed', configFile: file, backup };
 }
 
 export async function disconnectAgentShield(args = [], overrides = {}) {
