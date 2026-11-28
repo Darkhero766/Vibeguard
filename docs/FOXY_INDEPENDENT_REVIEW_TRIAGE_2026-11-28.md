@@ -109,3 +109,17 @@ Final matrix completion: all jobs in run #46156668487 completed successfully on 
 - Workflow conclusion: success. Release validator decision remains \`candidate_for_independent_human_review\`, not publish/merge approval.
 
 PR #70 head subsequently advanced to \`3e7072aa9269a47592358975e3843cc243e4b9fc\` for this documentation-only qualification record. The Foxy source files and packaged content are unchanged from the qualified source SHA above.
+
+
+## Licensing and contribution-policy implementation — 28 November 2026
+
+The draft Foxy package branch now includes a scoped Apache License 2.0 implementation:
+- Source license text: `artifacts/api-server/FOXY-LICENSE-APACHE-2.0.txt`.
+- Package notice: `artifacts/api-server/FOXY-NOTICE.txt`, identifying Copyright 2026 Md Faizal for Foxy-authored material.
+- The npm package builder copies these to archive-root `LICENSE` and `NOTICE`, sets the package SPDX field to `Apache-2.0`, and explicitly allowlists both files.
+- Package normalization now accepts extensionless `LICENSE` and `NOTICE` files.
+- The package smoke test verifies license metadata and full license/notice contents both in the tarball and after offline installation.
+- Release tests assert that the license scope is Foxy-only, the monorepo is not blanket-licensed, and the DCO contribution policy is present.
+- `docs/FOXY_LICENSE_AND_OWNERSHIP.md` records the Foxy distribution boundary, copyright/assignment checks, third-party treatment, trademarks, DCO/CLA choice and manual owner actions. `docs/FOXY_CONTRIBUTING.md` describes the sign-off process.
+
+This resolves the generated `UNLICENSED` metadata blocker at source level only. It does not independently prove that Md Faizal owns every included contribution, complete the third-party rights audit, verify the npm organization/scope, configure npm Trusted Publishing, or authorize publication. The package remains unpublished and PR #70 remains draft/open/unmerged. The generated archive must pass a new exact-source Windows/macOS/Linux qualification before these changes are considered validated.
