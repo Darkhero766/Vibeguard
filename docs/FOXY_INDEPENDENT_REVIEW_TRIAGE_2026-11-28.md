@@ -216,3 +216,26 @@ This evidence supersedes the earlier `f97f95a48ffbdd3ef61a3d7da8ef57caf36a4ad3` 
 6. No package is published and the npm publisher has not been configured.
 
 **Release disposition:** automated qualification is complete for SHA `e6ab...`; Foxy remains a candidate for independent human review only. It is not yet cleared for a public launch or external beta distribution. No merge, production deployment, website release, npm publication, or tag push has been performed.
+
+
+## Latest successful Beta.6 license/package qualification — 28 November 2026
+
+The earlier run #46159923973 on source `bcbe7c1019bcdc0c12ee5ea38d1d498fa70b3076` failed the regression stage on all three OSes (472/475). The three failures were stale assertions introduced by the license/package update: a NOTICE test expected a repository path, a week-four test expected 31 files instead of 33, and a week-five test expected `UNLICENSED` instead of `Apache-2.0`. Follow-up commits corrected those tests.
+
+The subsequent exact-source run [#46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820) passed on Windows, macOS and Ubuntu/Linux for package source `a0651317c1cb16170d563867adcf5ddff08d5927`:
+
+- Regression suite: **479/479 on each OS**, zero failed/cancelled/skipped.
+- TypeScript workspace/frontend/API checks, frontend and standalone preview builds, and connector regression tests passed.
+- MCP STDIO integration smoke, curated/holdout/additional-adversarial synthetic benchmarks, and offline package/CLI/MCP smoke passed.
+- Package: `@vibesane/foxy@0.7.0-beta.6`, 33 files, canonical package-content SHA-256 `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa` identical across all OSes.
+- Each report states `validation_passed_review_required`, `candidate_for_independent_human_review`, `qualificationFailures=[]`, and `failedSteps=[]`.
+
+The current PR #70 head at the audit was `68f06d84865fdd17c2677d64a4821263efee5cce`, four commits beyond the qualified package source. Comparing those four commits shows changes only to `FoxyPage.tsx`, static SEO generation, and the corresponding page/preview tests. No packaged Foxy runtime or release workflow file changed in that delta. The current website/SEO delta is not yet verified by an exact-head Actions rerun, so the package result must not be advertised as exact-head qualification for all 85 PR files.
+
+The Apache-2.0 package implementation and 33-file manifest are present, but the legal attribution to Md Faizal remains conditional on the author's rights/assignment verification; npm `@vibesane` organization/package ownership and Trusted Publisher configuration remain unverified. The owner-gated `foxy-publish.yml` exists only on draft PR #70 and is not dispatchable from `main` until safely integrated. Do not set publication confirmation or publish the package.
+
+F-01/F-03/F-04/F-05 have been exercised by the passing automated regression/connector suite on the qualified package source, but this does not replace independent review of the implementation or live-host testing. F-02 remains a cooperative-gate limitation: a same-user process can bypass local controls; authoritative enforcement belongs in required CI, protected branches and human review. Independent security review and actual host acceptance remain open.
+
+GitGuardian incident 35188914 was triaged in the PR discussion as a pre-existing public Supabase anon-key event at `.replit:65` (`role=anon`, identical blob on `main` and the PR base). Verify the role in Supabase project settings and resolve/allowlist only that exact event; do not suppress unrelated service-role or secret-key findings. The earlier VibeSane Security critical signal is separate and needs its own source-level disposition.
+
+**Disposition remains:** candidate for independent human review only; not cleared for merge, public launch, external beta, npm publication or production deployment.
