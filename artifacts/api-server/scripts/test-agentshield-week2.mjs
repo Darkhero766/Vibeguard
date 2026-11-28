@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { freshState, parseConfig, trackFile, keyForFinding, guidanceFor } from './agentshield-policy.mjs';
-import { verifyNow, readHookInput } from './agentshield-controller.mjs';
+import { verifyNow, readHookInput, appendStateEvent } from './agentshield-controller.mjs';
 
 const scripts = path.dirname(fileURLToPath(import.meta.url));
 const controller = path.join(scripts, 'agentshield-controller.mjs');
@@ -54,6 +54,17 @@ const fakeJWT = 'const JWT_SECRET = "' + 'Z'.repeat(36) + '";\n';
 const sqlExpression = "db.query(" + String.fromCharCode(96) + "SELECT * FROM users WHERE id = $" + "{userId}" + String.fromCharCode(96) + ");\n";
 const jsonContext = (r) => r.output?.hookSpecificOutput?.additionalContext || '';
 const pathDigest = (value) => createHash('sha256').update(String(value)).digest('hex').slice(0, 28);
+
+test('controller state event appends preserve the bounded 16-entry history invariant', () => {
+  const entry = { history: Array.from({ length: 16 }, (_, i) => ({ event: 'event-' + i, at: i })) };
+  appendStateEvent(entry, 'verification_passed', 99);
+  assert.equal(entry.history.length, 16);
+  assert.equal(entry.history[0].event, 'event-1');
+  assert.deepEqual(entry.history.at(-1), { event: 'verification_passed', at: 99 });
+  const empty = {};
+  appendStateEvent(empty, 'detected', 100);
+  assert.deepEqual(empty.history, [{ event: 'detected', at: 100 }]);
+});
 
 test('config validation defaults to monitor and rejects unsafe settings', () => {
   assert.equal(parseConfig({}).mode, 'monitor');

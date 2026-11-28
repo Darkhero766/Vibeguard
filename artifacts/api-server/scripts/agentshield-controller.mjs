@@ -308,7 +308,7 @@ async function postEdit(event, root, config) {
       update.entry.verificationResults = independent;
       update.entry.verificationState = independent.length && independent.every((x) => x.status === 'verification_passed') ? 'verification_passed'
         : independent.some((x) => x.status === 'verification_failed') ? 'verification_failed' : 'unverified';
-      update.entry.history.push({ event: update.entry.verificationState, at: Date.now() });
+      appendStateEvent(update.entry, update.entry.verificationState);
     }
     return update;
   });
@@ -360,7 +360,7 @@ async function atStop(event, root, config, { allowRepairRequest = true } = {}) {
     if (pending && gate.blocking > 0 && !unscanned.length && config.mode === 'auto-fix'
       && !recursiveStop && allowRepairRequest) {
       pending.lastStopSignature = pending.signature;
-      pending.history.push({ event: 'repair_requested', at: Date.now() });
+      appendStateEvent(pending, 'repair_requested');
       message = contextLines(pending, config) +
         '\nOne bounded continuation is requested before finishing. If approval is required, ask; do not override user permissions.';
     }
@@ -484,6 +484,12 @@ function argsOf(argv) {
   }
   return opts;
 }
+export function appendStateEvent(entry, event, at = Date.now()) {
+  const history = Array.isArray(entry?.history) ? entry.history : [];
+  entry.history = [...history, { event, at }].slice(-16);
+  return entry;
+}
+
 async function stateForReading(root, session, config) {
   const file = session ? sessionFile(root, session) : await latestStateFile(root);
   return readState(file, config);
@@ -511,7 +517,7 @@ export async function verifyNow(root, opts, config, { scanImpl = scan } = {}) {
         entry.verificationResults = await verifyResolvedFile(root, file, prior.active, config);
         entry.verificationState = entry.verificationResults.length && entry.verificationResults.every((f) => f.status === 'verification_passed')
           ? 'verification_passed' : entry.verificationResults.some((f) => f.status === 'verification_failed') ? 'verification_failed' : 'unverified';
-        entry.history.push({ event: entry.verificationState, at: Date.now() });
+        appendStateEvent(entry, entry.verificationState);
       }
       next.files[file] = entry;
       outcomes.push({ filePath: file, scanState: entry.scanState, verificationState: entry.verificationState,
