@@ -31,15 +31,16 @@ for (const token of [
   '<title>Foxy — Local-First MCP Security for AI Coding Agents | VibeSane</title>',
   'Security context for your AI agent.', 'Not extra authority.',
   'Claude Code', 'Codex CLI', 'Cursor', 'Gemini CLI', 'Roo Code', 'GitHub Copilot',
-  'vibesane connect --agent auto', 'vibesane disconnect --agent all',
+  'foxy install --agent auto', 'foxy doctor', 'npx -y @vibesane/foxy@beta install',
   'Read-only MCP tools', 'canonical Git root',
-  '429 / 429', '12 / 12', 'Regression suite', 'Connector regressions', 'Windows + macOS',
+  '472 / 472', 'Regression suite', 'Windows + macOS + Ubuntu/Linux', '10 tools', '30 files',
   'Live authenticated acceptance', 'independent review',
   'https://github.com/Darkhero766/Vibeguard/actions/workflows/agentshield-cross-platform.yml?query=branch%3Afeat%2Fagentshield-cross-platform-autoconnect',
-  'https://github.com/Darkhero766/Vibeguard/pull/70', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
+  'https://github.com/Darkhero766/Vibeguard/pull/70', 'https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745', 'f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14', 'Install MCP', 'Available after beta publication', 'not published yet', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
 ]) assert.ok(html.includes(token), 'Foxy SEO route is missing: ' + token);
 
 assert.match(html, /<main id="main-content"/);
+assert.match(html, /id="install"/);
 assert.match(html, /id="connect"/);
 assert.match(html, /id="security-model"/);
 assert.match(html, /id="qualification"/);
@@ -48,14 +49,17 @@ assert.match(html, /<link rel="canonical" href="https:\/\/vibesane\.app\/foxy"/)
 assert.match(html, /max-w-\[1180px\]/);
 assert.match(html, /font-sans/);
 assert.ok(html.includes('Node.js 24.15+'), 'Static Foxy page must state the supported Node.js runtime.');
-assert.ok(html.includes('HISTORICAL / BETA.4'), 'Prior beta.4 metrics must be labeled historical.');
-assert.ok(html.includes('beta.5 exact-source CI pending'), 'The beta.5 qualification gate must remain visible.');
+assert.ok(html.includes('Beta.6 passed the three-platform automated matrix.'), 'Foxy page must advertise the current qualified candidate.');
+assert.ok(!html.includes('beta.5 exact-source CI pending'), 'Stale beta.5 qualification copy must not remain on the public page.');
+assert.ok(!html.includes('The current beta.5 candidate adds'), 'Stale beta.5 release copy must not remain on the public page.');
+assert.ok(html.includes('npx -y @vibesane/foxy@beta install'), 'The future beta one-command installer must be shown.');
+assert.ok(html.includes('Available after beta publication'), 'The install action must remain gated while the package is unpublished.');
 assert.ok(html.includes('#0b1112') && html.includes('#c7f36a'), 'Static page must match the graphite/lime visual system.');
 assert.ok(!html.includes('Node.js 20+'), 'Static page must not advertise the obsolete runtime floor.');
 assert.ok(!html.includes('The current candidate passed automated release qualification'), 'Historical beta.4 CI must not be attributed to beta.5.');
 assert.ok(agentShieldHtml.includes('Node.js 24.15.0 or newer'), 'AgentShield SEO route must state the package runtime floor.');
-assert.ok(agentShieldHtml.includes('automated release matrix covers Windows and macOS'), 'AgentShield SEO route must distinguish automated matrix coverage from other runtime targets.');
+assert.ok(agentShieldHtml.includes('automated release matrix covers Windows, macOS and Ubuntu/Linux'), 'AgentShield SEO route must describe the current three-platform automated matrix.');
 assert.ok(!agentShieldHtml.includes('Node.js 20+'), 'AgentShield SEO route must not advertise the obsolete runtime floor.');
-assert.ok(!agentShieldHtml.includes('macOS or Linux'), 'AgentShield SEO route must not advertise the obsolete platform matrix.');
+assert.ok(!agentShieldHtml.includes('Windows/macOS qualification is pending'), 'AgentShield SEO route must not describe the qualification as pending.');
 assert.ok(agentShieldHtml.includes('live authenticated Claude Code validation'), 'AgentShield SEO route must retain the live-host release gate.');
 console.log('Foxy page route, responsive theme, qualification evidence, semantics and metadata passed.');
