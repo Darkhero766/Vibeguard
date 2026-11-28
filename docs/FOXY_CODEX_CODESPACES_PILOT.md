@@ -60,7 +60,7 @@ pnpm --filter @workspace/api-server run test:agentshield:connect
 pnpm --filter @workspace/api-server run validate:agentshield:mcp
 ```
 
-The last command rebuilds the scanner and runs MCP, queue and STDIO smoke tests. Keep the complete terminal output and exit codes. The GitHub qualification run already performed the full release suite on Windows/macOS; these local commands are a Codespaces environment preflight and must be reported separately.
+The last command rebuilds the scanner and runs MCP, queue and STDIO smoke tests. Keep the complete terminal output and exit codes. The GitHub qualification run already performed the full release suite on Windows, macOS and Ubuntu/Linux; these local commands are a Codespaces environment preflight and must be reported separately.
 
 ## 4. Create a disposable synthetic repository
 
