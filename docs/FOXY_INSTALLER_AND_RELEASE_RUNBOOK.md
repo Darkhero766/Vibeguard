@@ -75,18 +75,28 @@ The website offers host selection, but local detection is still authoritative. A
 4. Obtain another independent security review of the changed installer, Git config preflight, completion gate, queue, lifecycle and package contents.
 5. Obtain live host acceptance for each advertised adapter on supported OSes, including MCP discovery, host trust, scan, status, disconnect, repeat install and uninstall.
 6. Verify npm scope/package ownership and the intended package name. Do not assume `@vibesane` is publishable because the package builder creates a local archive.
-7. Choose an actual open-source license with the repository owner/legal reviewer. The current generated package declares `UNLICENSED`; that is an intentional release blocker until resolved.
+7. Verify the implemented Apache-2.0 scope, Md Faizal attribution, rights/assignment position and bundled third-party notices against the exact archive. The package license is scoped to Foxy only; it does not license the rest of the monorepo or hosted VibeSane platform.
 8. Configure npm Trusted Publishing for the exact GitHub owner/repository/workflow and protected environment. Do not create a long-lived npm token for CI.
 9. Add required GitHub environment approval, version/tag policy, provenance verification, rollback and incident ownership.
 10. Only then enable the website's `VITE_FOXY_BETA_INSTALL_ENABLED` flag in an owner-approved deployment.
 
+## Licensing and contribution intake
+
+The generated Foxy npm package now declares `Apache-2.0` and contains `LICENSE`, `NOTICE` and generated `THIRD_PARTY_NOTICES.txt`. The license is deliberately scoped to the distributable package; the repository root has no blanket Apache license. Read `docs/FOXY_LICENSE_AND_OWNERSHIP.md` before adding files to the package allowlist. Foxy contributions use DCO sign-off (`git commit -s`); no CLA is required for the current single-license model. DCO enforcement still requires maintainer review and is not enabled as a GitHub branch rule by this change.
+
+Before release, Md Faizal must confirm that the copyright attribution is supportable for every Foxy-authored package component and that no employer, client, contractor, co-founder or prior contributor owns or controls any included rights. A copyright notice or GitHub account name is not proof of legal ownership. Review each bundled dependency against the exact package output.
+
 ## Npm trusted publisher setup (manual owner action)
 
-In the npm package settings, configure the GitHub Actions trusted publisher for:
+First verify that the `vibesane` npm organization exists and that the intended publishing account has owner/admin rights. Enable 2FA, restrict write/publish membership, and confirm that `@vibesane/foxy` is available to the organization. A 404 from `npm view` is not proof that the scope is unowned.
+
+Only after a separate publish workflow is authored and independently reviewed, configure npm Trusted Publishing for:
 - package: `@vibesane/foxy`;
 - GitHub owner: `Darkhero766`;
 - repository: `Vibeguard`;
-- exact publish workflow filename and protected GitHub environment.
+- exact publish workflow filename and protected GitHub environment (for example, `npm-release`).
+
+No publishing workflow or Trusted Publisher has been configured by this licensing change. Do not create an npm token or enable publishing until the ownership and independent security gates are complete.
 
 The workflow must use GitHub-hosted runners and grant only `id-token: write` plus the read access needed for checkout. Use current, full-SHA-pinned GitHub Actions. npm trusted publishing uses short-lived OIDC credentials and can generate provenance for public packages. Provenance links the package to a source/build workflow; it is not a security certification.
 
