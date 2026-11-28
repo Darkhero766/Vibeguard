@@ -165,9 +165,11 @@ try {
   const foxyDryRun = process.platform === 'win32'
     ? await runCli(dryRunArgs, { cwd: temp })
     : await run(foxyExecutable, dryRunArgs, { cwd: temp });
-  assert(foxyDryRun.stdout.includes('Dry run only')
-    && foxyDryRun.stdout.includes('.codex/config.toml'),
-    'The npx-compatible foxy binary did not execute the install dry-run.');
+  const normalizedFoxyDryRunOutput = foxyDryRun.stdout.replaceAll('\\\\', '/');
+  assert(normalizedFoxyDryRunOutput.includes('Dry run only')
+    && normalizedFoxyDryRunOutput.includes('.codex/config.toml'),
+    'The npx-compatible foxy binary did not execute the install dry-run: '
+      + normalizedFoxyDryRunOutput.slice(0, 1600));
   let dryRunCreatedConfig = false;
   try {
     await readFile(path.join(foxyDryRunFixture, '.codex', 'config.toml'));
@@ -532,7 +534,7 @@ try {
     packageContentSha256: packaged.contentSha256,
     packageFileDigests: packaged.fileDigests,
     packagedFiles: packaged.fileCount,
-    checks: ['build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'doctor',
+    checks: ['build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'foxy-bin-help', 'foxy-bin-install-dry-run-no-write', 'doctor',
       'one-command-agent-connect', 'one-command-agent-disconnect', 'universal-installer-no-consent-denied', 'universal-installer-dry-run', 'universal-installer-install-and-verify', 'universal-installer-repeat-idempotent', 'universal-installer-disconnect', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall'],
     fixture: 'synthetic-disposable-git-repository',
     published: false,
