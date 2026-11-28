@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, utimes, realpath } from 'node:fs/promises';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { tmpdir } from 'node:os';
+import { tmpdir, hostname } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { changedEntries, finalGate, snapshot } from './agentshield-gate.mjs';
 import { parseConfig, trackFile, freshState, summarize } from './agentshield-policy.mjs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 const exec = promisify(execFile);
 const scripts = path.dirname(fileURLToPath(import.meta.url));
@@ -272,7 +272,9 @@ test('abandoned lock is recovered only when old and its owning process is gone',
   const hash = text => createHash('sha256').update(text).digest('hex').slice(0, 28);
   const lock = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, hash(await realpath(f.root)), hash('test-week3') + '.json.lock');
   await mkdir(lock, { recursive: true });
-  await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: 2147483000, createdAt: Date.now() - 90_000 }));
+  await writeFile(path.join(lock, 'owner.json'), JSON.stringify({
+    pid: 2147483000, host: hostname(), createdAt: Date.now() - 90_000, token: randomUUID(),
+  }));
   const old = new Date(Date.now() - 90_000);
   await utimes(lock, old, old);
   const result = await f.send(post);

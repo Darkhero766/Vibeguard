@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, writeFile, readFile, rm, utimes } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, utimes, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -262,11 +262,28 @@ test('time budgets and privacy retention are configured with validated limits', 
 
 
 
+test('legacy state-lock metadata without host and ownership token is never auto-reclaimed', async (t) => {
+  const f = await fixture(t, 'src/auth.ts', fakeJWT);
+  await f.cmd('config', '--mode', 'auto-fix', '--retention-hours', '12');
+
+  const stateDir = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, pathDigest(await realpath(f.root)));
+  const stateFile = path.join(stateDir, pathDigest('test-session') + '.json');
+  const lockDir = stateFile + '.lock';
+  await mkdir(lockDir, { recursive: true });
+  const legacyOwner = JSON.stringify({ pid: 2147483000, createdAt: Date.now() - 120_000 });
+  await writeFile(path.join(lockDir, 'owner.json'), legacyOwner, { flag: 'wx' });
+  const stale = new Date(Date.now() - 120_000);
+  await utimes(lockDir, stale, stale);
+
+  const result = await f.hook();
+  assert.match(jsonContext(result), /UNKNOWN/);
+  assert.equal(await readFile(path.join(lockDir, 'owner.json'), 'utf8'), legacyOwner);
+});
 test('aged malformed state locks remain indeterminate and are never reclaimed', async (t) => {
   const f = await fixture(t, 'src/auth.ts', fakeJWT);
   await f.cmd('config', '--mode', 'auto-fix');
 
-  const stateDir = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, pathDigest(f.root));
+  const stateDir = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, pathDigest(await realpath(f.root)));
   const stateFile = path.join(stateDir, pathDigest('test-session') + '.json');
   const lockDir = stateFile + '.lock';
   await mkdir(lockDir, { recursive: true });
