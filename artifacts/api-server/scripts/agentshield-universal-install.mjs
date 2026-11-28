@@ -17,12 +17,10 @@ import {
 const exec = promisify(execFile);
 const SUPPORTED_HOSTS = Object.freeze(['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']);
 export function checkInstallerRuntime(nodeVersion = process.versions.node, platform = process.platform) {
-  const parts = String(nodeVersion).split('.').map((part) => Number(part));
-  const [major, minor, patch] = parts;
-  if (parts.length < 2 || parts.some((part) => !Number.isInteger(part) || part < 0)) {
-    throw new Error('Could not parse the Node.js runtime version.');
-  }
-  const supportedNode = major > 24 || (major === 24 && (minor > 15 || (minor === 15 && (patch || 0) >= 0)));
+  const match = /^v?(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(String(nodeVersion));
+  if (!match) throw new Error('Could not parse the Node.js runtime version.');
+  const [major, minor] = match.slice(1).map((part) => Number(part));
+  const supportedNode = major > 24 || (major === 24 && minor >= 15);
   if (!supportedNode) throw new Error('Foxy requires Node.js 24.15.0 or newer; current runtime is v' + nodeVersion + '.');
   if (!['win32', 'darwin', 'linux'].includes(platform)) {
     throw new Error('Foxy installer does not support this operating system: ' + platform + '.');
@@ -156,11 +154,13 @@ export async function applyInstallPlan(plan, overrides = {}) {
     // Re-read every managed entry through the same hardened connector. A second
     // idempotent connect must report already_configured before we call the install verified.
     for (const host of plan.hosts) {
+      inFlightHost = host;
       const verification = await connect(['--agent', host, '--cwd', plan.root], connectorOverrides);
       const item = verification?.results?.find((entry) => entry.host === host);
       if (item?.status !== 'already_configured') {
         throw new Error('Post-install verification did not confirm the exact managed entry for ' + host + '.');
       }
+      inFlightHost = null;
     }
     return {
       status: 'installed',
@@ -187,7 +187,7 @@ export async function applyInstallPlan(plan, overrides = {}) {
       }
     }
     return {
-      status: uncertainHosts.length || rollback.some((item) => item.status === 'rollback_failed') || preservedMigrations.length
+      status: uncertainHosts.length || rollback.some((item) => item.status !== 'removed') || preservedMigrations.length
         ? 'partial_failure'
         : 'rolled_back',
       root: plan.root,
