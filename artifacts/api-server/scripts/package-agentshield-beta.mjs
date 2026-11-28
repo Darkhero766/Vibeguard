@@ -293,7 +293,7 @@ async function main() {
     'MCP never modifies repository files or executes project code. scan_changed and verify_remediation update Foxy-managed in-memory baseline state; scan_start and scan_cancel update only the local SQLite queue. Queue and baseline state stays in Foxy-managed local storage. No shell, patch, commit, deploy, or network tools are exposed.',
     'Foxy project setup writes only explicit project-level MCP config after resolving the Git root. A website cannot silently install it; host approval remains required.',
     'The optional AST/hybrid checks are experimental and opt-in. Local AI, when configured separately, is advisory only.',
-    'No source code is uploaded by the local scanner. Run only against repositories the host is authorized to access.',
+    'No remote telemetry is collected or transmitted by the local scanner. No source code is uploaded. Run only against repositories the host is authorized to access.',
     'Workspace uninstall: vibesane uninstall --cwd /absolute/path/to/project removes exact Foxy MCP registrations plus matching Claude Code/Codex hooks, preserving unrelated configuration, modified skills, local scan/baseline/queue state and private recovery backups. Remove the global executable separately with npm uninstall --global @vibesane/foxy. Manually copied Cursor hooks are not removed by Foxy.',
     '',
   ].join('\n'));
