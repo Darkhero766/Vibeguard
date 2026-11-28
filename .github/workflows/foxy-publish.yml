@@ -44,7 +44,7 @@ jobs:
             echo "Release tag must point to a commit already reachable from main." >&2
             exit 1
           fi
-          version="$(node -e "const fs=require('node:fs'); const source=fs.readFileSync('artifacts/api-server/scripts/agentshield-version.mjs','utf8'); const match=source.match(/AGENTSHIELD_VERSION\\s*=\\s*'([^']+)'/); if (!match) process.exit(1); process.stdout.write(match[1]);")"
+          version="$(node -e "const fs=require('node:fs'); const source=fs.readFileSync('artifacts/api-server/scripts/agentshield-version.mjs','utf8'); const match=source.match(/AGENTSHIELD_VERSION\s*=\s*'([^']+)'/); if (!match) process.exit(1); process.stdout.write(match[1]);")"
           expected_tag="foxy-v${version}"
           if [ "$GITHUB_REF_NAME" != "$expected_tag" ]; then
             echo "Tag mismatch: expected $expected_tag, received $GITHUB_REF_NAME." >&2
