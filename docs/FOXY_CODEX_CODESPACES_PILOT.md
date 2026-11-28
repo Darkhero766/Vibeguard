@@ -1,9 +1,11 @@
+> **Current exact-source evidence (28 November 2026):** `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`, [three-OS Actions run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859): Windows, macOS and Ubuntu/Linux all passed; 477/477 regression tests per OS; 33-file package content SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. Every packaged file digest matches across OSes. The release report remains `candidate_for_independent_human_review`; this is not independent review or launch approval. Later commits on the PR branch after this code SHA are documentation-only.
+
 # Foxy beta.6 — Codex CLI pilot in GitHub Codespaces
 
-**Exact code candidate:** `ca9de05d00672d9a3148deec13ee2e280f1996eb`  
+**Exact code candidate:** `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`  
 **Package version:** `@vibesane/foxy@0.7.0-beta.6` (unpublished local archive)  
-**Qualification:** [Windows + macOS + Ubuntu/Linux exact-source run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) — 472/472 regression tests per OS  
-**Package manifest:** 30 files; shared SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`  
+**Qualification:** [Windows + macOS + Ubuntu/Linux exact-source run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859) — 477/477 regression tests per OS  
+**Package manifest:** 33 files; shared SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`  
 **Purpose:** one controlled Codex CLI acceptance session in a Codespace, using the universal installer from the exact qualified source and a disposable synthetic Git repository.
 
 This guide covers real Codex host acceptance for Beta.6. First use [FOXY_UNIVERSAL_INSTALLER_PILOT.md](FOXY_UNIVERSAL_INSTALLER_PILOT.md) to build the local package archive, install it into an isolated npm prefix and register project-scoped MCP with `foxy install --agent codex`. This guide then tests the separate opt-in Codex Stop hook/skill. It does not use the unpublished registry command or install Foxy globally. It requires no Supabase, Render, production or customer credentials.
@@ -24,7 +26,7 @@ This leaves your current checkout and any uncommitted work untouched.
 ```bash
 git status --short
 git fetch origin feat/agentshield-cross-platform-autoconnect
-git worktree add --detach ../foxy-codex-pilot-source ca9de05d00672d9a3148deec13ee2e280f1996eb
+git worktree add --detach ../foxy-codex-pilot-source e6ab2fcfd373f3473bc6d282eabebfcc105db2c6
 cd ../foxy-codex-pilot-source
 git rev-parse HEAD
 ```
@@ -32,7 +34,7 @@ git rev-parse HEAD
 The final command must print exactly:
 
 ```text
-ca9de05d00672d9a3148deec13ee2e280f1996eb
+e6ab2fcfd373f3473bc6d282eabebfcc105db2c6
 ```
 
 Stop if the SHA differs. Do not use `git reset --hard`, force-push, merge or switch your current working branch for this pilot.
@@ -189,6 +191,6 @@ The source SHA is qualified on Windows, macOS and Ubuntu/Linux in CI, not on the
 
 ## Final Beta.6 source note — 28 November 2026
 
-Use exact source ca9de05d00672d9a3148deec13ee2e280f1996eb and [qualification run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503). Windows, macOS and Ubuntu/Linux each passed 472/472 regression tests and zero qualification steps failed. The shared 30-file package-content SHA-256 is edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8. The package remains unpublished.
+Use exact source e6ab2fcfd373f3473bc6d282eabebfcc105db2c6 and [qualification run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859). Windows, macOS and Ubuntu/Linux each passed 477/477 regression tests and zero qualification steps failed. The shared 33-file package-content SHA-256 is 39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98. The package remains unpublished.
 
 The new SQLite initialization transaction fix is in this source and the two-process queue regression now passes on all three platforms. The website Install MCP panel only provides the terminal installation instructions; it cannot edit this Codespace or trust the Codex project config. Use the local archive path in FOXY_UNIVERSAL_INSTALLER_PILOT.md, then inspect and approve the exact project MCP target. Keep Stop-hook/skill installation separate and opt-in.
