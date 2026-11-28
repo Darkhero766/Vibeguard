@@ -193,3 +193,17 @@ The current independent review scope also includes the Windows WAL startup retry
 The latest source also contains the bundled installed STDIO entrypoint in its MCP runtime fingerprint and the bounded fail-closed SQLite WAL initialization retry. The earlier Windows two-process initialization race no longer reproduces in the exact-source run; all 454 tests passed. The reports specify synthetic fixtures only and `productionTouched: false`.
 
 **Do not treat automated qualification as the independent review.** Independently reproduce the baseline runtime-drift invalidation, bundled-entrypoint fingerprint behavior, WAL retry/exhaustion path, SQLite ownership and migration invariants, root pinning/TOCTOU boundaries, host configuration preservation, and real host tool discovery/approval. The previous 11-finding evidence set still requires reviewer-by-reviewer disposition and signed residual-risk assessment.
+
+
+## Host configuration write-race review delta — 28 November 2026
+
+Static review identified a lost-update window: the connector previously read a host config, created a backup and renamed a replacement without serializing concurrent Foxy writers or comparing the current target with the originally-read content. The candidate adds:
+- Exclusive per-target \`.agentshield.lock\` sidecars for connect/disconnect.
+- PID/host/timestamp/random-token lock metadata, inode verification and ownership-checked release.
+- No automatic stale-lock deletion; operator inspection is required.
+- Backups that must byte-match the content snapshot consumed by the configuration merge.
+- An immediate pre-rename reread and byte comparison; changed or newly appeared/disappeared targets fail closed.
+
+Regression coverage now tests that pre-existing lock files block JSON and Codex mutations, stale lock contents are not changed/deleted, config bytes remain untouched on refusal, and owned locks are removed after successful connect/disconnect.
+
+**Current source candidate:** \`6270f43ddbbd80a8cf21d3afae2e6c8901a685c8\` plus the test/documentation commit following it. This connector hardening has not yet been exact-source requalified at the time of this note. The pre-existing independent limitations remain: no real Claude/Cursor sessions are available in this environment, prior Codex evidence applies only to an older package/SHA, and the referenced 11-finding evidence packet is not present in the repository. Do not present this source review as an external independent-review sign-off.

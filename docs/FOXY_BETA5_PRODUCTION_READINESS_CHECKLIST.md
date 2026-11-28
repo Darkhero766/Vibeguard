@@ -191,3 +191,7 @@ The release checklist remains **NOT APPROVED FOR PRODUCTION**. The exact-source 
 **Artifacts:** [macOS](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971/artifacts/15249481163) · [Windows](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971/artifacts/15249631042).
 
 This closes the exact-source automated qualification gate only. The reports explicitly nominate the candidate for independent human review. The release remains NOT APPROVED FOR PRODUCTION until real-host acceptance, independent security review, stack reconciliation, provenance/operations, accessibility QA and owner authorization are complete.
+
+
+- [ ] Host connector serializes Foxy config mutations with an exclusive per-file sidecar lock, refuses stale/ambiguous locks, verifies backup bytes and rejects changed target content immediately before rename.
+- [ ] Connect/disconnect lock refusal, release, unrelated-config preservation and Codex/JSON destinations pass regression tests.

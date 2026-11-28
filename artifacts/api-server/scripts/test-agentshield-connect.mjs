@@ -479,3 +479,57 @@ test('doctor refuses symlinked Codex config.toml without following it', async (t
   );
   assert.equal(await readFile(external, 'utf8'), original);
 });
+
+
+test('connect and disconnect fail closed on stale host-config locks and release owned locks', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-host-config-lock-'));
+  const project = path.join(root, 'project');
+  await mkdir(path.join(project, '.codex'), { recursive: true });
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await exec('git', ['init', project]);
+
+  const jsonFile = path.join(project, '.mcp.json');
+  const jsonLock = jsonFile + '.agentshield.lock';
+  const originalJson = JSON.stringify({ custom: true, mcpServers: { other: { command: 'preserve-me', args: [] } } }, null, 2);
+  await writeFile(jsonFile, originalJson);
+  await writeFile(jsonLock, JSON.stringify({ pid: 999999, host: 'synthetic-stale-owner' }));
+
+  await assert.rejects(
+    connectAgentShield(['--agent', 'claude', '--cwd', project]),
+    /locked by another Foxy operation or a stale lock/i,
+  );
+  assert.equal(await readFile(jsonFile, 'utf8'), originalJson);
+  assert.equal(await readFile(jsonLock, 'utf8'), JSON.stringify({ pid: 999999, host: 'synthetic-stale-owner' }),
+    'an existing lock is never auto-deleted or rewritten');
+  assert.ok(!(await readdir(project)).some((name) => name.includes('.vibesane-backup-')));
+
+  await rm(jsonLock);
+  const connected = await connectAgentShield(['--agent', 'claude', '--cwd', project]);
+  assert.equal(connected.results[0].status, 'configured');
+  await assert.rejects(readFile(jsonLock), (error) => error?.code === 'ENOENT',
+    'a lock owned by this process is removed after successful completion');
+  const connectedJson = await readFile(jsonFile, 'utf8');
+
+  await writeFile(jsonLock, JSON.stringify({ pid: 999999, host: 'synthetic-stale-owner' }));
+  await assert.rejects(
+    disconnectAgentShield(['--agent', 'claude', '--cwd', project]),
+    /locked by another Foxy operation or a stale lock/i,
+  );
+  assert.equal(await readFile(jsonFile, 'utf8'), connectedJson,
+    'disconnect must not mutate a configuration when another lock is present');
+  await rm(jsonLock);
+  const disconnected = await disconnectAgentShield(['--agent', 'claude', '--cwd', project]);
+  assert.equal(disconnected.results[0].status, 'removed');
+  await assert.rejects(readFile(jsonLock), (error) => error?.code === 'ENOENT');
+
+  const codexFile = path.join(project, '.codex', 'config.toml');
+  const codexLock = codexFile + '.agentshield.lock';
+  const originalToml = '[features]\\nexperimental = true\\n';
+  await writeFile(codexFile, originalToml);
+  await writeFile(codexLock, JSON.stringify({ pid: 999999, host: 'synthetic-stale-owner' }));
+  await assert.rejects(
+    connectAgentShield(['--agent', 'codex', '--cwd', project]),
+    /locked by another Foxy operation or a stale lock/i,
+  );
+  assert.equal(await readFile(codexFile, 'utf8'), originalToml);
+});

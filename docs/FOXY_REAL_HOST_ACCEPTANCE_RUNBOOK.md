@@ -169,3 +169,16 @@ All actual host-acceptance rows remain pending. The beta package's successful ST
 Use package candidate source `8ff17de5c5f9ce788e3447ae47263c77136cc3db`, qualified in [run #46109758971](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971). Both platform artifacts passed; each has 454/454 tests and a matching 29-file package manifest. Canonical package content SHA-256: `42d5d09d7a5473020b0e7706f0a3bcf07172180db657a9c85c1aa663cb3571e6`.
 
 This does not complete the host matrix. Test real host versions and exact OS combinations only with disposable repositories and the final package checksum. Do not advertise an untested host as supported.
+
+
+## Host configuration writer lock — Day 1 hardening
+
+Foxy connect/disconnect now takes an exclusive sidecar lock for each host configuration file (\`.agentshield.lock\`) before reading or mutating it. The lock includes PID, host, creation timestamp and a random ownership token. Foxy verifies the lock file's inode and token before releasing it. An existing lock is never automatically removed, because a stale-PID decision can be unsafe across PID reuse, containers or different host namespaces.
+
+Before clearing a stale \`.agentshield.lock\`:
+1. Stop all Foxy connect/disconnect commands and verify no Foxy installer process is active.
+2. Inspect the lock JSON (\`pid\`, \`host\`, \`createdAt\`) and confirm the process is no longer operating on that config.
+3. Verify the target config is a regular non-symlink file and review its latest contents.
+4. Remove only the sidecar lock, then retry connect/disconnect. Preserve the config and any backup files.
+
+Backups must match the exact bytes read by the operation. Immediately before rename, Foxy rereads the target and refuses replacement if the content differs. This protects against stale reads and concurrent Foxy writers; a foreign editor can still race in the tiny interval between the final comparison and rename, so keep host applications closed during automated configuration changes.

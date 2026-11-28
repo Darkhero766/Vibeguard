@@ -223,3 +223,10 @@ This section supersedes the older 453/453 and pending-status notes above.
 ## PR #70 mergeability — 28 November 2026
 
 Latest GitHub PR metadata at current head `bff625bd3a31635feebca587d8d86c579a22a650`: open, draft, unmerged; target branch `feat/agentshield-beta-coding-agent-install` at base SHA `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`; PR contains 378 commits and 58 changed files; GitHub reports `mergeable=false`, `mergeable_state=dirty`. The compare endpoint reports the head is 378 commits ahead and 0 behind that base SHA. This differs from previous 357/23 and 296/23 snapshots, which are now historical. The exact reason for the dirty merge state still requires a current file-conflict/dependency review. Do not merge, retarget, rebase or force-push during the release window.
+
+
+## 28 November 2026 — Day 1 adversarial hardening additions
+
+- Static independent-challenge pass found that persisted job JSON could disagree with SQLite indexed columns. A payload could claim a terminal/completed state while the authoritative row remained running. Commit \`3140ed2...\` adds payload/index consistency validation on decode, treats status/results integrity failures as queue-wide storage faults and aborts active scans, and adds a forged-completed-payload regression. Full scans now also bracket scanner/runtime provenance and check ctime on opened files.
+- Static independent-challenge pass found a host configuration lost-update window. Commit \`6270f43...\` adds per-file exclusive locks and byte-snapshot checks for connector connect/disconnect. Regression coverage and operator documentation for stale locks are being added. This candidate requires a new exact-source qualification.
+- These are same-session adversarial engineering findings, not third-party independent certification. Day 1 is not complete for live host acceptance: the real Claude/Codex/Cursor/Gemini/Roo/Copilot matrix still requires actual application sessions on the exact host versions/OS combinations.
