@@ -221,7 +221,7 @@ export default function FoxyPage() {
               </p>
               <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:flex-wrap">
                 <a href="https://github.com/Darkhero766/Vibeguard/blob/feat/agentshield-cross-platform-autoconnect/docs/FOXY_UNIVERSAL_INSTALLER_PILOT.md" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-semibold text-[#c7f36a] hover:underline">Local reviewer install guide <ArrowRight size={15} aria-hidden="true" /></a>
-                <a href="https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-semibold text-[#c7f36a] hover:underline">Cross-platform evidence <ArrowRight size={15} aria-hidden="true" /></a>
+                <a href="https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-semibold text-[#c7f36a] hover:underline">Cross-platform evidence <ArrowRight size={15} aria-hidden="true" /></a>
               </div>
             </div>
           </div>
@@ -285,7 +285,7 @@ export default function FoxyPage() {
           <div className="max-w-[780px]">
             <p className="font-mono text-[10px] font-medium uppercase tracking-[.17em] text-[#c7f36a]">04 / Qualification evidence</p>
             <h2 className="mt-4 font-sans text-3xl font-extrabold leading-tight tracking-[-.05em] sm:text-4xl">Beta.6 passed the three-platform automated matrix.</h2>
-            <p className="mt-5 text-sm leading-7 text-[#aab5ad]">The exact Beta.6 code revision passed the complete release validator on Windows, macOS and Ubuntu/Linux. The evidence is tied to one source commit and a reproducible 30-file package manifest; it does not replace independent review or real coding-agent host acceptance.</p>
+            <p className="mt-5 text-sm leading-7 text-[#aab5ad]">The exact Beta.6 code revision passed the complete release validator on Windows, macOS and Ubuntu/Linux. The evidence is tied to source SHA e6ab2fcfd373f3473bc6d282eabebfcc105db2c6 and a reproducible 33-file package manifest; it does not replace independent review or real coding-agent host acceptance.</p>
           </div>
           <div className="mt-10 grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
             <article className="border border-[#33413b] bg-[#111b18] p-6 sm:p-8">
@@ -294,18 +294,18 @@ export default function FoxyPage() {
                 <span className="font-mono text-[10px] uppercase tracking-[.12em] text-[#c7f36a]">3 / 3 operating systems passed</span>
               </div>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                <div className="border border-white/10 bg-[#0b1112] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Windows</p><p className="mt-2 text-2xl font-extrabold tracking-tight">472 / 472</p><p className="mt-1 text-[11px] text-[#9eaaa1]">regression tests</p></div>
-                <div className="border border-white/10 bg-[#0b1112] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">macOS</p><p className="mt-2 text-2xl font-extrabold tracking-tight">472 / 472</p><p className="mt-1 text-[11px] text-[#9eaaa1]">regression tests</p></div>
-                <div className="border border-white/10 bg-[#0b1112] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Ubuntu / Linux</p><p className="mt-2 text-2xl font-extrabold tracking-tight">472 / 472</p><p className="mt-1 text-[11px] text-[#9eaaa1]">regression tests</p></div>
+                <div className="border border-white/10 bg-[#0b1112] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Windows</p><p className="mt-2 text-2xl font-extrabold tracking-tight">477 / 477</p><p className="mt-1 text-[11px] text-[#9eaaa1]">regression tests</p></div>
+                <div className="border border-white/10 bg-[#0b1112] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">macOS</p><p className="mt-2 text-2xl font-extrabold tracking-tight">477 / 477</p><p className="mt-1 text-[11px] text-[#9eaaa1]">regression tests</p></div>
+                <div className="border border-white/10 bg-[#0b1112] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Ubuntu / Linux</p><p className="mt-2 text-2xl font-extrabold tracking-tight">477 / 477</p><p className="mt-1 text-[11px] text-[#9eaaa1]">regression tests</p></div>
               </div>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 <div className="border border-white/10 bg-white/[.03] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">MCP smoke</p><p className="mt-2 text-xl font-bold">10 tools</p><p className="mt-1 text-[11px] text-[#9eaaa1]">protocol + queue</p></div>
-                <div className="border border-white/10 bg-white/[.03] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Package</p><p className="mt-2 text-xl font-bold">30 files</p><p className="mt-1 text-[11px] text-[#9eaaa1]">same content hash</p></div>
+                <div className="border border-white/10 bg-white/[.03] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Package</p><p className="mt-2 text-xl font-bold">33 files</p><p className="mt-1 text-[11px] text-[#9eaaa1]">same content hash</p></div>
                 <div className="border border-white/10 bg-white/[.03] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Failure count</p><p className="mt-2 text-xl font-bold">0</p><p className="mt-1 text-[11px] text-[#9eaaa1]">qualification steps</p></div>
               </div>
-              <p className="mt-6 break-all font-mono text-[10px] leading-6 text-[#87958b]">Package SHA-256 · edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8</p>
+              <p className="mt-6 break-all font-mono text-[10px] leading-6 text-[#87958b]">Package SHA-256 · 39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98</p>
               <div className="mt-6 flex flex-wrap gap-4">
-                <a href="https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-bold text-[#c7f36a] hover:underline">Open exact-source run <ArrowRight size={15} aria-hidden="true" /></a>
+                <a href="https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-bold text-[#c7f36a] hover:underline">Open exact-source run <ArrowRight size={15} aria-hidden="true" /></a>
                 <a href="https://github.com/Darkhero766/Vibeguard/pull/70" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-bold text-[#c7f36a] hover:underline">Review engineering PR <ArrowRight size={15} aria-hidden="true" /></a>
               </div>
             </article>
