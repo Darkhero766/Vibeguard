@@ -17,6 +17,9 @@ const exec = promisify(execFile);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCANNER = path.resolve(HERE, '../dist/agentshield.mjs');
 const MCP_RUNTIME_FILES = Object.freeze([
+  // The installed beta bundles the actual MCP server into this STDIO entrypoint.
+  // Hash the launched artifact itself, not only the unbundled source modules.
+  ['agentshield-mcp-stdio.mjs', path.resolve(HERE, 'agentshield-mcp-stdio.mjs')],
   ['agentshield-mcp-server.mjs', fileURLToPath(import.meta.url)],
   ['agentshield-mcp-sdk.mjs', path.resolve(HERE, 'agentshield-mcp-sdk.mjs')],
   ['agentshield-jobs.mjs', path.resolve(HERE, 'agentshield-jobs.mjs')],
