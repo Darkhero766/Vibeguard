@@ -532,7 +532,7 @@ async function main(args) {
     return child(dist, ['scan', ...tail]);
   }
   if (['verify', 'status', 'config', 'acknowledge'].includes(command)) return child(controller, [command, ...tail]);
-  throw new Error('Commands: connect, capabilities, setup --host claude|cursor, uninstall-mcp --host claude|cursor, init, init-codex, uninstall-codex, scan --changed, hybrid --changed [--enable-ast] [--enable-local-ai], verify --changed, status, config, acknowledge, doctor, uninstall.');
+  throw new Error('Commands: install, connect, disconnect, capabilities, setup --host claude|cursor, uninstall-mcp --host claude|cursor, init, init-codex, uninstall-codex, scan --changed, hybrid --changed [--enable-ast] [--enable-local-ai], verify --changed, status, config, acknowledge, doctor, uninstall.');
 }
 main(process.argv.slice(2)).then(code => { process.exitCode = code; }).catch(() => {
   process.stdout.write(JSON.stringify({ status: 'error', message: 'AgentShield command failed; run doctor for local diagnostics.' }) + '\n');
