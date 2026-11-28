@@ -104,7 +104,7 @@ try {
     'VIBESANE_ALLOWED_ROOTS_JSON', 'mcp-doctor', 'Codex Stop hooks', 'Node.js 24.15.0', 'SQLite',
     'init-codex', 'connect --agent cursor', 'connect --agent copilot', 'uninstall-mcp --host claude',
     'Node.js >=24.15.0', 'node:sqlite', 'transactional multi-process job claims', 'jobs.json snapshot is migrated',
-    'vibesane install', '--dry-run', '--agent auto', 'npx @vibesane/foxy@beta install', 'npx @vibesane/foxy install',
+    'vibesane install', '--dry-run', '--agent auto', 'curl -fsSL https://vibesane.app/install.sh | bash', "$env:FOXY_INSTALL_AGENT='auto'; irm https://vibesane.app/install.ps1 | iex", 'global executable path', 'vibesane uninstall',
     'VibeSane Foxy 0.7.0-beta.6', 'Windows, macOS, and Ubuntu/Linux', 'Actual live-host acceptance',
     'cooperative local verification gate', 'not a tamper-proof security boundary',
   ];
@@ -132,6 +132,9 @@ try {
     'Installed package must expose the public Foxy package identity and npx-compatible foxy executable.');
   assert(installedManifest.engines?.node === '>=24.15.0',
     'Installed package must declare its built-in SQLite runtime requirement.');
+  assert(installedManifest.repository?.type === 'git'
+    && installedManifest.repository?.url === 'https://github.com/Darkhero766/Vibeguard.git',
+    'Published package metadata must point to the canonical public source repository for provenance.');
   const safeGitSource = await readFile(path.join(packageRoot, 'scripts', 'agentshield-safe-git.mjs'), 'utf8');
   assert(safeGitSource.includes('assertSafeGitConfiguration') && safeGitSource.includes('filter.')
     && safeGitSource.includes('FOXY_UNSAFE_GIT_CONFIG'),
