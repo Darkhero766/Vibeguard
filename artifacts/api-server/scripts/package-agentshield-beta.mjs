@@ -243,9 +243,10 @@ async function main() {
     'foxy --help',
     '',
     '## One-command bootstrap (after an owner-approved registry publication)',
-    'Beta channel: npx @vibesane/foxy@beta install',
-    'Stable/latest channel: npx @vibesane/foxy install',
-    'The beta package is configured with the beta dist-tag, so use the explicit @beta tag for beta installation. The untagged command resolves the registry latest dist-tag and is intended for a stable release. This locally generated archive is not published; do not run either registry command until the release owner confirms scope ownership, package name, provenance/signing and publication approval.',
+    'macOS/Linux: curl -fsSL https://vibesane.app/install.sh | bash',
+    'Windows PowerShell: $env:FOXY_INSTALL_AGENT=\'auto\'; irm https://vibesane.app/install.ps1 | iex',
+    'Target one host on macOS/Linux by appending: -s -- --agent codex. On Windows, replace auto with a supported host name in FOXY_INSTALL_AGENT.',
+    'The bootstrap checks Node.js, npm and Git, queries the official npm registry, installs the published beta globally with lifecycle scripts disabled, and invokes the consent-first project installer. It refuses installation when the package/tag is not published. The global executable path keeps MCP registrations stable across npm cache refreshes. These scripts are not live until the website deployment includes them and the owner has approved package publication.',
     'vibesane --help',
     'vibesane doctor --cwd /absolute/path/to/project',
     'After installing a project hook, vibesane doctor reports checks.codexStopHookInstalled or checks.claudeHooksInstalled when the project configuration is readable.',
@@ -285,7 +286,7 @@ async function main() {
     'Foxy project setup writes only explicit project-level MCP config after resolving the Git root. A website cannot silently install it; host approval remains required.',
     'The optional AST/hybrid checks are experimental and opt-in. Local AI, when configured separately, is advisory only.',
     'No source code is uploaded by the local scanner. Run only against repositories the host is authorized to access.',
-    'Uninstall Claude Code hooks with vibesane uninstall --cwd /absolute/path/to/project; remove the Cursor hook entry manually.',
+    'Workspace uninstall: vibesane uninstall --cwd /absolute/path/to/project removes exact Foxy MCP registrations plus matching Claude Code/Codex hooks, preserving unrelated configuration, modified skills, local scan/baseline/queue state and private recovery backups. Remove the global executable separately with npm uninstall --global @vibesane/foxy. Manually copied Cursor hooks are not removed by Foxy.',
     '',
   ].join('\n'));
   // Normalize text bytes and filesystem mtimes before npm packs the archive.
