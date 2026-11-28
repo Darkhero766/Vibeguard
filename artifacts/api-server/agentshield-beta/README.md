@@ -75,9 +75,26 @@ The beta.5 migration guard prevents older beta.4 processes from acquiring the le
 
 ## Qualification and release gates
 
-The last fully successful three-OS package qualification before the latest release-workflow hardening was source `f97f95a48ffbdd3ef61a3d7da8ef57caf36a4ad3` (477/477 regression tests on each OS). All 33 package file digests and the canonical content-manifest SHA-256 matched across Windows, macOS and Ubuntu/Linux: `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. The outer `.tgz` wrapper hash differed on Windows, while all extracted package file bytes and per-file hashes matched.
+## Latest exact-source package qualification — 28 November 2026
 
-The current branch adds stricter manual OIDC publication and cross-platform evidence aggregation. Check the latest [Foxy qualification run](https://github.com/Darkhero766/Vibeguard/actions/workflows/agentshield-cross-platform.yml) for the exact candidate SHA before relying on test evidence. A green CI run makes the candidate eligible for independent human review; it does not approve a release.
+The latest completed three-platform qualification is source `a0651317c1cb16170d563867adcf5ddff08d5927`, [workflow #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820). Windows, macOS and Ubuntu/Linux all completed successfully.
+
+- Regression suite: **479/479 passed on each platform**, with zero failures, cancellations or skips.
+- Workspace TypeScript build, VibeSane frontend/API typechecks and frontend/standalone Foxy preview builds passed.
+- Cross-platform connector regression tests and MCP STDIO integration smoke passed.
+- Curated, holdout and additional adversarial synthetic benchmark gates passed.
+- Offline package installation, CLI, MCP and launcher smoke passed.
+- Package: `@vibesane/foxy@0.7.0-beta.6`; 33 packaged files.
+- Canonical package-content SHA-256, identical across all three platforms: `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`.
+- Each report: `validation_passed_review_required`, release decision `candidate_for_independent_human_review`, `qualificationFailures=[]`, `failedSteps=[]`.
+
+This qualification is tied to package source `a0651317c1cb16170d563867adcf5ddff08d5927`, not every later commit on PR #70. The current PR head at the last audit was `68f06d84865fdd17c2677d64a4821263efee5cce`, four commits ahead. The only changed paths in that four-commit delta are the Foxy web page, SEO generation and associated page/preview assertions; no API Foxy runtime/package source or publishing workflow changed. Those newer web/SEO changes have not yet had an exact-head Actions rerun, so rerun their page/build/preview checks before relying on the current branch's rendered install panel as newly validated.
+
+The older licensing run #46159923973 failed on all three platforms at the regression gate (472/475). Its three stale license-update assertions were corrected in follow-up commits; it is historical and superseded by the successful 479/479 run above.
+
+The package remains unpublished. This automated result is not an independent security review, real installed-host acceptance, security certification or publication approval.
+
+The website install panel remains publication-gated. Actual acceptance in each advertised coding-agent host is still a separate owner-run requirement.
 
 Before any external beta or public launch, the owner must complete legal ownership/license signoff, verify npm organization and package ownership, configure the protected GitHub `npm-release` environment and npm Trusted Publishing, resolve the PR stack/merge state, finish independent security review, and perform actual Claude Code, Codex CLI and Cursor acceptance on the supported OSes. No launch, npm publication or production deployment is authorized by this document.
 
