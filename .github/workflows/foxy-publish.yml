@@ -122,9 +122,72 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  verify-cross-platform-package:
+    name: Verify identical package content across all OSes
+    needs: qualify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Download exact-source qualification evidence
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6 verified commit
+        with:
+          pattern: foxy-release-*-${{ github.sha }}
+          path: artifacts/package-evidence
+          merge-multiple: false
+
+      - name: Require three successful reports with identical package manifests
+        env:
+          FOXY_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const sha = process.env.FOXY_SHA;
+          const platforms = ['windows-latest', 'macos-latest', 'ubuntu-latest'];
+          let canonical = null;
+          for (const platform of platforms) {
+            const artifact = `foxy-release-${platform}-${sha}`;
+            const reportPath = path.join('artifacts', 'package-evidence', artifact,
+              'artifacts', 'api-server', 'dist', 'agentshield-release-validation.json');
+            const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+            if (report.gitRevision !== sha
+              || report.status !== 'validation_passed_review_required'
+              || report.releaseDecision !== 'candidate_for_independent_human_review'
+              || report.productionTouched !== false
+              || report.testSuiteValid !== true
+              || report.mcpSmokeValid !== true
+              || report.packageEvidenceValid !== true
+              || report.benchmarkEvidenceValid !== true
+              || report.additionalBenchmarkValid !== true
+              || !Array.isArray(report.packageFileDigests)
+              || report.packageFileDigests.length !== 33
+              || !/^[a-f0-9]{64}$/.test(report.packageContentSha256 || '')) {
+              throw new Error(`Qualification evidence is incomplete or invalid for ${platform}.`);
+            }
+            const manifest = JSON.stringify(report.packageFileDigests);
+            if (canonical && (canonical.contentSha256 !== report.packageContentSha256
+              || canonical.manifest !== manifest
+              || canonical.version !== report.packageVersion)) {
+              throw new Error(`Cross-platform package content differs on ${platform}.`);
+            }
+            canonical ??= {
+              contentSha256: report.packageContentSha256,
+              manifest,
+              version: report.packageVersion,
+            };
+            console.log(`${platform}: ${report.packageVersion}, 33 files, content ${report.packageContentSha256}`);
+          }
+          console.log('All three operating systems produced identical, validated package file manifests.');
+          NODE
+
   publish:
     name: Publish approved Foxy beta with npm OIDC
-    needs: [validate-ref, qualify]
+    needs: [validate-ref, qualify, verify-cross-platform-package]
     if: ${{ inputs.confirm_publication == true }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
