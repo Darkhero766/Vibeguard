@@ -239,3 +239,16 @@ test('all repository workflow actions are pinned to immutable 40-character commi
   assert.ok(actionCount > 0, 'The workflow audit must inspect external actions.');
   assert.deepEqual(floating, [], 'Every external GitHub Action must use an immutable commit SHA.');
 });
+
+test('Foxy self-update installs the exact validated npm version, never a mutable beta tag', async () => {
+  const cli = await read('artifacts/api-server/scripts/vibesane.mjs');
+  const start = cli.indexOf('async function updateGlobal');
+  const end = cli.indexOf('async function uninstallWorkspace', start);
+  assert.ok(start >= 0 && end > start, 'Foxy updater function must be present.');
+  const updater = cli.slice(start, end);
+  assert.ok(updater.includes('typeof publishedVersion !== \'string\''));
+  assert.ok(updater.includes('semverPattern.test(publishedVersion)'));
+  assert.ok(updater.includes('`@vibesane/foxy@${publishedVersion}`'));
+  assert.ok(!updater.includes("'@vibesane/foxy@beta'"),
+    'Foxy updater must install the resolved exact version, not the mutable beta tag.');
+});
