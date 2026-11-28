@@ -762,8 +762,8 @@ export class ScanJobStore {
       if (TERMINAL.has(job.status)) job.finishedAt = now;
       job.workerId = null;
       job.cancelRequested = false;
-      this.db.prepare('UPDATE jobs SET status=?,updated_at=?,finished_at=?,owner_worker_id=NULL,cancel_requested=0,payload=? WHERE id=? AND owner_worker_id=? AND status=\'running\'')
-        .run(job.status, job.updatedAt, job.finishedAt ?? null, encodeJob(job), job.id, this.workerId);
+      this.db.prepare('UPDATE jobs SET status=?,updated_at=?,finished_at=?,sequence=?,owner_worker_id=NULL,cancel_requested=0,payload=? WHERE id=? AND owner_worker_id=? AND status=\'running\'')
+        .run(job.status, job.updatedAt, job.finishedAt ?? null, job.sequence ?? job.createdAt, encodeJob(job), job.id, this.workerId);
       this.#pruneTx(now);
       return { ...job };
     });
