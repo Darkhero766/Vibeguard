@@ -139,6 +139,36 @@ try {
     return run(process.execPath, [cli, ...args], options);
   }
 
+  // Exercise the actual npm-generated foxy executable shim, not only the
+  // underlying JavaScript file. This is the command selected by npx.
+  const foxyExecutable = process.platform === 'win32'
+    ? path.join(installPrefix, 'foxy.cmd')
+    : path.join(installPrefix, 'bin', 'foxy');
+  const foxyHelp = await run(foxyExecutable, ['--help'], {
+    cwd: temp,
+    shell: process.platform === 'win32',
+  });
+  assert(foxyHelp.stdout.includes('vibesane install'),
+    'The installed foxy executable did not dispatch to the universal installer.');
+
+  const installFixture = path.join(temp, 'foxy-cli-fixture');
+  await mkdir(installFixture, { recursive: true });
+  await run('git', ['init', '-q', installFixture]);
+  const foxyDryRun = await run(foxyExecutable, [
+    'install', '--dry-run', '--agent', 'codex', '--cwd', installFixture,
+  ], { cwd: temp, shell: process.platform === 'win32' });
+  assert(foxyDryRun.stdout.includes('Dry run only')
+    && foxyDryRun.stdout.includes('.codex/config.toml'),
+    'The npx-compatible foxy binary did not execute the install dry-run.');
+  let dryRunCreatedConfig = false;
+  try {
+    await readFile(path.join(installFixture, '.codex', 'config.toml'));
+    dryRunCreatedConfig = true;
+  } catch (error) {
+    if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error;
+  }
+  assert(!dryRunCreatedConfig, 'Foxy CLI dry-run wrote the Codex host configuration.');
+
   const help = await runCli(['--help'], { cwd: temp });
   assert(help.stdout.includes('VibeSane AgentShield') && help.stdout.includes('vibesane install'), 'Installed CLI help did not expose the universal installer.');
   assert(installedManifest.bin.foxy === './scripts/vibesane.mjs', 'The foxy binary must resolve to the universal installer CLI.');
