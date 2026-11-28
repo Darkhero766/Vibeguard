@@ -618,13 +618,13 @@ try {
   const modifiedSkillPath = path.join(
     modifiedSkillFixture, '.agents', 'skills', 'vibesane-agentshield', 'SKILL.md',
   );
-  const modifiedSkillText = (await readFile(modifiedSkillPath, 'utf8')) + '\\nUser customization: keep this paragraph.\\n';
+  const modifiedSkillText = (await readFile(modifiedSkillPath, 'utf8')) + '\nUser customization: keep this paragraph.\n';
   await writeFile(modifiedSkillPath, modifiedSkillText);
   const modifiedSkillUninstallOutput = await runCli(
     ['uninstall', '--cwd', modifiedSkillFixture], { cwd: temp, env: uninstallEnv },
   );
   const modifiedSkillUninstall = JSON.parse(
-    modifiedSkillUninstallOutput.stdout.trim().split(/\\r?\\n/).at(-1),
+    modifiedSkillUninstallOutput.stdout.trim().split(/\r?\n/).at(-1),
   );
   assert(modifiedSkillUninstall.status === 'uninstalled', 'Customized-skill uninstall should complete.');
   assert(modifiedSkillUninstall.codex.skillRemoved === false,
