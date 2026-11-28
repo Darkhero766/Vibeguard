@@ -15,6 +15,8 @@ assert.ok(html.includes('id="install"') && html.includes('Available after beta p
 assert.ok(html.includes('npx -y @vibesane/foxy@beta install'));
 assert.ok(html.includes('--agent codex') && html.includes('--agent copilot'), 'Static preview must document explicit host targeting.');
 assert.ok(html.includes('Beta.6 passed the three-platform automated matrix.'));
+assert.ok(html.includes('https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503'), 'Static preview must link to the final qualified Beta.6 run.');
+assert.ok(html.includes('edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8'), 'Static preview must display the current package-content hash.');
 assert.ok(!html.includes('beta.5 exact-source CI pending'));
 assert.match(html, /name="robots" content="noindex, nofollow, noarchive"/);
 assert.ok(!/<script\b[^>]*type=["']module["']/i.test(html), 'Static Foxy preview must not bootstrap the VibeSane SPA.');
