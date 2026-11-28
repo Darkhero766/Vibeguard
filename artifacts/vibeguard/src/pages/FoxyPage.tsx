@@ -206,6 +206,10 @@ export default function FoxyPage() {
               <p className="mt-2 break-all font-mono text-[10px] leading-5 text-[#9eaaa1]">
                 Windows PowerShell: $env:FOXY_INSTALL_AGENT='auto'; irm https://vibesane.app/install.ps1 | iex
               </p>
+              <div className="mt-3 flex flex-wrap gap-4 text-xs">
+                <a href="/install.sh" target="_blank" rel="noreferrer" className="text-[#c7f36a] underline underline-offset-4">Inspect POSIX installer</a>
+                <a href="/install.ps1" target="_blank" rel="noreferrer" className="text-[#c7f36a] underline underline-offset-4">Inspect PowerShell installer</a>
+              </div>
               <p id="foxy-install-status" role="status" aria-live="polite" className="mt-3 min-h-6 text-xs leading-6 text-[#aab5ad]">
                 {!FOXY_BETA_INSTALL_ENABLED
                   ? 'The npm package is not published yet. The command is shown for transparency and cannot install until the release owner publishes the verified package.'
