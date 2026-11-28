@@ -673,6 +673,7 @@ export async function scanChanged({ workspace, base_ref: baseRef = null } = {}, 
     const baseline = rememberBaseline(snapshot.root, after.fingerprint, baselineResult, provenance);
     const baselineContext = { scanId: baseline.scanId, workspace: baseline.workspace,
       fingerprint: baseline.fingerprint, scannerFingerprint: baseline.scannerFingerprint,
+      runtimeFingerprint: baseline.runtimeFingerprint,
       rulesetVersion: baseline.rulesetVersion, reportSchemaVersion: baseline.reportSchemaVersion,
       createdAt: baseline.createdAt, expiresAt: baseline.expiresAt };
     return { ...baselineResult, scanId: baseline.scanId,
