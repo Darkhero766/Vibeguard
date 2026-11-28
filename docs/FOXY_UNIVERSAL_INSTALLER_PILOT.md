@@ -1,9 +1,10 @@
 # Foxy universal installer — Codespaces pilot
 
 **Feature branch:** `feat/agentshield-cross-platform-autoconnect`  
-**Command under test:** `vibesane install`  
+**Local candidate:** `@vibesane/foxy@0.7.0-beta.6`  
+**Command under test:** installed `foxy install` executable  
 **Scope:** one disposable Git repository; project-scoped MCP registration only  
-**Important:** this installer change is newer than the previously qualified beta.5 source SHA. Do not treat the beta.5 Windows/macOS qualification as qualification of this installer implementation.
+**Qualification boundary:** the installer engine previously passed Windows/macOS at `ebb1d887d03aad38496f286b78c08ac191832f63` (472/472 regression and 24/24 installer/connect tests on each OS). The later `@vibesane/foxy` package identity, `foxy` executable and beta.6 version are newer changes and require fresh CI qualification. The candidate is unpublished; do not use `npx @vibesane/foxy install` until the release owner approves an actual registry publication.
 
 ## What the installer does
 
@@ -42,17 +43,18 @@ pnpm install --frozen-lockfile
 pnpm --filter @workspace/api-server run build:agentshield
 pnpm --filter @workspace/api-server run test:agentshield:connect
 pnpm --filter @workspace/api-server run test:agentshield:package
-```
-
-The connector test command includes the new universal-installer unit tests. The package test builds the local unpublished archive, installs it into a temporary prefix and exercises the installed CLI with a synthetic repository (including consent denial, dry-run/no-write, install/verification, idempotent repeat and disconnect). Record the exact commit SHA, runtime versions and full test output.
-
-For the full local release qualification (longer; still local and non-publishing), run:
-
-```bash
 pnpm --filter @workspace/api-server run test:agentshield:release-qualification
 ```
 
-This includes the source syntax gate, regression suite, synthetic benchmarks and offline package smoke. It does not replace Windows/macOS/Linux CI coverage or live-host acceptance.
+The package smoke installs the local archive into an isolated npm prefix and exercises the package metadata, `foxy` executable shim, installer dry-run/no-write, consent denial, install/verification, repeat/idempotency, disconnect and MCP smoke. It does not contact or publish to the npm registry. Record the exact commit SHA, runtime versions and full test output. Fresh platform CI and live-host acceptance remain separate gates.
+
+For the interactive Codespaces pilot, create a fresh local archive after the smoke test (the smoke test deletes its temporary archive):
+
+```bash
+node artifacts/api-server/scripts/package-agentshield-beta.mjs
+```
+
+The packer reports the exact archive path, version and SHA-256 in JSON. Expected candidate filename: `artifacts/api-server/dist/vibesane-foxy-0.7.0-beta.6.tgz`. Confirm that the file exists and that the JSON reports `published: false` before proceeding.
 
 ## 3. Create a disposable project
 
@@ -74,27 +76,32 @@ Do not use a production or customer repository.
 
 ## 4. Preview, then install
 
-Preview is non-mutating:
+Install the locally packed candidate into an isolated prefix (do not install globally into the Codespace account):
 
 ```bash
-node "$FOXY_SOURCE/artifacts/api-server/scripts/vibesane.mjs" install --dry-run --agent auto --cwd "$FOXY_TEST_REPO"
+export FOXY_ARCHIVE="$FOXY_SOURCE/artifacts/api-server/dist/vibesane-foxy-0.7.0-beta.6.tgz"
+export FOXY_PREFIX="$HOME/.local/foxy-beta6"
+test -f "$FOXY_ARCHIVE"
+npm install --global --ignore-scripts --offline --prefix "$FOXY_PREFIX" "$FOXY_ARCHIVE"
+export PATH="$FOXY_PREFIX/bin:$PATH"
+foxy --help
 ```
 
-Review the detected agents and exact target paths. Then install interactively:
+Preview the selected Codex configuration without writing:
 
 ```bash
-node "$FOXY_SOURCE/artifacts/api-server/scripts/vibesane.mjs" install --agent auto --cwd "$FOXY_TEST_REPO"
+foxy install --dry-run --agent codex --cwd "$FOXY_TEST_REPO"
 ```
 
-Type `y` only after the plan matches your expectations. To select one host explicitly, replace `auto` with `codex`, `claude`, `cursor`, `gemini`, `roo`, or `copilot`. `--agent all` configures all six adapters regardless of detection; use it only when you intentionally want every supported config target written.
-
-For a non-interactive run, `--yes` is explicit consent and should be used only after the same plan has been reviewed:
+Review the canonical repository and exact `.codex/config.toml` target. Then install interactively:
 
 ```bash
-node "$FOXY_SOURCE/artifacts/api-server/scripts/vibesane.mjs" install --agent codex --cwd "$FOXY_TEST_REPO" --yes
+foxy install --agent codex --cwd "$FOXY_TEST_REPO"
 ```
 
-The installer writes MCP configuration only. Lifecycle hooks and skills remain separate opt-in commands.
+Type `y` only after the plan matches your expectations. To select another host explicitly, use `claude`, `cursor`, `gemini`, `roo`, or `copilot`. `--agent auto` detects installed supported hosts; `--agent all` configures every adapter and should only be used intentionally.
+
+For non-interactive automation, `--yes` is explicit consent and should be used only after reviewing the plan. The installer writes MCP configuration only. Lifecycle hooks and skills remain separate opt-in commands.
 
 ## 5. Verify in the actual host
 
@@ -114,7 +121,7 @@ MCP configuration being present is not proof that the host trusted or loaded it.
 Exit Codex first:
 
 ```bash
-node "$FOXY_SOURCE/artifacts/api-server/scripts/vibesane.mjs" disconnect --agent codex --cwd "$FOXY_TEST_REPO"
+foxy disconnect --agent codex --cwd "$FOXY_TEST_REPO"
 ```
 
 Then verify unrelated files/settings remain. Preserve test output and screenshots before deleting the disposable fixture or worktree.
