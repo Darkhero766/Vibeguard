@@ -8,6 +8,8 @@
 **Qualification result:** exact code candidate f8d2baf passed both OS jobs. Any subsequent source change invalidates this evidence and requires a new exact-source run.  
 **PR:** [#70 — Foxy beta.5](https://github.com/Darkhero766/Vibeguard/pull/70)
 
+> **Historical record — superseded.** This checklist records the Beta.5 candidate only and is not the current release gate. The current Beta.6 exact-source evidence and open release blockers are in [FOXY_DAY1_DAY2_HANDOFF.md](FOXY_DAY1_DAY2_HANDOFF.md) and [VIBESANE_ENGINEERING_STATE.md](VIBESANE_ENGINEERING_STATE.md). Beta.6 code SHA `3ec649c01506ae077639595794fd0b0cc445db04` passed Windows, macOS and Ubuntu/Linux in [run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745). Keep PR #70 draft/unmerged and the package unpublished until independent review, real-host acceptance and separate owner approval.
+
 This is the release control record for Foxy / AgentShield beta.5. A source change, test definition, historical green run, or reviewer preview is not a completed release gate. Mark an item complete only when its evidence is attached to the exact candidate commit and reviewed. Keep the PR draft, unpublished and unmerged until every mandatory gate is closed.
 
 ## 1. Source identity and change control
