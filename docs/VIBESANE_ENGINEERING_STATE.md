@@ -320,3 +320,17 @@ This is the newest source of truth. It supersedes earlier Beta.6 SHA/package-has
 5. For Clerk, wait for the user's approval before plugin/setup. Preserve Supabase as session/UUID authority; configure only isolated staging and prove returning-account UUID/entitlement/referral/API continuity before considering the public flag.
 
 **Resume phrase:** “Continue VibeSane from the final Beta.6 override in docs/VIBESANE_ENGINEERING_STATE.md; verify PR #70/#71 and workflow #46140045503 live. Keep both PRs draft/unmerged, package unpublished, install-copy flag disabled, Clerk disabled pending approval, and production untouched.”
+
+
+## 28 November 2026 — resumed UI evidence alignment checkpoint
+
+- Re-opened the current branch and exact Beta.6 evidence after a connection interruption.
+- The latest final qualified code source remains `ca9de05d00672d9a3148deec13ee2e280f1996eb`, run [#46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503), Windows/macOS/Ubuntu/Linux, 472/472 regression tests per platform, 30-file local package, package-content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`.
+- Fixed the Foxy page and its source test so its qualification link and package hash point to that final evidence, rather than the older run/hash.
+- Added a static preview test assertion pinning the exact qualification run and package hash, so future static SEO/staging output must match the current release evidence.
+- Current branch tip at this checkpoint: `3e1a1b5e6600d2d8afe427d11a341fab51d24dfb`; PR #70 remains draft/unmerged and mergeability is unresolved because of its stacked PR ancestry.
+- CI run [#46141000337](https://github.com/Darkhero766/Vibeguard/actions/runs/46141000337) is pending for this checkpoint. Earlier workflow run [#46140913728](https://github.com/Darkhero766/Vibeguard/actions/runs/46140913728) remains in progress at a prior docs/test checkpoint; cancelled runs are not qualification evidence.
+- Clerk plugin lookup in ChatGPT returned no available plugin. The Clerk setup checklist has not been approved; no plugin/CLI setup or auth changes were performed here.
+- Production remains untouched; package remains unpublished; installation page flag remains disabled; PRs #70/#71 remain draft/unmerged.
+
+**Resume:** Verify run #46141000337 and latest branch head live, then continue Day 1/2 universal installer and website install-panel QA. Keep publication, Clerk enablement and production actions out of scope without explicit approval.
