@@ -136,7 +136,7 @@ try {
   }
 
   const help = await runCli(['--help'], { cwd: temp });
-  assert(help.stdout.includes('VibeSane AgentShield'), 'Installed CLI help did not execute.');
+  assert(help.stdout.includes('VibeSane AgentShield') && help.stdout.includes('vibesane install'), 'Installed CLI help did not expose the universal installer.');
   const mcpDoctor = await runCli(['mcp-doctor'], { cwd: temp, env: {
     ...process.env,
     VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([temp, temp]),
@@ -199,6 +199,15 @@ try {
   const installFixture = path.join(temp, 'universal-install-fixture');
   await mkdir(installFixture, { recursive: true });
   await run('git', ['init', '-q', installFixture]);
+  let noConsentDenied = false;
+  try {
+    await runCli(['install', '--agent', 'codex', '--cwd', installFixture, '--json'], { cwd: temp });
+  } catch (error) {
+    noConsentDenied = error?.code === 2
+      && String(error?.stderr || '').includes('Installation needs explicit consent');
+  }
+  assert(noConsentDenied, 'Non-interactive installer accepted a write without explicit consent.');
+
   const dryRun = JSON.parse((await runCli([
     'install', '--dry-run', '--agent', 'codex', '--cwd', installFixture, '--json',
   ], { cwd: temp })).stdout);
@@ -481,7 +490,7 @@ try {
     packageFileDigests: packaged.fileDigests,
     packagedFiles: packaged.fileCount,
     checks: ['build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'doctor',
-      'one-command-agent-connect', 'one-command-agent-disconnect', 'universal-installer-dry-run', 'universal-installer-install-and-verify', 'universal-installer-repeat-idempotent', 'universal-installer-disconnect', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall'],
+      'one-command-agent-connect', 'one-command-agent-disconnect', 'universal-installer-no-consent-denied', 'universal-installer-dry-run', 'universal-installer-install-and-verify', 'universal-installer-repeat-idempotent', 'universal-installer-disconnect', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall'],
     fixture: 'synthetic-disposable-git-repository',
     published: false,
   }) + '\n');
