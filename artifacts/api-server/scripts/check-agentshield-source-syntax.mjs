@@ -49,6 +49,8 @@ const FILES = [
   'scripts/agentshield-codex-stop.mjs',
   'scripts/agentshield-connect.mjs',
   'scripts/test-agentshield-connect.mjs',
+  'scripts/agentshield-universal-install.mjs',
+  'scripts/test-agentshield-installer.mjs',
   'scripts/vibesane.mjs',
   'scripts/agentshield-baselines.mjs',
   'scripts/agentshield-python.mjs',
