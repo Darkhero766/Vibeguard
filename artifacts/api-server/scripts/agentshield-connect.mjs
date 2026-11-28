@@ -44,26 +44,16 @@ function foxyStateRoot(env = process.env, platform = process.platform) {
 
 async function ensurePrivateDirectory(directory) {
   const absolute = path.resolve(directory);
-  const root = path.parse(absolute).root;
-  let current = root;
-  for (const component of absolute.slice(root.length).split(path.sep).filter(Boolean)) {
-    current = path.join(current, component);
-    try {
-      const info = await lstat(current);
-      if (!info.isDirectory() || info.isSymbolicLink()) {
-        throw new Error('Foxy refuses a symlinked or non-directory private state path.');
-      }
-    } catch (error) {
-      if (error?.code !== 'ENOENT') throw error;
-      await mkdir(current, { mode: 0o700 });
-      const info = await lstat(current);
-      if (!info.isDirectory() || info.isSymbolicLink()) {
-        throw new Error('Foxy private state directory changed during creation.');
-      }
-    }
+  await mkdir(absolute, { recursive: true, mode: 0o700 });
+  const info = await lstat(absolute);
+  if (!info.isDirectory() || info.isSymbolicLink()) {
+    throw new Error('Foxy refuses a symlinked or non-directory private state path.');
   }
   if (process.platform !== 'win32') await chmod(absolute, 0o700);
-  return absolute;
+  // Return the canonical path. macOS commonly exposes temporary/home paths
+  // through system symlinks (for example /var); those trusted ancestors should
+  // not make an otherwise private state directory unusable.
+  return realpath(absolute);
 }
 
 function stablePathDigest(file) {
