@@ -79,13 +79,31 @@ These labels measure synthetic rule expectations. They do not establish real-wor
 - Run the Codex Codespaces procedure against a disposable repository. Capture `codex mcp list`, the `/mcp` tool catalog, `status`, a changed-file scan, remediation verification and `/hooks` trust status. Keep the gate in advisory mode for this first session.
 - If Claude identifies a real issue, preserve the report first. Do not silently patch around the finding before the reviewer has recorded it.
 
-## Universal installer implementation — new, not yet qualified
+## Universal installer and package bootstrap — qualification status
 
-The feature branch now contains a consent-first `vibesane install` command. It detects supported agent CLIs/project markers, resolves the canonical Git root, previews exact project-scoped configuration targets, requires interactive approval (or explicit `--yes`), delegates all config writes to the existing hardened connector, and reopens each managed entry to check idempotent equality. It does not install hooks/skills or enable completion enforcement. A failure triggers removal only for entries reported as newly created in the same attempt; pre-existing/migrated entries and backups are preserved for review.
+The consent-first `vibesane install` engine is implemented on the feature branch. It resolves the canonical Git root, detects supported agents, previews exact project-scoped targets, requires explicit consent, delegates writes to the hardened connector, reopens every managed entry for exact verification, and performs conservative rollback. It does not install hooks/skills, grant host trust, execute repository code or enable completion enforcement.
 
-Added qualification coverage for argument parsing, Node/platform preflight, target planning, automatic detection, successful verification, idempotency, failure rollback, migration preservation, verification mismatch and uncertain connector outcomes. `test:agentshield:connect` now includes this suite. The offline package smoke exercises the installed CLI's consent denial, non-mutating dry run, explicit-consent install, repeat install and disconnect. The release validator requires these evidence IDs, and the source syntax gate includes installer source/tests. The installer is included in local beta package assembly and the CLI exposes `vibesane install`.
+### Installer engine — exact-source qualification passed
 
-**Important:** these new source/package changes are newer than `f8d2baf` and have not yet passed a local test run, Windows/macOS/Linux qualification, live Codex/Claude acceptance or independent review. Do not use the old 462/462 result as evidence for this implementation. The [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md) describes how to test it on a disposable project.
+Commit `ebb1d887d03aad38496f286b78c08ac191832f63` ([Windows/macOS workflow run #46122257414](https://github.com/Darkhero766/Vibeguard/actions/runs/46122257414)) passed:
+
+| Evidence | macOS | Windows |
+|---|---:|---:|
+| Regression tests | 472/472 | 472/472 |
+| Installer/connect tests | 24/24 | 24/24 |
+| Offline package/CLI/MCP smoke | Passed | Passed |
+| MCP STDIO smoke | Passed | Passed |
+
+The tested package contained 30 files with canonical content SHA-256 `c8b7a997ca4bd721444ea4c62f93657d43fec121060b603bed26e62519411458`. The reports were `validation_passed_review_required` / `candidate_for_independent_human_review`, not release approval.
+
+### One-command npm bootstrap — new candidate, awaiting fresh qualification
+
+A follow-on change introduces package identity `@vibesane/foxy`, an npm `foxy` executable alias to the same CLI, candidate version `0.7.0-beta.6`, and package smoke coverage that invokes the installed `foxy` shim and confirms `foxy install --dry-run` writes no host configuration.
+
+**The 472/472 evidence above does not cover these later package-identity/binary/version changes.** Fresh Windows/macOS qualification is required before treating this candidate as validated. Registry namespace ownership/availability is unverified, the package has not been published, and `npx @vibesane/foxy install` is not yet a usable public command. No publication is performed by the build or smoke test.
+
+The [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md) covers the local candidate and the remaining real-host acceptance work.
+
 
 ## Known release blockers and boundaries
 
