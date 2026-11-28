@@ -7,7 +7,9 @@ import {
 import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
 
-const FOXY_BETA_INSTALL_COMMAND = 'npx -y @vibesane/foxy@beta install';
+const FOXY_UNIX_INSTALL_COMMAND = 'curl -fsSL https://vibesane.app/install.sh | bash';
+const FOXY_WINDOWS_INSTALL_COMMAND = (agent: InstallAgent) => "$env:FOXY_INSTALL_AGENT='" + agent + "'; irm https://vibesane.app/install.ps1 | iex";
+type InstallPlatform = 'unix' | 'windows';
 type InstallAgent = 'auto' | 'claude' | 'codex' | 'cursor' | 'gemini' | 'roo' | 'copilot';
 const installAgentOptions: Array<{ id: InstallAgent; label: string }> = [
   { id: 'auto', label: 'Auto-detect installed agents (recommended)' },
@@ -43,9 +45,10 @@ const boundaries = [
 export default function FoxyPage() {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
   const [selectedAgent, setSelectedAgent] = useState<InstallAgent>('auto');
-  const installCommand = selectedAgent === 'auto'
-    ? FOXY_BETA_INSTALL_COMMAND
-    : FOXY_BETA_INSTALL_COMMAND + ' --agent ' + selectedAgent;
+  const [selectedPlatform, setSelectedPlatform] = useState<InstallPlatform>('unix');
+  const installCommand = selectedPlatform === 'windows'
+    ? FOXY_WINDOWS_INSTALL_COMMAND(selectedAgent)
+    : FOXY_UNIX_INSTALL_COMMAND + (selectedAgent === 'auto' ? '' : ' -s -- --agent ' + selectedAgent);
 
   const copyInstallCommand = async () => {
     if (!FOXY_BETA_INSTALL_ENABLED) return;
@@ -155,6 +158,21 @@ export default function FoxyPage() {
                 <p className="font-mono text-[10px] uppercase tracking-[.15em] text-[#9eaaa1]">Beta channel · one-line installer</p>
                 <span className="border border-[#6b5733] bg-[#211b12] px-2.5 py-1 font-mono text-[9px] uppercase tracking-[.12em] text-[#e4c58f]">Private beta</span>
               </div>
+              <label htmlFor="foxy-install-platform" className="mt-5 block font-mono text-[10px] uppercase tracking-[.13em] text-[#9eaaa1]">
+                Operating system
+              </label>
+              <select
+                id="foxy-install-platform"
+                value={selectedPlatform}
+                onChange={(event) => {
+                  setSelectedPlatform(event.target.value as InstallPlatform);
+                  setCopyState('idle');
+                }}
+                className="vg-focus mt-2 w-full border border-white/15 bg-[#0b1112] px-3 py-3 text-sm text-[#f4f6f0]"
+              >
+                <option value="unix">macOS / Linux (curl)</option>
+                <option value="windows">Windows PowerShell</option>
+              </select>
               <label htmlFor="foxy-install-agent" className="mt-5 block font-mono text-[10px] uppercase tracking-[.13em] text-[#9eaaa1]">
                 Configure for
               </label>
@@ -173,7 +191,7 @@ export default function FoxyPage() {
                 ))}
               </select>
               <p id="foxy-install-agent-help" className="mt-2 text-[11px] leading-5 text-[#9eaaa1]">
-                Auto-detect configures only supported agents found in this project. Select one host to target it explicitly.
+                Auto-detect configures supported agents found in this project. Select one host to target it explicitly. The installer checks the official npm registry and stops safely while the beta remains unpublished.
               </p>
               <pre className="mt-4 overflow-x-auto border border-white/10 bg-[#0b1112] p-4 font-mono text-[12px] leading-7 text-[#e8eee7] sm:text-[13px]"><code>{installCommand}</code></pre>
               <button
@@ -185,6 +203,9 @@ export default function FoxyPage() {
               >
                 {FOXY_BETA_INSTALL_ENABLED ? <><Copy size={15} aria-hidden="true" /> Copy install command</> : <><PackageCheck size={15} aria-hidden="true" /> Available after beta publication</>}
               </button>
+              <p className="mt-2 break-all font-mono text-[10px] leading-5 text-[#9eaaa1]">
+                Windows PowerShell: $env:FOXY_INSTALL_AGENT='auto'; irm https://vibesane.app/install.ps1 | iex
+              </p>
               <p id="foxy-install-status" role="status" aria-live="polite" className="mt-3 min-h-6 text-xs leading-6 text-[#aab5ad]">
                 {!FOXY_BETA_INSTALL_ENABLED
                   ? 'The npm package is not published yet. The command is shown for transparency and cannot install until the release owner publishes the verified package.'
