@@ -31,13 +31,38 @@ if ($NodeVersion -lt [version]'24.15.0') {
   throw "Foxy requires Node.js 24.15.0 or newer. Current: $NodeVersionText"
 }
 
-& $NpmPath view "$PackageName@$Channel" version --registry=$Registry --json *> $null
+$PublishedVersionJson = & $NpmPath view "$PackageName@$Channel" version --registry=$Registry --json
 if ($LASTEXITCODE -ne 0) {
   throw "$PackageName@$Channel is not available on the official npm registry yet. Foxy's beta is not published; no package was installed."
 }
+try {
+  $PublishedVersion = [string](ConvertFrom-Json -InputObject ($PublishedVersionJson -join [Environment]::NewLine))
+} catch {
+  throw "The official npm registry returned an invalid version for $PackageName@$Channel; no package was installed."
+}
+$SemverPattern = '^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?if ($LASTEXITCODE -ne 0) { throw 'npm global installation failed.' }
 
-Write-Host "Installing $PackageName@$Channel from the official npm registry…"
-& $NpmPath install --global --ignore-scripts --no-audit --no-fund --registry=$Registry "$PackageName@$Channel"
+$NpmPrefix = (& $NpmPath prefix --global).Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($NpmPrefix)) {
+  throw 'Could not resolve the npm global prefix.'
+}
+$FoxyCommand = Join-Path $NpmPrefix 'foxy.cmd'
+if (-not (Test-Path -LiteralPath $FoxyCommand -PathType Leaf)) {
+  $Resolved = Get-Command foxy -ErrorAction SilentlyContinue
+  if (-not $Resolved) { throw "Foxy was installed, but '$FoxyCommand' was not found." }
+  $FoxyCommand = $Resolved.Source
+}
+
+Write-Host 'Starting the project-scoped, consent-first Foxy installer…'
+& $FoxyCommand install --agent $Agent
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+if ($PublishedVersion -notmatch $SemverPattern) {
+  throw "The official npm registry returned an invalid version for $PackageName@$Channel; no package was installed."
+}
+
+Write-Host "Installing $PackageName@$PublishedVersion from the official npm registry…"
+& $NpmPath install --global --ignore-scripts --no-audit --no-fund --registry=$Registry "$PackageName@$PublishedVersion"
 if ($LASTEXITCODE -ne 0) { throw 'npm global installation failed.' }
 
 $NpmPrefix = (& $NpmPath prefix --global).Trim()
