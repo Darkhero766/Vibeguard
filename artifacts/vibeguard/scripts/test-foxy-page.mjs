@@ -29,6 +29,18 @@ assert.ok(powershellInstaller.includes('$SemverPattern') && powershellInstaller.
 assert.doesNotMatch(powershellInstaller, /install[^\n]*\$PackageName@\$Channel/,
   'PowerShell bootstrap must install the resolved version, never a mutable dist-tag.');
 assert.ok(powershellInstaller.includes('Node.js 24.15.0 or newer') && !powershellInstaller.includes('--yes'));
+const shellSemverSource = shellInstaller.match(/const semver = (\/.*\/);/)?.[1];
+assert.ok(shellSemverSource, 'POSIX bootstrap must contain a version validator.');
+const shellSemver = new RegExp(shellSemverSource.slice(1, -1));
+const powershellSemverSource = powershellInstaller.match(/\$SemverPattern = '([^']+)'/)?.[1];
+assert.ok(powershellSemverSource, 'PowerShell bootstrap must contain a version validator.');
+const powershellSemver = new RegExp(powershellSemverSource);
+for (const validator of [shellSemver, powershellSemver]) {
+  assert.ok(validator.test('0.7.0-beta.6'), 'Bootstrap must accept the current valid beta version.');
+  assert.ok(validator.test('1.2.3'), 'Bootstrap must accept a valid stable semver.');
+  assert.ok(!validator.test('0.7.0-beta.6; npm install attacker-package'),
+    'Bootstrap must reject registry output that could alter the install command.');
+}
 
 const bootstrapFixture = await mkdtemp(path.join(os.tmpdir(), 'foxy-bootstrap-guard-'));
 try {
