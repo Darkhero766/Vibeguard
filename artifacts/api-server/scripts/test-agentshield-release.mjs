@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
@@ -200,4 +200,20 @@ test('Foxy publication workflow is manual, version-bound, protected and OIDC-onl
   assert.ok(workflow.includes("const requiredFiles = ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.txt'];"));
   assert.ok(!workflow.includes('NODE_AUTH_TOKEN: ${{ secrets.'));
   assert.ok(!workflow.includes('\\n  push:') && !workflow.includes('\\n  release:'));
+});
+
+test('all repository workflow actions are pinned to immutable 40-character commits', async () => {
+  const directory = path.join(root, '.github', 'workflows');
+  const files = (await readdir(directory)).filter(file => /\\.ya?ml$/i.test(file)).sort();
+  const floating = [];
+  for (const file of files) {
+    const source = await readFile(path.join(directory, file), 'utf8');
+    for (const match of source.matchAll(/^\\s*uses:\\s*([^\\s#]+)/gm)) {
+      const action = match[1];
+      if (action.startsWith('./')) continue;
+      const revision = action.slice(action.lastIndexOf('@') + 1);
+      if (!/^[a-f0-9]{40}$/i.test(revision)) floating.push(file + ': ' + action);
+    }
+  }
+  assert.deepEqual(floating, [], 'Every external GitHub Action must use an immutable commit SHA.');
 });
