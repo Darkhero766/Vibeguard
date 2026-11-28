@@ -178,7 +178,7 @@ try {
   } catch (error) {
     try { updateRefusal = JSON.parse(String(error.stdout || '').trim()); } catch {}
   }
-  assert.equal(updateRefusal?.status, 'not_global_install',
+  assert(updateRefusal?.status === 'not_global_install',
     'Updater must refuse source or temporary package installs rather than changing the wrong MCP server path.');
   assert(foxyHelp.stdout.includes('vibesane install'),
     'The installed foxy executable did not dispatch to the universal installer.');
@@ -567,43 +567,47 @@ try {
   const codexInitForRemoval = JSON.parse((await runCli(
     ['init-codex', '--cwd', uninstallFixture], { cwd: temp, env: uninstallEnv },
   )).stdout);
-  assert.equal(codexInitForRemoval.status, 'installed');
+  assert(codexInitForRemoval.status === 'installed', 'Codex init should succeed.');
   const fullConnected = JSON.parse((await runCli(
     ['connect', '--agent', 'all', '--cwd', uninstallFixture], { cwd: temp, env: uninstallEnv },
   )).stdout);
-  assert.equal(fullConnected.status, 'connected');
+  assert(fullConnected.status === 'connected', 'All host MCP entries should connect.');
   const fullUninstallOutput = await runCli(['uninstall', '--cwd', uninstallFixture], {
     cwd: temp, env: uninstallEnv,
   });
   const fullUninstallLines = fullUninstallOutput.stdout.trim().split(/\r?\n/);
   const fullUninstall = JSON.parse(fullUninstallLines[fullUninstallLines.length - 1]);
-  assert.equal(fullUninstall.status, 'uninstalled', 'Single-command uninstall must complete all workspace integrations.');
-  assert.equal(fullUninstall.mcp.results.map(item => item.status).join(','),
-    'removed,removed,removed,removed,removed,shared_config',
+  assert(fullUninstall.status === 'uninstalled', 'Single-command uninstall must complete all workspace integrations.');
+  assert(fullUninstall.mcp.results.map(item => item.status).join(',') === 'removed,removed,removed,removed,removed,shared_config',
     'Uninstall must remove all exact MCP entries while de-duplicating shared Claude/Copilot config.');
   const claudeAfterFullUninstall = JSON.parse(await readFile(claudeSettingsPath, 'utf8'));
-  assert.deepEqual(claudeAfterFullUninstall.hooks, unrelatedClaudeHook,
+  assert(JSON.stringify(claudeAfterFullUninstall.hooks) === JSON.stringify(unrelatedClaudeHook),
     'Full uninstall must preserve unrelated Claude hooks.');
   const codexHooksAfterFullUninstall = JSON.parse(await readFile(
     path.join(uninstallFixture, '.codex', 'hooks.json'), 'utf8',
   ));
-  assert.ok(!codexHooksAfterFullUninstall.hooks?.Stop,
+  assert(!codexHooksAfterFullUninstall.hooks?.Stop,
     'Full uninstall must remove the matching Codex Stop hook.');
-  await assert.rejects(readFile(
-    path.join(uninstallFixture, '.agents', 'skills', 'vibesane-agentshield', 'SKILL.md'),
-  ), (error) => error?.code === 'ENOENT');
+  let originalSkillRemoved = false;
+  try {
+    await readFile(path.join(uninstallFixture, '.agents', 'skills', 'vibesane-agentshield', 'SKILL.md'));
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+    originalSkillRemoved = true;
+  }
+  assert(originalSkillRemoved, 'Uninstall must remove the unchanged bundled Codex skill.');
   const claudeMcpAfterFullUninstall = JSON.parse(await readFile(
     path.join(uninstallFixture, '.mcp.json'), 'utf8',
   ));
-  assert.ok(!claudeMcpAfterFullUninstall.mcpServers?.['vibesane-agentshield']);
+  assert(!claudeMcpAfterFullUninstall.mcpServers?.['vibesane-agentshield'], 'Managed Claude MCP must be removed.');
   const expectedFoxyState = process.platform === 'win32'
     ? path.join(isolatedHome, 'AppData', 'Local', 'VibeSane', 'Foxy')
     : process.platform === 'darwin'
       ? path.join(isolatedHome, 'Library', 'Application Support', 'VibeSane', 'Foxy')
       : path.join(isolatedState, 'vibesane', 'foxy');
   const privateBackups = await readdir(path.join(expectedFoxyState, 'backups'));
-  assert.ok(privateBackups.length > 0, 'Full uninstall must preserve out-of-workspace recovery backups.');
-  assert.ok(fullUninstall.preserved.includes('global npm package')
+  assert(privateBackups.length > 0, 'Full uninstall must preserve out-of-workspace recovery backups.');
+  assert(fullUninstall.preserved.includes('global npm package')
     && fullUninstall.preserved.includes('baselines'),
     'Full uninstall must explicitly preserve the installed CLI and local security data.');
 
@@ -622,15 +626,15 @@ try {
   const modifiedSkillUninstall = JSON.parse(
     modifiedSkillUninstallOutput.stdout.trim().split(/\\r?\\n/).at(-1),
   );
-  assert.equal(modifiedSkillUninstall.status, 'uninstalled');
-  assert.equal(modifiedSkillUninstall.codex.skillRemoved, false,
+  assert(modifiedSkillUninstall.status === 'uninstalled', 'Customized-skill uninstall should complete.');
+  assert(modifiedSkillUninstall.codex.skillRemoved === false,
     'Uninstaller must report that a user-modified bundled skill was preserved.');
-  assert.equal(await readFile(modifiedSkillPath, 'utf8'), modifiedSkillText,
+  assert((await readFile(modifiedSkillPath, 'utf8')) === modifiedSkillText,
     'User-modified Codex skills must survive the workspace uninstaller.');
   const modifiedHooks = JSON.parse(await readFile(
     path.join(modifiedSkillFixture, '.codex', 'hooks.json'), 'utf8',
   ));
-  assert.ok(!modifiedHooks.hooks?.Stop, 'Managed Codex Stop hook should still be removed when skill was customized.');
+  assert(!modifiedHooks.hooks?.Stop, 'Managed Codex Stop hook should still be removed when skill was customized.');
 
   const manifestHash = createHash('sha256');
   for (const file of packaged.fileDigests) {
