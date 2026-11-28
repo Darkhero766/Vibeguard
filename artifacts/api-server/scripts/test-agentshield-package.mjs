@@ -89,7 +89,7 @@ try {
   const packaged = JSON.parse(pack.stdout);
   assert(packaged.status === 'packaged_local_only' && packaged.published === false,
     'Packaging must remain local-only.');
-  assert(packaged.version === '0.7.0-beta.5', 'Unexpected AgentShield beta package version.');
+  assert(packaged.version === '0.7.0-beta.6', 'Unexpected Foxy beta package version.');
   const releaseValidatorSource = await readFile(path.join(scriptsDir, 'validate-agentshield-release.mjs'), 'utf8');
   assert(releaseValidatorSource.includes("import { PACKAGE_VERSION, verifyPackageFileManifest } from './package-agentshield-beta.mjs';"),
     'Release validator must derive its expected version and verify package content-manifest evidence from the package builder.');
@@ -104,7 +104,7 @@ try {
     'VIBESANE_ALLOWED_ROOTS_JSON', 'mcp-doctor', 'Codex Stop hooks', 'Node.js 24.15.0', 'SQLite',
     'init-codex', 'connect --agent cursor', 'connect --agent copilot', 'uninstall-mcp --host claude',
     'Node.js >=24.15.0', 'node:sqlite', 'transactional multi-process job claims', 'jobs.json snapshot is migrated',
-    'vibesane install', '--dry-run', '--agent auto'
+    'vibesane install', '--dry-run', '--agent auto', 'npx @vibesane/foxy install',
   ];
   const missingReadmeText = requiredReadmeText.filter((item) => !packagedReadme.stdout.includes(item));
   assert(missingReadmeText.length === 0,
@@ -114,9 +114,13 @@ try {
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_offline: 'true' },
   });
   const packageRoot = process.platform === 'win32'
-    ? path.join(installPrefix, 'node_modules', '@vibesane', 'agentshield')
-    : path.join(installPrefix, 'lib', 'node_modules', '@vibesane', 'agentshield');
+    ? path.join(installPrefix, 'node_modules', '@vibesane', 'foxy')
+    : path.join(installPrefix, 'lib', 'node_modules', '@vibesane', 'foxy');
   const installedManifest = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
+  assert(installedManifest.name === '@vibesane/foxy' && installedManifest.private !== true
+    && installedManifest.publishConfig?.access === 'public'
+    && installedManifest.bin?.foxy === './scripts/vibesane.mjs',
+    'Installed package must expose the public Foxy package identity and npx-compatible foxy executable.');
   assert(installedManifest.engines?.node === '>=24.15.0',
     'Installed package must declare its built-in SQLite runtime requirement.');
   const sqliteStoreSource = await readFile(path.join(packageRoot, 'scripts', 'agentshield-jobs-store.mjs'), 'utf8');
@@ -125,7 +129,7 @@ try {
   const versionSource = await readFile(path.join(packageRoot, 'scripts', 'agentshield-version.mjs'), 'utf8');
   const mcpServerSource = await readFile(path.join(packageRoot, 'scripts', 'agentshield-mcp-server.mjs'), 'utf8');
   const mcpSdkSource = await readFile(path.join(packageRoot, 'scripts', 'agentshield-mcp-sdk.mjs'), 'utf8');
-  assert(versionSource.includes("AGENTSHIELD_VERSION = '0.7.0-beta.5'")
+  assert(versionSource.includes("AGENTSHIELD_VERSION = '0.7.0-beta.6'")
     && mcpServerSource.includes("version: AGENTSHIELD_VERSION")
     && mcpSdkSource.includes("version: AGENTSHIELD_VERSION"),
     'Installed CLI package and both MCP entrypoints must share one immutable version source.');
@@ -135,8 +139,39 @@ try {
     return run(process.execPath, [cli, ...args], options);
   }
 
+  // Exercise the actual npm-generated foxy executable shim, not only the
+  // underlying JavaScript file. This is the command selected by npx.
+  const foxyExecutable = process.platform === 'win32'
+    ? path.join(installPrefix, 'foxy.cmd')
+    : path.join(installPrefix, 'bin', 'foxy');
+  const foxyHelp = await run(foxyExecutable, ['--help'], {
+    cwd: temp,
+    shell: process.platform === 'win32',
+  });
+  assert(foxyHelp.stdout.includes('vibesane install'),
+    'The installed foxy executable did not dispatch to the universal installer.');
+
+  const installFixture = path.join(temp, 'foxy-cli-fixture');
+  await mkdir(installFixture, { recursive: true });
+  await run('git', ['init', '-q', installFixture]);
+  const foxyDryRun = await run(foxyExecutable, [
+    'install', '--dry-run', '--agent', 'codex', '--cwd', installFixture,
+  ], { cwd: temp, shell: process.platform === 'win32' });
+  assert(foxyDryRun.stdout.includes('Dry run only')
+    && foxyDryRun.stdout.includes('.codex/config.toml'),
+    'The npx-compatible foxy binary did not execute the install dry-run.');
+  let dryRunCreatedConfig = false;
+  try {
+    await readFile(path.join(installFixture, '.codex', 'config.toml'));
+    dryRunCreatedConfig = true;
+  } catch (error) {
+    if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error;
+  }
+  assert(!dryRunCreatedConfig, 'Foxy CLI dry-run wrote the Codex host configuration.');
+
   const help = await runCli(['--help'], { cwd: temp });
   assert(help.stdout.includes('VibeSane AgentShield') && help.stdout.includes('vibesane install'), 'Installed CLI help did not expose the universal installer.');
+  assert(installedManifest.bin.foxy === './scripts/vibesane.mjs', 'The foxy binary must resolve to the universal installer CLI.');
   const mcpDoctor = await runCli(['mcp-doctor'], { cwd: temp, env: {
     ...process.env,
     VIBESANE_ALLOWED_ROOTS_JSON: JSON.stringify([temp, temp]),
