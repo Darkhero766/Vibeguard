@@ -1,0 +1,59 @@
+name: VibeSane Clerk auth validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "artifacts/vibeguard/src/**"
+      - "artifacts/vibeguard/package.json"
+      - "artifacts/vibeguard/scripts/test-clerk-auth.mjs"
+      - "artifacts/vibeguard/.env.example"
+      - "docs/VIBESANE_CLERK_AUTH_SETUP.md"
+      - ".github/workflows/vibesane-clerk-auth.yml"
+  push:
+    branches:
+      - feat/vibesane-clerk-auth-provider
+    paths:
+      - "artifacts/vibeguard/src/**"
+      - "artifacts/vibeguard/package.json"
+      - "artifacts/vibeguard/scripts/test-clerk-auth.mjs"
+      - "artifacts/vibeguard/.env.example"
+      - "docs/VIBESANE_CLERK_AUTH_SETUP.md"
+      - ".github/workflows/vibesane-clerk-auth.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vibesane-clerk-auth-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.0
+        with:
+          version: 10.34.9
+          run_install: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24.15"
+          cache: pnpm
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build TypeScript project references
+        run: pnpm exec tsc -b --pretty false
+      - name: Test Clerk auth contracts
+        run: pnpm --filter @workspace/vibeguard run test:clerk-auth
+      - name: Typecheck VibeSane frontend
+        run: pnpm --filter @workspace/vibeguard run typecheck
+      - name: Build VibeSane frontend
+        run: pnpm --filter @workspace/vibeguard run build
