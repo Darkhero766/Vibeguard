@@ -51,6 +51,22 @@ A minimal package entry point with commands:
 The bootstrap package should be small and avoid network calls after package resolution. A published package must have pinned/verified integrity and a reproducible release process. Beta packaging may use a local archive.
 
 ### 2. Agent detection registry
+
+Initial project-scoped adapter targets are:
+
+| Host | Project MCP configuration | Important constraint |
+|---|---|---|
+| Codex CLI | `.codex/config.toml` | Codex loads project config only for trusted projects. Foxy does not grant trust. |
+| Claude Code | `.mcp.json` | Project MCP approval remains with Claude Code/user. |
+| Cursor | `.cursor/mcp.json` | Project file is merged with user-level configuration by Cursor. |
+| Gemini CLI | `.gemini/settings.json` | MCP server definition is project scoped; host trust stays separate. |
+| Roo Code | `.roo/mcp.json` | Project configuration can be loaded by Roo Code. |
+| GitHub Copilot CLI / Copilot harness | workspace-root `.mcp.json` | This is the portable workspace format. A separate user-level Copilot CLI file is not written. |
+
+The adapter uses workspace-root `.mcp.json` for Claude and Copilot because the portable Copilot workspace format shares the top-level `mcpServers` structure. It does not write legacy VS Code editor-managed `.vscode/mcp.json` files; current VS Code guidance says new native Copilot configurations use `$COPILOT_HOME/mcp-config.json` or workspace-root `.mcp.json`, and legacy editor-managed files are not read directly by the Copilot harness. See the [official VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration).
+
+This registry is additive to the existing connectors: detection evidence must never be treated as a trust/approval grant. Host config formats and file locations must be re-checked against upstream docs before adding a new adapter.
+
 Independent detector modules with declared:
 - Agent identifier and supported OS
 - Detection evidence (CLI path, config directory, environment indicator)
