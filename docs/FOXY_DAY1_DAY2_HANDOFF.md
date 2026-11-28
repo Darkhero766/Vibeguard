@@ -1,13 +1,13 @@
-# Foxy beta.5 — Day 1 / Day 2 engineering handoff
+# Foxy beta.6 — Day 1 / Day 2 engineering handoff
 
 **As of:** 28 November 2026  
-**Candidate:** `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5`  
-**Package:** `@vibesane/agentshield 0.7.0-beta.5`  
+**Current qualified code:** `3ec649c01506ae077639595794fd0b0cc445db04`  
+**Package:** `@vibesane/foxy 0.7.0-beta.6` (local-only; unpublished)  
 **PR:** [#70 — draft, open, unmerged](https://github.com/Darkhero766/Vibeguard/pull/70)  
-**Exact-source qualification:** [Actions run #46114784990](https://github.com/Darkhero766/Vibeguard/actions/runs/46114784990)  
-**Decision:** `candidate_for_independent_human_review` — **not approved for production distribution**
+**Exact-source qualification:** [Actions run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) — Windows, macOS and Ubuntu/Linux passed  
+**Decision:** `candidate_for_independent_human_review` — **not approved for public distribution**
 
-The opening Day 1/Day 2 material records the historical beta.5 candidate and must not be read as the current beta.6 package status. The current universal installer and package-bootstrap status is recorded in the updated section below; it is authoritative for PR #70.
+The detailed Day 1 narrative below retains historical beta.5 implementation/qualification context. The current beta.6 installer, package and exact-source evidence in the later sections supersede any older candidate SHA or package hash.
 
 ## Executive status
 
@@ -35,9 +35,9 @@ The current candidate includes these focused hardening changes:
 - All controller-owned event-history appends remain bounded to 16 entries.
 - Hook input is capped at 128,000 UTF-8 bytes and stops being consumed after the limit is crossed.
 
-### Exact-source qualification — passed
+### Historical beta.5 exact-source qualification — superseded
 
-Both artifacts report source revision `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5`, package version `0.7.0-beta.5`, Node.js `v24.15.0`, and status `validation_passed_review_required`.
+The following two-platform beta.5 result is retained as historical context only. It is not the current beta.6 evidence. Both artifacts reported source revision `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5`, package version `0.7.0-beta.5`, Node.js `v24.15.0`, and status `validation_passed_review_required`.
 
 | Evidence | macOS arm64 | Windows x64 |
 |---|---:|---:|
@@ -85,12 +85,12 @@ The consent-first `vibesane install` engine resolves the canonical Git root, det
 
 ### Beta.6 exact-source automated qualification — passed on three platforms
 
-Commit `948a2106a41b8656f46223d20b848dc0bac6c9fd` passed [Foxy qualification workflow #46130854336](https://github.com/Darkhero766/Vibeguard/actions/runs/46130854336) on Windows, macOS and Ubuntu/Linux.
+Commit `3ec649c01506ae077639595794fd0b0cc445db04` passed [Foxy qualification workflow #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) on Windows, macOS and Ubuntu/Linux. All three platform jobs completed successfully with zero failed steps.
 
 | Evidence | Windows | macOS | Ubuntu/Linux |
 |---|---:|---:|---:|
 | Regression tests | 472/472 | 472/472 | 472/472 |
-| Installer/connect tests | 24/24 | 24/24 | 24/24 |
+| Cross-platform connector regression workflow step | Passed | Passed | Passed |
 | TypeScript workspace + frontend/API typechecks | Passed | Passed | Passed |
 | VibeSane frontend + standalone Foxy preview build | Passed | Passed | Passed |
 | MCP STDIO integration smoke | Passed | Passed | Passed |
@@ -106,8 +106,9 @@ All three reports record `validation_passed_review_required` and `candidate_for_
 - Executables: `foxy` and `vibesane`, both mapped to the same consent-first CLI.
 - Runtime: Node.js `>=24.15.0`.
 - Packaged files: 30.
-- Canonical package-content SHA-256, identical across all three OSes: `278096f6d0c27c6ec248ab672199d64849fd8e321d55215909a3b6adb2394ecf`.
+- Canonical package-content SHA-256, identical across all three OSes: `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`.
 - The offline package smoke invokes the installed `foxy` executable (and verifies the Windows shim), checks `--help`, exercises `foxy install --dry-run`, and asserts no host configuration is created. It also covers consent denial, explicit-consent install/verification, idempotency, disconnect and MCP STDIO smoke.
+- The generated package README now states the Beta.6 identity, Windows/macOS/Ubuntu matrix, Node.js requirement and live-host/independent-review caveats; package smoke has regression assertions against stale release claims.
 - Package generation and tests report `published: false`; the package is not published. The `@vibesane` npm scope/name ownership and availability have not been verified.
 
 Because the package is configured with the `beta` dist-tag, the intended command after an owner-approved beta publication would be `npx @vibesane/foxy@beta install`. The untagged `npx @vibesane/foxy install` resolves the `latest` dist-tag and is intended for a future stable release. Neither registry command is usable against this unpublished candidate.
@@ -136,7 +137,7 @@ The current repository tree, current PR discussion and issue search did not expo
 
 ### PR stack is intentionally unresolved
 
-PR #70 is stacked on PR #69 and remains draft/open/unmerged. At the latest check PR #69 was also draft/open/unmerged at `ed5bf64a3dced0bd890fd66cf0634e0ae888a951`. The PR #70 metadata still shows base SHA `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`; the live base branch has advanced. Comparison against the live target showed 392 commits ahead and 23 behind from the common base, and GitHub reports `mergeable=false`. Do not rebase, retarget, force-push or merge until the stacked-PR dependency is reconciled with an explicit plan.
+PR #70 remains stacked on PR #69, open, draft and unmerged; GitHub reports `mergeable=false`. The existing base branch has advanced and the stack relationship must be reconciled deliberately. Do not rebase, retarget, force-push or merge until there is an explicit dependency/ancestry plan.
 
 ### Host acceptance remains a human test
 
