@@ -79,6 +79,14 @@ These labels measure synthetic rule expectations. They do not establish real-wor
 - Run the Codex Codespaces procedure against a disposable repository. Capture `codex mcp list`, the `/mcp` tool catalog, `status`, a changed-file scan, remediation verification and `/hooks` trust status. Keep the gate in advisory mode for this first session.
 - If Claude identifies a real issue, preserve the report first. Do not silently patch around the finding before the reviewer has recorded it.
 
+## Universal installer implementation — new, not yet qualified
+
+The feature branch now contains a consent-first `vibesane install` command. It detects supported agent CLIs/project markers, resolves the canonical Git root, previews exact project-scoped configuration targets, requires interactive approval (or explicit `--yes`), delegates all config writes to the existing hardened connector, and reopens each managed entry to check idempotent equality. It does not install hooks/skills or enable completion enforcement. A failure triggers removal only for entries reported as newly created in the same attempt; pre-existing/migrated entries and backups are preserved for review.
+
+Added qualification coverage for argument parsing, target planning, automatic detection, successful verification, failure rollback, migration preservation and verification mismatch. `test:agentshield:connect` now includes this suite. The installer is included in the local beta package assembly and the CLI exposes `vibesane install`.
+
+**Important:** these new source/package changes are newer than `f8d2baf` and have not yet passed a local test run, Windows/macOS/Linux qualification, live Codex/Claude acceptance or independent review. Do not use the old 462/462 result as evidence for this implementation. The [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md) describes how to test it on a disposable project.
+
 ## Known release blockers and boundaries
 
 ### Independent review is not complete
