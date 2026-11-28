@@ -264,3 +264,17 @@ This section supersedes every older “current candidate” block above. Earlier
 - **What passing CI does not establish:** real host acceptance, independent review, package registry ownership/provenance, security certification, or release approval. All actual host matrix rows remain pending.
 
 The reviewer should inspect code at exact source `3ec649c01506ae077639595794fd0b0cc445db04` and use the branch's current handoff/pilot documents for the latest operational context. Preserve the review-only/no-change instruction above. PR #70 remains draft, open, unmerged and currently not mergeable; do not rebase, retarget, merge, publish or deploy during review.
+
+
+## Final qualified Foxy source and expanded review scope — 28 November 2026
+
+This is the latest review target and supersedes earlier Beta.6 source/hash blocks above. Historical qualification failures remain useful diagnostic evidence.
+
+- Exact source: `ca9de05d00672d9a3148deec13ee2e280f1996eb`; [three-platform qualification run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) passed on Windows, macOS and Ubuntu/Linux.
+- Each platform passed 472/472 regression tests, MCP STDIO, the cross-platform connector suite, all three synthetic benchmark suites, and offline package/CLI/MCP smoke. Each run has zero failed/cancelled/skipped tests and zero failed qualification steps.
+- Package `@vibesane/foxy@0.7.0-beta.6`: 30 files; identical package-content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8` across all OSes; `published: false`.
+- Source-level fix to inspect: agentshield-jobs-store.mjs now serializes application-ID/schema/integrity inspection and claiming inside BEGIN IMMEDIATE. This fixes the observed two-process first-open race where one process could read application ID zero, another process could create Foxy tables, and the first process could then reject Foxy's own newly initialized database using its stale ID read.
+- Website install experience to review: FoxyPage.tsx adds the Install MCP panel, exact beta bootstrap display and clipboard action gated by VITE_FOXY_BETA_INSTALL_ENABLED === 'true'. The default/missing value is fail-closed; the control stays disabled while the package is unpublished. The static SEO route and no-JavaScript preview show the same disabled state and current qualification evidence.
+- Verify the frontend never attempts local filesystem writes. Installation remains a terminal CLI operation with canonical Git-root checks, exact target preview, explicit consent and post-write verification. Lifecycle hooks and completion enforcement remain separate opt-ins.
+
+CI qualification is not a third-party security review, actual host acceptance, registry ownership verification or production approval. Keep PR #70 draft/open/unmerged and the npm package unpublished.
