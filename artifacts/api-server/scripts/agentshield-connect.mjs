@@ -26,7 +26,10 @@ const HOST_CONFIG_PATHS = Object.freeze({
   gemini: '.gemini/settings.json',
   roo: '.roo/mcp.json',
 });
-const ALLOWED_CONFIG_EXCLUDES = new Set(Object.values(HOST_CONFIG_PATHS).map((item) => '/' + item));
+const ALLOWED_CONFIG_EXCLUDES = new Set(Object.values(HOST_CONFIG_PATHS).flatMap((item) => [
+  '/' + item,
+  '/' + item + '.agentshield-*.tmp',
+]));
 
 function foxyStateRoot(env = process.env, platform = process.platform) {
   const home = envValue(env, 'USERPROFILE') || envValue(env, 'HOME') || os.homedir();
@@ -129,7 +132,10 @@ async function ensureGitLocalOnlyConfigPaths(root, hosts, stateRoot) {
     } catch (error) {
       if (error?.code !== 'ENOENT') throw error;
     }
-    const next = updateManagedExclude(originalRaw || '', paths.map((item) => '/' + item));
+    const next = updateManagedExclude(originalRaw || '', paths.flatMap((item) => [
+      '/' + item,
+      '/' + item + '.agentshield-*.tmp',
+    ]));
     if (next === originalRaw) return { status: 'already_excluded', excludeFile };
     await backupFile(excludeFile, originalRaw, stateRoot);
     await atomicWrite(excludeFile, next, originalRaw);
