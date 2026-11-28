@@ -193,7 +193,11 @@ test('Foxy publication workflow is manual, version-bound, protected and OIDC-onl
   assert.ok(workflow.includes('package-manager-cache: false'));
   assert.ok(workflow.includes('npm publish "$FOXY_ARCHIVE" --access public --tag beta --provenance --ignore-scripts'));
   assert.ok(workflow.includes('if: ${{ inputs.confirm_publication == true }}'));
-  assert.ok(workflow.includes('needs: [validate-ref, qualify]'));
+  assert.ok(workflow.includes('verify-cross-platform-package:'));
+  assert.ok(workflow.includes('needs: [validate-ref, qualify, verify-cross-platform-package]'));
+  assert.ok(workflow.includes('actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53'));
+  assert.ok(workflow.includes('report.packageContentSha256'));
+  assert.ok(workflow.includes('report.packageFileDigests'));
   assert.equal(workflow.split('ref: ${{ github.sha }}').length - 1, 3);
   assert.ok(!workflow.includes('ref: ${{ github.ref }}'));
   assert.ok(workflow.includes('verifyPackageFileManifest'));
