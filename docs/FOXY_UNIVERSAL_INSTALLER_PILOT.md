@@ -4,7 +4,7 @@
 **Local candidate:** `@vibesane/foxy@0.7.0-beta.6`  
 **Command under test:** installed `foxy install` executable  
 **Scope:** one disposable Git repository; project-scoped MCP registration only  
-**Exact-source qualification:** commit `948a2106a41b8656f46223d20b848dc0bac6c9fd` passed [Foxy qualification workflow #46130854336](https://github.com/Darkhero766/Vibeguard/actions/runs/46130854336) on Windows, macOS and Ubuntu/Linux: 472/472 regression tests and 24/24 installer/connect tests per OS, all source/build gates, MCP STDIO, three synthetic benchmark suites, and offline package/CLI/MCP smoke. All three reports have zero qualification failures and the same 30-file content SHA-256: `278096f6d0c27c6ec248ab672199d64849fd8e321d55215909a3b6adb2394ecf`. This is automated qualification for independent human review, not live-host acceptance or a security certification. The candidate remains unpublished; npm scope ownership/availability is not verified. Do not use a public `npx` command.
+**Exact-source qualification:** commit `3ec649c01506ae077639595794fd0b0cc445db04` passed [Foxy qualification workflow #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) on Windows, macOS and Ubuntu/Linux. Each platform report confirms 472/472 regression tests; the cross-platform connector regression step, TypeScript/build gates, MCP STDIO, curated/holdout/adversarial synthetic benchmarks, and offline package/CLI/MCP smoke all passed. All three reports have zero qualification failures and the same 30-file package-content SHA-256: `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`. This is automated qualification for independent human review, not live-host acceptance or a security certification. The candidate remains unpublished; npm scope ownership/availability is not verified. Do not run a registry-based `npx` install yet.
 
 ## What the installer does
 
@@ -46,7 +46,7 @@ pnpm --filter @workspace/api-server run test:agentshield:package
 pnpm --filter @workspace/api-server run test:agentshield:release-qualification
 ```
 
-The package smoke installs the local archive into an isolated npm prefix and exercises the package metadata, `foxy` executable shim, installer dry-run/no-write, consent denial, install/verification, repeat/idempotency, disconnect and MCP smoke. It does not contact or publish to the npm registry. Record the exact commit SHA, runtime versions and full test output. The current CI qualification has passed all three OSes; live-host acceptance and independent human review remain separate release gates.
+The package smoke installs the local archive into an isolated npm prefix and exercises the package metadata, `foxy` executable shim (including the Windows `.cmd` shim), installer dry-run/no-write, consent denial, install/verification, repeat/idempotency, disconnect and MCP smoke. It does not contact or publish to the npm registry. After explicit beta publication approval only, the intended one-command beta bootstrap is `npx @vibesane/foxy@beta install`; this command is not usable while the candidate remains unpublished. Record the exact commit SHA, runtime versions and full test output. The current exact-source CI qualification passed all three OSes at `3ec649c01506ae077639595794fd0b0cc445db04`; live-host acceptance and independent human review remain separate release gates.
 
 For the interactive Codespaces pilot, create a fresh local archive after the smoke test (the smoke test deletes its temporary archive):
 
