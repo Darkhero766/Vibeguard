@@ -1,10 +1,12 @@
+> **Current exact-source evidence (28 November 2026):** `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`, [three-OS Actions run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859): Windows, macOS and Ubuntu/Linux all passed; 477/477 regression tests per OS; 33-file package content SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. Every packaged file digest matches across OSes. The release report remains `candidate_for_independent_human_review`; this is not independent review or launch approval. Later commits on the PR branch after this code SHA are documentation-only.
+
 # Claude independent security review brief — Foxy beta.6
 
-**Exact code candidate to review:** `ca9de05d00672d9a3148deec13ee2e280f1996eb`  
+**Exact code candidate to review:** `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`  
 **Package:** `@vibesane/foxy@0.7.0-beta.6` (unpublished local candidate)  
 **Pull request:** [Darkhero766/Vibeguard #70](https://github.com/Darkhero766/Vibeguard/pull/70), still draft/open/unmerged  
-**Exact-source CI evidence:** [run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) — Windows, macOS and Ubuntu/Linux passed; 472/472 regression tests per OS  
-**Package manifest:** 30 files; identical three-platform SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`  
+**Exact-source CI evidence:** [run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859) — Windows, macOS and Ubuntu/Linux passed; 477/477 regression tests per OS  
+**Package manifest:** 33 files; identical three-platform SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`  
 **Review status:** not yet reviewed by an independent party.
 
 ## Instructions to the reviewer
@@ -101,7 +103,7 @@ Do not push fixes. First return the full report for owner review. If a finding i
 
 Review the source tree at exact code SHA `3ec649c01506ae077639595794fd0b0cc445db04`; the current PR branch has later documentation-only commits. The source-matched [qualification run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) passed on Windows, macOS and Ubuntu/Linux. Its synthetic tests and benchmark evidence are not a substitute for your independent reproduction.
 
-The package is `@vibesane/foxy@0.7.0-beta.6`, 30 files, package-content SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`, and remains unpublished. The intended beta registry bootstrap after separate owner approval is `npx @vibesane/foxy@beta install`; do not treat that as currently available.
+The package is `@vibesane/foxy@0.7.0-beta.6`, 33 files, package-content SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`, and remains unpublished. The intended beta registry bootstrap after separate owner approval is `npx @vibesane/foxy@beta install`; do not treat that as currently available.
 
 In addition to the original areas below, inspect the new consent-first universal installer and package path: agent detection for Claude/Codex/Cursor/Gemini/Roo/Copilot, generic MCP fallback, canonical Git root handling, exact target previews, consent boundaries, no-write dry-run, connector lock/snapshot semantics, post-write verification, rollback and ambiguous outcomes, and the Windows executable shim. Check that the README and package evidence describe the same tested source and do not overstate host acceptance.
 
@@ -110,7 +112,7 @@ Keep this review strictly read-only. PR #70 must remain draft/open/unmerged; do 
 
 ## Final Beta.6 review target — 28 November 2026
 
-The latest qualified source is `ca9de05d00672d9a3148deec13ee2e280f1996eb`; [workflow #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) passed on Windows, macOS and Ubuntu/Linux. Each OS passed 472/472 regression tests per OS, 30 package files and identical package-content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`. The package remains unpublished.
+The latest qualified source is `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`; [workflow #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859) passed on Windows, macOS and Ubuntu/Linux. Each OS passed 477/477 regression tests per OS, 30 package files and identical package-content SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. The package remains unpublished.
 
 Inspect the new concurrent SQLite initialization fix in agentshield-jobs-store.mjs: application identity, schema-object inspection, quick-check and first-time application-ID assignment now occur in an immediate transaction, preventing a stale application-ID read from being combined with another process's newly created tables. Reproduce the two-process first-open race and ensure unrelated non-empty SQLite databases are still refused without persistent changes.
 
