@@ -72,3 +72,6 @@ Validation state:
 - Do not close F-03/F-04/F-05 based on source changes alone. Require the exact-head Windows, macOS and Linux connector tests and full qualification, inspect every job, then repeat independent review of the changed code.
 - The earlier 472/472 qualification is still historical evidence for \`ca9de05d00672d9a3148deec13ee2e280f1996eb\` only.
 - PR #70 remains draft/open/unmerged and still has an unresolved stacked base. No publication, merge or deployment is authorized.
+
+
+The preceding run for \`14ff463148c005c3b2606b96c078baaf00d52045\` stopped on macOS/Linux in the website SEO-copy regression because its assertion expected the older phrase \`No repository writes\`. The page copy had already been improved to \`Repository files are never modified\`; the test was corrected to assert the more precise claim. Windows was still running when the two jobs failed. Run #46153329425 is the new full-matrix run after this regression fix; its results are pending.
