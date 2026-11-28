@@ -1,6 +1,18 @@
 # Foxy beta.6 — Day 1 / Day 2 engineering handoff
 
-> **Current exact-source evidence (28 November 2026):** `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`, [three-OS Actions run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859): Windows, macOS and Ubuntu/Linux all passed; 477/477 regression tests per OS; 33-file package content SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. Every packaged file digest matches across OSes. The release report remains `candidate_for_independent_human_review`; this is not independent review or launch approval. Later commits on the PR branch after this code SHA are documentation-only.
+
+## Latest resumed checkpoint — 28 November 2026
+
+- **PR #70 current head at audit:** `68f06d84865fdd17c2677d64a4821263efee5cce`; open, draft, unmerged and GitHub reports `mergeable=false`.
+- **Latest qualified package source:** `a0651317c1cb16170d563867adcf5ddff08d5927`; [Actions run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820) passed Windows, macOS and Ubuntu/Linux with 479/479 regression tests per OS, zero failed/cancelled/skipped tests and all stages green.
+- **Package:** `@vibesane/foxy@0.7.0-beta.6`, 33 files, identical package-content SHA-256 `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`; still unpublished.
+- The four commits after the tested package SHA change only the Foxy website page, SEO generation and related page/preview assertions. They do not change the packaged runtime or publishing workflow, but the current PR-head web changes have not had an exact-head Actions build/preview rerun.
+- The earlier license qualification run #46159923973 (472/475) failed three stale tests; those assertions were corrected and the later 479/479 run supersedes that failed attempt.
+- **Still open:** independent security review, actual live-host acceptance, npm namespace ownership, legal rights/assignment verification, Trusted Publishing and protected environment setup, and PR #69/#70 stack reconciliation.
+- GitGuardian incident 35188914 was triaged in the PR discussion as a pre-existing `.replit:65` public Supabase anon-key finding (JWT role `anon`, same blob on `main` and the PR base); verify the role in Supabase settings and disposition only that exact event. Never suppress service-role or other secret findings. The earlier VibeSane Security critical score is a separate signal and has not been reverified by the Foxy qualification.
+- No merge, publish, production deployment, production secret/config change, SQL/migration or production service operation is authorized. Keep PR #70/#71 draft and package unpublished.
+
+> **Latest Beta.6 package qualification (28 November 2026):** package source `a0651317c1cb16170d563867adcf5ddff08d5927` passed [three-OS Actions run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820) on Windows, macOS and Ubuntu/Linux: **479/479 regression tests per OS**, zero failed/cancelled/skipped tests, all qualification steps passed, and identical 33-file package-content SHA-256 `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`. Reports say `validation_passed_review_required` / `candidate_for_independent_human_review`; this is automated synthetic-fixture evidence, not independent security review, real-host acceptance or launch approval. Current PR #70 head at the last audit was `68f06d84865fdd17c2677d64a4821263efee5cce`, four commits beyond the qualified package source; those commits change only the Foxy website page, SEO generation and associated assertions, not the packaged Foxy runtime. The four newer website/SEO files have not been requalified at the latest PR head.
 
 **As of:** 28 November 2026  
 **Current qualified code:** `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`  
@@ -124,7 +136,7 @@ Because the package is configured with the `beta` dist-tag, the intended command
 - Linux automated qualification now passes, but live Linux host acceptance is still separate.
 - Registry namespace ownership, package provenance/signing and publication approval remain open.
 - Stack reconciliation remains open; PR #70 is draft/open/unmerged and not mergeable. Do not retarget, rebase, force-push or merge without an explicit plan.
-- GitHub's VibeSane Security check remains at 82/100 with one critical finding, matching the previous beta.5 source's same 82/100/one-critical result (66 vs 67 changed files). GitGuardian also reports one secret across the same 250-commit history on both sources. These are unresolved security-review signals; inspect their source findings and remediate/triage before a release decision. Do not treat passing Foxy qualification as a clean security scan.
+- The prior VibeSane Security check was observed at 82/100 with one critical finding; it has not been re-run as part of Foxy qualification and remains a separate security-review signal requiring source-level disposition. GitGuardian incident 35188914 was triaged as a pre-existing public Supabase anon-key event (role `anon`) on the same `.replit` blob as `main`; verify that role and close only that exact event. Do not globally suppress secret findings or treat Foxy qualification as a clean VibeSane SaaS security scan.
 - No package publication, production deployment, production configuration change, production secret update, production SQL/migration, or production service operation has been performed.
 
 The [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md) now points at the exact beta.6 package and the current three-platform evidence. Use only a disposable synthetic repository for the first live-host run.
