@@ -1,10 +1,10 @@
-> **Previously qualified baseline (28 Nov 2026):** `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5` passed Windows/macOS qualification in [run #46114784990](https://github.com/Darkhero766/Vibeguard/actions/runs/46114784990), 462/462 tests per OS. That evidence applies only to the baseline SHA; later universal-installer commits are not covered. The new consent-first `vibesane install` implementation lives on `feat/agentshield-cross-platform-autoconnect` and needs its own qualification. Use the [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md) to test that feature. The earlier [Codex baseline pilot](FOXY_CODEX_CODESPACES_PILOT.md) remains a separate reference.
+> **Current Foxy candidate (28 Nov 2026):** package `@vibesane/foxy@0.7.0-beta.6` remains unpublished. The last fully successful three-OS package qualification was source `f97f95a48ffbdd3ef61a3d7da8ef57caf36a4ad3` (477/477 tests per OS, 33 files, package-content SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`). The current release workflow and evidence-gating hardening is being requalified on exact source `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`; check the [latest Actions run](https://github.com/Darkhero766/Vibeguard/actions/workflows/agentshield-cross-platform.yml) before relying on that candidate. CI is not a substitute for real-host acceptance or independent review.
 
-# AgentShield MCP (repository-read-only beta 0.7.0-beta.5)
+# AgentShield MCP (Foxy beta 0.7.0-beta.6)
 
-## One-time beta setup (macOS/Linux)
+## Local beta setup (Windows/macOS/Linux)
 
-Requirements: Node.js 24.15.0 or newer, Git, pnpm 10.34.9 and a trusted VibeSane checkout. The exact beta.5 source SHA `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5` passed the Windows/macOS automated qualification in run #46114784990. Actual installed-host acceptance remains a separate human gate; begin with a disposable Git repository.
+Requirements: Node.js 24.15.0 or newer, Git, pnpm 10.34.9 and a trusted VibeSane checkout. Start with a disposable Git repository. The package is generated locally and is not published to npm.
 
 From the VibeSane checkout root, build and create the local, unpublished package:
 
@@ -17,11 +17,17 @@ The second command prints the local archive path and SHA-256. Install it into a 
 
 ```sh
 npm install --global --prefix "$HOME/.local" --ignore-scripts \
-  "$PWD/artifacts/api-server/dist/vibesane-agentshield-0.7.0-beta.5.tgz"
+  "$PWD/artifacts/api-server/dist/vibesane-foxy-0.7.0-beta.6.tgz"
 "$HOME/.local/bin/vibesane" --help
 ```
 
 Use the absolute executable paths below so the coding-agent host does not depend on shell `PATH`. Set the allowlist on the MCP server process. Start with the single synthetic or intended repository path, not a broad parent:
+
+```sh
+export VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/disposable-repo"]'
+"$HOME/.local/bin/vibesane" mcp-doctor
+"$HOME/.local/bin/vibesane" doctor --cwd /absolute/path/to/disposable-repo
+```
 
 ```sh
 export VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/disposable-repo"]'
