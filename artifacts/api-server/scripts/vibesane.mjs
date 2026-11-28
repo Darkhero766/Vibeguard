@@ -462,6 +462,75 @@ async function mcpDoctor() {
     return 2;
   }
 }
+async function updateGlobal(args) {
+  if (args.length) throw new Error('Usage: foxy update.');
+  const npmOptions = {
+    timeout: 120_000,
+    maxBuffer: 1_000_000,
+    windowsHide: true,
+    ...(process.platform === 'win32' ? { shell: true } : {}),
+  };
+  let currentVersion = 'unknown';
+  try {
+    const packageRoot = path.resolve(scripts, '..');
+    const manifest = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
+    currentVersion = String(manifest.version || 'unknown');
+    const { stdout: prefixOutput } = await exec('npm', ['prefix', '--global'], npmOptions);
+    const prefix = prefixOutput.trim();
+    const expectedRoot = process.platform === 'win32'
+      ? path.join(prefix, 'node_modules', '@vibesane', 'foxy')
+      : path.join(prefix, 'lib', 'node_modules', '@vibesane', 'foxy');
+    const [actualPath, expectedPath] = await Promise.all([
+      realpath(packageRoot),
+      realpath(expectedRoot).catch(() => null),
+    ]);
+    const normalize = (value) => process.platform === 'win32' ? value.toLowerCase() : value;
+    if (!expectedPath || normalize(actualPath) !== normalize(expectedPath)) {
+      process.stdout.write(JSON.stringify({
+        status: 'not_global_install',
+        currentVersion,
+        note: 'Foxy update only runs from the stable npm-global installation. Reinstall from https://vibesane.app/install.sh or install.ps1; this source checkout or temporary npx cache was not changed.',
+      }) + '\n');
+      return 2;
+    }
+    const { stdout: versionOutput } = await exec('npm', [
+      'view', '@vibesane/foxy@beta', 'version', '--json',
+      '--registry=https://registry.npmjs.org',
+    ], npmOptions);
+    const publishedVersion = String(JSON.parse(versionOutput.trim()));
+    if (!publishedVersion || publishedVersion === 'undefined') {
+      throw new Error('The official npm beta dist-tag did not return a package version.');
+    }
+    if (publishedVersion === currentVersion) {
+      process.stdout.write(JSON.stringify({
+        status: 'up_to_date',
+        version: currentVersion,
+        registry: 'https://registry.npmjs.org',
+      }) + '\n');
+      return 0;
+    }
+    const { stdout, stderr } = await exec('npm', [
+      'install', '--global', '--ignore-scripts', '--no-audit', '--no-fund',
+      '--registry=https://registry.npmjs.org', '@vibesane/foxy@beta',
+    ], npmOptions);
+    process.stdout.write(JSON.stringify({
+      status: 'updated',
+      from: currentVersion,
+      to: publishedVersion,
+      output: String(stdout || stderr || '').slice(-1200),
+      note: 'The npm-global package path is stable; restart coding-agent hosts to reload the new MCP process.',
+    }) + '\n');
+    return 0;
+  } catch (error) {
+    process.stdout.write(JSON.stringify({
+      status: 'update_failed',
+      currentVersion,
+      message: String(error?.message || 'The official beta update failed.').slice(0, 300),
+    }) + '\n');
+    return 2;
+  }
+}
+
 async function uninstallWorkspace(args) {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--cwd') {
@@ -527,6 +596,7 @@ async function main(args) {
       '  vibesane scan --changed [--base-ref REF] [--cwd PROJECT]',
       '  vibesane verify --changed [--cwd PROJECT]',
       '  vibesane status [--cwd PROJECT]',
+      '  vibesane update                      Update the npm-global beta from the official registry',
       '  vibesane config [--mode monitor|assist|auto-fix] [--completion-gate advisory|enforce] [--base-ref REF] [--cwd PROJECT]',
       '  vibesane acknowledge --rule RULE --file PATH --reason CODE --hours N [--cwd PROJECT]',
       '  vibesane setup --host claude|cursor [--cwd PROJECT] Configure project-scoped Foxy MCP',
@@ -550,6 +620,7 @@ async function main(args) {
   if (command === 'doctor') return doctor(tail);
   if (command === 'connect') return child(connector, tail);
   if (command === 'install') return child(universalInstaller, tail);
+  if (command === 'update') return updateGlobal(tail);
   if (command === 'disconnect') return child(connector, ['disconnect', ...tail]);
   if (command === 'mcp-doctor' && tail.length === 0) return mcpDoctor();
   if (command === 'capabilities') {
@@ -574,7 +645,7 @@ async function main(args) {
     return child(dist, ['scan', ...tail]);
   }
   if (['verify', 'status', 'config', 'acknowledge'].includes(command)) return child(controller, [command, ...tail]);
-  throw new Error('Commands: install, connect, disconnect, capabilities, setup --host claude|cursor, uninstall-mcp --host claude|cursor, init, init-codex, uninstall-codex, scan --changed, hybrid --changed [--enable-ast] [--enable-local-ai], verify --changed, status, config, acknowledge, doctor, uninstall.');
+  throw new Error('Commands: install, update, connect, disconnect, capabilities, setup --host claude|cursor, uninstall-mcp --host claude|cursor, init, init-codex, uninstall-codex, scan --changed, hybrid --changed [--enable-ast] [--enable-local-ai], verify --changed, status, config, acknowledge, doctor, uninstall.');
 }
 main(process.argv.slice(2)).then(code => { process.exitCode = code; }).catch(() => {
   process.stdout.write(JSON.stringify({ status: 'error', message: 'AgentShield command failed; run doctor for local diagnostics.' }) + '\n');
