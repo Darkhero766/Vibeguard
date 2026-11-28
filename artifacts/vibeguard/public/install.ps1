@@ -13,11 +13,16 @@ if ($AllowedAgents -notcontains $Agent) {
   throw "Unsupported FOXY_INSTALL_AGENT '$Agent'. Use: $($AllowedAgents -join ', ')."
 }
 
-foreach ($CommandName in @('node', 'npm', 'git')) {
+foreach ($CommandName in @('node', 'git')) {
   if (-not (Get-Command $CommandName -ErrorAction SilentlyContinue)) {
-    throw "Required command '$CommandName' was not found. Install Node.js 24.15+ (including npm) and Git, then retry."
+    throw "Required command '$CommandName' was not found. Install Node.js 24.15+ and Git, then retry."
   }
 }
+$NpmCommand = Get-Command 'npm.cmd' -ErrorAction SilentlyContinue
+if (-not $NpmCommand) {
+  throw "npm.cmd was not found. Repair or reinstall Node.js with npm, then retry."
+}
+$NpmPath = $NpmCommand.Source
 
 $NodeVersionText = (& node -p "process.versions.node")
 if ($LASTEXITCODE -ne 0) { throw 'Could not read the Node.js runtime version.' }
@@ -26,16 +31,16 @@ if ($NodeVersion -lt [version]'24.15.0') {
   throw "Foxy requires Node.js 24.15.0 or newer. Current: $NodeVersionText"
 }
 
-& npm view "$PackageName@$Channel" version --registry=$Registry --json *> $null
+& $NpmPath view "$PackageName@$Channel" version --registry=$Registry --json *> $null
 if ($LASTEXITCODE -ne 0) {
   throw "$PackageName@$Channel is not available on the official npm registry yet. Foxy's beta is not published; no package was installed."
 }
 
 Write-Host "Installing $PackageName@$Channel from the official npm registry…"
-& npm install --global --ignore-scripts --no-audit --no-fund --registry=$Registry "$PackageName@$Channel"
+& $NpmPath install --global --ignore-scripts --no-audit --no-fund --registry=$Registry "$PackageName@$Channel"
 if ($LASTEXITCODE -ne 0) { throw 'npm global installation failed.' }
 
-$NpmPrefix = (& npm prefix --global).Trim()
+$NpmPrefix = (& $NpmPath prefix --global).Trim()
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($NpmPrefix)) {
   throw 'Could not resolve the npm global prefix.'
 }
