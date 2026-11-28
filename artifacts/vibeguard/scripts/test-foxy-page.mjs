@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +15,19 @@ assert.ok(shellInstaller.includes('Node.js 24.15.0 or newer') && !shellInstaller
 assert.ok(powershellInstaller.includes("https://registry.npmjs.org") && powershellInstaller.includes('npm view "$PackageName@$Channel"'));
 assert.ok(powershellInstaller.includes('--ignore-scripts') && powershellInstaller.includes('& $FoxyCommand install --agent $Agent'));
 assert.ok(powershellInstaller.includes('Node.js 24.15.0 or newer') && !powershellInstaller.includes('--yes'));
+if (process.platform === 'win32') {
+  const escapedPath = path.join(root, 'public', 'install.ps1').replaceAll("'", "''");
+  const parse = spawnSync('pwsh', ['-NoProfile', '-Command',
+    "$tokens = $null; $errors = $null; [System.Management.Automation.Language.Parser]::ParseFile('"
+      + escapedPath + "', [ref]$tokens, [ref]$errors) | Out-Null; if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }"],
+  { encoding: 'utf8', windowsHide: true });
+  assert.equal(parse.status, 0, 'PowerShell bootstrap has a syntax error: ' + (parse.stderr || parse.stdout));
+} else {
+  const parse = spawnSync('bash', ['-n', path.join(root, 'public', 'install.sh')],
+    { encoding: 'utf8', windowsHide: true });
+  assert.equal(parse.status, 0, 'POSIX bootstrap has a syntax error: ' + (parse.stderr || parse.stdout));
+}
+
 
 const agentShieldHtml = await readFile(path.join(root, 'dist', 'public', 'agentshield', 'index.html'), 'utf8');
 const scannerCatalog = await readFile(path.resolve(root, '../api-server/src/lib/securityCheckCatalog.ts'), 'utf8');
