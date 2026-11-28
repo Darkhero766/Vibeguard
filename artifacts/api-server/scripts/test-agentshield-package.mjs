@@ -563,7 +563,7 @@ try {
   const fullUninstallOutput = await runCli(['uninstall', '--cwd', uninstallFixture], {
     cwd: temp, env: uninstallEnv,
   });
-  const fullUninstallLines = fullUninstallOutput.stdout.trim().split(/\\r?\\n/);
+  const fullUninstallLines = fullUninstallOutput.stdout.trim().split(/\r?\n/);
   const fullUninstall = JSON.parse(fullUninstallLines[fullUninstallLines.length - 1]);
   assert.equal(fullUninstall.status, 'uninstalled', 'Single-command uninstall must complete all workspace integrations.');
   assert.equal(fullUninstall.mcp.results.map(item => item.status).join(','),
