@@ -13,9 +13,9 @@ A first CLI implementation is now present on `feat/agentshield-cross-platform-au
 - Offline package smoke covers non-interactive consent denial, dry-run/no-write, explicit-consent installation, idempotent repeat and managed-entry disconnect.
 - The release validator now requires installer-specific package evidence.
 
-The complete beta.6 candidate passed exact-source qualification at commit `3ec649c01506ae077639595794fd0b0cc445db04` in [workflow run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) on Windows, macOS and Ubuntu/Linux. Each platform passed 472/472 regression tests, the cross-platform connector regression step, MCP STDIO integration, curated/holdout/additional-adversarial synthetic benchmarks, and the offline package/CLI/MCP smoke. All three qualification reports returned `validation_passed_review_required` / `candidate_for_independent_human_review`, with zero failed qualification steps.
+The complete beta.6 candidate passed exact-source qualification at commit `ca9de05d00672d9a3148deec13ee2e280f1996eb` in [workflow run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) on Windows, macOS and Ubuntu/Linux. Each platform passed 472/472 regression tests, the cross-platform connector regression step, MCP STDIO integration, curated/holdout/additional-adversarial synthetic benchmarks, and the offline package/CLI/MCP smoke. All three qualification reports returned `validation_passed_review_required` / `candidate_for_independent_human_review`, with zero failed qualification steps.
 
-The packaged candidate is `@vibesane/foxy@0.7.0-beta.6`, 30 files, Node.js `>=24.15.0`, with both `foxy` and `vibesane` executable aliases mapped to the same CLI. Its canonical package-content SHA-256 is `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14` on all three operating systems. The package builder and smoke test report `published: false`; no npm publication has occurred. The `@vibesane` namespace ownership/availability has not been verified.
+The packaged candidate is `@vibesane/foxy@0.7.0-beta.6`, 30 files, Node.js `>=24.15.0`, with both `foxy` and `vibesane` executable aliases mapped to the same CLI. Its canonical package-content SHA-256 is `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8` on all three operating systems. The package builder and smoke test report `published: false`; no npm publication has occurred. The `@vibesane` namespace ownership/availability has not been verified.
 
 The npm metadata uses the `beta` dist-tag. After (and only after) registry ownership is confirmed and an owner-approved beta publication, the channel-specific command is `npx @vibesane/foxy@beta install`. The untagged `npx @vibesane/foxy install` resolves the registry's `latest` tag and is the intended stable-channel UX after a stable release. Neither command works from this unpublished local candidate. See [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md).
 
@@ -200,6 +200,20 @@ For every agent:
 
 ## Final Beta.6 release evidence — 28 November 2026
 
-The exact qualified source is `3ec649c01506ae077639595794fd0b0cc445db04`; the final three-platform run is [#46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745). Windows, macOS and Ubuntu/Linux all passed 472/472 regression tests, MCP STDIO, all three synthetic benchmark sets and offline package/CLI/MCP smoke. All release reports have zero failed steps. The 30-file package-content SHA-256 is `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14` on all three operating systems.
+The exact qualified source is `ca9de05d00672d9a3148deec13ee2e280f1996eb`; the final three-platform run is [#46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503). Windows, macOS and Ubuntu/Linux all passed 472/472 regression tests, MCP STDIO, all three synthetic benchmark sets and offline package/CLI/MCP smoke. All release reports have zero failed steps. The 30-file package-content SHA-256 is `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8` on all three operating systems.
 
 The package remains unpublished and npm namespace ownership/availability is unverified. After separate owner-approved beta publication, the beta one-line bootstrap is `npx @vibesane/foxy@beta install`. The stable-channel example above remains a future post-stable-release UX; neither command is available against the local-only archive. Automated qualification does not complete live host acceptance or independent security review.
+
+
+## Final Beta.6 implementation and Install MCP experience — 28 November 2026
+
+The exact qualified Beta.6 source is `ca9de05d00672d9a3148deec13ee2e280f1996eb`; [workflow #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) passed on Windows, macOS and Ubuntu/Linux. Each OS reports 472/472 regression tests, 30 package files and the same content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`. The two-process SQLite initialization regression passes on each OS.
+
+The website `/foxy` experience now includes:
+- An Install MCP hero/footer entry point that takes users to the installation instructions.
+- A one-line Beta.6 command card showing `npx -y @vibesane/foxy@beta install` after publication.
+- A copy action guarded by `VITE_FOXY_BETA_INSTALL_ENABLED === 'true'`; the missing/false default remains disabled while unpublished.
+- Step-by-step explanation of project root, target preview, explicit CLI consent and host trust.
+- A static SEO route and no-JavaScript staging preview with matching evidence and a disabled button.
+
+The browser never writes host configuration. Once the package is published with owner approval, the website flag can be set only after verifying npm namespace ownership and package provenance/signing. The CLI remains responsible for project-scoped config, consent, write verification and rollback. Hooks/skills and completion enforcement remain separate opt-ins.
