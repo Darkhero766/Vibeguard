@@ -216,3 +216,14 @@ This section supersedes earlier exact-source Beta.6 blocks above.
 - **Website:** the `/foxy` page includes an Install MCP entry point, copy panel and static no-JavaScript preview. The beta command `npx -y @vibesane/foxy@beta install` is displayed but copying remains disabled until the explicit public build flag `VITE_FOXY_BETA_INSTALL_ENABLED=true` is set after approved publication and provenance checks.
 - The page cannot write local MCP configuration. It must direct the user to a terminal where the CLI resolves the canonical Git root, previews exact targets, asks for consent and verifies connector changes. Agent host trust remains host-controlled; hooks/skills and completion enforcement remain separate opt-ins.
 - **Human acceptance still pending:** use a disposable synthetic repository and local package archive. Do not use production credentials or customer repositories. Passing CI is not proof that a real agent loads or trusts its project MCP entry.
+
+
+## Latest 479-test package qualification override — 28 November 2026
+
+- **Qualified package source:** `a0651317c1cb16170d563867adcf5ddff08d5927`; [Actions run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820).
+- Windows, macOS and Ubuntu/Linux all passed **479/479** regression tests; zero failures, cancellations or skips; all qualification steps passed.
+- Package: `@vibesane/foxy@0.7.0-beta.6`, 33 files, identical package-content SHA-256 `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`.
+- Qualification decision: `candidate_for_independent_human_review`; this is automated synthetic-fixture evidence, not a third-party review or security certification.
+- The current PR #70 head at the time of audit is `68f06d84865fdd17c2677d64a4821263efee5cce`, four commits after the tested package source. Those commits touch only the website Foxy page, SEO generation and associated assertions; the packaged Foxy runtime is unchanged. The newer web/SEO state has not been requalified at that exact PR head.
+- **All actual host-acceptance rows remain pending.** CI MCP STDIO and package smoke do not prove that Codex, Claude Code, Cursor, Gemini CLI, Roo Code or Copilot loads, trusts and operates Foxy inside a real application. Start with the disposable Codex pilot and keep completion enforcement advisory.
+- The package remains unpublished. Do not run registry `npx` installation, merge PR #70, deploy or use production repositories before the independent review, owner checks and explicit approval.
