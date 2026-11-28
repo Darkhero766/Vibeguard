@@ -39,11 +39,12 @@ assert.ok(foxyPageSource.includes('disabled={!FOXY_BETA_INSTALL_ENABLED}'), 'Ins
 assert.ok(foxyPageSource.includes('if (!FOXY_BETA_INSTALL_ENABLED) return;'), 'Clipboard action must fail closed while the beta installation flag is disabled.');
 assert.ok(foxyPageSource.includes("const FOXY_UNIX_INSTALL_COMMAND = 'curl -fsSL https://vibesane.app/install.sh | bash';"));
 assert.ok(foxyPageSource.includes('https://vibesane.app/install.ps1 | iex'));
-assert.ok(foxyPageSource.includes("useState<InstallPlatform>('unix')") || f.result.content.includes("useState<InstallPlatform>('unix')"));
+assert.ok(foxyPageSource.includes("useState<InstallPlatform>('unix')"));
 assert.ok(foxyPageSource.includes('selectedPlatform === \'windows\''));
 assert.ok(foxyPageSource.includes('foxy-install-platform'));
 assert.ok(foxyPageSource.includes("useState<InstallAgent>('auto')"), 'Install flow must default to safe auto-detection.');
-assert.ok(foxyPageSource.includes("FOXY_BETA_INSTALL_COMMAND + ' --agent ' + selectedAgent"), 'Explicit host selection must append the CLI-supported --agent flag.');
+assert.ok(foxyPageSource.includes("' -s -- --agent ' + selectedAgent"), 'Explicit POSIX host selection must append supported installer arguments.');
+assert.ok(foxyPageSource.includes('FOXY_WINDOWS_INSTALL_COMMAND(selectedAgent)'), 'PowerShell command must receive the same validated host choice.');
 assert.ok(foxyPageSource.includes('navigator.clipboard.writeText(installCommand)'), 'The install action must copy the exact selected command.');
 assert.ok(foxyPageSource.includes('id="foxy-install-agent"'), 'The host selector must have a stable accessible label target.');
 assert.ok(foxyPageSource.includes('installAgentOptions.map'), 'The host selector must be rendered from the supported-host option registry.');
