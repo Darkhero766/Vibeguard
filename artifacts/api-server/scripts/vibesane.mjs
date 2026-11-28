@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { buildCodexMcpBlock, buildJsonMcpEntry } from './agentshield-connect.mjs';
+import { buildCodexMcpBlock, buildJsonMcpEntry, disconnectAgentShield } from './agentshield-connect.mjs';
 
 const scripts = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(scripts, '../dist/agentshield.mjs');
@@ -327,14 +327,13 @@ async function uninstallCodex(args) {
       skillRemoved = true;
     }
   }
-  process.stdout.write(JSON.stringify({
+  return {
     status: 'uninstalled',
     hookRemoved: changed,
     skillRemoved,
     note: skillRemoved ? 'Removed the matching AgentShield skill and Stop hook; unrelated Codex configuration was preserved.'
       : 'Removed the matching Stop hook if present. A modified or missing skill was left untouched.',
-  }) + '\n');
-  return 0;
+  };
 }
 async function doctor(args) {
   const cwd = cwdFrom(args);
@@ -463,6 +462,49 @@ async function mcpDoctor() {
     return 2;
   }
 }
+async function uninstallWorkspace(args) {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--cwd') {
+      if (!args[i + 1]) throw new Error('Missing --cwd value.');
+      i++;
+    } else {
+      throw new Error('Usage: foxy uninstall [--cwd PROJECT].');
+    }
+  }
+  const cwd = cwdFrom(args);
+
+  // MCP disconnect performs canonical Git-root resolution and the safe-Git
+  // configuration preflight before any workspace integration is changed.
+  const mcp = await disconnectAgentShield(['--agent', 'all', '--cwd', cwd]);
+  const root = mcp.root;
+  const claudeExitCode = await child(installer, ['uninstall', root]);
+  let codex;
+  try {
+    codex = await uninstallCodex(['--cwd', root]);
+  } catch (error) {
+    process.stdout.write(JSON.stringify({
+      status: 'partial',
+      root,
+      mcp,
+      claudeHookExitCode: claudeExitCode,
+      codex: { status: 'error', message: String(error?.message || 'Codex uninstall failed.').slice(0, 240) },
+      note: 'Some workspace integrations may remain. Re-run foxy uninstall after resolving the reported issue. Foxy local scan data and the globally installed package are intentionally preserved.',
+    }) + '\\n');
+    return 2;
+  }
+  const complete = claudeExitCode === 0;
+  process.stdout.write(JSON.stringify({
+    status: complete ? 'uninstalled' : 'partial',
+    root,
+    mcp,
+    claudeHooks: { status: complete ? 'removed_if_present' : 'error', exitCode: claudeExitCode },
+    codex,
+    preserved: ['Foxy scan data', 'baselines', 'local queue state', 'per-user backups', 'global npm package'],
+    note: 'Workspace MCP entries and matching Claude/Codex hooks are removed only when they exactly match Foxy-managed configuration. Customized or unrelated entries are preserved. Use npm uninstall --global @vibesane/foxy separately to remove the global CLI.',
+  }) + '\\n');
+  return complete ? 0 : 2;
+}
+
 async function child(program, args) {
   return new Promise((resolve, reject) => {
     const p = spawn(process.execPath, [program, ...args], { stdio: 'inherit', windowsHide: true });
@@ -521,8 +563,8 @@ async function main(args) {
     return child(installer, ['install', cwdFrom(tail)]);
   }
   if (command === 'init-codex') return initCodexSkill(tail);
-  if (command === 'uninstall-codex') return uninstallCodex(tail);
-  if (command === 'uninstall') return child(installer, ['uninstall', cwdFrom(tail)]);
+  if (command === 'uninstall-codex') { const result = await uninstallCodex(tail); process.stdout.write(JSON.stringify(result) + '\\n'); return 0; }
+  if (command === 'uninstall') return uninstallWorkspace(tail);
   if (command === 'hybrid') {
     if (!await isFile(dist) || !await isFile(hybrid)) throw new Error('Build scanner and use a checkout with the hybrid preview module.');
     return child(hybrid, tail);
