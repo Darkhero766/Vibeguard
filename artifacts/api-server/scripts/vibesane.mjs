@@ -427,7 +427,7 @@ async function mcpDoctor() {
       check: 'node',
       required: '24.15.0 or newer',
       note: 'The transactional MCP worker queue requires the built-in node:sqlite module. Upgrade Node.js; no workspace paths or environment values are printed.',
-    }) + '\\n');
+    }) + '\n');
     return 2;
   }
   const raw = process.env.VIBESANE_ALLOWED_ROOTS_JSON;
@@ -489,7 +489,7 @@ async function uninstallWorkspace(args) {
       claudeHookExitCode: claudeExitCode,
       codex: { status: 'error', message: String(error?.message || 'Codex uninstall failed.').slice(0, 240) },
       note: 'Some workspace integrations may remain. Re-run foxy uninstall after resolving the reported issue. Foxy local scan data and the globally installed package are intentionally preserved.',
-    }) + '\\n');
+    }) + '\n');
     return 2;
   }
   const complete = claudeExitCode === 0;
@@ -501,7 +501,7 @@ async function uninstallWorkspace(args) {
     codex,
     preserved: ['Foxy scan data', 'baselines', 'local queue state', 'per-user backups', 'global npm package'],
     note: 'Workspace MCP entries and matching Claude/Codex hooks are removed only when they exactly match Foxy-managed configuration. Customized or unrelated entries are preserved. Use npm uninstall --global @vibesane/foxy separately to remove the global CLI.',
-  }) + '\\n');
+  }) + '\n');
   return complete ? 0 : 2;
 }
 
@@ -563,7 +563,7 @@ async function main(args) {
     return child(installer, ['install', cwdFrom(tail)]);
   }
   if (command === 'init-codex') return initCodexSkill(tail);
-  if (command === 'uninstall-codex') { const result = await uninstallCodex(tail); process.stdout.write(JSON.stringify(result) + '\\n'); return 0; }
+  if (command === 'uninstall-codex') { const result = await uninstallCodex(tail); process.stdout.write(JSON.stringify(result) + '\n'); return 0; }
   if (command === 'uninstall') return uninstallWorkspace(tail);
   if (command === 'hybrid') {
     if (!await isFile(dist) || !await isFile(hybrid)) throw new Error('Build scanner and use a checkout with the hybrid preview module.');
