@@ -34,7 +34,6 @@ const scripts = [
   'agentshield-version.mjs',
   'agentshield-mcp-server.mjs',
   'agentshield-safe-git.mjs',
-  'agentshield-safe-git.mjs',
   'agentshield-mcp-sdk.mjs',
   'agentshield-mcp-stdio.mjs',
   'agentshield-jobs.mjs',
@@ -196,6 +195,7 @@ async function main() {
     version: PACKAGE_VERSION,
     description: 'VibeSane Foxy local security CLI and read-only MCP server for AI coding agents',
     type: 'module',
+    repository: { type: 'git', url: 'https://github.com/Darkhero766/Vibeguard.git' },
     publishConfig: { access: 'public', tag: 'beta' },
     bin: {
       foxy: './scripts/vibesane.mjs',
