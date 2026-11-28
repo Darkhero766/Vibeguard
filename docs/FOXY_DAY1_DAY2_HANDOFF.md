@@ -7,7 +7,7 @@
 **Exact-source qualification:** [Actions run #46114784990](https://github.com/Darkhero766/Vibeguard/actions/runs/46114784990)  
 **Decision:** `candidate_for_independent_human_review` — **not approved for production distribution**
 
-This document is the current handoff/status source for the Day 1 and Day 2 work. Older SHA/count statements in historical records are superseded by the exact-source evidence below.
+The opening Day 1/Day 2 material records the historical beta.5 candidate and must not be read as the current beta.6 package status. The current universal installer and package-bootstrap status is recorded in the updated section below; it is authoritative for PR #70.
 
 ## Executive status
 
@@ -81,29 +81,48 @@ These labels measure synthetic rule expectations. They do not establish real-wor
 
 ## Universal installer and package bootstrap — qualification status
 
-The consent-first `vibesane install` engine is implemented on the feature branch. It resolves the canonical Git root, detects supported agents, previews exact project-scoped targets, requires explicit consent, delegates writes to the hardened connector, reopens every managed entry for exact verification, and performs conservative rollback. It does not install hooks/skills, grant host trust, execute repository code or enable completion enforcement.
+The consent-first `vibesane install` engine resolves the canonical Git root, detects supported agents, previews exact project-scoped targets, requires explicit consent, delegates writes to the hardened connector, reopens every managed entry for exact verification, and performs conservative rollback. It does not install hooks/skills, grant host trust, execute repository code or enable completion enforcement.
 
-### Installer engine — exact-source qualification passed
+### Beta.6 exact-source automated qualification — passed on three platforms
 
-Commit `ebb1d887d03aad38496f286b78c08ac191832f63` ([Windows/macOS workflow run #46122257414](https://github.com/Darkhero766/Vibeguard/actions/runs/46122257414)) passed:
+Commit `ef99246f903ca9ec606f314a99fee37984a1ef63` passed [Foxy qualification workflow #46129976047](https://github.com/Darkhero766/Vibeguard/actions/runs/46129976047) on Windows, macOS and Ubuntu/Linux.
 
-| Evidence | macOS | Windows |
-|---|---:|---:|
-| Regression tests | 472/472 | 472/472 |
-| Installer/connect tests | 24/24 | 24/24 |
-| Offline package/CLI/MCP smoke | Passed | Passed |
-| MCP STDIO smoke | Passed | Passed |
+| Evidence | Windows | macOS | Ubuntu/Linux |
+|---|---:|---:|---:|
+| Regression tests | 472/472 | 472/472 | 472/472 |
+| Installer/connect tests | 24/24 | 24/24 | 24/24 |
+| TypeScript workspace + frontend/API typechecks | Passed | Passed | Passed |
+| VibeSane frontend + standalone Foxy preview build | Passed | Passed | Passed |
+| MCP STDIO integration smoke | Passed | Passed | Passed |
+| Curated / holdout / adversarial benchmarks | Passed | Passed | Passed |
+| Offline package install, CLI, MCP and launcher smoke | Passed | Passed | Passed |
+| Qualification failures | 0 | 0 | 0 |
 
-The tested package contained 30 files with canonical content SHA-256 `c8b7a997ca4bd721444ea4c62f93657d43fec121060b603bed26e62519411458`. The reports were `validation_passed_review_required` / `candidate_for_independent_human_review`, not release approval.
+All three reports record `validation_passed_review_required` and `candidate_for_independent_human_review`. These are automated, synthetic-fixture qualification results, not third-party review or production security certification.
 
-### One-command npm bootstrap — new candidate, awaiting fresh qualification
+### Exact beta.6 package manifest
 
-A follow-on change introduces package identity `@vibesane/foxy`, an npm `foxy` executable alias to the same CLI, candidate version `0.7.0-beta.6`, and package smoke coverage that invokes the installed `foxy` shim and confirms `foxy install --dry-run` writes no host configuration.
+- Package: `@vibesane/foxy@0.7.0-beta.6`
+- Executables: `foxy` and `vibesane`, both mapped to the same consent-first CLI.
+- Runtime: Node.js `>=24.15.0`.
+- Packaged files: 30.
+- Canonical package-content SHA-256, identical across all three OSes: `d0567eb6f8a301d4379a75e8f958a6c48d8fb6eb1c14afaac817e731b01f389c`.
+- The offline package smoke invokes the installed `foxy` executable (and verifies the Windows shim), checks `--help`, exercises `foxy install --dry-run`, and asserts no host configuration is created. It also covers consent denial, explicit-consent install/verification, idempotency, disconnect and MCP STDIO smoke.
+- Package generation and tests report `published: false`; the package is not published. The `@vibesane` npm scope/name ownership and availability have not been verified.
 
-**The 472/472 evidence above does not cover these later package-identity/binary/version changes.** Fresh Windows/macOS qualification is required before treating this candidate as validated. Registry namespace ownership/availability is unverified, the package has not been published, and `npx @vibesane/foxy install` is not yet a usable public command. No publication is performed by the build or smoke test.
+Because the package is configured with the `beta` dist-tag, the intended command after an owner-approved beta publication would be `npx @vibesane/foxy@beta install`. The untagged `npx @vibesane/foxy install` resolves the `latest` dist-tag and is intended for a future stable release. Neither registry command is usable against this unpublished candidate.
 
-The [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md) covers the local candidate and the remaining real-host acceptance work.
+### Outstanding gates
 
+- Independent security review of the exact source SHA has not been recorded.
+- Actual live-host acceptance remains owner-run. Codex is the first pilot; Claude Code, Cursor, Gemini CLI, Roo and Copilot each need separate host/OS validation before those combinations are represented as fully accepted.
+- Linux automated qualification now passes, but live Linux host acceptance is still separate.
+- Registry namespace ownership, package provenance/signing and publication approval remain open.
+- Stack reconciliation remains open; PR #70 is draft/open/unmerged and not mergeable. Do not retarget, rebase, force-push or merge without an explicit plan.
+- GitHub's VibeSane Security check remains at 82/100 with one critical finding, matching the previous beta.5 source's same 82/100/one-critical result (66 vs 67 changed files). GitGuardian also reports one secret across the same 250-commit history on both sources. These are unresolved security-review signals; inspect their source findings and remediate/triage before a release decision. Do not treat passing Foxy qualification as a clean security scan.
+- No package publication, production deployment, production configuration change, production secret update, production SQL/migration, or production service operation has been performed.
+
+The [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md) now points at the exact beta.6 package and the current three-platform evidence. Use only a disposable synthetic repository for the first live-host run.
 
 ## Known release blockers and boundaries
 
