@@ -4,12 +4,14 @@ import path from 'node:path';
 function validProvenance(value) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value)
     && typeof value.scannerFingerprint === 'string' && /^[a-f0-9]{64}$/i.test(value.scannerFingerprint)
+    && typeof value.runtimeFingerprint === 'string' && /^[a-f0-9]{64}$/i.test(value.runtimeFingerprint)
     && typeof value.rulesetVersion === 'string' && value.rulesetVersion.length > 0 && value.rulesetVersion.length <= 200
     && Number.isSafeInteger(value.reportSchemaVersion) && value.reportSchemaVersion > 0);
 }
 function sameProvenance(left, right) {
   return validProvenance(left) && validProvenance(right)
     && left.scannerFingerprint === right.scannerFingerprint
+    && left.runtimeFingerprint === right.runtimeFingerprint
     && left.rulesetVersion === right.rulesetVersion
     && left.reportSchemaVersion === right.reportSchemaVersion;
 }

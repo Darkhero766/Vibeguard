@@ -16,6 +16,14 @@ import { AGENTSHIELD_VERSION } from './agentshield-version.mjs';
 const exec = promisify(execFile);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCANNER = path.resolve(HERE, '../dist/agentshield.mjs');
+const MCP_RUNTIME_FILES = Object.freeze([
+  ['agentshield-mcp-server.mjs', fileURLToPath(import.meta.url)],
+  ['agentshield-mcp-sdk.mjs', path.resolve(HERE, 'agentshield-mcp-sdk.mjs')],
+  ['agentshield-jobs.mjs', path.resolve(HERE, 'agentshield-jobs.mjs')],
+  ['agentshield-jobs-store.mjs', path.resolve(HERE, 'agentshield-jobs-store.mjs')],
+  ['agentshield-baselines.mjs', path.resolve(HERE, 'agentshield-baselines.mjs')],
+  ['agentshield-version.mjs', path.resolve(HERE, 'agentshield-version.mjs')],
+]);
 const MAX_OUTPUT = 1_500_000;
 const MAX_INPUT = 1_000_000;
 const MAX_FINDINGS = 50;
@@ -538,8 +546,36 @@ export function compareFindings(previous, current) {
   }
   return { removed, remaining, newFindings };
 }
+async function fingerprintMcpRuntime() {
+  const digest = createHash('sha256');
+  for (const [name, filename] of MCP_RUNTIME_FILES) {
+    const handle = await open(filename, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    try {
+      const before = await handle.stat();
+      if (!before.isFile() || before.size < 1 || before.size > 10_000_000) {
+        throw new Error('Foxy MCP runtime file is missing or outside its size budget.');
+      }
+      const bytes = await handle.readFile();
+      const after = await handle.stat();
+      if (after.dev !== before.dev || after.ino !== before.ino
+        || after.size !== before.size || after.mtimeMs !== before.mtimeMs
+        || after.ctimeMs !== before.ctimeMs || bytes.byteLength !== before.size) {
+        throw new Error('Foxy MCP runtime changed while its provenance was being fingerprinted.');
+      }
+      digest.update(name, 'utf8');
+      digest.update('\0', 'utf8');
+      digest.update(bytes);
+      digest.update('\0', 'utf8');
+    } finally {
+      await handle.close();
+    }
+  }
+  return digest.digest('hex');
+}
+
 export async function getBaselineProvenance() {
-  // Fingerprint the exact scanner artifact used by the local MCP server.
+  // Bind recoverable baselines to both the scanner and the code that authorizes,
+  // schedules, validates, restores and exposes their results.
   const handle = await open(SCANNER, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
   let bytes;
   try {
@@ -552,9 +588,11 @@ export async function getBaselineProvenance() {
     await handle.close();
   }
   const scannerFingerprint = sha256(bytes);
+  const runtimeFingerprint = await fingerprintMcpRuntime();
   return {
     scannerFingerprint,
-    rulesetVersion: `agentshield-${SERVER_INFO.version}:${scannerFingerprint.slice(0, 24)}`,
+    runtimeFingerprint,
+    rulesetVersion: `agentshield-${SERVER_INFO.version}:${scannerFingerprint.slice(0, 16)}:${runtimeFingerprint.slice(0, 16)}`,
     reportSchemaVersion: BASELINE_REPORT_SCHEMA_VERSION,
   };
 }

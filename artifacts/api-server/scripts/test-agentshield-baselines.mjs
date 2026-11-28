@@ -4,6 +4,7 @@ import { BaselineStore } from './agentshield-baselines.mjs';
 
 const TEST_PROVENANCE = Object.freeze({
   scannerFingerprint: 'b'.repeat(64),
+  runtimeFingerprint: 'c'.repeat(64),
   rulesetVersion: 'agentshield-test-ruleset-v1',
   reportSchemaVersion: 1,
 });
@@ -118,7 +119,7 @@ test('restored baselines reject Windows traversal and control characters in scan
 
 
 
-test('restored baselines reject scanner, ruleset and report-schema drift', () => {
+test('restored baselines reject scanner, MCP runtime, ruleset and report-schema drift', () => {
   const now = 2000;
   const store = new BaselineStore({ ttlMs: 5000, now: () => now });
   const record = {
@@ -139,6 +140,10 @@ test('restored baselines reject scanner, ruleset and report-schema drift', () =>
   };
   assert.equal(store.restore(record, TEST_PROVENANCE), true);
   assert.throws(() => store.restore({ ...record, scannerFingerprint: 'd'.repeat(64) }, TEST_PROVENANCE), /invalid/i);
+  assert.throws(() => store.restore({ ...record, runtimeFingerprint: 'd'.repeat(64) }, TEST_PROVENANCE), /invalid/i);
+  const legacyRecord = { ...record };
+  delete legacyRecord.runtimeFingerprint;
+  assert.throws(() => store.restore(legacyRecord, TEST_PROVENANCE), /invalid/i);
   assert.throws(() => store.restore({ ...record, rulesetVersion: 'agentshield-next-ruleset' }, TEST_PROVENANCE), /invalid/i);
   assert.throws(() => store.restore({ ...record, reportSchemaVersion: 2 }, TEST_PROVENANCE), /invalid/i);
 });

@@ -26,6 +26,7 @@ import {
   workspaceSnapshot,
   authorizeWorkspace,
   resolveAuthorizedRoots,
+  getBaselineProvenance,
 } from './agentshield-mcp-server.mjs';
 import { AGENTSHIELD_VERSION } from './agentshield-version.mjs';
 
@@ -66,6 +67,14 @@ test('MCP authorization stays pinned to startup roots and detects root replaceme
     else process.env.VIBESANE_ALLOWED_ROOTS_JSON = previous;
     await rm(parent, { recursive: true, force: true });
   }
+});
+
+test('persistent baselines include scanner and MCP runtime provenance', async () => {
+  const provenance = await getBaselineProvenance();
+  assert.match(provenance.scannerFingerprint, /^[a-f0-9]{64}$/);
+  assert.match(provenance.runtimeFingerprint, /^[a-f0-9]{64}$/);
+  assert.ok(provenance.rulesetVersion.includes(provenance.scannerFingerprint.slice(0, 16)));
+  assert.ok(provenance.rulesetVersion.includes(provenance.runtimeFingerprint.slice(0, 16)));
 });
 
 test('MCP queue tool annotations disclose local state mutations', () => {

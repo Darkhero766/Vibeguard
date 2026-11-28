@@ -20,12 +20,14 @@ function safeBaselinePath(value) {
 function validBaselineProvenance(value) {
   return Boolean(value && typeof value === 'object'
     && typeof value.scannerFingerprint === 'string' && /^[a-f0-9]{64}$/i.test(value.scannerFingerprint)
+    && typeof value.runtimeFingerprint === 'string' && /^[a-f0-9]{64}$/i.test(value.runtimeFingerprint)
     && typeof value.rulesetVersion === 'string' && value.rulesetVersion.length > 0 && value.rulesetVersion.length <= 200
     && Number.isSafeInteger(value.reportSchemaVersion) && value.reportSchemaVersion > 0);
 }
 function sameBaselineProvenance(left, right) {
   return validBaselineProvenance(left) && validBaselineProvenance(right)
     && left.scannerFingerprint === right.scannerFingerprint
+    && left.runtimeFingerprint === right.runtimeFingerprint
     && left.rulesetVersion === right.rulesetVersion
     && left.reportSchemaVersion === right.reportSchemaVersion;
 }

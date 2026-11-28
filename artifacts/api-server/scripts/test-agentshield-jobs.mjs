@@ -39,6 +39,7 @@ async function stopChild(child) {
 
 const TEST_BASELINE_PROVENANCE = Object.freeze({
   scannerFingerprint: 'a'.repeat(64),
+  runtimeFingerprint: 'b'.repeat(64),
   rulesetVersion: 'agentshield-test-ruleset-v1',
   reportSchemaVersion: 1,
 });
@@ -1195,7 +1196,21 @@ test('completed changed-scan jobs expose recoverable baseline records after rest
     try {
       await restored.init();
       assert.equal(restored.getRestorableBaselines().length, 1);
-    } finally { await restored.close(); await rm(storeDir, { recursive: true, force: true }); }
+    } finally { await restored.close(); }
+
+    const changedRuntime = new ScanJobQueue({
+      storeDir,
+      baselineProvenance: { ...TEST_BASELINE_PROVENANCE, runtimeFingerprint: 'f'.repeat(64) },
+      runner: async () => complete(),
+    });
+    try {
+      await changedRuntime.init();
+      assert.equal(changedRuntime.getRestorableBaselines().length, 0);
+      const stale = changedRuntime.getResults(id);
+      assert.equal(stale.scan_id, null);
+      assert.equal(stale.baseline_stale, true);
+      assert.equal(stale.baseline_unavailable, false);
+    } finally { await changedRuntime.close(); await rm(storeDir, { recursive: true, force: true }); }
   }
 });
 
