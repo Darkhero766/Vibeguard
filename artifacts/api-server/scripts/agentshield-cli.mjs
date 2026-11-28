@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { lstat, realpath, open } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
+import { assertSafeGitConfiguration } from './agentshield-safe-git.mjs';
 import { scanApiFiles } from '../src/lib/apiScanner.ts';
 import { scanExtendedFilesV2 } from '../src/lib/extendedScannerV2.ts';
 import { scanPythonFiles } from './agentshield-python.mjs';
@@ -145,6 +146,7 @@ async function loadFiles(opts) {
   const cwd = path.resolve(opts.cwd);
   const root = (await git(cwd, ['rev-parse', '--show-toplevel'])).trim();
   const rootReal = await realpath(root);
+  await assertSafeGitConfiguration(rootReal);
   const worktreePaths = opts.file || opts.all ? [] : changedPaths(await git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all']));
   const baseCommit = opts.baseRef ? await resolveBaseCommit(rootReal, opts.baseRef) : null;
   const committedPaths = baseCommit
