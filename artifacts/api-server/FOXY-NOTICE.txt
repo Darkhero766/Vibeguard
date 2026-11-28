@@ -11,5 +11,5 @@ Their attributions and license texts are reproduced in THIRD_PARTY_NOTICES.txt.
 
 The Apache License, Version 2.0, does not grant permission to use any product
 names, trademarks, service marks, logos, or branding except as expressly
-permitted by applicable law or written permission. See the Foxy trademark
-guidance in docs/FOXY_LICENSE_AND_OWNERSHIP.md.
+permitted by applicable law or written permission. Use product names only to
+identify the origin of the software; do not imply endorsement or affiliation.
