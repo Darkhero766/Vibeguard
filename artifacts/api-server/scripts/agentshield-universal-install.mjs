@@ -122,8 +122,11 @@ export async function applyInstallPlan(plan, overrides = {}) {
   const results = [];
   const newlyConfigured = [];
   const preservedMigrations = [];
+  let inFlightHost = null;
+  let uncertainHosts = [];
   try {
     for (const host of plan.hosts) {
+      inFlightHost = host;
       const response = await connect(['--agent', host, '--cwd', plan.root], connectorOverrides);
       const item = response?.results?.find((entry) => entry.host === host);
       if (!item || !['configured', 'already_configured', 'migrated'].includes(item.status)) {
@@ -132,6 +135,7 @@ export async function applyInstallPlan(plan, overrides = {}) {
       results.push(item);
       if (item.status === 'configured') newlyConfigured.push(host);
       if (item.status === 'migrated') preservedMigrations.push(host);
+      inFlightHost = null;
     }
 
     // Re-read every managed entry through the same hardened connector. A second
@@ -154,6 +158,10 @@ export async function applyInstallPlan(plan, overrides = {}) {
       note: 'MCP configuration is present. Restart each selected agent and approve/trust the project server in that host; live tool discovery is a separate acceptance test.',
     };
   } catch (error) {
+    // The connector may have committed its atomic rename and then failed while
+    // releasing its lock. Without a returned status we cannot know whether the
+    // current host changed; preserve it for manual exact-entry inspection.
+    if (inFlightHost) uncertainHosts = [inFlightHost];
     const rollback = [];
     for (const host of newlyConfigured.reverse()) {
       try {
@@ -164,7 +172,7 @@ export async function applyInstallPlan(plan, overrides = {}) {
       }
     }
     return {
-      status: rollback.some((item) => item.status === 'rollback_failed') || preservedMigrations.length
+      status: uncertainHosts.length || rollback.some((item) => item.status === 'rollback_failed') || preservedMigrations.length
         ? 'partial_failure'
         : 'rolled_back',
       root: plan.root,
@@ -172,9 +180,10 @@ export async function applyInstallPlan(plan, overrides = {}) {
       hosts: plan.hosts,
       results,
       preservedMigrations,
+      uncertainHosts,
       rollback,
       error: String(error?.message || 'Installation failed.').slice(0, 400),
-      note: 'Only entries newly created in this attempt were eligible for automatic removal. Existing or migrated entries and backups were preserved for manual review.',
+      note: 'Only entries newly created in this attempt were eligible for automatic removal. Existing or migrated entries and backups were preserved. A host whose connector threw before returning a status is marked uncertain because its atomic config write may already have completed; inspect it before retrying.',
     };
   }
 }
