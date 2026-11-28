@@ -103,10 +103,12 @@ test('unpublished local beta package contains no server runtime or source corpus
     '--prefix', npmRoot, pkg.archive], { timeout: 45000, maxBuffer: 250000,
     shell: process.platform === 'win32', windowsHide: true,
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false' } });
-  const installed = path.join(npmRoot, 'node_modules', '@vibesane', 'agentshield');
+  const installed = path.join(npmRoot, 'node_modules', '@vibesane', 'foxy');
   const manifest = JSON.parse(await readFile(path.join(installed, 'package.json'), 'utf8'));
+  assert.equal(manifest.name, '@vibesane/foxy');
   assert.equal(manifest.version, pkg.version);
-  assert.equal(manifest.private, true);
+  assert.notEqual(manifest.private, true);
+  assert.equal(manifest.publishConfig?.access, 'public');
   assert.equal(Object.keys(manifest.dependencies || {}).length, 0);
   const installedReadme = await readFile(path.join(installed, 'README.md'), 'utf8');
   assert.match(installedReadme, /never modifies repository files/i);
