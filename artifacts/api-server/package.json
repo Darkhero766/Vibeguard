@@ -39,7 +39,7 @@
     "test:agentshield:jobs": "node ./scripts/test-agentshield-jobs.mjs",
     "test:agentshield:mcp:smoke": "node ./scripts/test-agentshield-mcp-smoke.mjs",
     "validate:agentshield:mcp": "pnpm run build:agentshield && pnpm run test:agentshield:mcp && pnpm run test:agentshield:jobs && pnpm run test:agentshield:mcp:smoke",
-    "test:agentshield:mcp": "node --test ./scripts/test-agentshield-mcp.mjs ./scripts/test-agentshield-python.mjs ./scripts/test-agentshield-gate.mjs ./scripts/test-agentshield-sarif.mjs ./scripts/test-agentshield-baselines.mjs ./scripts/test-agentshield-adversarial.mjs",
+    "test:agentshield:mcp": "node --test ./scripts/test-agentshield-mcp.mjs ./scripts/test-agentshield-python.mjs ./scripts/test-agentshield-gate.mjs ./scripts/test-agentshield-sarif.mjs ./scripts/test-agentshield-baselines.mjs ./scripts/test-agentshield-adversarial.mjs ./scripts/test-agentshield-safe-git.mjs",
     "test:agentshield:python": "node --test ./scripts/test-agentshield-python.mjs",
     "test:agentshield:gate": "node --test ./scripts/test-agentshield-gate.mjs",
     "test:agentshield:sarif": "node --test ./scripts/test-agentshield-sarif.mjs",
