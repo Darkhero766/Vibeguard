@@ -1,13 +1,12 @@
-> **Current exact-source evidence (28 November 2026):** `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`, [three-OS Actions run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859): Windows, macOS and Ubuntu/Linux all passed; 477/477 regression tests per OS; 33-file package content SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. Every packaged file digest matches across OSes. The release report remains `candidate_for_independent_human_review`; this is not independent review or launch approval. Later commits on the PR branch after this code SHA are documentation-only.
+> **Latest Beta.6 package qualification (28 November 2026):** package source `a0651317c1cb16170d563867adcf5ddff08d5927` passed [three-OS Actions run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820) on Windows, macOS and Ubuntu/Linux: **479/479 regression tests per OS**, zero failed/cancelled/skipped tests, all qualification steps passed, and identical 33-file package-content SHA-256 `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`. Reports say `validation_passed_review_required` / `candidate_for_independent_human_review`; this is automated synthetic-fixture evidence, not independent security review, real-host acceptance or launch approval. Current PR #70 head at the last audit was `68f06d84865fdd17c2677d64a4821263efee5cce`, four commits beyond the qualified package source; those commits change only the Foxy website page, SEO generation and associated assertions, not the packaged Foxy runtime. The four newer website/SEO files have not been requalified at the latest PR head.
 
 # Claude independent security review brief — Foxy beta.6
 
-**Exact code candidate to review:** `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`  
-**Package:** `@vibesane/foxy@0.7.0-beta.6` (unpublished local candidate)  
-**Pull request:** [Darkhero766/Vibeguard #70](https://github.com/Darkhero766/Vibeguard/pull/70), still draft/open/unmerged  
-**Exact-source CI evidence:** [run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859) — Windows, macOS and Ubuntu/Linux passed; 477/477 regression tests per OS  
-**Package manifest:** 33 files; identical three-platform SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`  
-**Review status:** not yet reviewed by an independent party.
+**Current PR head to inspect:** `68f06d84865fdd17c2677d64a4821263efee5cce` ([PR #70](https://github.com/Darkhero766/Vibeguard/pull/70))  
+**Qualified Foxy package source:** `a0651317c1cb16170d563867adcf5ddff08d5927` ([three-OS run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820))  
+**Package:** `@vibesane/foxy@0.7.0-beta.6` (unpublished local candidate); 33 files; content SHA-256 `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`  
+**CI evidence:** Windows, macOS and Ubuntu/Linux each passed 479/479 regression tests with no failed qualification steps.  
+**Review status:** no independent-party sign-off is recorded.
 
 ## Instructions to the reviewer
 
