@@ -187,6 +187,7 @@ test('Foxy publication workflow is manual, version-bound, protected and OIDC-onl
   assert.ok(workflow.includes('workflow_dispatch:'));
   assert.ok(workflow.includes('default: false'));
   assert.ok(workflow.includes('refs/tags/foxy-v*'));
+  assert.ok(workflow.includes("source.match(/AGENTSHIELD_VERSION\\s*=\\s*'([^']+)'/)"));
   assert.ok(workflow.includes('merge-base --is-ancestor'));
   assert.ok(workflow.includes('environment:') && workflow.includes('name: npm-release'));
   assert.ok(workflow.includes('id-token: write'));
