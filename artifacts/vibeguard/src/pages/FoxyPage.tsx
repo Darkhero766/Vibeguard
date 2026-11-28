@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import {
-  ArrowRight, Bot, Check, CheckCircle2, CircleDot, Copy, Fingerprint, Github, KeyRound,
+  ArrowRight, Bot, CheckCircle2, CircleDot, Copy, Fingerprint, Github, KeyRound,
   Monitor, MonitorCog, PackageCheck, ShieldCheck, Terminal,
 } from 'lucide-react';
 import { Nav } from '@/components/Nav';
