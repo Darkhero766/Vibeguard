@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
@@ -19,6 +20,26 @@ import {
 
 const exec = promisify(execFile);
 const cliPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'vibesane.mjs');
+function testFoxyStateRoot() {
+  const home = process.env.USERPROFILE || process.env.HOME || os.homedir();
+  if (process.platform === 'win32') {
+    return path.join(process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'VibeSane', 'Foxy');
+  }
+  if (process.platform === 'darwin') {
+    return path.join(home, 'Library', 'Application Support', 'VibeSane', 'Foxy');
+  }
+  const xdg = process.env.XDG_STATE_HOME;
+  const base = xdg && path.isAbsolute(xdg) ? xdg : path.join(home, '.local', 'state');
+  return path.join(base, 'vibesane', 'foxy');
+}
+
+function testLockPath(targetFile) {
+  const normalized = path.resolve(targetFile);
+  const key = process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+  const digest = createHash('sha256').update(key).digest('hex');
+  return path.join(testFoxyStateRoot(), 'locks', digest + '.lock');
+}
+
 
 test('connect argument parser defaults to automatic detection and rejects unknown hosts', () => {
   assert.deepEqual(parseConnectArgs([]), { agent: 'auto', cwd: process.cwd() });
@@ -300,7 +321,10 @@ test('one disconnect command removes only exact managed host entries and preserv
   assert.deepEqual(Object.keys(roo.mcpServers), ['other']);
   assert.ok(codex.startsWith('[features]'));
   assert.ok(!codex.includes('vibesane_agentshield'));
-  assert.ok((await readdir(project)).some((file) => file.includes('.vibesane-backup-')));
+  assert.ok(!(await readdir(project)).some((file) => file.includes('.vibesane-backup-')
+    || file.endsWith('.agentshield.lock')), 'Workspace must not contain persistent backup or lock artifacts.');
+  const backups = await readdir(path.join(testFoxyStateRoot(), 'backups'));
+  assert.ok(backups.some((file) => file.endsWith('.bak')), 'Disconnect must preserve backups in the per-user Foxy state directory.');
 });
 
 
@@ -354,7 +378,10 @@ test('connect migrates exact legacy JSON and Codex entries to isolated namespace
   const upgradedToml = await readFile(codexFile, 'utf8');
   assert.match(upgradedToml, /VIBESANE_JOB_STORE_NAMESPACE = "foxy-codex"/);
   assert.ok(upgradedToml.startsWith('[features]'));
-  assert.ok((await readdir(project)).some((name) => name.includes('.vibesane-backup-')));
+  assert.ok(!(await readdir(project)).some((name) => name.includes('.vibesane-backup-')
+    || name.endsWith('.agentshield.lock')), 'Migration must not leave backups or lock files in the workspace.');
+  assert.ok((await readdir(path.join(testFoxyStateRoot(), 'backups'))).some((name) => name.endsWith('.bak')),
+    'Migration backups must be preserved in the per-user Foxy state directory.');
 });
 
 test('connect refuses malformed and oversized host configuration without rewriting or backing it up', async (t) => {
@@ -569,7 +596,8 @@ test('connect and disconnect fail closed on stale host-config locks and release 
   await exec('git', ['init', project]);
 
   const jsonFile = path.join(project, '.mcp.json');
-  const jsonLock = jsonFile + '.agentshield.lock';
+  const jsonLock = testLockPath(jsonFile);
+  await mkdir(path.dirname(jsonLock), { recursive: true });
   const originalJson = JSON.stringify({ custom: true, mcpServers: { other: { command: 'preserve-me', args: [] } } }, null, 2);
   await writeFile(jsonFile, originalJson);
   await writeFile(jsonLock, JSON.stringify({ pid: 999999, host: 'synthetic-stale-owner' }));
@@ -603,7 +631,7 @@ test('connect and disconnect fail closed on stale host-config locks and release 
   await assert.rejects(readFile(jsonLock), (error) => error?.code === 'ENOENT');
 
   const codexFile = path.join(project, '.codex', 'config.toml');
-  const codexLock = codexFile + '.agentshield.lock';
+  const codexLock = testLockPath(codexFile);
   const originalToml = '[features]\\nexperimental = true\\n';
   await writeFile(codexFile, originalToml);
   await writeFile(codexLock, JSON.stringify({ pid: 999999, host: 'synthetic-stale-owner' }));
