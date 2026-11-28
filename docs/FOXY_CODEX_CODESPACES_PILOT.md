@@ -1,10 +1,10 @@
-> **Current exact-source evidence (28 November 2026):** `a0651317c1cb16170d563867adcf5ddff08d5927`, [three-OS Actions run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859): Windows, macOS and Ubuntu/Linux all passed; 479/479 regression tests per OS; 33-file package content SHA-256 `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`. Every packaged file digest matches across OSes. The release report remains `candidate_for_independent_human_review`; this is not independent review or launch approval. The current PR head is four commits beyond this package source and changes only the website Foxy page, SEO generation and related assertions; no packaged runtime files changed, but the newer web changes need an exact-head build check.
+> **Current exact-source evidence (28 November 2026):** `a0651317c1cb16170d563867adcf5ddff08d5927`, [three-OS Actions run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820): Windows, macOS and Ubuntu/Linux all passed; 479/479 regression tests per OS; 33-file package content SHA-256 `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`. Every packaged file digest matches across OSes. The release report remains `candidate_for_independent_human_review`; this is not independent review or launch approval. The current PR head is four commits beyond this package source and changes only the website Foxy page, SEO generation and related assertions; no packaged runtime files changed, but the newer web changes need an exact-head build check.
 
 # Foxy beta.6 — Codex CLI pilot in GitHub Codespaces
 
 **Exact code candidate:** `a0651317c1cb16170d563867adcf5ddff08d5927`  
 **Package version:** `@vibesane/foxy@0.7.0-beta.6` (unpublished local archive)  
-**Qualification:** [Windows + macOS + Ubuntu/Linux exact-source run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859) — 479/479 regression tests per OS  
+**Qualification:** [Windows + macOS + Ubuntu/Linux exact-source run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820) — 479/479 regression tests per OS  
 **Package manifest:** 33 files; shared SHA-256 `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`  
 **Purpose:** one controlled Codex CLI acceptance session in a Codespace, using the universal installer from the exact qualified source and a disposable synthetic Git repository.
 
@@ -191,6 +191,6 @@ The source SHA is qualified on Windows, macOS and Ubuntu/Linux in CI, not on the
 
 ## Final Beta.6 source note — 28 November 2026
 
-Use exact source a0651317c1cb16170d563867adcf5ddff08d5927 and [qualification run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859). Windows, macOS and Ubuntu/Linux each passed 479/479 regression tests and zero qualification steps failed. The shared 33-file package-content SHA-256 is 2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa. The package remains unpublished.
+Use exact source a0651317c1cb16170d563867adcf5ddff08d5927 and [qualification run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820). Windows, macOS and Ubuntu/Linux each passed 479/479 regression tests and zero qualification steps failed. The shared 33-file package-content SHA-256 is 2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa. The package remains unpublished.
 
 The new SQLite initialization transaction fix is in this source and the two-process queue regression now passes on all three platforms. The website Install MCP panel only provides the terminal installation instructions; it cannot edit this Codespace or trust the Codex project config. Use the local archive path in FOXY_UNIVERSAL_INSTALLER_PILOT.md, then inspect and approve the exact project MCP target. Keep Stop-hook/skill installation separate and opt-in.
