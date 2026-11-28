@@ -8,6 +8,7 @@ const html = await readFile(path.join(root, 'dist', 'public', 'foxy', 'index.htm
 const agentShieldHtml = await readFile(path.join(root, 'dist', 'public', 'agentshield', 'index.html'), 'utf8');
 const scannerCatalog = await readFile(path.resolve(root, '../api-server/src/lib/securityCheckCatalog.ts'), 'utf8');
 const mainPageSource = await readFile(path.join(root, 'src', 'AppOriginal.tsx'), 'utf8');
+const foxyPageSource = await readFile(path.join(root, 'src', 'pages', 'FoxyPage.tsx'), 'utf8');
 const dashboardSource = await readFile(path.join(root, 'src', 'components', 'SecurityDashboard.tsx'), 'utf8');
 const themeSource = await readFile(path.join(root, 'src', 'index.css'), 'utf8');
 const accentTokenMatches = themeSource.match(/--accent: 81 83% 68%/g) || [];
@@ -23,6 +24,11 @@ assert.ok(mainPageSource.includes('54 checks. The signals that actually matter.'
 assert.ok(mainPageSource.includes('Fifty-four focused rules'), 'Homepage description must match the catalog count.');
 assert.ok(dashboardSource.includes('54 checks, one clear signal.'), 'Signed-in dashboard must match the catalog count.');
 assert.ok(themeSource.includes('54 CHECKS. ONE SECURITY PERIMETER.') && themeSource.includes('SCAN // 54') && themeSource.includes('54 RULES ACTIVE'), 'Animated security console labels must match the catalog count.');
+assert.ok(foxyPageSource.includes("VITE_FOXY_BETA_INSTALL_ENABLED === 'true'"), 'Live beta install must require explicit publication approval flag.');
+assert.ok(foxyPageSource.includes('disabled={!FOXY_BETA_INSTALL_ENABLED}'), 'Install command copy control must be disabled while the package is unpublished.');
+assert.ok(foxyPageSource.includes('if (!FOXY_BETA_INSTALL_ENABLED) return;'), 'Clipboard action must fail closed while the beta installation flag is disabled.');
+assert.ok(foxyPageSource.includes("const FOXY_BETA_INSTALL_COMMAND = 'npx -y @vibesane/foxy@beta install';"), 'The one-line beta command must match the packaged beta channel.');
+
 const uiSource = mainPageSource + dashboardSource + themeSource;
 const legacyCountLabels = ['51 checks', '51 security checks', '50 CHECKS', 'SCAN // 50', '50 RULES ACTIVE'];
 assert.ok(!legacyCountLabels.some((label) => uiSource.includes(label)), 'Legacy scanner count remains in the UI.');
