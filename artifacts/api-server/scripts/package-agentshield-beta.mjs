@@ -43,7 +43,7 @@ const scripts = [
   'agentshield-sarif.mjs',
 ];
 const PACKAGE_EPOCH = new Date('2020-01-01T00:00:00.000Z');
-const PACKAGE_TEXT_EXTENSIONS = new Set(['.mjs', '.cjs', '.json', '.md', '.txt']);
+const PACKAGE_TEXT_EXTENSIONS = new Set(['', '.mjs', '.cjs', '.json', '.md', '.txt']);
 
 async function normalizePackageTree(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -124,6 +124,8 @@ async function main() {
     path.join(root, 'skills', 'vibesane-agentshield', 'SKILL.md'),
     path.join(stage, 'skills', 'vibesane-agentshield', 'SKILL.md'),
   );
+  await cp(path.join(root, 'FOXY-LICENSE-APACHE-2.0.txt'), path.join(stage, 'LICENSE'));
+  await cp(path.join(root, 'FOXY-NOTICE.txt'), path.join(stage, 'NOTICE'));
   for (const file of scripts) {
     await cp(path.join(root, 'scripts', file), path.join(stage, 'scripts', file));
   }
@@ -181,7 +183,7 @@ async function main() {
     bundledLicenses.push(`${name} ${manifest.version} (${manifest.license})\n\n${licenseText}`);
   }
   await writeFile(path.join(stage, 'THIRD_PARTY_NOTICES.txt'), [
-    'VibeSane Foxy internal beta — third-party component notice',
+    'VibeSane Foxy — third-party component notices',
     'The MCP STDIO entry bundles the official Model Context Protocol TypeScript SDK and Zod.',
     'The bundled JS/TS AST worker includes the TypeScript compiler by Microsoft.',
     ...bundledLicenses,
@@ -211,10 +213,12 @@ async function main() {
       'scripts/*.cjs',
       'skills/**',
       'README.md',
+      'LICENSE',
+      'NOTICE',
       'THIRD_PARTY_NOTICES.txt',
       'cursor-hooks.json',
     ],
-    license: 'UNLICENSED',
+    license: 'Apache-2.0',
   };
   await writeFile(path.join(stage, 'package.json'), JSON.stringify(manifest, null, 2) + '\n');
   const cursorHooks = {
@@ -233,6 +237,7 @@ async function main() {
     '# VibeSane Foxy ' + PACKAGE_VERSION + ' (unpublished beta candidate)',
     '',
     'Consent-first, project-scoped MCP installer and local static security-scanning CLI for AI coding agents, with optional Codex Stop hooks. The MCP surface never modifies customer repository files or executes project code. Scan, verification, baseline and queue operations may update Foxy-managed local state.',
+    'This Foxy distribution is licensed under the Apache License, Version 2.0 (Apache-2.0). Copyright 2026 Md Faizal for original Foxy-authored material. See LICENSE, NOTICE and THIRD_PARTY_NOTICES.txt. This package license does not apply to other VibeSane repository or hosted-platform components.',
     '**Trust boundary:** Foxy is a cooperative local verification gate, not a tamper-proof security boundary. A coding agent or process running with the same OS-user permissions can alter local configuration, disable hooks, bypass MCP calls, or modify files directly. Enforce delivery independently with required CI checks, protected branches and human review.',
     'Requires Node.js 24.15.0 or newer (Node.js >=24.15.0) and Git. The automated release-qualification matrix runs on Windows, macOS, and Ubuntu/Linux. It covers regression tests, installer/connect behavior, typechecks/builds, MCP STDIO, synthetic benchmarks, and offline package/CLI smoke. Actual live-host acceptance, independent human security review, and explicit release approval are separate gates. This opt-in beta is not a security certification.',
     `The asynchronous MCP queue uses SQLite through Node's built-in node:sqlite module with transactional multi-process job claims, per-process heartbeats, cancellation propagation, and crash recovery. Its default store path includes the host namespace and an allowlist-scope fingerprint. VIBESANE_JOB_STORE_DIR relocates the base directory only; the same isolation suffix remains. On Windows the final store path must remain inside the current user profile. The store must reside on a local filesystem, never a network or cloud-synchronized folder.`,
@@ -306,6 +311,8 @@ async function main() {
   const expected = new Set([
     'package.json',
     'README.md',
+    'LICENSE',
+    'NOTICE',
     'THIRD_PARTY_NOTICES.txt',
     'cursor-hooks.json',
     'dist/agentshield.mjs',
