@@ -1,10 +1,12 @@
 # Foxy beta.6 — Day 1 / Day 2 engineering handoff
 
+> **Current exact-source evidence (28 November 2026):** `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`, [three-OS Actions run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859): Windows, macOS and Ubuntu/Linux all passed; 477/477 regression tests per OS; 33-file package content SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. Every packaged file digest matches across OSes. The release report remains `candidate_for_independent_human_review`; this is not independent review or launch approval. Later commits on the PR branch after this code SHA are documentation-only.
+
 **As of:** 28 November 2026  
-**Current qualified code:** `ca9de05d00672d9a3148deec13ee2e280f1996eb`  
+**Current qualified code:** `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`  
 **Package:** `@vibesane/foxy 0.7.0-beta.6` (local-only; unpublished)  
 **PR:** [#70 — draft, open, unmerged](https://github.com/Darkhero766/Vibeguard/pull/70)  
-**Exact-source qualification:** [Actions run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) — Windows, macOS and Ubuntu/Linux passed  
+**Exact-source qualification:** [Actions run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859) — Windows, macOS and Ubuntu/Linux passed  
 **Decision:** `candidate_for_independent_human_review` — **not approved for public distribution**
 
 The detailed Day 1 narrative below retains historical beta.5 implementation/qualification context. The current beta.6 installer, package and exact-source evidence in the later sections supersede any older candidate SHA or package hash.
@@ -85,11 +87,11 @@ The consent-first `vibesane install` engine resolves the canonical Git root, det
 
 ### Beta.6 exact-source automated qualification — passed on three platforms
 
-Commit `ca9de05d00672d9a3148deec13ee2e280f1996eb` passed [Foxy qualification workflow #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) on Windows, macOS and Ubuntu/Linux. All three platform jobs completed all 17 steps successfully with zero failed steps.
+Commit `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6` passed [Foxy qualification workflow #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859) on Windows, macOS and Ubuntu/Linux. All three platform jobs completed all 17 steps successfully with zero failed steps.
 
 | Evidence | Windows | macOS | Ubuntu/Linux |
 |---|---:|---:|---:|
-| Regression tests | 472/472 | 472/472 | 472/472 |
+| Regression tests | 477/477 | 477/477 | 477/477 |
 | Cross-platform connector regression workflow step | Passed | Passed | Passed |
 | TypeScript workspace + frontend/API typechecks | Passed | Passed | Passed |
 | VibeSane frontend + standalone Foxy preview build | Passed | Passed | Passed |
@@ -106,7 +108,7 @@ All three reports record `validation_passed_review_required` and `candidate_for_
 - Executables: `foxy` and `vibesane`, both mapped to the same consent-first CLI.
 - Runtime: Node.js `>=24.15.0`.
 - Packaged files: 30.
-- Canonical package-content SHA-256, identical across all three OSes: `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`.
+- Canonical package-content SHA-256, identical across all three OSes: `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`.
 - The offline package smoke invokes the installed `foxy` executable (and verifies the Windows shim), checks `--help`, exercises `foxy install --dry-run`, and asserts no host configuration is created. It also covers consent denial, explicit-consent install/verification, idempotency, disconnect and MCP STDIO smoke.
 - The generated package README now states the Beta.6 identity, Windows/macOS/Ubuntu matrix, Node.js requirement and live-host/independent-review caveats; package smoke has regression assertions against stale release claims.
 - Cross-process SQLite first-open now checks application identity, schema objects and integrity inside `BEGIN IMMEDIATE`, preventing a second process from combining a stale zero application ID with schema created by the first process.
@@ -152,9 +154,9 @@ PR #70 remains draft/open/unmerged. The package is unpublished. No production de
 ## 28 November follow-up — permission-copy and evidence consistency
 
 - Corrected the website, standalone SEO page and regression assertions: repository files are never modified, while scan/baseline/queue operations may update Foxy-managed local state. The MCP protocol annotations were already correct; query tools remain `readOnlyHint: true`, state-mutating tools remain `false`.
-- Updated the real-host runbook and universal-installer pilot to point to the final Beta.6 exact-source evidence: commit `ca9de05d00672d9a3148deec13ee2e280f1996eb`, workflow #46140045503, package manifest SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`.
+- Updated the real-host runbook and universal-installer pilot to point to the final Beta.6 exact-source evidence: commit `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`, workflow #46167652859, package manifest SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`.
 - This follow-up changes UI copy, SEO copy, regression assertions and documentation only; it does not change scanner, installer, host adapters, package payload or production configuration.
-- Wired `test-foxy-page.mjs` into the VibeSane frontend `build` script immediately after SEO generation, making the page/evidence/permission-claim regression a normal build gate. The standalone staging preview test remains a separate staging-artifact check. This build change has not yet been executed on the current follow-up head. The new UI assertions/build have not been rerun locally or in Actions in this session, so those specific checks remain pending. The 472/472 Beta.6 qualification remains evidence for its recorded exact source SHA, not a claim that this follow-up commit was requalified.
+- Wired `test-foxy-page.mjs` into the VibeSane frontend `build` script immediately after SEO generation, making the page/evidence/permission-claim regression a normal build gate. The standalone staging preview test remains a separate staging-artifact check. This build change has not yet been executed on the current follow-up head. The new UI assertions/build have not been rerun locally or in Actions in this session, so those specific checks remain pending. The 477/477 Beta.6 qualification remains evidence for its recorded exact source SHA, not a claim that this follow-up commit was requalified.
 - PR #70 remains draft/open/unmerged; PR #71 remains draft/open/unmerged. No npm publication, production deploy, production auth/provider change, or database mutation was performed.
 
 ## Go / no-go
