@@ -215,7 +215,7 @@ async function main() {
     'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan',
     'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary',
     'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments',
-    'codex-uninstall',
+    'codex-uninstall', 'one-command-workspace-uninstall',
   ];
   const packageEvidenceValid = Boolean(packageStep && packageStep.status === 'passed'
     && packageStep.evidence?.status === 'package_smoke_passed'
