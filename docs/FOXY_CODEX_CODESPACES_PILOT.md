@@ -92,10 +92,10 @@ git -C "$FOXY_TEST_REPO" status --short
 
 The untracked TypeScript file is intentionally in changed-file scope and contains only a fake test string. Do not copy actual source secrets, API keys, tokens or customer code into this fixture.
 
-## 5. Register Codex MCP and install the separate Codex hook/skill
+## 5. Register MCP through the universal installer, then opt in to the separate Codex hook/skill
 
 ```bash
-node "$FOXY_CHECKOUT/artifacts/api-server/scripts/vibesane.mjs" connect --agent codex --cwd "$FOXY_TEST_REPO"
+foxy install --agent codex --cwd "$FOXY_TEST_REPO"
 node "$FOXY_CHECKOUT/artifacts/api-server/scripts/vibesane.mjs" init-codex --cwd "$FOXY_TEST_REPO"
 node "$FOXY_CHECKOUT/artifacts/api-server/scripts/vibesane.mjs" doctor --cwd "$FOXY_TEST_REPO"
 
@@ -105,12 +105,12 @@ VIBESANE_ALLOWED_ROOTS_JSON="$FOXY_ROOTS" \
 ```
 
 Expected results:
-- `connect` returns `configured` (or `already_configured` if you intentionally repeated it).
+- `foxy install` reports that the Codex MCP entry is configured (or already configured after an intentional repeat).
 - `init-codex` returns `installed`.
 - `doctor` returns `ready`, with the built scanner, Codex MCP and Codex Stop-hook checks true.
 - `mcp-doctor` returns `ready` and reports one configured root without printing it.
 
-The MCP config is written only to `$FOXY_TEST_REPO/.codex/config.toml`; the hook is written only to `$FOXY_TEST_REPO/.codex/hooks.json`; the skill is written only to `$FOXY_TEST_REPO/.agents/skills/vibesane-agentshield/SKILL.md`. The generated MCP server uses an absolute Node executable and absolute candidate server path, and the environment allowlist contains only the fixture repository.
+The MCP config is written only by the universal installer to `$FOXY_TEST_REPO/.codex/config.toml`; the optional hook is written only to `$FOXY_TEST_REPO/.codex/hooks.json`; the skill is written only to `$FOXY_TEST_REPO/.agents/skills/vibesane-agentshield/SKILL.md`. The generated MCP server uses an absolute Node executable and absolute candidate server path, and the environment allowlist contains only the fixture repository.
 
 Review the generated files before launching Codex:
 
@@ -163,7 +163,7 @@ Exit Codex first, then run:
 
 ```bash
 node "$FOXY_CHECKOUT/artifacts/api-server/scripts/vibesane.mjs" uninstall-codex --cwd "$FOXY_TEST_REPO"
-node "$FOXY_CHECKOUT/artifacts/api-server/scripts/vibesane.mjs" disconnect --agent codex --cwd "$FOXY_TEST_REPO"
+foxy disconnect --agent codex --cwd "$FOXY_TEST_REPO"
 ```
 
 Review the fixture's `.codex` and `.agents` directories before deleting the test repository. Do not remove the source worktree until you have saved the evidence. When you are finished and the worktree is clean, you may remove only the separate pilot worktree using:
@@ -185,4 +185,4 @@ If the source worktree has modifications, Git will refuse removal; preserve and 
 
 ## Limits
 
-The source SHA is qualified on Windows and macOS in CI, not on the Codespaces image. This pilot is the first real Codex host session for this exact candidate in the owner’s environment. A successful pilot does not complete Claude/Cursor/Gemini/Roo/Copilot acceptance or independent security review. Do not deploy, publish, merge or use production repositories as part of this test.
+The source SHA is qualified on Windows, macOS and Ubuntu/Linux in CI, not on the Codespaces image. This pilot is the first real Codex host session for this exact candidate in the owner’s environment. A successful pilot does not complete Claude/Cursor/Gemini/Roo/Copilot acceptance or independent security review. Do not deploy, publish, merge or use production repositories as part of this test.
