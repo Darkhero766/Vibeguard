@@ -248,6 +248,7 @@ async function main() {
     'Target one host on macOS/Linux by appending: -s -- --agent codex. On Windows, replace auto with a supported host name in FOXY_INSTALL_AGENT.',
     'The bootstrap checks Node.js, npm and Git, queries the official npm registry, installs the published beta globally with lifecycle scripts disabled, and invokes the consent-first project installer. It refuses installation when the package/tag is not published. The global executable path keeps MCP registrations stable across npm cache refreshes. These scripts are not live until the website deployment includes them and the owner has approved package publication.',
     'vibesane --help',
+    'Update an npm-global Foxy install: vibesane update. This checks the official npm beta dist-tag and refuses to run from a source checkout or temporary npx cache.',
     'vibesane doctor --cwd /absolute/path/to/project',
     'After installing a project hook, vibesane doctor reports checks.codexStopHookInstalled or checks.claudeHooksInstalled when the project configuration is readable.',
     'Validate the MCP allowlist without printing paths: VIBESANE_ALLOWED_ROOTS_JSON=\'["/absolute/path/to/project"]\' vibesane mcp-doctor.',
