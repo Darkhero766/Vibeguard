@@ -10,6 +10,7 @@ import { constants } from 'node:fs';
 const FOXY_SQLITE_APPLICATION_ID = 1447514958; // ASCII 'VGSN'
 const LEGACY_MIGRATION_GUARD = 'FOXY_BETA5_MIGRATION_GUARD_V1';
 const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
+const SQLITE_BUSY_CODES = new Set([5, 6]);
 const MAX_RECORDS = 200;
 const MAX_STATE_BYTES = 8_000_000;
 const MAX_IDEMPOTENCY_KEYS_PER_JOB = 16;
@@ -26,6 +27,38 @@ function decodeJob(row) {
   let job;
   try { job = JSON.parse(row.payload); } catch { throw new Error('Foxy SQLite job payload is not valid JSON.'); }
   return { ...job, workerId: row.owner_worker_id || null, cancelRequested: Boolean(row.cancel_requested) };
+}
+
+async function enableWalModeWithRetry(database) {
+  // SQLite may return SQLITE_BUSY when two new MCP processes concurrently
+  // switch the same freshly-created database to WAL. This is an idempotent
+  // transition: retry only BUSY/LOCKED, keep the wait bounded, and never
+  // accept DELETE/TRUNCATE mode as a fallback.
+  const attempts = 32;
+  let lastBusyError = null;
+  database.exec('PRAGMA busy_timeout=100;');
+  try {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const journal = database.prepare('PRAGMA journal_mode=WAL').get();
+        if (String(journal?.journal_mode || '').toLowerCase() === 'wal') return;
+        throw new Error('Foxy job store requires SQLite WAL mode on a local filesystem; no weaker journal fallback is permitted.');
+      } catch (error) {
+        const busy = SQLITE_BUSY_CODES.has(Number(error?.errcode))
+          || /database (?:is )?(?:locked|busy)|database table is locked/i.test(String(error?.message || ''));
+        if (!busy) throw error;
+        lastBusyError = error;
+        if (attempt + 1 < attempts) {
+          await new Promise((resolve) => setTimeout(resolve, Math.min(100, 20 + attempt * 3)));
+        }
+      }
+    }
+    throw new Error('Foxy SQLite journal-mode initialization remained busy after bounded retries; no scans were accepted.', {
+      cause: lastBusyError,
+    });
+  } finally {
+    database.exec('PRAGMA busy_timeout=10000;');
+  }
 }
 
 function validateLegacyJob(job) {
@@ -169,10 +202,7 @@ export class ScanJobStore {
     // WAL is a persistent database change, so enable it only after ownership
     // and integrity are established.
     this.db.exec('PRAGMA secure_delete=ON; PRAGMA wal_autocheckpoint=1000; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;');
-    const journal = this.db.prepare('PRAGMA journal_mode=WAL').get();
-    if (String(journal?.journal_mode || '').toLowerCase() !== 'wal') {
-      throw new Error('Foxy job store requires SQLite WAL mode on a local filesystem; no weaker journal fallback is permitted.');
-    }
+    await enableWalModeWithRetry(this.db);
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS queue_meta (
         key TEXT PRIMARY KEY,
