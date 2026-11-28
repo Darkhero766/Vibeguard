@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import {
   buildCodexMcpBlock,
   codexHasMcpConflict,
@@ -33,8 +33,12 @@ function testFoxyStateRoot() {
   return path.join(base, 'vibesane', 'foxy');
 }
 
-function testLockPath(targetFile) {
-  const normalized = path.resolve(targetFile);
+async function testLockPath(targetFile) {
+  // projectRoot() canonicalizes the Git worktree before deriving its state key.
+  // Resolve the parent too: macOS temporary-directory paths can be /var aliases
+  // for /private/var, so hashing the caller's lexical path would miss the lock.
+  const normalizedParent = await realpath(path.dirname(targetFile));
+  const normalized = path.join(normalizedParent, path.basename(targetFile));
   const key = process.platform === 'win32' ? normalized.toLowerCase() : normalized;
   const digest = createHash('sha256').update(key).digest('hex');
   return path.join(testFoxyStateRoot(), 'locks', digest + '.lock');
@@ -596,7 +600,7 @@ test('connect and disconnect fail closed on stale host-config locks and release 
   await exec('git', ['init', project]);
 
   const jsonFile = path.join(project, '.mcp.json');
-  const jsonLock = testLockPath(jsonFile);
+  const jsonLock = await testLockPath(jsonFile);
   await mkdir(path.dirname(jsonLock), { recursive: true });
   const originalJson = JSON.stringify({ custom: true, mcpServers: { other: { command: 'preserve-me', args: [] } } }, null, 2);
   await writeFile(jsonFile, originalJson);
@@ -631,7 +635,7 @@ test('connect and disconnect fail closed on stale host-config locks and release 
   await assert.rejects(readFile(jsonLock), (error) => error?.code === 'ENOENT');
 
   const codexFile = path.join(project, '.codex', 'config.toml');
-  const codexLock = testLockPath(codexFile);
+  const codexLock = await testLockPath(codexFile);
   const originalToml = '[features]\\nexperimental = true\\n';
   await writeFile(codexFile, originalToml);
   await writeFile(codexLock, JSON.stringify({ pid: 999999, host: 'synthetic-stale-owner' }));
