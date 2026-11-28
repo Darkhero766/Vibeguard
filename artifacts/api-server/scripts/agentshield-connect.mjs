@@ -87,7 +87,7 @@ function updateManagedExclude(raw, requiredPatterns) {
     const end = raw.indexOf(EXCLUDE_END, start + EXCLUDE_START.length);
     if (end < 0) throw new Error('Foxy found an incomplete managed Git exclude block.');
     const block = raw.slice(start + EXCLUDE_START.length, end);
-    for (const line of block.split(/\\r?\\n/)) {
+    for (const line of block.split(/\r?\n/)) {
       const item = line.trim();
       if (!item) continue;
       if (!ALLOWED_CONFIG_EXCLUDES.has(item)) {
@@ -99,10 +99,10 @@ function updateManagedExclude(raw, requiredPatterns) {
     suffix = raw.slice(end + EXCLUDE_END.length);
   }
   for (const item of requiredPatterns) patterns.add(item);
-  const body = [EXCLUDE_START, ...[...patterns].sort(), EXCLUDE_END].join('\\n');
-  const left = prefix.replace(/[\\r\\n]+$/, '');
-  const right = suffix.replace(/^[\\r\\n]+/, '');
-  return [left, body, right].filter(Boolean).join('\\n') + '\\n';
+  const body = [EXCLUDE_START, ...[...patterns].sort(), EXCLUDE_END].join('\n');
+  const left = prefix.replace(/[\r\n]+$/, '');
+  const right = suffix.replace(/^[\r\n]+/, '');
+  return [left, body, right].filter(Boolean).join('\n') + '\n';
 }
 
 async function ensureGitLocalOnlyConfigPaths(root, hosts, stateRoot) {
