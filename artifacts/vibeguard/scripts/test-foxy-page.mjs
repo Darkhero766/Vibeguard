@@ -15,7 +15,7 @@ assert.equal(qualificationWorkflow.split('artifacts/vibeguard/public/**').length
 assert.ok(shellInstaller.startsWith('#!/usr/bin/env bash') && shellInstaller.includes('set -Eeuo pipefail'));
 assert.ok(shellInstaller.includes('https://registry.npmjs.org') && shellInstaller.includes('npm view "${PACKAGE}@${CHANNEL}"'));
 assert.ok(shellInstaller.includes('npm install --global --ignore-scripts') && shellInstaller.includes('foxy_command" install --agent'));
-assert.ok(shellInstaller.includes('package_version_json=') && shellInstaller.includes('"${PACKAGE}@${package_version}"'));
+assert.ok(shellInstaller.includes('published_version_json=') && shellInstaller.includes('"${PACKAGE}@${package_version}"'));
 assert.ok(shellInstaller.includes('The official npm registry returned an invalid version'));
 assert.doesNotMatch(shellInstaller, /npm install[^\n]*\$\{PACKAGE\}@\$\{CHANNEL\}/,
   'POSIX bootstrap must install the resolved version, never a mutable dist-tag.');
