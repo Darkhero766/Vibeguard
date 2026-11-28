@@ -100,7 +100,12 @@ test('local scanner handles a synthetic credential with redacted findings', asyn
 
 test('public beta candidate remains unpublished and disables install scripts', async () => {
   const builder = await read('artifacts/api-server/scripts/package-agentshield-beta.mjs');
-  assert.match(builder, /'UNLICENSED'/);
+  assert.match(builder, /license:\s*'Apache-2.0'/);
+  assert.match(builder, /FOXY-LICENSE-APACHE-2\.0\.txt/);
+  assert.match(builder, /FOXY-NOTICE\.txt/);
+  assert.match(builder, /'LICENSE'/);
+  assert.match(builder, /'NOTICE'/);
+  assert.doesNotMatch(builder, /license:\s*'UNLICENSED'/);
   assert.match(builder, /name:\s*'@vibesane\/foxy'/);
   assert.match(builder, /publishConfig:\s*\{\s*access:\s*'public'/);
   assert.doesNotMatch(builder, /private: true/);
