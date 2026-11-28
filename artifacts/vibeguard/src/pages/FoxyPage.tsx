@@ -1,11 +1,15 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import {
-  ArrowRight, Bot, CheckCircle2, CircleDot, Fingerprint, Github, KeyRound,
-  LockKeyhole, Monitor, MonitorCog, PackageCheck, ShieldCheck, Terminal,
+  ArrowRight, Bot, Check, CheckCircle2, CircleDot, Copy, Fingerprint, Github, KeyRound,
+  Monitor, MonitorCog, PackageCheck, ShieldCheck, Terminal,
 } from 'lucide-react';
 import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
+
+const FOXY_BETA_INSTALL_COMMAND = 'npx -y @vibesane/foxy@beta install';
+// Enable only in a release build after npm publication and package provenance are verified.
+const FOXY_BETA_INSTALL_ENABLED = import.meta.env.VITE_FOXY_BETA_INSTALL_ENABLED === 'true';
 
 const hosts = [
   { name: 'Claude Code', id: 'claude', detail: 'Project-level .mcp.json registration' },
@@ -26,12 +30,25 @@ const boundaries = [
 ];
 
 export default function FoxyPage() {
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+
+  const copyInstallCommand = async () => {
+    if (!FOXY_BETA_INSTALL_ENABLED) return;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable.');
+      await navigator.clipboard.writeText(FOXY_BETA_INSTALL_COMMAND);
+      setCopyState('copied');
+    } catch {
+      setCopyState('error');
+    }
+  };
+
   useEffect(() => {
     const previousTitle = document.title;
     document.title = 'Foxy — Local-first MCP security for AI coding agents | VibeSane';
     const meta = document.querySelector('meta[name="description"]');
     const prior = meta?.getAttribute('content');
-    meta?.setAttribute('content', 'Foxy is a local, workspace-scoped, read-only MCP security integration for supported coding agents. The beta.5 SQLite queue still requires exact-source Windows/macOS qualification, live host acceptance, and independent security review.');
+    meta?.setAttribute('content', 'Foxy is a local-first, workspace-scoped, read-only MCP security installer for Claude Code, Codex, Cursor, Gemini CLI, Roo Code and GitHub Copilot. Beta.6 passed automated Windows, macOS and Linux qualification; live host acceptance and independent security review remain open.');
     return () => {
       document.title = previousTitle;
       if (meta && prior != null) meta.setAttribute('content', prior);
@@ -60,15 +77,15 @@ export default function FoxyPage() {
                 Foxy connects supported coding agents to VibeSane’s local security engine through MCP STDIO. Inspect supported changes, understand findings, and verify remediation while access stays scoped to the selected repository.
               </p>
               <div className="mt-9 flex flex-wrap gap-3">
-                <a href="#connect" className="vg-button vg-focus inline-flex items-center gap-2 border border-[#c7f36a] bg-[#c7f36a] px-5 py-3.5 text-sm font-bold text-[#0b1112] shadow-[0_6px_22px_rgba(199,243,106,.12)]">
-                  Explore integrations <ArrowRight size={16} aria-hidden="true" />
+                <a href="#install" className="vg-button vg-focus inline-flex items-center gap-2 border border-[#c7f36a] bg-[#c7f36a] px-5 py-3.5 text-sm font-bold text-[#0b1112] shadow-[0_6px_22px_rgba(199,243,106,.12)]">
+                  Install MCP <ArrowRight size={16} aria-hidden="true" />
                 </a>
                 <a href="#qualification" className="vg-button vg-focus inline-flex items-center gap-2 border border-[#35433a] bg-[#111b18] px-5 py-3.5 text-sm font-semibold text-[#f4f6f0] hover:border-[#c7f36a]">
-                  Review qualification <PackageCheck size={16} aria-hidden="true" />
+                  View release evidence <PackageCheck size={16} aria-hidden="true" />
                 </a>
               </div>
               <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[9px] uppercase leading-5 tracking-[.14em] text-[#87958b]">
-                <span>Private beta</span><span>Node.js 24.15+</span><span>Windows + macOS</span><span>Read-only MCP</span>
+                <span>Beta 0.7.0-beta.6</span><span>Node.js 24.15+</span><span>Windows · macOS · Linux</span><span>Read-only MCP</span>
               </div>
             </div>
 
@@ -81,8 +98,8 @@ export default function FoxyPage() {
                 </div>
                 <span className="font-mono text-[9px] uppercase tracking-[.18em] text-[#9eaaa1]">Local connection / stdio</span>
               </div>
-              <div className="mt-7 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[.14em] text-[#c7f36a]"><Terminal size={14} aria-hidden="true" /> Reviewer build example</div>
-              <pre className="mt-4 overflow-x-auto border border-white/10 bg-[#0b1112] p-5 font-mono text-[12px] leading-7 text-[#e8eee7] sm:text-[13px]"><code><span className="text-[#c7f36a]">$</span> vibesane connect --agent auto{'\n'}<span className="text-[#c7f36a]">$</span> vibesane doctor{'\n'}<span className="text-[#c7f36a]">$</span> vibesane disconnect --agent all</code></pre>
+              <div className="mt-7 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[.14em] text-[#c7f36a]"><Terminal size={14} aria-hidden="true" /> Local reviewer build</div>
+              <pre className="mt-4 overflow-x-auto border border-white/10 bg-[#0b1112] p-5 font-mono text-[12px] leading-7 text-[#e8eee7] sm:text-[13px]"><code><span className="text-[#c7f36a]">$</span> foxy install --agent auto{'\\n'}<span className="text-[#c7f36a]">$</span> foxy doctor{'\\n'}<span className="text-[#c7f36a]">$</span> foxy disconnect --agent all</code></pre>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <div className="border border-white/10 bg-white/[.03] p-4">
                   <p className="font-mono text-[9px] uppercase tracking-[.14em] text-[#9eaaa1]">Access model</p>
@@ -93,7 +110,7 @@ export default function FoxyPage() {
                   <p className="mt-2 text-lg font-bold tracking-tight text-[#c7f36a]">One Git root</p>
                 </div>
               </div>
-              <p className="mt-6 border-t border-white/10 pt-4 text-[11px] leading-6 text-[#aab5ad]">The CLI is unpublished. Commands shown are illustrative for an authorized local reviewer build; this page does not install software or change your agent configuration.</p>
+              <p className="mt-6 border-t border-white/10 pt-4 text-[11px] leading-6 text-[#aab5ad]">The npm package remains unpublished. The local reviewer build uses the same consent-first installer; this website cannot write to your computer or approve an AI host.</p>
             </aside>
           </div>
         </section>
@@ -102,14 +119,59 @@ export default function FoxyPage() {
           <div className="mx-auto grid max-w-[1180px] gap-7 px-5 py-9 sm:grid-cols-3 sm:px-8">
             <div className="flex items-start gap-3"><ShieldCheck size={22} className="mt-0.5 shrink-0 text-[#536a46]" aria-hidden="true" /><div><h2 className="font-sans text-sm font-extrabold tracking-tight">Local-first by design</h2><p className="mt-1 text-xs leading-6 text-[#59665d]">The connector runs on the developer’s machine over MCP STDIO.</p></div></div>
             <div className="flex items-start gap-3"><Fingerprint size={22} className="mt-0.5 shrink-0 text-[#536a46]" aria-hidden="true" /><div><h2 className="font-sans text-sm font-extrabold tracking-tight">Explicit workspace scope</h2><p className="mt-1 text-xs leading-6 text-[#59665d]">Canonical Git-root authorization is enforced by the local server.</p></div></div>
-            <div className="flex items-start gap-3"><Monitor size={22} className="mt-0.5 shrink-0 text-[#536a46]" aria-hidden="true" /><div><h2 className="font-sans text-sm font-extrabold tracking-tight">Cross-platform engineering</h2><p className="mt-1 text-xs leading-6 text-[#59665d]">The current beta.5 queue candidate still needs source-matched CI and live host acceptance.</p></div></div>
+            <div className="flex items-start gap-3"><Monitor size={22} className="mt-0.5 shrink-0 text-[#536a46]" aria-hidden="true" /><div><h2 className="font-sans text-sm font-extrabold tracking-tight">Cross-platform engineering</h2><p className="mt-1 text-xs leading-6 text-[#59665d]">Beta.6 passed automated qualification on Windows, macOS and Ubuntu/Linux; real host acceptance remains separate.</p></div></div>
           </div>
+        </section>
+
+        <section id="install" className="mx-auto max-w-[1180px] px-5 py-20 sm:px-8 sm:py-24">
+          <div className="grid gap-8 lg:grid-cols-[.9fr_1.1fr] lg:items-start">
+            <div>
+              <p className="font-mono text-[10px] font-medium uppercase tracking-[.17em] text-[#c7f36a]">01 / Install MCP</p>
+              <h2 className="mt-4 font-sans text-3xl font-extrabold leading-tight tracking-[-.05em] sm:text-4xl">One command. Your repository. Your approval.</h2>
+              <p className="mt-5 text-sm leading-7 text-[#aab5ad]">Run Foxy from the root of a Git repository. It detects supported coding agents, previews the exact project-level MCP configuration files, asks for consent, writes only the selected MCP entries, and reopens them to verify the result.</p>
+              <ol className="mt-7 space-y-4 text-sm leading-6 text-[#d7dfd6]">
+                <li className="flex gap-3"><span className="font-mono text-[#c7f36a]">01</span><span>Open your project in a terminal and run the installer.</span></li>
+                <li className="flex gap-3"><span className="font-mono text-[#c7f36a]">02</span><span>Review detected agents and the exact configuration targets; confirm only when the plan is correct.</span></li>
+                <li className="flex gap-3"><span className="font-mono text-[#c7f36a]">03</span><span>Restart the selected coding agent and approve its project MCP server using that host’s trust controls.</span></li>
+              </ol>
+            </div>
+            <div className="border border-[#344139] bg-[#111b18] p-5 sm:p-7">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="font-mono text-[10px] uppercase tracking-[.15em] text-[#9eaaa1]">Beta channel · one-line installer</p>
+                <span className="border border-[#6b5733] bg-[#211b12] px-2.5 py-1 font-mono text-[9px] uppercase tracking-[.12em] text-[#e4c58f]">Private beta</span>
+              </div>
+              <pre className="mt-5 overflow-x-auto border border-white/10 bg-[#0b1112] p-4 font-mono text-[12px] leading-7 text-[#e8eee7] sm:text-[13px]"><code>{FOXY_BETA_INSTALL_COMMAND}</code></pre>
+              <button
+                type="button"
+                onClick={copyInstallCommand}
+                disabled={!FOXY_BETA_INSTALL_ENABLED}
+                className="vg-button vg-focus mt-4 inline-flex w-full items-center justify-center gap-2 border border-[#c7f36a] bg-[#c7f36a] px-5 py-3 text-sm font-bold text-[#0b1112] disabled:cursor-not-allowed disabled:border-white/15 disabled:bg-white/10 disabled:text-[#87958b]"
+                aria-describedby="foxy-install-status"
+              >
+                {FOXY_BETA_INSTALL_ENABLED ? <><Copy size={15} aria-hidden="true" /> Copy install command</> : <><PackageCheck size={15} aria-hidden="true" /> Available after beta publication</>}
+              </button>
+              <p id="foxy-install-status" role="status" aria-live="polite" className="mt-3 min-h-6 text-xs leading-6 text-[#aab5ad]">
+                {!FOXY_BETA_INSTALL_ENABLED
+                  ? 'The npm package is not published yet. The command is shown for transparency and cannot install until the release owner publishes the verified package.'
+                  : copyState === 'copied'
+                    ? 'Command copied. Paste it in the terminal opened at your project root.'
+                    : copyState === 'error'
+                      ? 'Clipboard access failed. Select and copy the command manually.'
+                      : 'Copy the command, open your project terminal, and run it there.'}
+              </p>
+              <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:flex-wrap">
+                <a href="https://github.com/Darkhero766/Vibeguard/blob/feat/agentshield-cross-platform-autoconnect/docs/FOXY_UNIVERSAL_INSTALLER_PILOT.md" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-semibold text-[#c7f36a] hover:underline">Local reviewer install guide <ArrowRight size={15} aria-hidden="true" /></a>
+                <a href="https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-semibold text-[#c7f36a] hover:underline">Cross-platform evidence <ArrowRight size={15} aria-hidden="true" /></a>
+              </div>
+            </div>
+          </div>
+          <p className="mt-6 border-l-2 border-[#c7f36a] bg-[#111b18] px-5 py-4 text-xs leading-6 text-[#aab5ad]">MCP registration only. Foxy does not install lifecycle hooks, grant host trust, execute project code or enable completion enforcement. A website cannot modify local host configuration: the installer runs in your terminal and you approve the exact plan.</p>
         </section>
 
         <section id="connect" className="mx-auto max-w-[1180px] px-5 py-20 sm:px-8 sm:py-24">
           <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr] lg:items-end">
             <div>
-              <p className="font-mono text-[10px] font-medium uppercase tracking-[.17em] text-[#c7f36a]">01 / Host configuration</p>
+              <p className="font-mono text-[10px] font-medium uppercase tracking-[.17em] text-[#c7f36a]">02 / Host configuration</p>
               <h2 className="mt-4 font-sans text-3xl font-extrabold leading-tight tracking-[-.05em] sm:text-4xl">One connector. Six integration targets.</h2>
             </div>
             <p className="max-w-[580px] text-sm leading-7 text-[#aab5ad] lg:justify-self-end">
@@ -138,7 +200,7 @@ export default function FoxyPage() {
         <section id="security-model" className="border-y border-[#dce3da] bg-[#f4f6f0] text-[#0b1112]">
           <div className="mx-auto grid max-w-[1180px] gap-12 px-5 py-20 sm:px-8 sm:py-24 lg:grid-cols-2 lg:gap-20">
             <div>
-              <p className="font-mono text-[10px] font-medium uppercase tracking-[.17em] text-[#536a46]">02 / Security boundaries</p>
+              <p className="font-mono text-[10px] font-medium uppercase tracking-[.17em] text-[#536a46]">03 / Security boundaries</p>
               <h2 className="mt-4 font-sans text-3xl font-extrabold leading-tight tracking-[-.05em] sm:text-4xl">Useful context. No extra authority.</h2>
               <p className="mt-6 text-sm leading-8 text-[#59665d]">
                 Foxy exposes security analysis through a local MCP server. The selected repository root is passed as an explicit allowlist, and requested workspace paths are checked against that scope. Registration is not host approval and does not replace the coding agent’s own permission controls.
@@ -160,35 +222,46 @@ export default function FoxyPage() {
         </section>
 
         <section id="qualification" className="mx-auto max-w-[1180px] px-5 py-20 sm:px-8 sm:py-24">
-          <div className="max-w-[760px]">
-            <p className="font-mono text-[10px] font-medium uppercase tracking-[.17em] text-[#c7f36a]">03 / Qualification evidence</p>
-            <h2 className="mt-4 font-sans text-3xl font-extrabold leading-tight tracking-[-.05em] sm:text-4xl">Evidence first. Release claims second.</h2>
-            <p className="mt-5 text-sm leading-7 text-[#aab5ad]">The previous beta.4 connector revision passed its Windows/macOS matrix. The current beta.5 candidate adds a transactional SQLite queue and additional multi-process regressions; its exact-source CI result is still pending. The earlier run does not qualify these new changes.</p>
+          <div className="max-w-[780px]">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-[.17em] text-[#c7f36a]">04 / Qualification evidence</p>
+            <h2 className="mt-4 font-sans text-3xl font-extrabold leading-tight tracking-[-.05em] sm:text-4xl">Beta.6 passed the three-platform automated matrix.</h2>
+            <p className="mt-5 text-sm leading-7 text-[#aab5ad]">The exact Beta.6 code revision passed the complete release validator on Windows, macOS and Ubuntu/Linux. The evidence is tied to one source commit and a reproducible 30-file package manifest; it does not replace independent review or real coding-agent host acceptance.</p>
           </div>
-          <div className="mt-10 grid gap-4 lg:grid-cols-2">
+          <div className="mt-10 grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
             <article className="border border-[#33413b] bg-[#111b18] p-6 sm:p-8">
-              <div className="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[#a3ada5]"><PackageCheck size={16} aria-hidden="true" /> Historical · prior revision</div>
-              <h3 className="mt-5 font-sans text-2xl font-extrabold tracking-tight">Beta.4 connector matrix</h3>
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <div className="border border-white/10 bg-[#0b1112] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Regression suite</p><p className="mt-2 text-2xl font-extrabold tracking-tight">429 / 429</p><p className="mt-1 text-[11px] text-[#9eaaa1]">per platform</p></div>
-                <div className="border border-white/10 bg-[#0b1112] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Connector regressions</p><p className="mt-2 text-2xl font-extrabold tracking-tight">12 / 12</p><p className="mt-1 text-[11px] text-[#9eaaa1]">per platform</p></div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[#a3ada5]">Exact-source CI · 28 November 2026</p>
+                <span className="font-mono text-[10px] uppercase tracking-[.12em] text-[#c7f36a]">3 / 3 operating systems passed</span>
               </div>
-              <p className="mt-5 text-xs leading-6 text-[#aab5ad]">Run #75 passed 429/429 regression tests and 12/12 connector checks per platform on the earlier beta.4 connector SHA. It did not include beta.5’s SQLite queue, cross-process cancellation or crash-recovery changes.</p>
-              <a href="https://github.com/Darkhero766/Vibeguard/actions/workflows/agentshield-cross-platform.yml?query=branch%3Afeat%2Fagentshield-cross-platform-autoconnect" target="_blank" rel="noreferrer" className="vg-focus mt-6 inline-flex items-center gap-2 text-sm font-bold text-[#c7f36a] hover:underline">Open qualification workflow history <ArrowRight size={15} aria-hidden="true" /></a>
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                <div className="border border-white/10 bg-[#0b1112] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Windows</p><p className="mt-2 text-2xl font-extrabold tracking-tight">472 / 472</p><p className="mt-1 text-[11px] text-[#9eaaa1]">regression tests</p></div>
+                <div className="border border-white/10 bg-[#0b1112] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">macOS</p><p className="mt-2 text-2xl font-extrabold tracking-tight">472 / 472</p><p className="mt-1 text-[11px] text-[#9eaaa1]">regression tests</p></div>
+                <div className="border border-white/10 bg-[#0b1112] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Ubuntu / Linux</p><p className="mt-2 text-2xl font-extrabold tracking-tight">472 / 472</p><p className="mt-1 text-[11px] text-[#9eaaa1]">regression tests</p></div>
+              </div>
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                <div className="border border-white/10 bg-white/[.03] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">MCP smoke</p><p className="mt-2 text-xl font-bold">10 tools</p><p className="mt-1 text-[11px] text-[#9eaaa1]">protocol + queue</p></div>
+                <div className="border border-white/10 bg-white/[.03] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Package</p><p className="mt-2 text-xl font-bold">30 files</p><p className="mt-1 text-[11px] text-[#9eaaa1]">same content hash</p></div>
+                <div className="border border-white/10 bg-white/[.03] p-4"><p className="font-mono text-[9px] uppercase tracking-[.12em] text-[#9eaaa1]">Failure count</p><p className="mt-2 text-xl font-bold">0</p><p className="mt-1 text-[11px] text-[#9eaaa1]">qualification steps</p></div>
+              </div>
+              <p className="mt-6 break-all font-mono text-[10px] leading-6 text-[#87958b]">Package SHA-256 · f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14</p>
+              <div className="mt-6 flex flex-wrap gap-4">
+                <a href="https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-bold text-[#c7f36a] hover:underline">Open exact-source run <ArrowRight size={15} aria-hidden="true" /></a>
+                <a href="https://github.com/Darkhero766/Vibeguard/pull/70" target="_blank" rel="noreferrer" className="vg-focus inline-flex items-center gap-2 text-sm font-bold text-[#c7f36a] hover:underline">Review engineering PR <ArrowRight size={15} aria-hidden="true" /></a>
+              </div>
             </article>
             <article className="border border-[#33413b] bg-[#111b18] p-6 sm:p-8">
               <div className="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[#a3ada5]"><MonitorCog size={16} aria-hidden="true" /> Separate release gates</div>
-              <h3 className="mt-5 font-sans text-2xl font-extrabold tracking-tight">Human validation still required</h3>
+              <h3 className="mt-5 font-sans text-2xl font-extrabold tracking-tight">What CI cannot prove</h3>
               <ul className="mt-5 space-y-3 text-sm leading-6 text-[#aab5ad]">
-                <li>Live authenticated acceptance with supported host applications and real version combinations.</li>
-                <li>Independent security review of configuration mutation, path authorization, MCP tools and package provenance.</li>
-                <li>Manual Windows and macOS installation, restart, approval, tool-call and disconnect exercises.</li>
+                <li>Real MCP discovery, host approval, lifecycle behavior and uninstall in each supported coding-agent application.</li>
+                <li>Independent security review of authorization, configuration mutation, queue integrity and package supply chain.</li>
+                <li>npm scope ownership, package provenance/signing, support and rollback procedures, and explicit publication approval.</li>
               </ul>
-              <a href="https://github.com/Darkhero766/Vibeguard/pull/70" target="_blank" rel="noreferrer" className="vg-focus mt-6 inline-flex items-center gap-2 text-sm font-bold text-[#c7f36a] hover:underline">Review engineering PR <ArrowRight size={15} aria-hidden="true" /></a>
+              <a href="https://github.com/Darkhero766/Vibeguard/blob/feat/agentshield-cross-platform-autoconnect/docs/FOXY_REAL_HOST_ACCEPTANCE_RUNBOOK.md" target="_blank" rel="noreferrer" className="vg-focus mt-6 inline-flex items-center gap-2 text-sm font-bold text-[#c7f36a] hover:underline">Open host acceptance runbook <ArrowRight size={15} aria-hidden="true" /></a>
             </article>
           </div>
           <div className="mt-8 border-l-2 border-[#c7f36a] bg-[#111b18] px-5 py-4">
-            <p className="text-xs leading-6 text-[#aab5ad]">Release status: private beta / reviewer preview. The package is unpublished. Automated tests do not establish security certification, full real-world precision, exploit resistance, or compatibility with every host release. Do not use this preview as the sole control for a production system.</p>
+            <p className="text-xs leading-6 text-[#aab5ad]">Release status: private beta / reviewer preview. The npm package is not published. The regression and benchmark suites use controlled fixtures; they are not a security certification or a claim of real-world detection accuracy. Do not use Foxy as the sole security control for production code.</p>
           </div>
         </section>
 
@@ -201,6 +274,7 @@ export default function FoxyPage() {
             </div>
             <div className="flex flex-wrap gap-3">
               <Link href="/scan-public" className="vg-button vg-focus inline-flex items-center gap-2 border border-[#0b1112] bg-[#0b1112] px-5 py-3.5 text-sm font-bold text-[#f4f6f0]">Open web scanner <ArrowRight size={15} aria-hidden="true" /></Link>
+              <a href="#install" className="vg-button vg-focus inline-flex items-center gap-2 border border-[#0b1112] bg-transparent px-5 py-3.5 text-sm font-semibold text-[#0b1112]">Install MCP <ArrowRight size={15} aria-hidden="true" /></a>
               <a href="https://github.com/Darkhero766/Vibeguard/pull/70" target="_blank" rel="noreferrer" className="vg-button vg-focus inline-flex items-center gap-2 border border-[#0b1112]/35 bg-transparent px-5 py-3.5 text-sm font-semibold text-[#0b1112]"><Github size={15} aria-hidden="true" /> Engineering PR</a>
             </div>
           </div>
