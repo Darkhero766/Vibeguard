@@ -42,7 +42,7 @@ assert.ok(!/CLERK_(?:SECRET_KEY|CLIENT_SECRET)\s*=/.test(authPage),
   'No Clerk client secret may be embedded in frontend source.');
 for (const required of [
   'custom:clerk', 'Client Secret', 'VITE_CLERK_AUTH_ENABLED=true',
-  'staging', 'existing-account',
+  'staging', 'existing account',
 ]) {
   assert.ok(setupGuide.toLowerCase().includes(required.toLowerCase()),
     'Clerk setup guide is missing requirement: ' + required);
