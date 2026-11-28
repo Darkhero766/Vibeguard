@@ -11,7 +11,7 @@ Review the candidate commit as a security engineer. Do not assume it is ready, a
 - `artifacts/api-server/scripts/agentshield-mcp-server.mjs` — stdio MCP protocol, tool schemas, canonical workspace authorization, scan and verification orchestration, output validation.
 - `artifacts/api-server/scripts/agentshield-baselines.mjs` — scan baseline storage and identity.
 - `artifacts/api-server/scripts/agentshield-gate.mjs`, `agentshield-controller.mjs`, `agentshield-codex-stop.mjs`, `agentshield-stop.mjs`, `agentshield-hook.mjs` — completion policy and host adapters.
-- `artifacts/api-server/scripts/agentshield-cli.mjs`, `vibesane.mjs`, `agentshield-install.mjs`, `agentshield-connect.mjs` — CLI, diagnostics, package hook installation, removal, and cross-host MCP configuration.
+- `artifacts/api-server/scripts/agentshield-cli.mjs`, `vibesane.mjs`, `agentshield-install.mjs`, `agentshield-connect.mjs`, `agentshield-universal-install.mjs` — CLI, diagnostics, package hook installation, removal, cross-host MCP configuration and the consent-first universal installer.
 - `artifacts/api-server/src/lib/apiScanner.ts`, `extendedScanner.ts`, `extendedScannerV2.ts`, `apiScanner*.ts` — detector implementation.
 - `artifacts/api-server/scripts/package-agentshield-beta.mjs` and `artifacts/api-server/package.json` — local package construction and package entry points.
 - `artifacts/api-server/scripts/test-agentshield-adversarial.mjs`, `test-agentshield-mcp.mjs`, `test-agentshield-package.mjs`, `test-agentshield-connect.mjs`, `test-agentshield-gate.mjs`, benchmark corpora and `validate-agentshield-release.mjs` — tests and qualification.
@@ -249,3 +249,18 @@ Older documentation also references a separate “11 findings” evidence set. I
 ### Review decision requested
 
 The reviewer must return a prioritized verdict with explicit Critical/High disposition and list everything that could not be verified. No finding may be marked resolved solely because an author-written test exists or a CI job passed. A clean report does not remove host-level bypass limitations: hooks can be disabled/untrusted, project policy can be changed, and a user can interrupt the host. The MCP itself must remain repository-read-only and must never be described as a tamper-proof delivery lock.
+
+
+## Current exact-source review target — 28 November 2026
+
+This section supersedes every older “current candidate” block above. Earlier entries are retained for historical review chronology only.
+
+- **Exact code candidate for review:** `3ec649c01506ae077639595794fd0b0cc445db04` on branch `feat/agentshield-cross-platform-autoconnect`.
+- **Current PR branch head:** `f8e09e46cd64d639eb5a9e5da0f943131c2de21a`; the commits after the exact code candidate are documentation/handoff and PR-description updates. The source-tested code revision remains `3ec649c01506ae077639595794fd0b0cc445db04`.
+- **Exact-source qualification:** [workflow #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) passed on Windows, macOS and Ubuntu/Linux. Each platform report records 472/472 regression tests, successful connector regression, TypeScript/build checks, MCP STDIO, curated/holdout/additional-adversarial synthetic benchmarks and offline package/CLI/MCP smoke; no failed qualification steps.
+- **Package:** `@vibesane/foxy@0.7.0-beta.6`, 30 files, Node.js `>=24.15.0`, executable aliases `foxy` and `vibesane`. The package-content SHA-256 is identical on all three OSes: `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`.
+- **Publication state:** unpublished; package generation reports `published: false`. No npm registry command is currently usable. After separate owner-approved beta publication only, the intended installer bootstrap is `npx @vibesane/foxy@beta install`.
+- **Review scope additions:** inspect the entire consent-first universal installer path, supported-host detection, preview/consent behavior, generic MCP fallback, exact config-target selection, cross-platform connector write locks, verification, rollback/uncertain outcomes, package executable shims and README accuracy.
+- **What passing CI does not establish:** real host acceptance, independent review, package registry ownership/provenance, security certification, or release approval. All actual host matrix rows remain pending.
+
+The reviewer should inspect code at exact source `3ec649c01506ae077639595794fd0b0cc445db04` and use the branch's current handoff/pilot documents for the latest operational context. Preserve the review-only/no-change instruction above. PR #70 remains draft, open, unmerged and currently not mergeable; do not rebase, retarget, merge, publish or deploy during review.
