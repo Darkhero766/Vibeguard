@@ -34,6 +34,7 @@ const scripts = [
   'agentshield-version.mjs',
   'agentshield-mcp-server.mjs',
   'agentshield-safe-git.mjs',
+  'agentshield-safe-git.mjs',
   'agentshield-mcp-sdk.mjs',
   'agentshield-mcp-stdio.mjs',
   'agentshield-jobs.mjs',
