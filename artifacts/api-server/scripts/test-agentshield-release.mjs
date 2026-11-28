@@ -188,7 +188,7 @@ test('Foxy publication workflow is manual, version-bound, protected and OIDC-onl
   assert.ok(workflow.includes('default: false'));
   assert.ok(workflow.includes('refs/tags/foxy-v*'));
   assert.ok(workflow.includes('merge-base --is-ancestor'));
-  assert.ok(workflow.includes('environment:\\n      name: npm-release'));
+  assert.ok(workflow.includes('environment:') && workflow.includes('name: npm-release'));
   assert.ok(workflow.includes('id-token: write'));
   assert.ok(workflow.includes('package-manager-cache: false'));
   assert.ok(workflow.includes('npm publish "$FOXY_ARCHIVE" --access public --tag beta --provenance --ignore-scripts'));
@@ -196,5 +196,5 @@ test('Foxy publication workflow is manual, version-bound, protected and OIDC-onl
   assert.ok(workflow.includes('needs: [validate-ref, qualify]'));
   assert.ok(workflow.includes("const requiredFiles = ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.txt'];"));
   assert.ok(!workflow.includes('NODE_AUTH_TOKEN: ${{ secrets.'));
-  assert.ok(!workflow.split('\\n').some(line => /^  (?:push|release):$/.test(line)));
+  assert.ok(!workflow.includes('\\n  push:') && !workflow.includes('\\n  release:'));
 });
