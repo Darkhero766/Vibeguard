@@ -171,6 +171,15 @@ try {
   } else {
     foxyHelp = await run(foxyExecutable, ['--help'], { cwd: temp });
   }
+  assert(foxyHelp.stdout.includes('vibesane update'), 'The global updater must be discoverable in CLI help.');
+  let updateRefusal;
+  try {
+    await runCli(['update'], { cwd: temp });
+  } catch (error) {
+    try { updateRefusal = JSON.parse(String(error.stdout || '').trim()); } catch {}
+  }
+  assert.equal(updateRefusal?.status, 'not_global_install',
+    'Updater must refuse source or temporary package installs rather than changing the wrong MCP server path.');
   assert(foxyHelp.stdout.includes('vibesane install'),
     'The installed foxy executable did not dispatch to the universal installer.');
 
@@ -614,7 +623,7 @@ try {
     packageFileDigests: packaged.fileDigests,
     packagedFiles: packaged.fileCount,
     checks: ['build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'foxy-bin-help', 'foxy-bin-install-dry-run-no-write', 'doctor',
-      'one-command-agent-connect', 'one-command-agent-disconnect', 'universal-installer-no-consent-denied', 'universal-installer-dry-run', 'universal-installer-install-and-verify', 'universal-installer-repeat-idempotent', 'universal-installer-disconnect', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall', 'one-command-workspace-uninstall'],
+      'one-command-agent-connect', 'one-command-agent-disconnect', 'universal-installer-no-consent-denied', 'universal-installer-dry-run', 'universal-installer-install-and-verify', 'universal-installer-repeat-idempotent', 'universal-installer-disconnect', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall', 'one-command-workspace-uninstall', 'safe-global-update-refuses-temporary-install'],
     fixture: 'synthetic-disposable-git-repository',
     published: false,
   }) + '\n');
