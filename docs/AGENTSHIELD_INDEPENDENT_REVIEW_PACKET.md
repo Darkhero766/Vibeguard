@@ -28,6 +28,20 @@ The local host hook is a bounded continuation control, not a tamper-proof gate. 
 
 Before the latest candidate change, a synthetic reproduction replaced a configured allowlist directory after the MCP process started but before its first workspace request. The replacement repository was then authorized because identity pinning began on first use. The candidate now resolves and pins valid configured roots before accepting requests, and an adversarial test starts the actual local server, replaces the root before the first workspace call, and expects denial. Independently reproduce this boundary and review the startup ordering; do not rely on the regression test alone.
 
+## Exact-source cross-platform qualification evidence (2026-11-27)
+
+The beta.5 candidate source revision `a777754de234ed2e469cd9822ad4a1f5f881e095` was qualified by workflow run [#46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747). Windows and macOS jobs both completed successfully on that exact SHA.
+
+Reported evidence for each OS:
+- 453/453 regression tests passed.
+- TypeScript workspace build, frontend/API typechecks, web and standalone preview builds, and cross-platform connector regressions passed.
+- MCP STDIO integration/protocol smoke passed; ten tools discovered and exercised.
+- Curated 120-case, holdout 24-case, and adversarial 30-case synthetic benchmarks met their configured thresholds.
+- Offline package install, CLI/doctor/connect/disconnect and package MCP smoke passed.
+- Canonical package-content manifest matched across platforms (SHA-256 `7e65e968cbea7f9396148cdb3cfa6483efbf492aba4bf899ac675036812c401a`), 29 files.
+
+This evidence applies **only** to SHA `a777754...`. PR #70's later head `6668071...` is seven documentation-only commits ahead of that tested SHA (README, readiness checklist, and engineering-state documentation). Confirm those exact docs-only changes and rerun qualification on the final release candidate before distribution. The workflow does not constitute independent security review or real installed-host acceptance.
+
 ## Cross-platform and auto-connect review delta
 
 The separate branch `feat/agentshield-cross-platform-autoconnect` adds a candidate one-command connector and Windows portability work. The reviewer should inspect the branch diff against PR #69's head and specifically test:
