@@ -94,34 +94,70 @@ async function withLockedState(root, session, config, callback) {
   await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
   const lock = file + '.lock';
   let acquired = false;
+  let lockIdentity = null;
+  let lockToken = null;
   for (let n = 0; n < 40; n++) {
     try {
       await mkdir(lock, { mode: 0o700 });
       acquired = true;
-      await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: process.pid, createdAt: Date.now() }),
-        { flag: 'wx', mode: 0o600 });
+      lockIdentity = await lstat(lock);
+      if (!lockIdentity.isDirectory() || lockIdentity.isSymbolicLink()) {
+        throw new Error('AgentShield state lock is not a real directory.');
+      }
+      lockToken = randomUUID();
+      await writeFile(path.join(lock, 'owner.json'), JSON.stringify({
+        pid: process.pid, host: os.hostname(), createdAt: Date.now(), token: lockToken,
+      }), { flag: 'wx', mode: 0o600 });
       break;
     } catch (e) {
-      if (acquired) { await rm(lock, { recursive: true, force: true }); throw e; }
+      if (acquired) {
+        // Only remove the directory created by this attempt. If its identity
+        // changed, leave it untouched for manual inspection.
+        try {
+          const current = await lstat(lock);
+          if (lockIdentity && current.isDirectory() && !current.isSymbolicLink()
+            && current.dev === lockIdentity.dev && current.ino === lockIdentity.ino) {
+            await rm(lock, { recursive: true, force: true });
+          }
+        } catch {}
+        throw e;
+      }
       if (e?.code !== 'EEXIST') throw e;
-      // Recover abandoned locks only after 60s, and never steal a live process's lock.
-      // Atomic directory rename ensures only one contender can reclaim it.
+      // Recover only a verifiably abandoned same-host lock. Missing, malformed,
+      // foreign-host or permission-ambiguous owner data is UNKNOWN and is never
+      // treated as proof that the recorded process is dead.
       try {
         const info = await lstat(lock);
-        if (info.isDirectory() && Date.now() - info.mtimeMs > 60_000) {
+        if (info.isDirectory() && !info.isSymbolicLink() && Date.now() - info.mtimeMs > 60_000) {
           let owner = null;
           try { owner = await safeJSON(path.join(lock, 'owner.json'), 1000); } catch {}
-          let live = false;
-          if (Number.isInteger(owner?.pid) && owner.pid > 0) {
-            try { process.kill(owner.pid, 0); live = true; }
+          const validOwner = Number.isSafeInteger(owner?.pid) && owner.pid > 0
+            && owner.host === os.hostname()
+            && Number.isSafeInteger(owner.createdAt) && owner.createdAt > 0
+            && typeof owner.token === 'string' && /^[a-f0-9-]{36}$/i.test(owner.token);
+          if (validOwner) {
+            let live = true;
+            try { process.kill(owner.pid, 0); }
             catch (err) { live = err?.code !== 'ESRCH'; }
-          }
-          if (!live) {
-            const abandoned = lock + '.abandoned-' + randomUUID();
-            try {
-              await rename(lock, abandoned);
-              await rm(abandoned, { recursive: true, force: true });
-            } catch (err) { if (err?.code !== 'ENOENT') throw err; }
+            if (!live) {
+              const current = await lstat(lock);
+              const currentOwner = await safeJSON(path.join(lock, 'owner.json'), 1000);
+              if (current.isDirectory() && !current.isSymbolicLink()
+                && current.dev === info.dev && current.ino === info.ino
+                && currentOwner?.pid === owner.pid && currentOwner?.host === owner.host
+                && currentOwner?.token === owner.token) {
+                const abandoned = lock + '.abandoned-' + randomUUID();
+                await rename(lock, abandoned);
+                const moved = await lstat(abandoned);
+                const movedOwner = await safeJSON(path.join(abandoned, 'owner.json'), 1000);
+                if (!moved.isDirectory() || moved.dev !== info.dev || moved.ino !== info.ino
+                  || movedOwner?.token !== owner.token || movedOwner?.pid !== owner.pid
+                  || movedOwner?.host !== owner.host) {
+                  throw new Error('AgentShield abandoned lock identity changed; refusing automatic cleanup.');
+                }
+                await rm(abandoned, { recursive: true, force: true });
+              }
+            }
           }
         }
       } catch (err) { if (err?.code !== 'ENOENT') throw err; }
@@ -134,7 +170,18 @@ async function withLockedState(root, session, config, callback) {
     const result = await callback(state, true);
     if (result?.state) await atomicJSON(file, result.state);
     return result;
-  } finally { await rm(lock, { recursive: true, force: true }); }
+  } finally {
+    const current = await lstat(lock);
+    if (!lockIdentity || !current.isDirectory() || current.isSymbolicLink()
+      || current.dev !== lockIdentity.dev || current.ino !== lockIdentity.ino) {
+      throw new Error('AgentShield state lock identity changed; refusing to remove it.');
+    }
+    const owner = await safeJSON(path.join(lock, 'owner.json'), 1000);
+    if (owner?.pid !== process.pid || owner?.host !== os.hostname() || owner?.token !== lockToken) {
+      throw new Error('AgentShield state lock ownership changed; refusing to remove it.');
+    }
+    await rm(lock, { recursive: true, force: true });
+  }
 }
 async function scan(root, scanArgs) {
   let output;
@@ -198,13 +245,31 @@ function humanReport(result) {
 async function readHookInput() {
   return new Promise((resolve, reject) => {
     let input = '';
+    let inputBytes = 0;
+    let settled = false;
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
     process.stdin.setEncoding('utf8');
     process.stdin.on('data', (chunk) => {
+      if (settled) return;
+      const chunkBytes = Buffer.byteLength(chunk, 'utf8');
+      if (inputBytes + chunkBytes > 128_000) {
+        fail(new Error('Hook input is too large.'));
+        process.stdin.destroy();
+        return;
+      }
+      inputBytes += chunkBytes;
       input += chunk;
-      if (input.length > 128_000) reject(new Error('Hook input is too large.'));
     });
-    process.stdin.on('error', reject);
-    process.stdin.on('end', () => { try { resolve(JSON.parse(input)); } catch { reject(new Error('Invalid hook event.')); } });
+    process.stdin.on('error', fail);
+    process.stdin.on('end', () => {
+      if (settled) return;
+      settled = true;
+      try { resolve(JSON.parse(input)); } catch { reject(new Error('Invalid hook event.')); }
+    });
   });
 }
 async function postEdit(event, root, config) {

@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { freshState, parseConfig, trackFile, keyForFinding, guidanceFor } from './agentshield-policy.mjs';
 
@@ -50,6 +51,7 @@ async function fixture(t, rel, content) {
 const fakeJWT = 'const JWT_SECRET = "' + 'Z'.repeat(36) + '";\n';
 const sqlExpression = "db.query(" + String.fromCharCode(96) + "SELECT * FROM users WHERE id = $" + "{userId}" + String.fromCharCode(96) + ");\n";
 const jsonContext = (r) => r.output?.hookSpecificOutput?.additionalContext || '';
+const pathDigest = (value) => createHash('sha256').update(String(value)).digest('hex').slice(0, 28);
 
 test('config validation defaults to monitor and rejects unsafe settings', () => {
   assert.equal(parseConfig({}).mode, 'monitor');
@@ -256,6 +258,26 @@ test('time budgets and privacy retention are configured with validated limits', 
   assert.equal(r.output.configuration.privacy.retentionHours, 12);
   assert.equal(r.output.configuration.blockingSeverity, 'Medium');
   assert.equal((await f.cmd('config', '--budget-seconds', '-1')).code, 2);
+});
+
+
+
+test('aged malformed state locks remain indeterminate and are never reclaimed', async (t) => {
+  const f = await fixture(t, 'src/auth.ts', fakeJWT);
+  await f.cmd('config', '--mode', 'auto-fix');
+
+  const stateDir = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, pathDigest(f.root));
+  const stateFile = path.join(stateDir, pathDigest('test-session') + '.json');
+  const lockDir = stateFile + '.lock';
+  await mkdir(lockDir, { recursive: true });
+  const malformedOwner = '{"pid":"not-a-pid"}';
+  await writeFile(path.join(lockDir, 'owner.json'), malformedOwner, { flag: 'wx' });
+  const stale = new Date(Date.now() - 120_000);
+  await utimes(lockDir, stale, stale);
+
+  const result = await f.hook();
+  assert.match(jsonContext(result), /UNKNOWN/);
+  assert.equal(await readFile(path.join(lockDir, 'owner.json'), 'utf8'), malformedOwner);
 });
 
 test('prompt injection in scanned source is never repeated as repair instructions', async (t) => {
