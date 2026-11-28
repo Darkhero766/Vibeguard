@@ -110,6 +110,25 @@ test('beta installer includes capability metadata and only audited bundled AST d
   assert.match(pack,/publishConfig:\s*\{\s*access:\s*'public'/);
   assert.doesNotMatch(pack,/private:\s*true/);
   assert.match(pack,/published:\s*false/);
+  assert.match(pack,/license:\s*'Apache-2.0'/);
+  assert.match(pack,/FOXY-LICENSE-APACHE-2.0\.txt/);
+  assert.match(pack,/FOXY-NOTICE\.txt/);
+  assert.doesNotMatch(pack,/license:\s*'UNLICENSED'/);
+});
+
+test('Foxy Apache-2.0 grant is scoped and its copyright/third-party notices are present',async()=>{
+  const license=await read('artifacts/api-server/FOXY-LICENSE-APACHE-2.0.txt');
+  const notice=await read('artifacts/api-server/FOXY-NOTICE.txt');
+  const policy=await read('docs/FOXY_LICENSE_AND_OWNERSHIP.md');
+  const contribution=await read('docs/FOXY_CONTRIBUTING.md');
+  assert.match(license,/Apache License\\s+Version 2\\.0/);
+  assert.match(notice,/Copyright 2026 Md Faizal/);
+  assert.match(policy,/Apache License 2\\.0/);
+  assert.match(policy,/does not grant a license to the rest/i);
+  assert.match(policy,/Md Faizal/);
+  assert.match(policy,/Developer Certificate of Origin/i);
+  assert.match(contribution,/git commit -s/);
+  assert.match(contribution,/Signed-off-by/);
 });
 test('production planning never silently replays the legacy Supabase migration script',async()=>{
   const plan=await read('supabase/review-only/PROPOSED_USAGE_ENTITLEMENT_LOCKDOWN.sql');
