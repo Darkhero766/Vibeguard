@@ -194,6 +194,9 @@ test('Foxy publication workflow is manual, version-bound, protected and OIDC-onl
   assert.ok(workflow.includes('npm publish "$FOXY_ARCHIVE" --access public --tag beta --provenance --ignore-scripts'));
   assert.ok(workflow.includes('if: ${{ inputs.confirm_publication == true }}'));
   assert.ok(workflow.includes('needs: [validate-ref, qualify]'));
+  assert.equal(workflow.split('ref: ${{ github.sha }}').length - 1, 3);
+  assert.ok(!workflow.includes('ref: ${{ github.ref }}'));
+  assert.ok(workflow.includes('verifyPackageFileManifest'));
   assert.ok(workflow.includes("const requiredFiles = ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.txt'];"));
   assert.ok(!workflow.includes('NODE_AUTH_TOKEN: ${{ secrets.'));
   assert.ok(!workflow.includes('\\n  push:') && !workflow.includes('\\n  release:'));
