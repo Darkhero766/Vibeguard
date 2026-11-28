@@ -497,9 +497,15 @@ async function updateGlobal(args) {
       'view', '@vibesane/foxy@beta', 'version', '--json',
       '--registry=https://registry.npmjs.org',
     ], npmOptions);
-    const publishedVersion = String(JSON.parse(versionOutput.trim()));
-    if (!publishedVersion || publishedVersion === 'undefined') {
-      throw new Error('The official npm beta dist-tag did not return a package version.');
+    let publishedVersion;
+    try {
+      publishedVersion = JSON.parse(versionOutput.trim());
+    } catch {
+      throw new Error('The official npm beta dist-tag returned invalid JSON.');
+    }
+    const semverPattern = /^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$/;
+    if (typeof publishedVersion !== 'string' || !semverPattern.test(publishedVersion)) {
+      throw new Error('The official npm beta dist-tag did not return a valid semantic package version.');
     }
     if (publishedVersion === currentVersion) {
       process.stdout.write(JSON.stringify({
@@ -511,7 +517,7 @@ async function updateGlobal(args) {
     }
     const { stdout, stderr } = await exec('npm', [
       'install', '--global', '--ignore-scripts', '--no-audit', '--no-fund',
-      '--registry=https://registry.npmjs.org', '@vibesane/foxy@beta',
+      '--registry=https://registry.npmjs.org', `@vibesane/foxy@${publishedVersion}`,
     ], npmOptions);
     process.stdout.write(JSON.stringify({
       status: 'updated',
