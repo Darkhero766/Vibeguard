@@ -9,6 +9,7 @@ import { chmod, lstat, mkdir, open, realpath, rename, stat, unlink, writeFile } 
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { assertSafeGitConfiguration } from './agentshield-safe-git.mjs';
 
 const exec = promisify(execFile);
 const SERVER_LABEL = 'vibesane-agentshield';
@@ -184,6 +185,7 @@ async function projectRoot(cwd) {
   if (!info.isDirectory() || samePath(root, path.parse(root).root) || samePath(root, home)) {
     throw new Error('Select a Git repository below the filesystem and home-directory roots.');
   }
+  await assertSafeGitConfiguration(root);
   return root;
 }
 
