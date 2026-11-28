@@ -599,6 +599,7 @@ export async function getBaselineProvenance() {
 function sameProvenance(left, right) {
   return Boolean(left && right
     && left.scannerFingerprint === right.scannerFingerprint
+    && left.runtimeFingerprint === right.runtimeFingerprint
     && left.rulesetVersion === right.rulesetVersion
     && left.reportSchemaVersion === right.reportSchemaVersion);
 }

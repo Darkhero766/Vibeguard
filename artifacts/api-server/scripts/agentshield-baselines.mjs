@@ -47,7 +47,7 @@ export class BaselineStore {
       throw new TypeError('workspace and fingerprint are required.');
     }
     if (!result || typeof result !== 'object' || Array.isArray(result)) throw new TypeError('A scan result object is required.');
-    if (!validProvenance(provenance)) throw new TypeError('A valid scanner/ruleset/report provenance record is required.');
+    if (!validProvenance(provenance)) throw new TypeError('A valid scanner/MCP runtime/ruleset/report provenance record is required.');
     this.prune();
     const scanId = this.makeId();
     if (typeof scanId !== 'string' || scanId.length < 16 || scanId.length > 80 || this.records.has(scanId)) {
@@ -63,9 +63,9 @@ export class BaselineStore {
     if (!record || typeof record !== 'object' || Array.isArray(record)) {
       throw new TypeError('A baseline record is required.');
     }
-    const { scanId, workspace, fingerprint, result, scannerFingerprint,
+    const { scanId, workspace, fingerprint, result, scannerFingerprint, runtimeFingerprint,
       rulesetVersion, reportSchemaVersion, createdAt, expiresAt } = record;
-    const provenance = { scannerFingerprint, rulesetVersion, reportSchemaVersion };
+    const provenance = { scannerFingerprint, runtimeFingerprint, rulesetVersion, reportSchemaVersion };
     const now = this.now();
     const safePath = (value) => typeof value === 'string' && value.length > 0 && value.length <= 400
       && !path.isAbsolute(value) && !/^[A-Za-z]:/.test(value)

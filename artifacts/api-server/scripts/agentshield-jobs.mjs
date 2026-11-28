@@ -83,7 +83,7 @@ export class ScanJobQueue extends EventEmitter {
     if (!Number.isInteger(maxQueued) || maxQueued < 1 || maxQueued > 100) throw new TypeError('Queue limit must be between 1 and 100.');
     if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 300_000) throw new TypeError('Job timeout must be between 1 and 300 seconds.');
     if (!Number.isInteger(maxRetries) || maxRetries < 0 || maxRetries > 2) throw new TypeError('Retries must be between 0 and 2.');
-    if (baselineProvenance !== null && !validBaselineProvenance(baselineProvenance)) throw new TypeError('Invalid scanner/ruleset/report provenance.');
+    if (baselineProvenance !== null && !validBaselineProvenance(baselineProvenance)) throw new TypeError('Invalid scanner/MCP runtime/ruleset/report provenance.');
     if (!Number.isInteger(workerLeaseMs) || workerLeaseMs < 500 || workerLeaseMs > 120_000
       || !Number.isInteger(heartbeatIntervalMs) || heartbeatIntervalMs < 50
       || heartbeatIntervalMs * 3 >= workerLeaseMs) {

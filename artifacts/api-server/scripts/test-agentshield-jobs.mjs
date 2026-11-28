@@ -1177,8 +1177,10 @@ test('completed changed-scan jobs expose recoverable baseline records after rest
       baselineContext,
     }),
   });
+  let completedJobId;
   try {
     const { job_id: id } = await queue.submit({ workspace: baselineContext.workspace, scope: 'changed' });
+    completedJobId = id;
     for (let i = 0; i < 80 && queue.getStatus(id)?.status !== 'completed'; i++) await tick();
     assert.equal(queue.getStatus(id).status, 'completed');
     const results = queue.getResults(id);
@@ -1206,7 +1208,7 @@ test('completed changed-scan jobs expose recoverable baseline records after rest
     try {
       await changedRuntime.init();
       assert.equal(changedRuntime.getRestorableBaselines().length, 0);
-      const stale = changedRuntime.getResults(id);
+      const stale = changedRuntime.getResults(completedJobId);
       assert.equal(stale.scan_id, null);
       assert.equal(stale.baseline_stale, true);
       assert.equal(stale.baseline_unavailable, false);
