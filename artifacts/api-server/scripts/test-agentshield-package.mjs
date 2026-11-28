@@ -165,7 +165,7 @@ try {
   const foxyDryRun = process.platform === 'win32'
     ? await runCli(dryRunArgs, { cwd: temp })
     : await run(foxyExecutable, dryRunArgs, { cwd: temp });
-  const normalizedFoxyDryRunOutput = foxyDryRun.stdout.replaceAll('\\\\', '/');
+  const normalizedFoxyDryRunOutput = foxyDryRun.stdout.replaceAll('\\', '/');
   assert(normalizedFoxyDryRunOutput.includes('Dry run only')
     && normalizedFoxyDryRunOutput.includes('.codex/config.toml'),
     'The npx-compatible foxy binary did not execute the install dry-run: '
