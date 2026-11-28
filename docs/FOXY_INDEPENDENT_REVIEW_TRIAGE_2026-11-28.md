@@ -75,3 +75,28 @@ Validation state:
 
 
 The preceding run for \`14ff463148c005c3b2606b96c078baaf00d52045\` stopped on macOS/Linux in the website SEO-copy regression because its assertion expected the older phrase \`No repository writes\`. The page copy had already been improved to \`Repository files are never modified\`; the test was corrected to assert the more precise claim. Windows was still running when the two jobs failed. Run #46153329425 is the new full-matrix run after this regression fix; its results are pending.
+
+
+## 28 November 2026 — installer, update and workspace uninstall candidate
+
+Current source revision: \`28286eb5e1fb2a40c8aaa452a6e1205ff1be75ef\`.
+Exact-source workflow: [#46156668487](https://github.com/Darkhero766/Vibeguard/actions/runs/46156668487).
+
+Implemented on the draft PR #70 branch:
+- POSIX and PowerShell registry-guarded bootstrap assets; global npm install with lifecycle scripts disabled; consent-first project installer; explicit supported-host selection.
+- Website OS + host selection with both script source links. The copy/install control remains disabled until owner-approved package publication and website deployment.
+- Unified \`foxy uninstall\` removes exact MCP entries and matching Claude/Codex integrations while preserving unrelated config, modified Codex skills, local scan/baseline/queue state, backups and the global CLI.
+- \`foxy update\` is restricted to a verified npm-global installation, checks the official beta dist-tag and refuses checkout/transient-cache updates.
+- Added runtime bootstrap fail-closed tests, installer syntax tests, updater location-refusal tests, full uninstall integration tests and modified-Codex-skill preservation tests.
+- Package metadata now records the source repository; package file count remains 31; broad “read-only MCP” wording was replaced by the precise repository-file/local-state boundary.
+
+Source-matched qualification evidence from run #46156668487:
+- Ubuntu: \`validation_passed_review_required\`; 474/474 tests, MCP STDIO smoke, curated/holdout/adversarial benchmarks and offline package install/CLI/MCP smoke all passed. Package hash \`2353e4e66ef89f09c1ca7d02ffd4d360a83b978177d87284abfba151d7ac0103\`; 31 files.
+- macOS: same 474/474 count, same passing gates, same 31-file package hash.
+- Windows: job still running at this note's update time; do not claim full cross-platform qualification until it completes and its source revision/hash match.
+
+The release validator's \`validation_passed_review_required\` result is not a security certification or release approval. The prior F-01/F-03/F-05 fixes and new lifecycle code still need the independent reviewer to inspect the exact final source. F-04 also needs host acceptance on two machines/users and a package/cache refresh test.
+
+Remaining release blockers are unchanged: npm scope/package ownership has not been verified, the generated package still declares \`UNLICENSED\`, trusted-publisher settings have not been configured, public package publication has not been approved, live host acceptance is incomplete, the completion gate is cooperative, benchmarks remain controlled/synthetic, and PR #70 still has stacked-base ancestry to resolve.
+
+No merge, publication, deployment, production configuration or production database change was performed.
