@@ -105,10 +105,18 @@ try {
     'init-codex', 'connect --agent cursor', 'connect --agent copilot', 'uninstall-mcp --host claude',
     'Node.js >=24.15.0', 'node:sqlite', 'transactional multi-process job claims', 'jobs.json snapshot is migrated',
     'vibesane install', '--dry-run', '--agent auto', 'npx @vibesane/foxy@beta install', 'npx @vibesane/foxy install',
+    'VibeSane Foxy 0.7.0-beta.6', 'Windows, macOS, and Ubuntu/Linux', 'Actual live-host acceptance',
   ];
   const missingReadmeText = requiredReadmeText.filter((item) => !packagedReadme.stdout.includes(item));
   assert(missingReadmeText.length === 0,
     'Packaged README omits required instructions: ' + missingReadmeText.join(', '));
+  assert(!packagedReadme.stdout.includes('Linux is not in the current two-platform qualification matrix'),
+    'Packaged README must not advertise the superseded two-platform qualification matrix.');
+  assert(!packagedReadme.stdout.includes('On first beta.5 startup'),
+    'Packaged README must describe beta4 migration for beta.6-or-later correctly.');
+  assert(packagedReadme.stdout.includes('not published')
+    && packagedReadme.stdout.includes('owner-approved registry publication'),
+    'Packaged README must not imply public npx installation is available before release approval.');
 
   await run('npm', ['install', '--global', '--ignore-scripts', '--offline', '--no-audit', '--no-fund', '--prefix', installPrefix, archive], {
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_offline: 'true' },
