@@ -149,6 +149,13 @@ The current run validates build, source, unit/integration regression, protocol s
 
 PR #70 remains draft/open/unmerged. The package is unpublished. No production deployment, production configuration or secret change, production SQL/migration, or production service operation has been performed or authorized. Do not enable completion enforcement or connect production repositories during the first Codespaces pilot.
 
+## 28 November follow-up — permission-copy and evidence consistency
+
+- Corrected the website, standalone SEO page and regression assertions: repository files are never modified, while scan/baseline/queue operations may update Foxy-managed local state. The MCP protocol annotations were already correct; query tools remain `readOnlyHint: true`, state-mutating tools remain `false`.
+- Updated the real-host runbook and universal-installer pilot to point to the final Beta.6 exact-source evidence: commit `ca9de05d00672d9a3148deec13ee2e280f1996eb`, workflow #46140045503, package manifest SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`.
+- This follow-up changes UI copy, SEO copy, regression assertions and documentation only; it does not change scanner, installer, host adapters, package payload or production configuration. The new UI assertions/build have not been rerun locally or in Actions in this session, so those specific checks remain pending. The 472/472 Beta.6 qualification remains evidence for its recorded exact source SHA, not a claim that this follow-up commit was requalified.
+- PR #70 remains draft/open/unmerged; PR #71 remains draft/open/unmerged. No npm publication, production deploy, production auth/provider change, or database mutation was performed.
+
 ## Go / no-go
 
 **Go:** give the exact-source packet to Claude for independent review and run the disposable Codespaces Codex pilot.
