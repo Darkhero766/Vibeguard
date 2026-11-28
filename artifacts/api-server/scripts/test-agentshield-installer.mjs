@@ -97,7 +97,7 @@ test('installer configures each selected agent and reopens every entry for local
   assert.deepEqual(result.hosts, ['claude', 'codex']);
 });
 
-test('installer removes only entries newly created in this attempt after a later host fails', async () => {
+test('installer rolls back known new entries and marks the failing in-flight host uncertain', async () => {
   const connectCalls = [];
   const disconnectCalls = [];
   const plan = buildInstallPlan({ agent: 'auto', root, detected: ['claude', 'codex'] });
@@ -114,11 +114,12 @@ test('installer removes only entries newly created in this attempt after a later
       return { results: [{ host, status: 'removed' }] };
     },
   });
-  assert.equal(result.status, 'rolled_back');
+  assert.equal(result.status, 'partial_failure');
   assert.match(result.error, /synthetic config conflict/);
   assert.deepEqual(connectCalls, ['claude', 'codex']);
   assert.deepEqual(disconnectCalls, ['claude']);
   assert.equal(result.rollback[0].status, 'removed');
+  assert.deepEqual(result.uncertainHosts, ['codex']);
 });
 
 test('installer never auto-removes migrated pre-existing managed entries during rollback', async () => {
