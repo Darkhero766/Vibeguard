@@ -6,7 +6,7 @@
 **Package manifest:** 30 files; shared SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`  
 **Purpose:** one controlled Codex CLI acceptance session in a Codespace, using the universal installer from the exact qualified source and a disposable synthetic Git repository.
 
-This procedure does not publish or globally install Foxy. It configures a project-local MCP entry and optional project-local Codex Stop hook/skill for the disposable fixture only. It requires no Supabase, Render, production or customer credentials.
+This guide covers real Codex host acceptance for Beta.6. First use [FOXY_UNIVERSAL_INSTALLER_PILOT.md](FOXY_UNIVERSAL_INSTALLER_PILOT.md) to build the local package archive, install it into an isolated npm prefix and register project-scoped MCP with `foxy install --agent codex`. This guide then tests the separate opt-in Codex Stop hook/skill. It does not use the unpublished registry command or install Foxy globally. It requires no Supabase, Render, production or customer credentials.
 
 ## Preconditions
 
@@ -24,7 +24,7 @@ This leaves your current checkout and any uncommitted work untouched.
 ```bash
 git status --short
 git fetch origin feat/agentshield-cross-platform-autoconnect
-git worktree add --detach ../foxy-codex-pilot-source f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5
+git worktree add --detach ../foxy-codex-pilot-source 3ec649c01506ae077639595794fd0b0cc445db04
 cd ../foxy-codex-pilot-source
 git rev-parse HEAD
 ```
@@ -32,7 +32,7 @@ git rev-parse HEAD
 The final command must print exactly:
 
 ```text
-f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5
+3ec649c01506ae077639595794fd0b0cc445db04
 ```
 
 Stop if the SHA differs. Do not use `git reset --hard`, force-push, merge or switch your current working branch for this pilot.
