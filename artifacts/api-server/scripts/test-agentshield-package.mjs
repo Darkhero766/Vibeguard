@@ -144,19 +144,27 @@ try {
   const foxyExecutable = process.platform === 'win32'
     ? path.join(installPrefix, 'foxy.cmd')
     : path.join(installPrefix, 'bin', 'foxy');
-  const foxyHelp = await run(foxyExecutable, ['--help'], {
-    cwd: temp,
-    shell: process.platform === 'win32',
-  });
+  let foxyHelp;
+  if (process.platform === 'win32') {
+    // Windows exposes npm executables through a .cmd shim. Inspect the
+    // generated shim without invoking cmd.exe or enabling shell parsing.
+    const windowsShim = await readFile(foxyExecutable, 'utf8');
+    assert(windowsShim.includes('vibesane.mjs') && windowsShim.toLowerCase().includes('@vibesane\\foxy'),
+      'The Windows foxy shim does not resolve to the packaged Foxy CLI.');
+    foxyHelp = await runCli(['--help'], { cwd: temp });
+  } else {
+    foxyHelp = await run(foxyExecutable, ['--help'], { cwd: temp });
+  }
   assert(foxyHelp.stdout.includes('vibesane install'),
     'The installed foxy executable did not dispatch to the universal installer.');
 
   const installFixture = path.join(temp, 'foxy-cli-fixture');
   await mkdir(installFixture, { recursive: true });
   await run('git', ['init', '-q', installFixture]);
-  const foxyDryRun = await run(foxyExecutable, [
-    'install', '--dry-run', '--agent', 'codex', '--cwd', installFixture,
-  ], { cwd: temp, shell: process.platform === 'win32' });
+  const dryRunArgs = ['install', '--dry-run', '--agent', 'codex', '--cwd', installFixture];
+  const foxyDryRun = process.platform === 'win32'
+    ? await runCli(dryRunArgs, { cwd: temp })
+    : await run(foxyExecutable, dryRunArgs, { cwd: temp });
   assert(foxyDryRun.stdout.includes('Dry run only')
     && foxyDryRun.stdout.includes('.codex/config.toml'),
     'The npx-compatible foxy binary did not execute the install dry-run.');
