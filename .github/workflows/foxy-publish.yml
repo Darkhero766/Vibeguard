@@ -155,15 +155,27 @@ jobs:
             const reportPath = path.join('artifacts', 'package-evidence', artifact,
               'artifacts', 'api-server', 'dist', 'agentshield-release-validation.json');
             const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+            const regression = (report.steps || []).find(step => step.name === 'unit-integration-regression');
+            const allStepsPassed = Array.isArray(report.steps) && report.steps.length > 0
+              && report.steps.every(step => step.status === 'passed');
             if (report.gitRevision !== sha
+              || report.revisionValid !== true
               || report.status !== 'validation_passed_review_required'
               || report.releaseDecision !== 'candidate_for_independent_human_review'
               || report.productionTouched !== false
+              || report.syntheticFixturesOnly !== true
+              || report.syntaxEvidenceValid !== true
               || report.testSuiteValid !== true
+              || !regression || !Number.isSafeInteger(regression.tests) || regression.tests < 1
+              || regression.passed !== regression.tests || regression.failed !== 0
               || report.mcpSmokeValid !== true
               || report.packageEvidenceValid !== true
+              || report.benchmarkTargetsMet !== true
               || report.benchmarkEvidenceValid !== true
               || report.additionalBenchmarkValid !== true
+              || !allStepsPassed
+              || (report.failedSteps || []).length !== 0
+              || (report.skippedSteps || []).length !== 0
               || !Array.isArray(report.packageFileDigests)
               || report.packageFileDigests.length !== 33
               || !/^[a-f0-9]{64}$/.test(report.packageContentSha256 || '')) {
