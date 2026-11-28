@@ -103,7 +103,8 @@ try {
     'vibesane connect', '--completion-gate enforce', '--base-ref origin/main',
     'VIBESANE_ALLOWED_ROOTS_JSON', 'mcp-doctor', 'Codex Stop hooks', 'Node.js 24.15.0', 'SQLite',
     'init-codex', 'connect --agent cursor', 'connect --agent copilot', 'uninstall-mcp --host claude',
-    'Node.js >=24.15.0', 'node:sqlite', 'transactional multi-process job claims', 'jobs.json snapshot is migrated'
+    'Node.js >=24.15.0', 'node:sqlite', 'transactional multi-process job claims', 'jobs.json snapshot is migrated',
+    'vibesane install', '--dry-run', '--agent auto'
   ];
   const missingReadmeText = requiredReadmeText.filter((item) => !packagedReadme.stdout.includes(item));
   assert(missingReadmeText.length === 0,
@@ -193,6 +194,44 @@ try {
   const postDisconnectClaude = JSON.parse(await readFile(path.join(connectFixture, '.mcp.json'), 'utf8'));
   assert(!postDisconnectClaude.mcpServers?.['vibesane-agentshield'],
     'Disconnect left the managed Claude/Copilot workspace entry behind.');
+
+  // Exercise the installed universal installer end-to-end against a disposable repository.
+  const installFixture = path.join(temp, 'universal-install-fixture');
+  await mkdir(installFixture, { recursive: true });
+  await run('git', ['init', '-q', installFixture]);
+  const dryRun = JSON.parse((await runCli([
+    'install', '--dry-run', '--agent', 'codex', '--cwd', installFixture, '--json',
+  ], { cwd: temp })).stdout);
+  assert(dryRun.status === 'dry_run' && dryRun.hosts.join(',') === 'codex',
+    'Universal installer dry-run did not produce the expected Codex plan.');
+  const codexConfig = path.join(installFixture, '.codex', 'config.toml');
+  let dryRunWroteConfig = false;
+  try { await readFile(codexConfig, 'utf8'); dryRunWroteConfig = true; }
+  catch (error) { if (error?.code !== 'ENOENT') throw error; }
+  assert(!dryRunWroteConfig, 'Universal installer dry-run changed the repository.');
+
+  const universalInstall = JSON.parse((await runCli([
+    'install', '--agent', 'codex', '--cwd', installFixture, '--yes', '--json',
+  ], { cwd: temp })).stdout);
+  assert(universalInstall.status === 'installed'
+    && universalInstall.verification === 'all_managed_entries_reopened_and_matched'
+    && universalInstall.results[0]?.status === 'configured',
+    'Universal installer did not install and locally verify the Codex configuration.');
+  const universalRepeat = JSON.parse((await runCli([
+    'install', '--agent', 'codex', '--cwd', installFixture, '--yes', '--json',
+  ], { cwd: temp })).stdout);
+  assert(universalRepeat.status === 'installed'
+    && universalRepeat.results[0]?.status === 'already_configured',
+    'Universal installer repeat run was not idempotent.');
+  const universalDisconnect = JSON.parse((await runCli([
+    'disconnect', '--agent', 'codex', '--cwd', installFixture,
+  ], { cwd: temp })).stdout);
+  assert(universalDisconnect.status === 'disconnected'
+    && universalDisconnect.results[0]?.status === 'removed',
+    'Universal installer fixture could not remove its exact managed Codex entry.');
+  const configAfterDisconnect = await readFile(codexConfig, 'utf8');
+  assert(!configAfterDisconnect.includes('[mcp_servers.vibesane_agentshield]'),
+    'Universal installer disconnect left the managed Codex block behind.');
 
   await mkdir(path.join(fixture, 'src'), { recursive: true });
   await writeFile(path.join(fixture, 'src', 'index.js'), 'export const baseline = true;\n');
@@ -442,7 +481,7 @@ try {
     packageFileDigests: packaged.fileDigests,
     packagedFiles: packaged.fileCount,
     checks: ['build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'doctor',
-      'one-command-agent-connect', 'one-command-agent-disconnect', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall'],
+      'one-command-agent-connect', 'one-command-agent-disconnect', 'universal-installer-dry-run', 'universal-installer-install-and-verify', 'universal-installer-repeat-idempotent', 'universal-installer-disconnect', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall'],
     fixture: 'synthetic-disposable-git-repository',
     published: false,
   }) + '\n');
