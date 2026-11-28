@@ -188,25 +188,39 @@ export class ScanJobStore {
         throw new Error('Foxy SQLite database identity changed while opening; refusing to alter its permissions.');
       }
 
-      // Inspect the database identity before any persistent PRAGMA or
-      // permission change. The configured store path may contain an unrelated
+      // Inspect database ownership and integrity before any persistent PRAGMA
+      // or permission change. The configured store path may contain an unrelated
       // SQLite database; opening it must not silently convert it to WAL or chmod it.
+      //
+      // The immediate transaction is essential for multiple MCP processes that
+      // first create the same empty store concurrently. Without it, process B can
+      // read application_id=0, process A can then claim the database and create
+      // schema, and process B can count those tables using its stale zero ID and
+      // incorrectly reject Foxy's own database. BEGIN IMMEDIATE serializes the
+      // identity + schema decision; the busy timeout bounds startup contention.
       this.db.exec('PRAGMA busy_timeout=10000; PRAGMA trusted_schema=OFF;');
-      const applicationId = Number(this.db.prepare('PRAGMA application_id').get()?.application_id || 0);
-      if (applicationId !== 0 && applicationId !== FOXY_SQLITE_APPLICATION_ID) {
-        throw new Error('Refusing to open a SQLite database owned by another application.');
+      this.db.exec('BEGIN IMMEDIATE;');
+      try {
+        const applicationId = Number(this.db.prepare('PRAGMA application_id').get()?.application_id || 0);
+        if (applicationId !== 0 && applicationId !== FOXY_SQLITE_APPLICATION_ID) {
+          throw new Error('Refusing to open a SQLite database owned by another application.');
+        }
+        const schemaObjects = Number(this.db.prepare(
+          "SELECT COUNT(*) AS count FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'",
+        ).get()?.count || 0);
+        if (applicationId === 0 && schemaObjects !== 0) {
+          throw new Error('Refusing to adopt a non-empty SQLite database without Foxy application identity.');
+        }
+        const integrity = this.db.prepare('PRAGMA quick_check(1)').get();
+        if (String(Object.values(integrity || {})[0] || '').toLowerCase() !== 'ok') {
+          throw new Error('Foxy SQLite job store failed its integrity check; no scans were accepted.');
+        }
+        if (applicationId === 0) this.db.exec('PRAGMA application_id=' + FOXY_SQLITE_APPLICATION_ID);
+        this.db.exec('COMMIT;');
+      } catch (error) {
+        try { this.db.exec('ROLLBACK;'); } catch {}
+        throw error;
       }
-      const schemaObjects = Number(this.db.prepare(
-        "SELECT COUNT(*) AS count FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'",
-      ).get()?.count || 0);
-      if (applicationId === 0 && schemaObjects !== 0) {
-        throw new Error('Refusing to adopt a non-empty SQLite database without Foxy application identity.');
-      }
-      const integrity = this.db.prepare('PRAGMA quick_check(1)').get();
-      if (String(Object.values(integrity || {})[0] || '').toLowerCase() !== 'ok') {
-        throw new Error('Foxy SQLite job store failed its integrity check; no scans were accepted.');
-      }
-      if (applicationId === 0) this.db.exec('PRAGMA application_id=' + FOXY_SQLITE_APPLICATION_ID);
 
       // POSIX permissions are enforced through the verified descriptor rather
       // than re-resolving the path. Windows ACLs are inherited from the
