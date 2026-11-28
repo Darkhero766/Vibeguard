@@ -679,7 +679,7 @@ async function configureJsonHost(host, root, nodePath, serverPath, stateRoot) {
       await atomicWrite(file, JSON.stringify(config, null, 2) + '\n', originalRaw);
       return { host, status: 'migrated', configFile: file, backup };
     }
-    const backup = await backupFile(file, originalRaw);
+    const backup = await backupFile(file, originalRaw, stateRoot);
     config.mcpServers = { ...servers, [SERVER_LABEL]: desired };
     await atomicWrite(file, JSON.stringify(config, null, 2) + '\n', originalRaw);
     return { host, status: 'configured', configFile: file, backup };
@@ -712,7 +712,7 @@ async function configureCodex(root, nodePath, serverPath, stateRoot) {
       if (current !== legacy) {
         throw new Error('The managed Codex MCP block was customized; refusing to overwrite it.');
       }
-      const backup = await backupFile(file, originalRaw);
+      const backup = await backupFile(file, originalRaw, stateRoot);
       const tail = existing.slice(end + endMarker.length);
       await atomicWrite(file, existing.slice(0, start) + block + tail, originalRaw);
       return { host: 'codex', status: 'migrated', configFile: file, backup };
@@ -720,7 +720,7 @@ async function configureCodex(root, nodePath, serverPath, stateRoot) {
     if (codexHasMcpConflict(existing)) {
       throw new Error('A conflicting or ambiguous Codex MCP entry exists; it was left untouched.');
     }
-    const backup = await backupFile(file, originalRaw);
+    const backup = await backupFile(file, originalRaw, stateRoot);
     const newline = String.fromCharCode(10);
     const prefix = existing && !existing.endsWith(newline) ? existing + newline : existing;
     await atomicWrite(file, prefix + (prefix ? newline : '') + block + newline, originalRaw);
@@ -753,7 +753,7 @@ async function disconnectJsonHost(host, root, nodePath, serverPath, stateRoot) {
     if (!sameJson(existing, desired) && !sameJson(existing, legacy)) {
       throw new Error('The AgentShield MCP entry was customized; refusing to remove it automatically.');
     }
-    const backup = await backupFile(file, originalRaw);
+    const backup = await backupFile(file, originalRaw, stateRoot);
     delete servers[SERVER_LABEL];
     if (Object.keys(servers).length) config.mcpServers = servers;
     else delete config.mcpServers;
@@ -787,7 +787,7 @@ async function disconnectCodex(root, nodePath, serverPath, stateRoot) {
     if (current !== expected && current !== legacy) {
       throw new Error('The managed Codex MCP entry was customized; refusing to remove it automatically.');
     }
-    const backup = await backupFile(file, originalRaw);
+    const backup = await backupFile(file, originalRaw, stateRoot);
     const newline = String.fromCharCode(10);
     const carriageReturn = String.fromCharCode(13);
     const suffix = existing.slice(end + endMarker.length);
