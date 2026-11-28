@@ -158,10 +158,10 @@ try {
   assert(foxyHelp.stdout.includes('vibesane install'),
     'The installed foxy executable did not dispatch to the universal installer.');
 
-  const installFixture = path.join(temp, 'foxy-cli-fixture');
-  await mkdir(installFixture, { recursive: true });
-  await run('git', ['init', '-q', installFixture]);
-  const dryRunArgs = ['install', '--dry-run', '--agent', 'codex', '--cwd', installFixture];
+  const foxyDryRunFixture = path.join(temp, 'foxy-cli-fixture');
+  await mkdir(foxyDryRunFixture, { recursive: true });
+  await run('git', ['init', '-q', foxyDryRunFixture]);
+  const dryRunArgs = ['install', '--dry-run', '--agent', 'codex', '--cwd', foxyDryRunFixture];
   const foxyDryRun = process.platform === 'win32'
     ? await runCli(dryRunArgs, { cwd: temp })
     : await run(foxyExecutable, dryRunArgs, { cwd: temp });
@@ -170,7 +170,7 @@ try {
     'The npx-compatible foxy binary did not execute the install dry-run.');
   let dryRunCreatedConfig = false;
   try {
-    await readFile(path.join(installFixture, '.codex', 'config.toml'));
+    await readFile(path.join(foxyDryRunFixture, '.codex', 'config.toml'));
     dryRunCreatedConfig = true;
   } catch (error) {
     if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error;
