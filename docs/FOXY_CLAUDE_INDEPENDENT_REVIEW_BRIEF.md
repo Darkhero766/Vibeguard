@@ -109,12 +109,14 @@ In addition to the original areas below, inspect the new consent-first universal
 Keep this review strictly read-only. PR #70 must remain draft/open/unmerged; do not publish, merge, rebase, deploy or modify the candidate. No real credentials, customer repositories or production services.
 
 
-## Final Beta.6 review target — 28 November 2026
+## Latest Beta.6 review target — 28 November 2026
 
-The latest qualified source is `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`; [workflow #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859) passed on Windows, macOS and Ubuntu/Linux. Each OS passed 477/477 regression tests per OS, 30 package files and identical package-content SHA-256 `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. The package remains unpublished.
+**Review the live PR #70 head at the time of review.** Do not use an old hard-coded branch SHA without checking the PR first. The last code/UI delta inspected during this handoff was `68f06d84865fdd17c2677d64a4821263efee5cce`; subsequent branch commits in this documentation sweep update docs and review evidence.
 
-Inspect the new concurrent SQLite initialization fix in agentshield-jobs-store.mjs: application identity, schema-object inspection, quick-check and first-time application-ID assignment now occur in an immediate transaction, preventing a stale application-ID read from being combined with another process's newly created tables. Reproduce the two-process first-open race and ensure unrelated non-empty SQLite databases are still refused without persistent changes.
+The qualified Foxy package source is `a0651317c1cb16170d563867adcf5ddff08d5927`, [three-OS workflow #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820). Windows, macOS and Ubuntu/Linux each passed 479/479 regression tests and all qualification steps. The 33-file package-content SHA-256 is `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`. The package remains unpublished.
 
-Also inspect the website Install MCP panel and the static/no-JavaScript SEO preview. The beta command copy action must remain disabled unless the explicit public build flag VITE_FOXY_BETA_INSTALL_ENABLED=true is set after owner-approved publication/provenance review. The website must not imply it can install or write local host configuration; the CLI still shows the target plan and requires user consent. Check focus/disabled/status accessibility and confirm no lifecycle hook or completion gate is silently enabled.
+The four-commit delta from the qualified package source to the last inspected code/UI point changed only the Foxy website page, SEO generation and associated page/preview assertions; it did not change the packaged Foxy runtime or publisher workflow. Those website/SEO changes were not rerun at the exact head. Review the live head, verify that this remains true, and inspect the UI/SEO diff separately from the package-runtime evidence.
 
-Keep this review read-only. PR #70 remains draft/open/unmerged; no package publication or production deployment is authorized.
+The successful automated qualification is not independent review. Inspect the actual scanner, MCP, installer, connector, SQLite queue, baseline/gate, release packaging and workflow source. Reproduce key security claims with disposable synthetic repositories and record unverified host-specific behavior. All real-host acceptance rows remain pending.
+
+Keep the review read-only. PR #70 must remain draft/open/unmerged; do not publish, merge, rebase, retarget, deploy or modify production.
