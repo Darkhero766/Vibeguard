@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build a self-contained, unpublished, offline-installable AgentShield beta tarball.
+// Build a self-contained, offline-installable Foxy CLI beta tarball. This script never publishes.
 // Packaging never publishes to a registry and never executes customer project code.
 import { mkdir, cp, rm, readFile, writeFile, stat, readdir, utimes } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -180,7 +180,7 @@ async function main() {
     bundledLicenses.push(`${name} ${manifest.version} (${manifest.license})\n\n${licenseText}`);
   }
   await writeFile(path.join(stage, 'THIRD_PARTY_NOTICES.txt'), [
-    'VibeSane AgentShield internal beta — third-party component notice',
+    'VibeSane Foxy internal beta — third-party component notice',
     'The MCP STDIO entry bundles the official Model Context Protocol TypeScript SDK and Zod.',
     'The bundled JS/TS AST worker includes the TypeScript compiler by Microsoft.',
     ...bundledLicenses,
@@ -190,12 +190,13 @@ async function main() {
   ].join('\n'));
 
   const manifest = {
-    name: '@vibesane/agentshield',
+    name: '@vibesane/foxy',
     version: PACKAGE_VERSION,
-    private: true,
-    description: 'VibeSane AgentShield local security beta with Claude Code and Codex Stop hooks, Cursor Stop integration and a repository-read-only MCP stdio server with local queue and baseline state (unpublished)',
+    description: 'VibeSane Foxy local security CLI and read-only MCP server for AI coding agents',
     type: 'module',
+    publishConfig: { access: 'public', tag: 'beta' },
     bin: {
+      foxy: './scripts/vibesane.mjs',
       vibesane: './scripts/vibesane.mjs',
       'vibesane-mcp': './scripts/agentshield-mcp-stdio.mjs',
       'vibesane-cursor-stop': './scripts/agentshield-cursor-stop.mjs',
@@ -227,7 +228,7 @@ async function main() {
   await writeFile(path.join(stage, 'cursor-hooks.json'), JSON.stringify(cursorHooks, null, 2) + '\n');
 
   await writeFile(path.join(stage, 'README.md'), [
-    '# VibeSane AgentShield (unpublished developer preview)',
+    '# VibeSane Foxy (unpublished beta candidate)',
     '',
     'Local static security scanning, Claude Code and Codex Stop hooks, Cursor Stop feedback, and a repository-read-only MCP server with a transactional local SQLite scan queue.',
     'Requires Node.js 24.15.0 or newer (Node.js >=24.15.0) and Git. The automated qualification matrix covers Windows and macOS; live installed-host acceptance and independent security review are still release gates. Linux is not in the current two-platform qualification matrix. This is an opt-in beta, not a security certification.',
@@ -235,7 +236,12 @@ async function main() {
     `On first beta.5 startup, an exact beta.4 jobs.json snapshot is migrated into SQLite only after the legacy lock is confirmed inactive. The original JSON file is retained untouched as a recovery copy. Beta.4's shared snapshot is filtered by the current MCP process's canonical VIBESANE_ALLOWED_ROOTS_JSON; records for other repositories are not imported into this host/workspace store. A valid allowlist is required when legacy records exist. If no old lock exists, beta.5 atomically publishes and retains FOXY_BETA5_MIGRATION_GUARD_V1 at the old lock path; pre-existing stale locks also block migration and are preserved unchanged until an operator verifies all old processes are stopped, inspects the lock and removes it manually. Stop every beta.4 Foxy process before upgrading; beta.4 downgrade after migration is unsupported.`,
     '',
     '## Install locally',
-    'npm install --global ./vibesane-agentshield-' + PACKAGE_VERSION + '.tgz',
+    'npm install --global ./vibesane-foxy-' + PACKAGE_VERSION + '.tgz',
+    'foxy --help',
+    '',
+    '## One-command bootstrap (after the package is published)',
+    'npx @vibesane/foxy install',
+    'The command above is the intended registry UX. This locally generated beta archive is not published; do not run the registry command until the release owner confirms the package name, registry ownership, signatures/provenance and release approval.',
     'vibesane --help',
     'vibesane doctor --cwd /absolute/path/to/project',
     'After installing a project hook, vibesane doctor reports checks.codexStopHookInstalled or checks.claudeHooksInstalled when the project configuration is readable.',
