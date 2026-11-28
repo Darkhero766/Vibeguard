@@ -4,7 +4,7 @@
 
 | Capability | VibeSane AgentShield MCP now | Existing alternatives | Gap / opportunity |
 |---|---|---|---|
-| MCP safety | Five bounded, read-only tools; authorized roots; cancellation; bounded stdio; coverage-aware results. | Official SDKs and conformance harness provide wire schemas and protocol scenario coverage. | Add official conformance runs for 2025-11-25 and 2026-07-28. Keep current wire compatibility until equivalence is demonstrated. |
+| MCP safety | Ten bounded tools: five synchronous repository-scan/information tools plus five asynchronous SQLite-queue tools; canonical authorized roots; cancellation; bounded stdio; coverage-aware results; accurate annotations for Foxy-local state mutations. | Official SDKs and conformance harness provide wire schemas and protocol scenario coverage. | Confirm source-matched conformance for the beta.5 ten-tool package and supported protocol versions. Do not infer full conformance from a package STDIO smoke or transfer evidence from a different PR/SHA. |
 | Agent lifecycle | Codex/Claude hooks are separate and configurable; MCP tools themselves do not block completion. | Semgrep Guardian bundles MCP, hooks and skills and prompts regeneration on findings. | Make lifecycle invocation and completion policy evidence auditable; keep opt-in and avoid claiming universal blocking. |
 | SAST / data flow | Native deterministic heuristics plus experimental/opt-in AST and cross-file analysis outside the MCP scan's default path. | Semgrep and CodeQL provide semantic rules, taint/data-flow and path evidence. | Optional adapters with source/sink locations, engine version, timeout and independent availability reporting. |
 | Dependencies / secrets / config | Native source heuristics; no MCP-integrated specialist engine currently. | Trivy, OSV-Scanner and Gitleaks target these domains. | Support opt-in lockfile, secret and configuration engine adapters; redact credential values and expose incomplete engine state. |
@@ -19,8 +19,8 @@ Competing on rule count is not realistic. VibeSane can stand out by making resul
 
 ## Realistic sequence
 
-1. **Now:** retain read-only contract; resolve the stdio output limitation in the managed execution context or clearly qualify it; record 2026-07-28 and legacy MCP conformance outcomes; add a current Codex host session where available.
-2. **Next:** expand the changed-file inventory to agent and security configuration files, especially Markdown instruction files, with purpose-built checks and fixture pairs. Do not classify ordinary security guidance as malicious based on keywords.
+1. **Now (launch window):** preserve the repository-read-only contract; finish exact-source Windows/macOS qualification; complete real installed-host smoke for only the hosts that will be advertised; close independent review or keep the release private/restricted.
+2. **Next:** expand changed-file coverage to agent and security configuration files, especially Markdown instruction files, using purpose-built fixtures. Do not classify ordinary security guidance as malicious based on keywords.
 3. **Then:** add optional Semgrep and Gitleaks/OSV adapters behind explicit availability and timeout contracts. Validate each adapter using synthetic fixtures and bounded outputs before advertising it.
 4. **Later:** assess Trivy/CodeQL only for use cases where the runtime/setup cost is acceptable. Keep remote APIs, repository uploads, and server execution out of the default local flow.
 5. **Measure:** use OWASP Benchmark for compatible languages and small labeled application fixtures for JS/TS, SQL/RLS, MCP configuration and agent instructions. Publish scope, version, coverage, latency and confusion matrix together.

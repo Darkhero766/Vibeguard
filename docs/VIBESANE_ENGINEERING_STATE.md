@@ -1,6 +1,6 @@
 # VibeSane engineering state
 
-**Snapshot date:** 28 November 2026 (updated after exact-source beta.5 Windows/macOS release qualification)  
+**Snapshot date:** 28 November 2026 (updated after beta.5 runtime-provenance hardening; exact-source CI requalification in progress)  
 **Repository:** `Darkhero766/Vibeguard`  
 **Purpose:** portable source of truth for new engineering sessions. This file records observed state, not intentions or assumptions. Recheck GitHub refs and runs before every write.
 
@@ -20,7 +20,8 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 
 - State: **open, draft, unmerged**.
 - Branch: `feat/agentshield-cross-platform-autoconnect`.
-- Latest exact-source candidate: `a777754de234ed2e469cd9822ad4a1f5f881e095`. It pins MCP workspace authorization to startup root identities, corrects MCP local-state side-effect annotations, centralizes the beta.5 version, fixes queue test races and Windows profile-boundary fixtures, makes offline package archives repeatable on each OS, and exports a canonical per-file content manifest used by the release validator. Exact-source Windows/macOS qualification passed in run #46055587747; report details follow.
+- Latest fully qualified source: `a777754de234ed2e469cd9822ad4a1f5f881e095`. It pins MCP workspace authorization to startup root identities, corrects MCP local-state side-effect annotations, centralizes the beta.5 version, hardens queue/storage behavior and exports a canonical per-file content manifest. Windows/macOS qualification passed in run #46055587747.
+- Current code candidate: `089c2ac60d5679c71dde4ef1fe0dd3d1f23177a1`. It adds a required SHA-256 MCP runtime fingerprint to persisted baseline provenance, covering the server, SDK, queue, queue store, baseline store and version modules. Old/mismatched persisted baselines are not restored as usable. Exact-source Windows/macOS requalification is run [#46108972740](https://github.com/Darkhero766/Vibeguard/actions/runs/46108972740); confirm its final conclusion before release.
 - Target branch: `feat/agentshield-beta-coding-agent-install`; merge base `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`. Current branch comparison: PR #70 is 357 commits ahead and 23 behind its base; GitHub reports `mergeable=false`. Preserve the diverged stack. Do not rebase, force-push, retarget or merge until the full ancestry/diff is reviewed and the owner approves.
 - Package version: `0.7.0-beta.5`; minimum runtime Node.js `24.15.0` for built-in `node:sqlite`.
 - Earlier connector run #75 was beta.4-only and is historical. Latest beta.5 exact-source Windows/macOS qualification is [run #46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747), passed on source SHA `a777754de234ed2e469cd9822ad4a1f5f881e095`.
@@ -61,7 +62,7 @@ Do not conflate SUE checks, SaaS Phase 1/2, AgentShield Week 1–6, or Foxy MCP 
 - PR #69's recorded release evidence: 423 tests passed with no failed/skipped release steps. Benchmark corpora are synthetic rule-expectation fixtures, not real-world scanner accuracy, exploit validation or certification.
 - PR #70 exact-source beta.5 CI now passes on Windows/macOS in run #46055587747. The older run #75 remains beta.4 historical evidence only.
 - GitGuardian's separate secret scan reports no secrets on the earlier beta.5 commit `f292e6a...`; this is not a build, test or security review.
-- Source candidate `a777754de234ed2e469cd9822ad4a1f5f881e095` has matching Windows/macOS CI and per-platform artifacts. The 453/453 result is a full automated suite, not security certification or real host acceptance.
+- Source candidate `a777754de234ed2e469cd9822ad4a1f5f881e095` has matching Windows/macOS CI and per-platform artifacts (453/453 per OS). The new source candidate `089c2ac...` is awaiting its own run #46108972740. Neither run is security certification or real-host acceptance.
 - Node.js 24.15.0+ is required. SQLite storage is local-machine only; Windows storage is restricted to the canonical current-user profile path, while POSIX storage is checked for owner-only mode bits.
 - Real-host install/restart/approval/tool calls/unauthorized-root denial/disconnect and independent human review remain incomplete.
 
@@ -177,3 +178,11 @@ At the start of a new chat:
 - Usage from repository root after setup: `pnpm --dir artifacts/api-server run qualify:foxy`. For custom report location: `FOXY_REPORT_DIR=... pnpm --dir artifacts/api-server run qualify:foxy`.
 - Termux is a useful Android execution host, but compatibility, memory and native build constraints apply; Termux results are Android-platform evidence, not Windows/macOS acceptance.
 - This runner has been committed via GitHub API but not executed in this environment; tests/build are therefore **unverified** until run on a Node 24.15+ host with dependencies installed.
+
+
+## 28 November 2026 — persisted baseline runtime provenance
+
+- Commit `089c2ac60d5679c71dde4ef1fe0dd3d1f23177a1` adds a runtime implementation fingerprint beside the scanner artifact fingerprint, ruleset/version and report-schema version. The fingerprint covers `agentshield-mcp-server.mjs`, `agentshield-mcp-sdk.mjs`, `agentshield-jobs.mjs`, `agentshield-jobs-store.mjs`, `agentshield-baselines.mjs` and `agentshield-version.mjs`.
+- The synchronous baseline store and persistent SQLite queue validators require and compare this field. Old records without the field cannot restore a usable remediation baseline; a changed runtime fingerprint is reported stale and does not expose a usable `scan_id`.
+- Regression coverage was added for the actual fingerprint generator, missing/altered provenance, and cross-restart drift. The exact-source Windows/macOS run #46108972740 was in progress at the time of this update; do not record tests as passed until both jobs report success.
+- PR #70 remains draft/open/unmerged. No production change, package publication, public distribution or deploy was performed.

@@ -2,15 +2,17 @@
 
 **Status:** NOT APPROVED FOR PRODUCTION  
 **Candidate:** 0.7.0-beta.5  
-**Current source candidate:** a777754de234ed2e469cd9822ad4a1f5f881e095  
+**Current source candidate:** 089c2ac60d5679c71dde4ef1fe0dd3d1f23177a1  
+**Prior fully qualified source:** a777754de234ed2e469cd9822ad4a1f5f881e095  
+**Current exact-source run:** [#46108972740](https://github.com/Darkhero766/Vibeguard/actions/runs/46108972740) — in progress when this checklist revision was written  
 **PR:** [#70 — Foxy beta.5](https://github.com/Darkhero766/Vibeguard/pull/70)
 
 This is the release control record for Foxy / AgentShield beta.5. A source change, test definition, historical green run, or reviewer preview is not a completed release gate. Mark an item complete only when its evidence is attached to the exact candidate commit and reviewed. Keep the PR draft, unpublished and unmerged until every mandatory gate is closed.
 
 ## 1. Source identity and change control
 
-- [x] Pin the release candidate to exact source SHA `a777754de234ed2e469cd9822ad4a1f5f881e095`, qualified on Windows and macOS in [Actions run #46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747).
-- [x] Confirm package version beta.5, Git revision, source fingerprint, generated README, 29-file package inventory and per-file content manifest on the exact CI candidate.
+- [ ] Qualify exact source SHA `089c2ac60d5679c71dde4ef1fe0dd3d1f23177a1` on Windows and macOS in [Actions run #46108972740](https://github.com/Darkhero766/Vibeguard/actions/runs/46108972740). The previous exact-source pass on `a777754...` is historical for that earlier source only.
+- [ ] Confirm package version beta.5, Git revision, source fingerprint, generated README, package inventory and per-file content manifest for SHA `089c2ac...`.
 - [x] Verify workflow triggerability: `.github/workflows/agentshield-cross-platform.yml` has a branch-scoped `push` trigger for `feat/agentshield-cross-platform-autoconnect`; run #46055587747 completed successfully on both platforms.
 - [x] CI checks out the exact candidate with a clean checkout and verifies the source revision before building.
 - [ ] Review the entire PR diff, not only the latest commit.
@@ -24,22 +26,22 @@ This is the release control record for Foxy / AgentShield beta.5. A source chang
 
 Run on Node.js 24.15.0 or newer, using the repository lockfile and .github/workflows/agentshield-cross-platform.yml.
 
-- [x] VibeSane frontend strict typecheck.
-- [x] API server strict typecheck.
-- [x] Vite production build.
-- [x] Generated Foxy SEO route assertions.
-- [x] Staging noindex, robots denial and direct-route finalization.
-- [x] Standalone no-JavaScript Foxy preview build and assertions.
-- [x] Cross-platform connector regression suite.
-- [x] Complete AgentShield release qualification.
-- [x] Source-syntax and source-fingerprint evidence.
-- [x] MCP STDIO integration smoke and protocol conformance.
-- [x] Curated, holdout and additional adversarial synthetic benchmark validators.
-- [x] Offline package build, isolated install, CLI, doctor, connect/disconnect and MCP smoke.
-- [x] Verify zero failed, cancelled or skipped required test cases.
-- [x] Download and inspect both platform artifacts. Confirm their reported source SHA equals the candidate SHA.
+- [ ] VibeSane frontend strict typecheck.
+- [ ] API server strict typecheck.
+- [ ] Vite production build.
+- [ ] Generated Foxy SEO route assertions.
+- [ ] Staging noindex, robots denial and direct-route finalization.
+- [ ] Standalone no-JavaScript Foxy preview build and assertions.
+- [ ] Cross-platform connector regression suite.
+- [ ] Complete AgentShield release qualification.
+- [ ] Source-syntax and source-fingerprint evidence.
+- [ ] MCP STDIO integration smoke and protocol conformance.
+- [ ] Curated, holdout and additional adversarial synthetic benchmark validators.
+- [ ] Offline package build, isolated install, CLI, doctor, connect/disconnect and MCP smoke.
+- [ ] Verify zero failed, cancelled or skipped required test cases.
+- [ ] Download and inspect both platform artifacts. Confirm their reported source SHA equals the candidate SHA.
 
-**Evidence:** [successful exact-source Windows/macOS run #46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747), candidate SHA `a777754de234ed2e469cd9822ad4a1f5f881e095`, 453/453 regression tests per OS, all release steps passed, MCP stdio and offline package smoke passed. Artifacts: [macOS qualification](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747/artifacts/15226766918), [Windows qualification](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747/artifacts/15226592319). Both artifacts contain 29 identical file contents: manifest SHA-256 `7e65e968cbea7f9396148cdb3cfa6483efbf492aba4bf899ac675036812c401a`. Outer archive SHA-256 is platform-specific: macOS `d4307e511b0c5c3c1b62f5e6361245b15ed94a54c5c42bf4ed7d2bab27a9dba9`; Windows `c64808c374e2fba9c7ec37ee75fdea71b49accc8c07bcaeb665836114ebd5af7`. Archive bytes differ, canonical file manifest and every file SHA match. The older beta.4 run #75 is historical only.
+**Historical evidence:** [run #46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747) passed on SHA `a777754de234ed2e469cd9822ad4a1f5f881e095`: 453/453 regression tests per OS, all release steps passed, MCP STDIO and offline package smoke passed. Artifacts: [macOS](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747/artifacts/15226766918), [Windows](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747/artifacts/15226592319). Both 29-file packages had identical content manifest SHA-256 `7e65e968cbea7f9396148cdb3cfa6483efbf492aba4bf899ac675036812c401a`; outer archive hashes are platform-specific. This does not qualify the later code change at `089c2ac...`. Run #46108972740 is the source-matched qualification for `089c2ac...` and must finish successfully on both OS before these checklist items are completed.
 
 ## 3. SQLite queue and migration adversarial validation
 
@@ -151,7 +153,7 @@ Release remains blocked until all mandatory evidence is complete.
 | Sign-off | Required owner | Status |
 |---|---|---|
 | Source and dependency review | Maintainer + stack reviewer | OPEN |
-| Exact-source Windows/macOS CI | Engineering owner | PASSED — run #46055587747; human review still required |
+| Exact-source Windows/macOS CI | Engineering owner | PENDING — run #46108972740 for SHA 089c2ac; prior SHA a777754 passed |
 | Queue/migration adversarial review | Independent engineer | OPEN |
 | Installed-host acceptance | Host/platform testers | OPEN |
 | Independent security review | External reviewer | OPEN |

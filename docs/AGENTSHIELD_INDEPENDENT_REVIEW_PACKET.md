@@ -145,3 +145,25 @@ The current queue test file defines 39 cases. These are definitions only. Run th
 - The global accent now resolves to the lime token. Clean-result, upgrade, signed-in dashboard clean panels and the lime CTA use explicit dark foregrounds. Test guards check the theme token pair and mixed-surface contrast classes.
 - AgentShield's React page and prerendered SEO page now state Node.js 24.15.0+, distinguish runtime targets from the Windows/macOS automated matrix, and link to the current beta.5 install guide.
 - Latest code candidate: `4dec4fb27a9070127904e3c29ece476dad3ad2a4`. These are source/documentation assertions; no browser build or screenshot QA has run.
+
+
+## MCP runtime-provenance hardening delta — 28 November 2026
+
+**Candidate implementation commit:** `089c2ac60d5679c71dde4ef1fe0dd3d1f23177a1` on PR #70.
+
+The queue's persisted remediation-baseline context previously compared the standalone scanner artifact fingerprint, ruleset/version string and report-schema version. The candidate adds a required `runtimeFingerprint` computed from the exact bytes of these packaged modules:
+
+- `agentshield-mcp-server.mjs`
+- `agentshield-mcp-sdk.mjs`
+- `agentshield-jobs.mjs`
+- `agentshield-jobs-store.mjs`
+- `agentshield-baselines.mjs`
+- `agentshield-version.mjs`
+
+The fingerprint uses stable relative module names and SHA-256 over each module's bytes; file descriptors are checked for regular-file type, bounded size and before/after identity/metadata consistency. Both the in-memory baseline validator and persistent queue validator require and compare the new fingerprint. A missing legacy field is rejected; a valid but different runtime fingerprint makes a persisted baseline stale and prevents its `scan_id` from being returned as usable. The previous scan's bounded finding history remains queryable, but remediation verification must start from a fresh scan.
+
+Regression coverage was added/extended in `test-agentshield-baselines.mjs`, `test-agentshield-jobs.mjs` and `test-agentshield-mcp.mjs`, including provenance generation, missing-field rejection and cross-restart runtime-drift invalidation.
+
+**Qualification status:** Windows/macOS run [#46108972740](https://github.com/Darkhero766/Vibeguard/actions/runs/46108972740) was in progress when this packet update was prepared. Do not treat the new tests as passing until both jobs complete on the exact source SHA. The prior run #46055587747 applies only to `a777754...`.
+
+**Independent reviewer tasks:** confirm that the six-file inventory covers every module that can change workspace authorization, scan orchestration, baseline interpretation or queue restoration; inspect package inclusion and fstat checks; reproduce both runtime-drift and missing-provenance behavior; inspect whether a partial package update can result in a mixed runtime; and confirm a stale baseline never becomes a clean or verifiable result.

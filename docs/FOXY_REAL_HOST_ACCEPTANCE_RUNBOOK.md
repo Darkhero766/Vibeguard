@@ -6,6 +6,8 @@ This runbook captures the real application acceptance that automated Windows/mac
 
 A green CI run is necessary but not sufficient for distribution. The host matrix below remains a human-controlled release gate.
 
+**Automated evidence context (2026-11-28):** source SHA `a777754de234ed2e469cd9822ad4a1f5f881e095` passed the Windows/macOS beta.5 qualification in run [#46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747), with 453/453 regression tests per OS. The follow-up source commit `089c2ac60d5679c71dde4ef1fe0dd3d1f23177a1` adds MCP runtime provenance to persisted baselines; its exact-source run [#46108972740](https://github.com/Darkhero766/Vibeguard/actions/runs/46108972740) was in progress when this runbook update was written. Check the final run result before distribution. All real-host rows below remain **Pending** until tested by a human on that host and OS.
+
 ## Candidate evidence
 
 Record before testing:
@@ -47,6 +49,18 @@ For each host that will be advertised as supported:
 
 Repeat the sequence after a clean reinstall and after a second connect to confirm idempotence. Record all errors; do not silently skip a failed step.
 
+## Asynchronous queue-tool acceptance
+
+The current MCP catalog has five queue tools in addition to the five synchronous tools above. On each host being advertised, exercise the queue workflow using disposable synthetic content:
+
+1. Call `scan_start` with `scope: "changed"` and a unique `idempotency_key`; confirm it returns a `job_id` without blocking the host.
+2. Call `scan_status` and `scan_wait`; confirm progress and terminal states are coherent, and that interrupted/failed/cancelled work is never represented as a clean scan.
+3. Call `scan_results`; for a complete changed-scope result, confirm the returned `scan_id` is usable as the `baseline_id` for `verify_remediation`.
+4. Repeat the same submission with the same idempotency key and fingerprint; confirm it coalesces. Reuse that key for a different fingerprint; confirm it is rejected.
+5. On a sufficiently bounded but non-trivial disposable fixture, issue `scan_cancel` while work is queued/running. Confirm cross-process cancellation where two host processes share a namespace, and confirm cancellation never yields a clean result.
+
+The queue mutates Foxy-owned SQLite state only; it does not write the repository. The host's annotations must not describe `scan_start` or `scan_cancel` as read-only.
+
 ## Host-specific notes
 
 - **Claude Code:** validate the project .mcp.json destination and project trust/approval flow.
@@ -54,7 +68,7 @@ Repeat the sequence after a clean reinstall and after a second connect to confir
 - **Cursor:** validate .cursor/mcp.json, restart, and enterprise MCP controls if applicable.
 - **Gemini CLI:** validate .gemini/settings.json and the MCP approval behavior for the installed CLI version.
 - **Roo Code:** validate .roo/mcp.json and its MCP server enable/approval flow.
-- **GitHub Copilot in VS Code and Copilot CLI:** The current beta uses the workspace-root `.mcp.json`, which is also Claude Code's project file. Both clients share the `foxy-workspace-mcp` local SQLite queue namespace; simultaneous processes are intended to coordinate through transactional claims, worker leases and cancellation state. The global `$COPILOT_HOME/mcp-config.json` or `~/.copilot/mcp-config.json` destination is not written by `vibesane connect`. The new multi-process tests are pending exact-source Windows/macOS CI and real-host acceptance. Do not describe concurrency as release-verified until those checks pass.
+- **GitHub Copilot in VS Code and Copilot CLI:** The current beta uses the workspace-root `.mcp.json`, which is also Claude Code's project file. Both clients share the `foxy-workspace-mcp` local SQLite queue namespace; simultaneous processes are coordinated by transactional claims, worker leases and cancellation state. The global `$COPILOT_HOME/mcp-config.json` or `~/.copilot/mcp-config.json` destination is not written by `vibesane connect`. Automated multi-process queue coverage passed as part of run #46055587747 on its exact source SHA; commit `089c2ac` adds baseline runtime provenance and is being requalified in run #46108972740. Actual Copilot host acceptance remains pending; do not claim host-level concurrency until it is exercised in real Copilot processes.
 
 ## Platform-specific coverage
 
