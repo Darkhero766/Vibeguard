@@ -107,6 +107,8 @@ try {
     'vibesane install', 'vibesane update', '--dry-run', '--agent auto', 'curl -fsSL https://vibesane.app/install.sh | bash', "$env:FOXY_INSTALL_AGENT='auto'; irm https://vibesane.app/install.ps1 | iex", 'global executable path', 'vibesane uninstall',
     'VibeSane Foxy 0.7.0-beta.6', 'Windows, macOS, and Ubuntu/Linux', 'Actual live-host acceptance',
     'cooperative local verification gate', 'not a tamper-proof security boundary',
+    'licensed under the Apache License, Version 2.0 (Apache-2.0)',
+    'Copyright 2026 Md Faizal', 'See LICENSE, NOTICE and THIRD_PARTY_NOTICES.txt',
   ];
   const missingReadmeText = requiredReadmeText.filter((item) => !packagedReadme.stdout.includes(item));
   assert(missingReadmeText.length === 0,
@@ -118,6 +120,18 @@ try {
   assert(packagedReadme.stdout.includes('not published')
     && packagedReadme.stdout.includes('owner-approved registry publication'),
     'Packaged README must not imply public npx installation is available before release approval.');
+  const archivedManifest = JSON.parse((await run('tar', ['-xOf', archive, 'package/package.json'])).stdout);
+  assert(archivedManifest.license === 'Apache-2.0'
+    && archivedManifest.files?.includes('LICENSE') && archivedManifest.files?.includes('NOTICE'),
+    'The npm archive manifest must declare Apache-2.0 and explicitly include LICENSE and NOTICE.');
+  const archivedLicense = await run('tar', ['-xOf', archive, 'package/LICENSE']);
+  const archivedNotice = await run('tar', ['-xOf', archive, 'package/NOTICE']);
+  assert(archivedLicense.stdout.includes('Apache License')
+    && archivedLicense.stdout.includes('Version 2.0, January 2004'),
+    'The npm archive is missing the full Apache License 2.0 text.');
+  assert(archivedNotice.stdout.includes('Copyright 2026 Md Faizal')
+    && archivedNotice.stdout.includes('Third-party components'),
+    'The npm archive is missing the Foxy copyright and third-party attribution notice.');
 
   await run('npm', ['install', '--global', '--ignore-scripts', '--offline', '--no-audit', '--no-fund', '--prefix', installPrefix, archive], {
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_offline: 'true' },
@@ -128,8 +142,14 @@ try {
   const installedManifest = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
   assert(installedManifest.name === '@vibesane/foxy' && installedManifest.private !== true
     && installedManifest.publishConfig?.access === 'public'
-    && installedManifest.bin?.foxy === './scripts/vibesane.mjs',
-    'Installed package must expose the public Foxy package identity and npx-compatible foxy executable.');
+    && installedManifest.bin?.foxy === './scripts/vibesane.mjs'
+    && installedManifest.license === 'Apache-2.0',
+    'Installed package must expose the public Foxy identity, Apache-2.0 metadata and npx-compatible foxy executable.');
+  const installedLicense = await readFile(path.join(packageRoot, 'LICENSE'), 'utf8');
+  const installedNotice = await readFile(path.join(packageRoot, 'NOTICE'), 'utf8');
+  assert(installedLicense.includes('Apache License') && installedLicense.includes('Version 2.0, January 2004')
+    && installedNotice.includes('Copyright 2026 Md Faizal'),
+    'The installed npm package must retain its license and copyright notice.');
   assert(installedManifest.engines?.node === '>=24.15.0',
     'Installed package must declare its built-in SQLite runtime requirement.');
   assert(installedManifest.repository?.type === 'git'
