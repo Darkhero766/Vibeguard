@@ -123,3 +123,10 @@ The draft Foxy package branch now includes a scoped Apache License 2.0 implement
 - `docs/FOXY_LICENSE_AND_OWNERSHIP.md` records the Foxy distribution boundary, copyright/assignment checks, third-party treatment, trademarks, DCO/CLA choice and manual owner actions. `docs/FOXY_CONTRIBUTING.md` describes the sign-off process.
 
 This resolves the generated `UNLICENSED` metadata blocker at source level only. It does not independently prove that Md Faizal owns every included contribution, complete the third-party rights audit, verify the npm organization/scope, configure npm Trusted Publishing, or authorize publication. The package remains unpublished and PR #70 remains draft/open/unmerged. The generated archive must pass a new exact-source Windows/macOS/Linux qualification before these changes are considered validated.
+
+
+Final license-validation candidate update:
+- Current PR #70 head at this note: `bcbe7c1019bcdc0c12ee5ea38d1d498fa70b3076`.
+- Exact-source qualification: [workflow #46159923973](https://github.com/Darkhero766/Vibeguard/actions/runs/46159923973), queued/pending when checked; GitHub returned no matrix jobs yet. Do not claim the license/package-builder changes passed until this run has Windows, macOS and Ubuntu jobs completed successfully, and the artifact content hashes match.
+- The final package normalizer accepts only known text extensions plus the two exact extensionless filenames `LICENSE` and `NOTICE`; arbitrary extensionless files remain rejected.
+- The private-beta release checklist now includes scoped-license, legal assignment, third-party inventory, npm namespace ownership, Trusted Publishing and DCO checks.
