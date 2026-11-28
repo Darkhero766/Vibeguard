@@ -46,8 +46,8 @@ for (const token of [
   'Read-only MCP tools', 'canonical Git root',
   '472 / 472', 'Regression suite', 'Windows + macOS + Ubuntu/Linux', '10 tools', '30 files',
   'real-host acceptance', 'independent security review',
-  'https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745',
-  'https://github.com/Darkhero766/Vibeguard/pull/70', 'https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745', 'f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14', 'Install MCP', 'Available after beta publication', 'not published yet', 'Auto-detect installed agents', 'Configure for', '--agent codex', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
+  'https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503',
+  'https://github.com/Darkhero766/Vibeguard/pull/70', 'https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503', 'edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8', 'Install MCP', 'Available after beta publication', 'not published yet', 'Auto-detect installed agents', 'Configure for', '--agent codex', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
 ]) assert.ok(html.includes(token), 'Foxy SEO route is missing: ' + token);
 
 assert.match(html, /<main id="main-content"/);
