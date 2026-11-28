@@ -12,7 +12,9 @@ assert.ok(shellInstaller.startsWith('#!/usr/bin/env bash') && shellInstaller.inc
 assert.ok(shellInstaller.includes('https://registry.npmjs.org') && shellInstaller.includes('npm view "${PACKAGE}@${CHANNEL}"'));
 assert.ok(shellInstaller.includes('npm install --global --ignore-scripts') && shellInstaller.includes('foxy_command" install --agent'));
 assert.ok(shellInstaller.includes('Node.js 24.15.0 or newer') && !shellInstaller.includes('foxy install --agent "$agent" --yes'));
-assert.ok(powershellInstaller.includes("https://registry.npmjs.org") && powershellInstaller.includes('npm view "$PackageName@$Channel"'));
+assert.ok(powershellInstaller.includes("https://registry.npmjs.org")
+  && powershellInstaller.includes("$NpmPath view \"$PackageName@$Channel\"")
+  && powershellInstaller.includes("Get-Command 'npm.cmd'"));
 assert.ok(powershellInstaller.includes('--ignore-scripts') && powershellInstaller.includes('& $FoxyCommand install --agent $Agent'));
 assert.ok(powershellInstaller.includes('Node.js 24.15.0 or newer') && !powershellInstaller.includes('--yes'));
 if (process.platform === 'win32') {
