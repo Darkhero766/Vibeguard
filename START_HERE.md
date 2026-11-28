@@ -2,7 +2,7 @@
 
 **Last maintained:** 28 November 2026  
 **Repository:** `Darkhero766/Vibeguard`  
-**Foxy beta.6:** [PR #70](https://github.com/Darkhero766/Vibeguard/pull/70) remains draft/open/unmerged. Exact code SHA `3ec649c01506ae077639595794fd0b0cc445db04` passed [three-platform qualification run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745); 472/472 regression tests per OS, 30-file package, content SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`. Package is local-only and unpublished.  
+**Foxy beta.6:** [PR #70](https://github.com/Darkhero766/Vibeguard/pull/70) remains draft/open/unmerged. Exact code SHA `ca9de05d00672d9a3148deec13ee2e280f1996eb` passed [three-platform qualification run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503); 472/472 regression tests per OS, 30-file package, content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`. The website Install MCP flow is present but publication-gated. Package is local-only and unpublished.  
 **Clerk sign-in:** [PR #71](https://github.com/Darkhero766/Vibeguard/pull/71) remains draft/open/unmerged. Frontend/auth-contract CI passed on `e715a029864d35bc244c72a03815a98e4edf8a6`; Clerk is an optional provider through Supabase Auth, and `VITE_CLERK_AUTH_ENABLED` stays false until staging provider setup and real account-linking acceptance.  
 **SaaS hardening:** [PR #61](https://github.com/Darkhero766/Vibeguard/pull/61) — draft and unmerged.  
 **Durable live checkpoint:** read [docs/VIBESANE_ENGINEERING_STATE.md](docs/VIBESANE_ENGINEERING_STATE.md) first; it records exact heads, workflow evidence, blockers and next tasks.  
