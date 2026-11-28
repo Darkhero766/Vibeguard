@@ -15,7 +15,8 @@ assert.ok(html.includes('Foxy maintains only its own local scan, baseline and qu
 assert.ok(!/read-only MCP/i.test(html), 'Preview must not imply every MCP tool is side-effect free.');
 assert.ok(html.includes('472 / 472') && html.includes('Windows') && html.includes('Ubuntu / Linux'));
 assert.ok(html.includes('id="install"') && html.includes('Available after beta publication'));
-assert.ok(html.includes('npx -y @vibesane/foxy@beta install'));
+assert.ok(html.includes('curl -fsSL https://vibesane.app/install.sh | bash'));
+assert.ok(html.includes("$env:FOXY_INSTALL_AGENT='auto'; irm https://vibesane.app/install.ps1 | iex"));
 assert.ok(html.includes('--agent codex') && html.includes('--agent copilot'), 'Static preview must document explicit host targeting.');
 assert.ok(html.includes('Beta.6 passed the three-platform automated matrix.'));
 assert.ok(html.includes('https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503'), 'Static preview must link to the final qualified Beta.6 run.');
