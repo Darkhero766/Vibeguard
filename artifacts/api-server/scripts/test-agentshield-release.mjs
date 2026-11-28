@@ -185,7 +185,7 @@ test('frontend does not falsely report successful GitHub disconnect after API fa
 
 
 test('release tag parser extracts the exact package version', async () => {
-  const source = await read('scripts/agentshield-version.mjs');
+  const source = await read('artifacts/api-server/scripts/agentshield-version.mjs');
   const match = source.match(/AGENTSHIELD_VERSION\\s*=\\s*'([^']+)'/);
   assert.ok(match, 'Package version source must contain the expected named constant.');
   assert.equal(match[1], AGENTSHIELD_VERSION);
