@@ -150,10 +150,12 @@ export async function assertSafeGitConfiguration(worktreeRoot) {
     const keys = await keysFromConfigSnapshot(content);
     const blocked = keys.find(executableConfigKey);
     if (blocked) {
-      throw new Error(
+      const error = new Error(
         'Foxy refused to inspect this repository because its Git configuration contains an executable-capable setting ('
         + blocked + '). Remove that setting or use a clean checkout before scanning or installing Foxy.',
       );
+      error.code = 'FOXY_UNSAFE_GIT_CONFIG';
+      throw error;
     }
   }
   return true;
