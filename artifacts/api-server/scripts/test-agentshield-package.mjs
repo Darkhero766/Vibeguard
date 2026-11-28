@@ -607,6 +607,31 @@ try {
     && fullUninstall.preserved.includes('baselines'),
     'Full uninstall must explicitly preserve the installed CLI and local security data.');
 
+  const modifiedSkillFixture = path.join(temp, 'modified-skill-uninstall-fixture');
+  await mkdir(modifiedSkillFixture, { recursive: true });
+  await run('git', ['init', '-q', modifiedSkillFixture]);
+  await runCli(['init-codex', '--cwd', modifiedSkillFixture], { cwd: temp, env: uninstallEnv });
+  const modifiedSkillPath = path.join(
+    modifiedSkillFixture, '.agents', 'skills', 'vibesane-agentshield', 'SKILL.md',
+  );
+  const modifiedSkillText = (await readFile(modifiedSkillPath, 'utf8')) + '\\nUser customization: keep this paragraph.\\n';
+  await writeFile(modifiedSkillPath, modifiedSkillText);
+  const modifiedSkillUninstallOutput = await runCli(
+    ['uninstall', '--cwd', modifiedSkillFixture], { cwd: temp, env: uninstallEnv },
+  );
+  const modifiedSkillUninstall = JSON.parse(
+    modifiedSkillUninstallOutput.stdout.trim().split(/\\r?\\n/).at(-1),
+  );
+  assert.equal(modifiedSkillUninstall.status, 'uninstalled');
+  assert.equal(modifiedSkillUninstall.codex.skillRemoved, false,
+    'Uninstaller must report that a user-modified bundled skill was preserved.');
+  assert.equal(await readFile(modifiedSkillPath, 'utf8'), modifiedSkillText,
+    'User-modified Codex skills must survive the workspace uninstaller.');
+  const modifiedHooks = JSON.parse(await readFile(
+    path.join(modifiedSkillFixture, '.codex', 'hooks.json'), 'utf8',
+  ));
+  assert.ok(!modifiedHooks.hooks?.Stop, 'Managed Codex Stop hook should still be removed when skill was customized.');
+
   const manifestHash = createHash('sha256');
   for (const file of packaged.fileDigests) {
     manifestHash.update(file.path).update('\0').update(String(file.bytes)).update('\0')
