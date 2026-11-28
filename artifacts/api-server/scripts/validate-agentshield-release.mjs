@@ -204,7 +204,7 @@ async function main() {
     && Number.isInteger(mcpSmokeStep.evidence?.tools) && mcpSmokeStep.evidence.tools >= 10);
   const packageStep = results.find(item => item.name === 'offline-package-install-cli-mcp-smoke');
   const expectedPackageChecks = [
-    'build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'doctor',
+    'build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'foxy-bin-help', 'foxy-bin-install-dry-run-no-write', 'doctor',
     'one-command-agent-connect',
     'one-command-agent-disconnect',
     'universal-installer-no-consent-denied', 'universal-installer-dry-run',
