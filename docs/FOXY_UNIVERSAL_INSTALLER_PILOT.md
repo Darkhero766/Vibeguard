@@ -41,9 +41,18 @@ corepack prepare pnpm@10.34.9 --activate
 pnpm install --frozen-lockfile
 pnpm --filter @workspace/api-server run build:agentshield
 pnpm --filter @workspace/api-server run test:agentshield:connect
+pnpm --filter @workspace/api-server run test:agentshield:package
 ```
 
-The connector test command includes the new universal-installer test suite. Record the exact commit SHA, runtime versions and full test output. This local Codespaces run is not a substitute for Windows/macOS qualification.
+The connector test command includes the new universal-installer unit tests. The package test builds the local unpublished archive, installs it into a temporary prefix and exercises the installed CLI with a synthetic repository (including consent denial, dry-run/no-write, install/verification, idempotent repeat and disconnect). Record the exact commit SHA, runtime versions and full test output.
+
+For the full local release qualification (longer; still local and non-publishing), run:
+
+```bash
+pnpm --filter @workspace/api-server run test:agentshield:release-qualification
+```
+
+This includes the source syntax gate, regression suite, synthetic benchmarks and offline package smoke. It does not replace Windows/macOS/Linux CI coverage or live-host acceptance.
 
 ## 3. Create a disposable project
 
