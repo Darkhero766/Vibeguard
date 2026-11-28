@@ -6,9 +6,21 @@ import {
   buildInstallPlan,
   prepareInstallPlan,
   applyInstallPlan,
+  checkInstallerRuntime,
 } from './agentshield-universal-install.mjs';
 
 const root = path.resolve(path.parse(process.cwd()).root, 'foxy-installer-fixture');
+
+
+test('installer runtime preflight rejects unsupported Node versions and operating systems', () => {
+  assert.deepEqual(checkInstallerRuntime('24.15.0', 'linux'), {
+    nodeVersion: 'v24.15.0', platform: 'linux', supported: true,
+  });
+  assert.deepEqual(checkInstallerRuntime('25.1.0', 'darwin').supported, true);
+  assert.throws(() => checkInstallerRuntime('24.14.9', 'linux'), /Node.js 24.15.0 or newer/);
+  assert.throws(() => checkInstallerRuntime('23.99.0', 'win32'), /Node.js 24.15.0 or newer/);
+  assert.throws(() => checkInstallerRuntime('24.22.0', 'freebsd'), /does not support this operating system/);
+});
 
 test('installer arguments default to automatic detection and reject unsafe or unknown flags', () => {
   assert.deepEqual(parseInstallArgs([]), {
