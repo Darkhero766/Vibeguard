@@ -25,7 +25,7 @@ export function checkInstallerRuntime(nodeVersion = process.versions.node, platf
   if (!['win32', 'darwin', 'linux'].includes(platform)) {
     throw new Error('Foxy installer does not support this operating system: ' + platform + '.');
   }
-  return { nodeVersion: 'v' + nodeVersion, platform, supported: true };
+  return { nodeVersion: 'v' + match.slice(1).join('.'), platform, supported: true };
 }
 
 const CONFIG_TARGETS = Object.freeze({
