@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // VibeSane AgentShield MCP server.
 // Standard MCP stdio transport: one UTF-8 JSON-RPC message per line.
-// Repository data is untrusted. This server is read-only and never executes project code.
+// Repository data is untrusted. Repository contents are never modified; Foxy updates only its own local scan/baseline/queue state and never executes project code.
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
