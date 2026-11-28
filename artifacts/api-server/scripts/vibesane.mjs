@@ -16,6 +16,7 @@ const controller = path.resolve(scripts, 'agentshield-controller.mjs');
 const hybrid = path.resolve(scripts, 'agentshield-hybrid.mjs');
 const capabilities = path.resolve(scripts, 'agentshield-capabilities.mjs');
 const installer = path.resolve(scripts, 'agentshield-install.mjs');
+const universalInstaller = path.resolve(scripts, 'agentshield-universal-install.mjs');
 const connector = path.resolve(scripts, 'agentshield-connect.mjs');
 const exec = promisify(execFile);
 const MAX_HOST_CONFIG_BYTES = 256_000;
@@ -478,6 +479,7 @@ async function main(args) {
       'Commands:',
       '  vibesane doctor [--cwd PROJECT]',
       '  vibesane connect [--agent auto|all|claude|codex|cursor|gemini|roo|copilot|mcp] [--cwd PROJECT]  Auto-register MCP',
+      '  vibesane install [--agent auto|all|claude|codex|cursor|gemini|roo|copilot] [--cwd PROJECT]  Consent-first universal MCP setup',
       '  vibesane disconnect [--agent auto|all|claude|codex|cursor|gemini|roo|copilot] [--cwd PROJECT]  Remove exact managed MCP entries',
       '  vibesane mcp-doctor  Validate MCP workspace authorization without printing paths',
       '  vibesane scan --changed [--base-ref REF] [--cwd PROJECT]',
@@ -505,6 +507,7 @@ async function main(args) {
   }
   if (command === 'doctor') return doctor(tail);
   if (command === 'connect') return child(connector, tail);
+  if (command === 'install') return child(universalInstaller, tail);
   if (command === 'disconnect') return child(connector, ['disconnect', ...tail]);
   if (command === 'mcp-doctor' && tail.length === 0) return mcpDoctor();
   if (command === 'capabilities') {
