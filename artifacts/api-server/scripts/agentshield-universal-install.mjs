@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { realpath } from 'node:fs/promises';
+import { realpath, stat } from 'node:fs/promises';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import {
@@ -65,7 +65,7 @@ export async function resolveGitRoot(cwd) {
     'rev-parse', '--show-toplevel',
   ], { timeout: 7000, maxBuffer: 4000, windowsHide: true });
   const root = await realpath(stdout.trim());
-  const info = await import('node:fs/promises').then(({ stat }) => stat(root));
+  const info = await stat(root);
   const home = await realpath(os.homedir()).catch(() => path.resolve(os.homedir()));
   const normalized = (value) => process.platform === 'win32' ? value.toLowerCase() : value;
   if (!info.isDirectory() || normalized(root) === normalized(path.parse(root).root)
@@ -179,7 +179,7 @@ export async function applyInstallPlan(plan, overrides = {}) {
   }
 }
 
-async function confirmPlan(plan) {
+async function confirmPlan() {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
     const answer = await rl.question('Apply this project-scoped MCP configuration? [y/N] ');
@@ -232,7 +232,7 @@ async function main(args) {
         throw new Error('Installation needs explicit consent. Re-run interactively or pass --yes after reviewing the target plan.');
       }
       printHumanPlan(plan);
-      if (!await confirmPlan(plan)) {
+      if (!await confirmPlan()) {
         const output = { status: 'cancelled', root: plan.root, hosts: plan.hosts, changed: false };
         process.stdout.write(options.json ? JSON.stringify(output) + '\n' : 'Cancelled. No configuration was changed.\n');
         return 1;
