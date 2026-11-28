@@ -203,3 +203,18 @@ This section supersedes older candidate-SHA and in-progress-status notes earlier
 ## Launch decision
 
 Two-day timing does not justify waiving the remaining gates. The present candidate should not be called public-launch ready until exact-source Windows/macOS qualification passes, actual host sessions are accepted for every advertised host/platform pair (or the support matrix is narrowed), and an independent security reviewer signs off. If those gates are still open at the target date, use a restricted private beta for the combinations actually tested or defer public distribution. Do not expand Markdown/config scanning or add optional integrations in the final qualification window.
+
+
+## 28 November 2026 — final Foxy beta.5 exact-source qualification
+
+This section supersedes the older 453/453 and pending-status notes above.
+
+- **Qualified code source:** `8ff17de5c5f9ce788e3447ae47263c77136cc3db`.
+- **Exact-source Windows/macOS workflow:** [#46109758971](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971) — both platform jobs completed successfully.
+- **Regression suite:** 454/454 on Windows (win32 x64) and 454/454 on macOS (darwin arm64), Node.js v24.15.0; zero failed, cancelled or skipped cases.
+- **Release reports:** both `validation_passed_review_required`, release decision `candidate_for_independent_human_review`, with no failed steps. Reports state `productionTouched: false` and `syntheticFixturesOnly: true`.
+- **Package parity:** 29 files each, all per-file digests identical, canonical package content SHA-256 `42d5d09d7a5473020b0e7706f0a3bcf07172180db657a9c85c1aa663cb3571e6`.
+- **Main hardening:** persisted baselines bind to scanner provenance and runtime implementation identity, including the bundled installed MCP STDIO entrypoint. Cross-process SQLite startup retries only bounded BUSY/LOCKED errors while requiring WAL mode; the race found in the prior Windows run is covered by the passing 454-test suite.
+- **Current PR state:** PR #70 remains draft, open, unmerged and mergeability-blocked by stacked ancestry. The post-qualification branch changes are documentation-only. No production deployment, npm publication or public release was performed.
+
+**Still open before public launch:** actual host acceptance on the exact hosts/OS combinations to be advertised; independent external security review and disposition of all 11 prior findings; PR #69/#70 stack reconciliation; package/release provenance and operational rollback; support/recovery procedures; website/browser/accessibility QA and owner authorization. If those remain incomplete at the two-day target, use a restricted private beta only for tested combinations or defer the public release. Passing CI does not waive these gates.

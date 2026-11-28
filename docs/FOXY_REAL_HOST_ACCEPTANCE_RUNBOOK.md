@@ -6,7 +6,7 @@ This runbook captures the real application acceptance that automated Windows/mac
 
 A green CI run is necessary but not sufficient for distribution. The host matrix below remains a human-controlled release gate.
 
-**Automated evidence context (2026-11-28):** source SHA `a777754de234ed2e469cd9822ad4a1f5f881e095` passed the Windows/macOS beta.5 qualification in run [#46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747), with 453/453 regression tests per OS. Runtime-provenance hardening was added in `089c2ac`; its first exact-source run [#46108972740](https://github.com/Darkhero766/Vibeguard/actions/runs/46108972740) correctly returned `not_qualified` after three regression failures and an MCP STDIO smoke failure caused by missing provenance propagation and a test-scope error. Those specific defects were fixed in `e3edce0` and `65cd27b`. The current candidate is `65cd27b474db7863e1795a7d4dd59d44045e7177`; its exact-source run [#46109329318](https://github.com/Darkhero766/Vibeguard/actions/runs/46109329318) was still in progress when this runbook was updated. Check the final run result before distribution. All real-host rows below remain **Pending** until tested by a human on that host and OS.
+**Automated evidence context (2026-11-28):** current code SHA `8ff17de5c5f9ce788e3447ae47263c77136cc3db` passed Windows and macOS exact-source qualification in run [#46109758971](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971). Both reports show 454/454 regression tests, zero failures/cancellations/skips, MCP STDIO integration smoke and offline package smoke passed, and status `validation_passed_review_required`. The identical 29-file package content digest is `42d5d09d7a5473020b0e7706f0a3bcf07172180db657a9c85c1aa663cb3571e6`. This is automated evidence only. All real-host rows below remain **Pending** until tested by a human on that host and OS.
 
 ## Candidate evidence
 
@@ -68,7 +68,7 @@ The queue mutates Foxy-owned SQLite state only; it does not write the repository
 - **Cursor:** validate .cursor/mcp.json, restart, and enterprise MCP controls if applicable.
 - **Gemini CLI:** validate .gemini/settings.json and the MCP approval behavior for the installed CLI version.
 - **Roo Code:** validate .roo/mcp.json and its MCP server enable/approval flow.
-- **GitHub Copilot in VS Code and Copilot CLI:** The current beta uses the workspace-root `.mcp.json`, which is also Claude Code's project file. Both clients share the `foxy-workspace-mcp` local SQLite queue namespace; simultaneous processes are coordinated by transactional claims, worker leases and cancellation state. Automated multi-process queue coverage passed on the earlier exact source SHA in run #46055587747. The runtime-provenance follow-up is now at `65cd27b` and being requalified in run #46109329318 after fixing issues found by run #46108972740. Actual Copilot host acceptance remains pending; do not claim host-level concurrency until it is exercised in real Copilot processes.
+- **GitHub Copilot in VS Code and Copilot CLI:** The current beta uses the workspace-root `.mcp.json`, which is also Claude Code's project file. Both clients share the `foxy-workspace-mcp` local SQLite queue namespace; simultaneous processes are coordinated by transactional claims, worker leases and cancellation state. Automated multi-process queue coverage passed on the earlier exact source SHA in run #46055587747. The current code `8ff17de` passed exact-source Windows/macOS qualification in run #46109758971. Actual Copilot host acceptance remains pending; automated multi-process tests do not establish host-level behavior. Actual Copilot host acceptance remains pending; do not claim host-level concurrency until it is exercised in real Copilot processes.
 
 ## Platform-specific coverage
 
@@ -162,3 +162,10 @@ This section supersedes older candidate-SHA and in-progress-status notes earlier
 
 
 All actual host-acceptance rows remain pending. The beta package's successful STDIO smoke is not evidence that Claude Code, Codex, Cursor, Gemini, Roo or Copilot accepted and operated the server in their real applications.
+
+
+## Final automated evidence — 28 November 2026
+
+Use package candidate source `8ff17de5c5f9ce788e3447ae47263c77136cc3db`, qualified in [run #46109758971](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971). Both platform artifacts passed; each has 454/454 tests and a matching 29-file package manifest. Canonical package content SHA-256: `42d5d09d7a5473020b0e7706f0a3bcf07172180db657a9c85c1aa663cb3571e6`.
+
+This does not complete the host matrix. Test real host versions and exact OS combinations only with disposable repositories and the final package checksum. Do not advertise an untested host as supported.

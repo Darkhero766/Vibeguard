@@ -66,3 +66,12 @@ This section supersedes older candidate-SHA and in-progress-status notes earlier
 The runtime fingerprint includes the bundled STDIO executable launched by installed hosts and six supporting MCP/queue modules: `agentshield-mcp-server.mjs`, `agentshield-mcp-sdk.mjs`, `agentshield-jobs.mjs`, `agentshield-jobs-store.mjs`, `agentshield-baselines.mjs` and `agentshield-version.mjs`. Missing or changed provenance prevents a persisted remediation baseline from being reused. This fingerprint is integrity/version binding, not a package signature or proof against a compromised local account or installer.
 
 Independent reviewers should verify that the ESM bundle's `import.meta.url` resolves to the installed entrypoint on Windows and macOS, confirm the bundle is actually hashed at runtime, and test WAL contention under slow startup and endpoint-security file scanning. The retry budget must fail closed when exhausted.
+
+
+## 28 November 2026 — final automated evidence update
+
+The current code candidate `8ff17de5c5f9ce788e3447ae47263c77136cc3db` passed source-matched Windows/macOS qualification [#46109758971](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971). Each platform report records 454/454 tests, zero failed/cancelled/skipped tests, all release validator stages passed, and status `validation_passed_review_required`. The package contains 29 files on each OS with identical canonical content SHA-256 `42d5d09d7a5473020b0e7706f0a3bcf07172180db657a9c85c1aa663cb3571e6`.
+
+The runtime baseline fingerprint now includes the installed bundled `agentshield-mcp-stdio.mjs` plus the six unbundled MCP/queue modules. The queue's WAL startup transition retries only transient SQLite BUSY/LOCKED conditions for a bounded period and refuses to proceed unless WAL is confirmed. This was qualified on Windows and macOS in the exact-source run.
+
+This automated result does not close the independent review, real-host acceptance, or release-operations threat-model items. It is not certification and does not grant production authorization. Continue to treat Markdown agent instruction files as unsupported scan content/partial coverage; do not imply they are analyzed.

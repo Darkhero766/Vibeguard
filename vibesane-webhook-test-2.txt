@@ -1,2 +1,0 @@
-VibeSane push-event verification test.
-Created to verify GitHub App push delivery after reconnecting repository protection.

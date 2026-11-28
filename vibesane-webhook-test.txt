@@ -1,2 +1,0 @@
-VibeSane webhook verification test
-Created to verify push protection webhook delivery.

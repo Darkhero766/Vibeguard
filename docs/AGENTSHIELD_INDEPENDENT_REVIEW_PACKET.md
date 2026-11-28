@@ -181,3 +181,15 @@ This section supersedes older candidate-SHA and in-progress-status notes earlier
 
 
 The current independent review scope also includes the Windows WAL startup retry and the installed bundled STDIO fingerprint. Reproduce the one-process-versus-two-process initialization race, verify no weaker SQLite mode is accepted, confirm timeout behavior is UNKNOWN/fail-closed, and verify that changing the bundled entrypoint invalidates persisted baseline provenance after restart. The review packet is a request for review, not a completed independent review.
+
+
+## Final exact-source qualification evidence — 28 November 2026
+
+**Current code source:** `8ff17de5c5f9ce788e3447ae47263c77136cc3db`  
+**Windows/macOS run:** [#46109758971](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971) — both jobs completed successfully.  
+**Tests:** 454/454 on Windows and 454/454 on macOS; zero failed, cancelled or skipped tests. Both validation reports are `validation_passed_review_required`, with `candidate_for_independent_human_review` as the release decision.  
+**Package:** 29 files on each OS; same per-file SHA-256 map and aggregate content digest `42d5d09d7a5473020b0e7706f0a3bcf07172180db657a9c85c1aa663cb3571e6`. [Windows artifact](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971/artifacts/15249631042) · [macOS artifact](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971/artifacts/15249481163).
+
+The latest source also contains the bundled installed STDIO entrypoint in its MCP runtime fingerprint and the bounded fail-closed SQLite WAL initialization retry. The earlier Windows two-process initialization race no longer reproduces in the exact-source run; all 454 tests passed. The reports specify synthetic fixtures only and `productionTouched: false`.
+
+**Do not treat automated qualification as the independent review.** Independently reproduce the baseline runtime-drift invalidation, bundled-entrypoint fingerprint behavior, WAL retry/exhaustion path, SQLite ownership and migration invariants, root pinning/TOCTOU boundaries, host configuration preservation, and real host tool discovery/approval. The previous 11-finding evidence set still requires reviewer-by-reviewer disposition and signed residual-risk assessment.

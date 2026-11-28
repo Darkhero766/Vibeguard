@@ -1,2 +1,0 @@
-VibeSane webhook commit test.
-This harmless file exists only to verify that a push event reaches VibeSane.

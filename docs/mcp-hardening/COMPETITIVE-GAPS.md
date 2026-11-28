@@ -24,3 +24,14 @@ Competing on rule count is not realistic. VibeSane can stand out by making resul
 3. **Then:** add optional Semgrep and Gitleaks/OSV adapters behind explicit availability and timeout contracts. Validate each adapter using synthetic fixtures and bounded outputs before advertising it.
 4. **Later:** assess Trivy/CodeQL only for use cases where the runtime/setup cost is acceptable. Keep remote APIs, repository uploads, and server execution out of the default local flow.
 5. **Measure:** use OWASP Benchmark for compatible languages and small labeled application fixtures for JS/TS, SQL/RLS, MCP configuration and agent instructions. Publish scope, version, coverage, latency and confusion matrix together.
+
+
+## 28 November 2026 — launch-window update
+
+Foxy beta.5 source `8ff17de5c5f9ce788e3447ae47263c77136cc3db` passed exact-source Windows/macOS qualification in run #46109758971: 454/454 regression tests per OS, MCP STDIO and offline package smoke, and all synthetic benchmark validators. Both 29-file package manifests match exactly. This moves automated cross-platform qualification from open to passed; it does not establish independent certification or real host compatibility.
+
+Two targeted hardening changes made during this launch window:
+1. Persisted remediation baselines are bound to the installed bundled MCP STDIO executable and supporting MCP/queue runtime modules, in addition to scanner/ruleset/schema provenance.
+2. Shared SQLite WAL initialization retries transient BUSY/LOCKED conditions only for a bounded period and fails closed without weaker journal fallback.
+
+For the remaining two days, do not widen scanner extensions or add integrations. Prioritize independent review of the authorization and queue invariants, real host acceptance for the support matrix, PR stack reconciliation, operational recovery, and public-claim accuracy. Keep unsupported Markdown instruction files clearly labeled as partial coverage.
