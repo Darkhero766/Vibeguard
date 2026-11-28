@@ -16,6 +16,20 @@ import {
 
 const exec = promisify(execFile);
 const SUPPORTED_HOSTS = Object.freeze(['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']);
+export function checkInstallerRuntime(nodeVersion = process.versions.node, platform = process.platform) {
+  const parts = String(nodeVersion).split('.').map((part) => Number(part));
+  const [major, minor, patch] = parts;
+  if (parts.length < 2 || parts.some((part) => !Number.isInteger(part) || part < 0)) {
+    throw new Error('Could not parse the Node.js runtime version.');
+  }
+  const supportedNode = major > 24 || (major === 24 && (minor > 15 || (minor === 15 && (patch || 0) >= 0)));
+  if (!supportedNode) throw new Error('Foxy requires Node.js 24.15.0 or newer; current runtime is v' + nodeVersion + '.');
+  if (!['win32', 'darwin', 'linux'].includes(platform)) {
+    throw new Error('Foxy installer does not support this operating system: ' + platform + '.');
+  }
+  return { nodeVersion: 'v' + nodeVersion, platform, supported: true };
+}
+
 const CONFIG_TARGETS = Object.freeze({
   claude: '.mcp.json',
   copilot: '.mcp.json',
@@ -101,6 +115,7 @@ export function buildInstallPlan({ agent = 'auto', root, detected = [] }) {
 }
 
 export async function prepareInstallPlan(options, overrides = {}) {
+  checkInstallerRuntime(overrides.nodeVersion || process.versions.node, overrides.platform || process.platform);
   const resolveRoot = overrides.resolveRoot || resolveGitRoot;
   const detect = overrides.detect || detectAgents;
   const root = await resolveRoot(options.cwd);
