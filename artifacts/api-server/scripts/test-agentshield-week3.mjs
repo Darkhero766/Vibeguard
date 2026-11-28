@@ -272,8 +272,15 @@ test('abandoned lock is recovered only when old and its owning process is gone',
   const hash = text => createHash('sha256').update(text).digest('hex').slice(0, 28);
   const lock = path.join(f.env.VIBESANE_AGENTSHIELD_STATE_HOME, hash(await realpath(f.root)), hash('test-week3') + '.json.lock');
   await mkdir(lock, { recursive: true });
+  const deadProcess = spawn(process.execPath, ['-e', 'process.exit(0)'], { stdio: 'ignore', windowsHide: true });
+  const deadPid = deadProcess.pid;
+  await new Promise((resolve, reject) => {
+    deadProcess.once('error', reject);
+    deadProcess.once('close', resolve);
+  });
+  assert.ok(Number.isInteger(deadPid));
   await writeFile(path.join(lock, 'owner.json'), JSON.stringify({
-    pid: 2147483000, host: hostname(), createdAt: Date.now() - 90_000, token: randomUUID(),
+    pid: deadPid, host: hostname(), createdAt: Date.now() - 90_000, token: randomUUID(),
   }));
   const old = new Date(Date.now() - 90_000);
   await utimes(lock, old, old);
