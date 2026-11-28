@@ -43,7 +43,7 @@ const scripts = [
   'agentshield-sarif.mjs',
 ];
 const PACKAGE_EPOCH = new Date('2020-01-01T00:00:00.000Z');
-const PACKAGE_TEXT_EXTENSIONS = new Set(['', '.mjs', '.cjs', '.json', '.md', '.txt']);
+const PACKAGE_TEXT_EXTENSIONS = new Set(['.mjs', '.cjs', '.json', '.md', '.txt']);
 
 async function normalizePackageTree(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -54,7 +54,9 @@ async function normalizePackageTree(directory) {
       await utimes(fullPath, PACKAGE_EPOCH, PACKAGE_EPOCH);
       continue;
     }
-    if (!entry.isFile() || !PACKAGE_TEXT_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+    const extension = path.extname(entry.name).toLowerCase();
+    const isApprovedExtensionlessFile = ['LICENSE', 'NOTICE'].includes(entry.name);
+    if (!entry.isFile() || (!PACKAGE_TEXT_EXTENSIONS.has(extension) && !isApprovedExtensionlessFile)) {
       throw new Error('Beta package contains an unexpected non-text or non-regular file: ' + entry.name);
     }
     const original = await readFile(fullPath, 'utf8');
