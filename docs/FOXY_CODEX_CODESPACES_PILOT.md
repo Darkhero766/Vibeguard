@@ -1,9 +1,10 @@
-# Foxy beta.5 — Codex CLI pilot in GitHub Codespaces
+# Foxy beta.6 — Codex CLI pilot in GitHub Codespaces
 
-**Candidate:** `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5`  
-**Package version:** `0.7.0-beta.5`  
-**Qualification:** [Windows + macOS exact-source run #46114784990](https://github.com/Darkhero766/Vibeguard/actions/runs/46114784990)  
-**Purpose:** one controlled Codex CLI acceptance session in a Codespace, using an isolated source worktree and a disposable synthetic Git repository.
+**Exact code candidate:** `3ec649c01506ae077639595794fd0b0cc445db04`  
+**Package version:** `@vibesane/foxy@0.7.0-beta.6` (unpublished local archive)  
+**Qualification:** [Windows + macOS + Ubuntu/Linux exact-source run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) — 472/472 regression tests per OS  
+**Package manifest:** 30 files; shared SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`  
+**Purpose:** one controlled Codex CLI acceptance session in a Codespace, using the universal installer from the exact qualified source and a disposable synthetic Git repository.
 
 This procedure does not publish or globally install Foxy. It configures a project-local MCP entry and optional project-local Codex Stop hook/skill for the disposable fixture only. It requires no Supabase, Render, production or customer credentials.
 
