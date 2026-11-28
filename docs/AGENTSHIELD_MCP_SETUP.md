@@ -1,8 +1,10 @@
+> **Current candidate (28 Nov 2026):** `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5` — exact-source Windows/macOS qualification passed in [run #46114784990](https://github.com/Darkhero766/Vibeguard/actions/runs/46114784990), 462/462 tests per OS. For the actual Codespaces Codex CLI pilot, use the dedicated [Foxy Codespaces pilot guide](FOXY_CODEX_CODESPACES_PILOT.md). Older manual examples in this file are historical fallback guidance; the source-checkout `vibesane connect --agent codex` flow is preferred because it writes the scoped project config, absolute server command, allowlist and queue namespace together.
+
 # AgentShield MCP (repository-read-only beta 0.7.0-beta.5)
 
 ## One-time beta setup (macOS/Linux)
 
-Requirements: Node.js 24.15+, Git, pnpm, and a trusted VibeSane checkout. Use a disposable Git repository for the first scan. The previous Windows/macOS connector matrix passed on an earlier beta.4 source revision; the beta.5 SQLite queue still needs exact-source Windows/macOS qualification and real installed-host acceptance.
+Requirements: Node.js 24.15.0 or newer, Git, pnpm 10.34.9 and a trusted VibeSane checkout. The exact beta.5 source SHA `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5` passed the Windows/macOS automated qualification in run #46114784990. Actual installed-host acceptance remains a separate human gate; begin with a disposable Git repository.
 
 From the VibeSane checkout root, build and create the local, unpublished package:
 
@@ -159,26 +161,11 @@ Typical MCP call sequence (replace the absolute workspace path and IDs with retu
 
 `scan_wait` returns the current status after a state change or its timeout; repeat it while the status is `queued` or `running`. `scan_results` returns no findings until completion; advance using `next_offset`. A failed, cancelled, interrupted, truncated, or `partial_coverage` result is UNKNOWN and must not be described as a clean pass. For queued scans, use the `scan_id` from `scan_results` as `verify_remediation.baseline_id`; `job_id` is never a remediation baseline. A synchronous `scan_changed` call returns a `scanId` usable in the current MCP process, but that in-memory baseline is not restored after a server restart.
 
-For a checkout used directly from Codespaces, the exact Codex CLI setup is:
-
-```sh
-codex mcp add foxy --env "VIBESANE_ALLOWED_ROOTS_JSON=$(node -p 'JSON.stringify([process.cwd()])')" -- "$(command -v node)" "$PWD/artifacts/api-server/scripts/agentshield-mcp-stdio.mjs"
-codex mcp list
-```
-
-This authorizes only the current checkout and launches the actual STDIO server from this trusted source tree. Restart/reopen Codex after adding it, then ask Foxy to use `scan_start` with `scope: "changed"`, wait for completion, retrieve `scan_id` with `scan_results`, and use it for remediation verification. For a disposable test checkout, replace `$PWD` with that repository’s absolute path and use the absolute path to the server script. Do not point the allowlist at a broad parent directory.
+For a Codespaces Codex pilot, use the safer project-scoped connector and hook flow in [FOXY_CODEX_CODESPACES_PILOT.md](FOXY_CODEX_CODESPACES_PILOT.md). It creates a separate worktree at the exact qualified SHA, builds from source, creates a disposable fixture and invokes `vibesane connect --agent codex` plus `vibesane init-codex`. Do not use a global install or a broad allowlist for this first test.
 
 ## Client configuration
 
-Codex example:
-
-```toml
-[mcp_servers.vibesane_agentshield]
-command = "vibesane-mcp"
-args = []
-```
-
-Generic MCP stdio client configuration uses command `vibesane-mcp` with no arguments. Use the absolute executable path if the host does not inherit the global npm PATH.
+Codex example: prefer the generated project-scoped `.codex/config.toml` from `vibesane connect --agent codex --cwd PROJECT`. It pins absolute Node/server paths, sets the exact repository root in `VIBESANE_ALLOWED_ROOTS_JSON`, and assigns the `foxy-codex` job-store namespace. Inspect the generated block and trust the project configuration in Codex. Do not copy the unscoped `vibesane-mcp` example into a global Codex config.
 
 ### Authorized workspace roots (required)
 

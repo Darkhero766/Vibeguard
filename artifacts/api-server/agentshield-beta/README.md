@@ -1,10 +1,10 @@
 # AgentShield private-beta pilot kit
 
-**Status:** materials prepared, no real pilot participants recruited and no release approved.
+**Status:** reviewer/pilot materials prepared; no external beta approval or public release. The current exact-source CI candidate is `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5`.
 
 ## Install and connect the coding agent
 
-For the complete copy-and-paste installation flow for Codex and Claude Code, see [`docs/AGENTSHIELD_MCP_SETUP.md`](../../../docs/AGENTSHIELD_MCP_SETUP.md). It builds and installs the unpublished local package, configures the required `VIBESANE_ALLOWED_ROOTS_JSON` allowlist, verifies diagnostics and tool discovery, installs hooks, and documents upgrade, rollback, and uninstall.
+For the current Codex-in-Codespaces pilot use [`docs/FOXY_CODEX_CODESPACES_PILOT.md`](../../../docs/FOXY_CODEX_CODESPACES_PILOT.md). For independent security review use [`docs/FOXY_CLAUDE_INDEPENDENT_REVIEW_BRIEF.md`](../../../docs/FOXY_CLAUDE_INDEPENDENT_REVIEW_BRIEF.md). General MCP setup remains in [`docs/AGENTSHIELD_MCP_SETUP.md`](../../../docs/AGENTSHIELD_MCP_SETUP.md). It builds and installs the unpublished local package, configures the required `VIBESANE_ALLOWED_ROOTS_JSON` allowlist, verifies diagnostics and tool discovery, installs hooks, and documents upgrade, rollback, and uninstall.
 
 Short form from the trusted repository root (Node.js 24.15+, Git, pnpm; exact-source beta.5 Windows/macOS CI passed on `a777754de234ed2e469cd9822ad4a1f5f881e095`; live-host acceptance and independent review remain open):
 
@@ -30,7 +30,7 @@ The default SQLite path is isolated by host namespace and a SHA-256 scope of `VI
 
 ## First run
 
-Exact-source beta.5 qualification passed on Windows and macOS in [Actions run #46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747) at `a777754de234ed2e469cd9822ad4a1f5f881e095`: 453/453 regression tests on each OS, MCP stdio integration, accuracy benchmarks, offline package installation and package content-manifest verification all passed. The 29-file package manifest SHA-256 is identical on both platforms (`7e65e968cbea7f9396148cdb3cfa6483efbf492aba4bf899ac675036812c401a`); the outer tarball checksums/bytes differ by OS archive representation, while all packaged file contents and per-file hashes match. This does not replace actual coding-agent host acceptance or independent security review. Do not distribute the current candidate until those gates and owner approval are complete.
+Exact-source beta.5 qualification passed on Windows and macOS in [Actions run #46114784990](https://github.com/Darkhero766/Vibeguard/actions/runs/46114784990) at `${candidate}`: 462/462 regression tests on each OS, MCP STDIO integration, accuracy benchmarks, offline package installation and package content-manifest verification all passed. The 29-file package manifest SHA-256 is identical on both platforms (`b4ab8da681923e558184b3f156c05a29d6057cc03125d7d91803323ec5793cdd`); the outer tarball checksums/bytes differ by OS archive representation, while all packaged file contents and per-file hashes match. This does not replace actual coding-agent host acceptance or independent security review. Do not distribute the current candidate until those gates and owner approval are complete.
 
 Use the current trusted VibeSane feature checkout (Node.js >=24.15.0, Git and pnpm). The beta.5 SQLite queue has passed exact-source Windows/macOS CI, but real-host acceptance for Claude Code, Codex CLI, Cursor, Gemini CLI, Roo Code and GitHub Copilot remains open:
 
@@ -63,4 +63,4 @@ Static source code stays local when using the scanner. It writes only limited lo
 
 Please use PILOT_FEEDBACK.md if and when a consenting developer completes an approved pilot, and BUG_REPORT.md for reproducible issues. Uninstall first when discontinuing use.
 
-The Codex CLI MCP and Stop-hook paths have synthetic real-client evidence on a historical Linux x64 candidate only. Claude Code, macOS and Windows live-host acceptance remain pending. External beta remains **blocked** until an independent security review, the supported-platform installation checks for the intended tester group, and explicit owner approval are complete.
+The Codex CLI MCP and Stop-hook paths still require live acceptance on this exact candidate and on the intended Codespaces host. The exact-source Windows/macOS CI run is not a real host session. Claude Code, macOS and Windows installed-host acceptance remain pending. External beta remains **blocked** until an independent security review, the supported-platform installation checks for the intended tester group, and explicit owner approval are complete.

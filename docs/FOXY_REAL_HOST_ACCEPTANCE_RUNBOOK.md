@@ -6,7 +6,7 @@ This runbook captures the real application acceptance that automated Windows/mac
 
 A green CI run is necessary but not sufficient for distribution. The host matrix below remains a human-controlled release gate.
 
-**Automated evidence context (2026-11-28):** current code SHA `8ff17de5c5f9ce788e3447ae47263c77136cc3db` passed Windows and macOS exact-source qualification in run [#46109758971](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971). Both reports show 454/454 regression tests, zero failures/cancellations/skips, MCP STDIO integration smoke and offline package smoke passed, and status `validation_passed_review_required`. The identical 29-file package content digest is `42d5d09d7a5473020b0e7706f0a3bcf07172180db657a9c85c1aa663cb3571e6`. This is automated evidence only. All real-host rows below remain **Pending** until tested by a human on that host and OS.
+**Automated evidence context (2026-11-28):** current code SHA `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5` passed Windows and macOS exact-source qualification in run [#46114784990](https://github.com/Darkhero766/Vibeguard/actions/runs/46114784990). Both reports show 462/462 regression tests, zero failures/cancellations/skips, eight release stages, 53 source checks, MCP STDIO integration smoke and offline package smoke passed, and status `validation_passed_review_required`. The identical 29-file package content digest is `b4ab8da681923e558184b3f156c05a29d6057cc03125d7d91803323ec5793cdd`. This is automated evidence only. All real-host rows below remain **Pending** until tested by a human on that host and OS.
 
 ## Candidate evidence
 
@@ -182,3 +182,10 @@ Before clearing a stale \`.agentshield.lock\`:
 4. Remove only the sidecar lock, then retry connect/disconnect. Preserve the config and any backup files.
 
 Backups must match the exact bytes read by the operation. Immediately before rename, Foxy rereads the target and refuses replacement if the content differs. This protects against stale reads and concurrent Foxy writers; a foreign editor can still race in the tiny interval between the final comparison and rename, so keep host applications closed during automated configuration changes.
+
+
+## Current Codespaces Codex pilot — 28 November 2026
+
+For the owner’s first actual Codex host session, use [FOXY_CODEX_CODESPACES_PILOT.md](FOXY_CODEX_CODESPACES_PILOT.md). It uses a separate worktree at `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5`, Node 24, pnpm 10.34.9, a disposable repository with fake source, project-scoped `vibesane connect --agent codex`, and a separate `vibesane init-codex` step. This human-run test must capture actual Codex MCP tool discovery, `/hooks` trust and scan/remediation calls. Do not infer it from the CI artifacts. Keep completion policy at advisory for the initial run.
+
+The older current-candidate override and final evidence sections above are historical. Current automated evidence is run #46114784990 on `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5`; 462/462 tests per OS and canonical package-content SHA-256 `b4ab8da681923e558184b3f156c05a29d6057cc03125d7d91803323ec5793cdd`. All real-host matrix rows remain pending.

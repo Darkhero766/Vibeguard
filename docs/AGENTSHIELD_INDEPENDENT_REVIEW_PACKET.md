@@ -207,3 +207,45 @@ Static review identified a lost-update window: the connector previously read a h
 Regression coverage now tests that pre-existing lock files block JSON and Codex mutations, stale lock contents are not changed/deleted, config bytes remain untouched on refusal, and owned locks are removed after successful connect/disconnect.
 
 **Current source candidate:** \`6270f43ddbbd80a8cf21d3afae2e6c8901a685c8\` plus the test/documentation commit following it. This connector hardening has not yet been exact-source requalified at the time of this note. The pre-existing independent limitations remain: no real Claude/Cursor sessions are available in this environment, prior Codex evidence applies only to an older package/SHA, and the referenced 11-finding evidence packet is not present in the repository. Do not present this source review as an external independent-review sign-off.
+
+
+## Superseding exact-source review handoff — 28 November 2026
+
+This is the current candidate override. Historical entries above remain useful for chronology but refer to earlier SHAs and must not be used as evidence for the present code.
+
+**Exact source:** `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5`  
+**Package:** `0.7.0-beta.5`  
+**Windows/macOS run:** [#46114784990](https://github.com/Darkhero766/Vibeguard/actions/runs/46114784990)  
+**PR:** [#70](https://github.com/Darkhero766/Vibeguard/pull/70), still draft/open/unmerged; no review submissions or inline review threads at the latest check.
+
+The exact-source artifacts for win32 x64 and darwin arm64 both record Node.js v24.15.0, 462/462 regression tests, zero failed/cancelled/skipped, eight passed qualification stages, 53 passed source checks, 10 tools in MCP smoke, and 29 packaged files. Both files have identical per-file path/byte-count/SHA-256 records and canonical package-content SHA-256:
+
+`b4ab8da681923e558184b3f156c05a29d6057cc03125d7d91803323ec5793cdd`
+
+Both release reports are `validation_passed_review_required` with release decision `candidate_for_independent_human_review`. They record `productionTouched: false` and `syntheticFixturesOnly: true`. This is automated qualification, not a third-party audit, host acceptance or production approval.
+
+### Source-level hardening since the earlier candidate notes
+
+Review the actual code, not just this summary:
+
+- `agentshield-controller.mjs`: same-host/PID/token lock owner records; conservative lock reclamation; path/inode identity checks; bounded 128,000-byte UTF-8 hook input; explicit-session verify reads state under lock; invalid/incompatible persisted state yields UNKNOWN; all event-history appends are capped at 16.
+- `test-agentshield-week2.mjs` and `test-agentshield-week3.mjs`: regression tests for malformed and legacy locks, stale-lock owner proof, verification state race, UTF-8 byte cap, incompatible state and bounded history.
+- `agentshield-connect.mjs`: cross-host config lock, exact snapshot backup, content compare, lock ownership and refusal on ambiguous locks.
+- `agentshield-baselines.mjs` / MCP runtime: exact scanner + packaged MCP entrypoint provenance, with stale/missing provenance failing closed.
+- SQLite queue: transactional state/index integrity, bounded retry on BUSY/LOCKED initialization, multi-process claim/lease/cancel/idempotency and interrupted/UNKNOWN recovery.
+
+### Historical review concerns to verify
+
+A 22 November PR #67 conversation comment by the repository maintainer contained five blocking concerns: content-aware scan cache invalidation; subprocess-level MCP transport tests; complete JSON-RPC request/notification semantics; workspace mutation/scanner failure test coverage; and actual execution of the test suite. The reviewer must verify that the current code and current test cases genuinely address those properties.
+
+Older documentation also references a separate “11 findings” evidence set. It was not present in the current repository tree, PR #67/#69 discussion or current issue search at handoff time. Do not infer its content or claim it was recovered. The current reviewer should independently assess the candidate and explicitly list the prior set as unavailable unless the owner supplies it.
+
+### Owner's immediate Day 2 handoff
+
+- Claude: use [FOXY_CLAUDE_INDEPENDENT_REVIEW_BRIEF.md](FOXY_CLAUDE_INDEPENDENT_REVIEW_BRIEF.md). It asks for a no-code-change independent report with severity, confidence, exact file/line, preconditions, reproduction, expected/observed impact, fix, regression and residual risk.
+- Codex in Codespaces: use [FOXY_CODEX_CODESPACES_PILOT.md](FOXY_CODEX_CODESPACES_PILOT.md). It builds and tests from a separate worktree, uses a disposable repository and the source CLI connector, and keeps the completion gate advisory.
+- Do not rebase, retarget, force-push, merge or publish. PR #70 remains stacked on PR #69. The live PR #69 target branch advanced to `ed5bf64a3dced0bd890fd66cf0634e0ae888a951`, while PR #70 metadata still points at base SHA `f6a16dcaba163ec15f27e62e2baa96ea8a90f63f`; GitHub reports #70 non-mergeable. Stack reconciliation is a separate owner-approved task.
+
+### Review decision requested
+
+The reviewer must return a prioritized verdict with explicit Critical/High disposition and list everything that could not be verified. No finding may be marked resolved solely because an author-written test exists or a CI job passed. A clean report does not remove host-level bypass limitations: hooks can be disabled/untrusted, project policy can be changed, and a user can interrupt the host. The MCP itself must remain repository-read-only and must never be described as a tamper-proof delivery lock.
