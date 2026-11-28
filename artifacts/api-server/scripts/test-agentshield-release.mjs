@@ -106,7 +106,10 @@ test('beta installer includes capability metadata and only audited bundled AST d
   assert.match(pack,/agentshield-capabilities\.mjs/);
   assert.match(pack,/agentshield-ast-worker\.cjs/);
   assert.match(pack,/THIRD_PARTY_NOTICES\.txt/);
-  assert.match(pack,/private:\s*true/);
+  assert.match(pack,/name:\s*'@vibesane\/foxy'/);
+  assert.match(pack,/publishConfig:\s*\{\s*access:\s*'public'/);
+  assert.doesNotMatch(pack,/private:\s*true/);
+  assert.match(pack,/published:\s*false/);
 });
 test('production planning never silently replays the legacy Supabase migration script',async()=>{
   const plan=await read('supabase/review-only/PROPOSED_USAGE_ENTITLEMENT_LOCKDOWN.sql');
