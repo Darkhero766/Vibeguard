@@ -32,6 +32,7 @@ const FILES = [
   'scripts/test-agentshield-python.mjs',
   'scripts/agentshield-hook.mjs',
   'scripts/agentshield-verifier.mjs',
+  'scripts/agentshield-version.mjs',
   'scripts/agentshield-install.mjs',
   'scripts/agentshield-capabilities.mjs',
   'scripts/agentshield-hybrid.mjs',
@@ -76,6 +77,7 @@ const SOURCE_INPUTS = [
   'src/lib/extendedScannerV2.ts',
   'scripts/agentshield-accuracy-corpus.mjs',
   'scripts/agentshield-holdout-corpus.mjs',
+  'scripts/agentshield-version.mjs',
   'package.json',
   'skills/vibesane-agentshield/SKILL.md',
 ];
