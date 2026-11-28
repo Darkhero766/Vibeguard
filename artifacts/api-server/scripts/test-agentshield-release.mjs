@@ -123,6 +123,8 @@ test('Foxy Apache-2.0 grant is scoped and its copyright/third-party notices are 
   const contribution=await read('docs/FOXY_CONTRIBUTING.md');
   assert.match(license,/Apache License\s+Version 2\.0/);
   assert.match(notice,/Copyright 2026 Md Faizal/);
+  assert.match(notice,/identify the origin/i);
+  assert.doesNotMatch(notice,/docs\/FOXY_LICENSE_AND_OWNERSHIP\.md/);
   assert.match(policy,/Apache License 2\.0/);
   assert.match(policy,/does not grant a license to the rest/i);
   assert.match(policy,/Md Faizal/);
