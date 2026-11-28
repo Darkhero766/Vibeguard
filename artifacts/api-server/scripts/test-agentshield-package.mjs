@@ -104,7 +104,7 @@ try {
     'VIBESANE_ALLOWED_ROOTS_JSON', 'mcp-doctor', 'Codex Stop hooks', 'Node.js 24.15.0', 'SQLite',
     'init-codex', 'connect --agent cursor', 'connect --agent copilot', 'uninstall-mcp --host claude',
     'Node.js >=24.15.0', 'node:sqlite', 'transactional multi-process job claims', 'jobs.json snapshot is migrated',
-    'vibesane install', '--dry-run', '--agent auto', 'curl -fsSL https://vibesane.app/install.sh | bash', "$env:FOXY_INSTALL_AGENT='auto'; irm https://vibesane.app/install.ps1 | iex", 'global executable path', 'vibesane uninstall',
+    'vibesane install', 'vibesane update', '--dry-run', '--agent auto', 'curl -fsSL https://vibesane.app/install.sh | bash', "$env:FOXY_INSTALL_AGENT='auto'; irm https://vibesane.app/install.ps1 | iex", 'global executable path', 'vibesane uninstall',
     'VibeSane Foxy 0.7.0-beta.6', 'Windows, macOS, and Ubuntu/Linux', 'Actual live-host acceptance',
     'cooperative local verification gate', 'not a tamper-proof security boundary',
   ];
