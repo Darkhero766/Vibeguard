@@ -98,11 +98,14 @@ test('local scanner handles a synthetic credential with redacted findings', asyn
   assert.ok(!out.stdout.includes(fake));
 });
 
-test('existing beta package production boundary is explicit', async () => {
+test('public beta candidate remains unpublished and disables install scripts', async () => {
   const builder = await read('artifacts/api-server/scripts/package-agentshield-beta.mjs');
   assert.match(builder, /'UNLICENSED'/);
-  assert.match(builder, /private: true/);
+  assert.match(builder, /name:\s*'@vibesane\/foxy'/);
+  assert.match(builder, /publishConfig:\s*\{\s*access:\s*'public'/);
+  assert.doesNotMatch(builder, /private: true/);
   assert.match(builder, /--ignore-scripts/);
+  assert.match(builder, /published:\s*false/);
   assert.doesNotMatch(builder, /npm publish|npm publish --access/);
 });
 
