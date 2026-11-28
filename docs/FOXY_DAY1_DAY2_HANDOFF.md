@@ -85,7 +85,7 @@ The consent-first `vibesane install` engine resolves the canonical Git root, det
 
 ### Beta.6 exact-source automated qualification — passed on three platforms
 
-Commit `ef99246f903ca9ec606f314a99fee37984a1ef63` passed [Foxy qualification workflow #46129976047](https://github.com/Darkhero766/Vibeguard/actions/runs/46129976047) on Windows, macOS and Ubuntu/Linux.
+Commit `948a2106a41b8656f46223d20b848dc0bac6c9fd` passed [Foxy qualification workflow #46130854336](https://github.com/Darkhero766/Vibeguard/actions/runs/46130854336) on Windows, macOS and Ubuntu/Linux.
 
 | Evidence | Windows | macOS | Ubuntu/Linux |
 |---|---:|---:|---:|
@@ -106,7 +106,7 @@ All three reports record `validation_passed_review_required` and `candidate_for_
 - Executables: `foxy` and `vibesane`, both mapped to the same consent-first CLI.
 - Runtime: Node.js `>=24.15.0`.
 - Packaged files: 30.
-- Canonical package-content SHA-256, identical across all three OSes: `d0567eb6f8a301d4379a75e8f958a6c48d8fb6eb1c14afaac817e731b01f389c`.
+- Canonical package-content SHA-256, identical across all three OSes: `278096f6d0c27c6ec248ab672199d64849fd8e321d55215909a3b6adb2394ecf`.
 - The offline package smoke invokes the installed `foxy` executable (and verifies the Windows shim), checks `--help`, exercises `foxy install --dry-run`, and asserts no host configuration is created. It also covers consent denial, explicit-consent install/verification, idempotency, disconnect and MCP STDIO smoke.
 - Package generation and tests report `published: false`; the package is not published. The `@vibesane` npm scope/name ownership and availability have not been verified.
 
