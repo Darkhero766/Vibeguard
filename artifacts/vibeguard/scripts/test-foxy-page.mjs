@@ -79,7 +79,7 @@ for (const token of [
   '472 / 472', 'Regression suite', 'Windows + macOS + Ubuntu/Linux', '10 tools', '30 files',
   'real-host acceptance', 'independent security review',
   'https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503',
-  'https://github.com/Darkhero766/Vibeguard/pull/70', 'https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503', 'edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8', 'Install MCP', 'Available after beta publication', 'not published yet', 'Auto-detect is recommended', 'Configure for', '--agent codex', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
+  'https://github.com/Darkhero766/Vibeguard/pull/70', 'https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503', 'edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8', 'Install MCP', 'Available after beta publication', 'not published yet', 'Auto-detection is recommended', 'Configure for', '--agent codex', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
 ]) assert.ok(html.includes(token), 'Foxy SEO route is missing: ' + token);
 
 assert.ok(!/read-only MCP/i.test(html), 'Foxy page must distinguish repository read-only access from Foxy-managed local state.');
