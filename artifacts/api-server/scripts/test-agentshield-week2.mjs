@@ -312,40 +312,52 @@ test('aged malformed state locks remain indeterminate and are never reclaimed', 
 
 
 
-test('explicit-session verify merges against state acquired after a concurrent hook update', async (t) => {
-  const f = await fixture(t, 'src/auth.js', fakeJWT);
-  await f.hook();
+test('explicit-session verify merges against state acquired after a concurrent hook update', async () => {
   const config = parseConfig({});
-  let interleaved = false;
+  const finding = {
+    filePath: 'src/auth.js',
+    ruleId: 'hardcoded_jwt_secret',
+    title: 'Hardcoded JWT secret',
+    severity: 'Critical',
+    count: 1,
+  };
+  const staleState = trackFile(freshState(), 'src/auth.js', [finding], config,
+    { now: 1_000, edited: true }).state;
+  let currentState = structuredClone(staleState);
+  let scanCompleted = false;
+  let staleReaderCalled = false;
+
   const scanImpl = async () => {
-    // Model a hook completing after verify's scan starts but before verify
-    // takes the state lock. The newer state must survive the verification write.
-    const concurrent = await f.hook();
-    assert.equal(concurrent.code, 0);
-    const updated = await f.cmd('status', '--session', 'test-session');
-    assert.equal(updated.output.summary.files[0].attempts, 1);
-    interleaved = true;
+    // A hook commits a newer attempt after scan starts but before the verifier
+    // acquires the session lock.
+    currentState = trackFile(currentState, 'src/auth.js', [finding], config,
+      { now: 2_000, edited: true }).state;
+    assert.equal(currentState.files['src/auth.js'].attempts, 1);
+    scanCompleted = true;
     return {
       status: 'complete',
       filesScanned: 1,
       scannedPaths: ['src/auth.js'],
-      findings: [{
-        filePath: 'src/auth.js',
-        ruleId: 'hardcoded_jwt_secret',
-        title: 'Hardcoded JWT secret',
-        severity: 'Critical',
-        line: 1,
-        count: 1,
-      }],
+      findings: [finding],
     };
   };
-  const verification = await verifyNow(f.root, {
+  const stateReader = async () => {
+    staleReaderCalled = true;
+    return structuredClone(staleState);
+  };
+  const stateLock = async (_root, _session, _config, callback) => {
+    const result = await callback(currentState, true);
+    if (result?.state) currentState = result.state;
+    return result;
+  };
+
+  const verification = await verifyNow('/synthetic-root', {
     session: 'test-session', changed: false, file: 'src/auth.js',
-  }, config, { scanImpl });
-  assert.equal(interleaved, true);
+  }, config, { scanImpl, stateReader, stateLock });
+  assert.equal(scanCompleted, true);
+  assert.equal(staleReaderCalled, false);
   assert.equal(verification.result.files[0].attempts, 1);
-  const status = await f.cmd('status', '--session', 'test-session');
-  assert.equal(status.output.summary.files[0].attempts, 1);
+  assert.equal(currentState.files['src/auth.js'].attempts, 1);
 });
 
 test('hook input rejects UTF-8 payloads above the byte budget and stops reading', async () => {

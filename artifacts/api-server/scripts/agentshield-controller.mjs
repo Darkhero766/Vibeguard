@@ -494,11 +494,13 @@ async function stateForReading(root, session, config) {
   const file = session ? sessionFile(root, session) : await latestStateFile(root);
   return readState(file, config);
 }
-export async function verifyNow(root, opts, config, { scanImpl = scan } = {}) {
+export async function verifyNow(root, opts, config, {
+  scanImpl = scan, stateReader = stateForReading, stateLock = withLockedState,
+} = {}) {
   // Explicit interactive-session verification must read the latest state only
   // after acquiring that session's lock. Otherwise a hook update made while
   // scanning can be overwritten by a stale pre-scan snapshot.
-  const priorState = opts.session ? null : await stateForReading(root, null, config);
+  const priorState = opts.session ? null : await stateReader(root, null, config);
   const report = opts.changed ? await finalGate(root, config, scanImpl) : await scanImpl(root, ['--file', opts.file]);
   if (report.status !== 'complete') throw new Error('Final changed-file scan incomplete or unavailable.');
   if (!report.filesScanned) throw new Error('No source files scanned; no security verification is possible.');
@@ -506,7 +508,7 @@ export async function verifyNow(root, opts, config, { scanImpl = scan } = {}) {
   let sourceState = priorState;
   let next = null;
   const outcomes = [];
-  await withLockedState(root, session, config, async (lockedState) => {
+  await stateLock(root, session, config, async (lockedState) => {
     sourceState = opts.session ? lockedState : priorState;
     next = structuredClone(sourceState);
     for (const file of report.scannedPaths) {
