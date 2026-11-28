@@ -241,8 +241,9 @@ async function withHostConfigLock(file, operation) {
           throw new Error('Foxy host configuration lock changed; refusing to remove it automatically.');
         }
         const verify = await open(lockPath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+        let opened;
         try {
-          const opened = await verify.stat();
+          opened = await verify.stat();
           if (!opened.isFile() || opened.dev !== identity.dev || opened.ino !== identity.ino || opened.size > 4096) {
             throw new Error('Foxy host configuration lock identity changed before release.');
           }
@@ -264,8 +265,15 @@ async function withHostConfigLock(file, operation) {
             || current.dev !== opened.dev || current.ino !== opened.ino) {
             throw new Error('Foxy host configuration lock was replaced before release.');
           }
-          await unlink(lockPath);
         } finally { await verify.close(); }
+        // Windows may refuse unlink while the lock verification handle is open.
+        // Close, re-check the same file identity, and only then remove the sidecar.
+        const afterClose = await lstat(lockPath);
+        if (!afterClose.isFile() || afterClose.isSymbolicLink()
+          || afterClose.dev !== opened.dev || afterClose.ino !== opened.ino) {
+          throw new Error('Foxy host configuration lock was replaced during release.');
+        }
+        await unlink(lockPath);
       } catch (releaseError) {
         if (!operationError) {
           throw new Error('Foxy could not safely release the host configuration lock at '
