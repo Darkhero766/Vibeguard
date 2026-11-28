@@ -188,3 +188,31 @@ No merge, production deployment, website install-button enablement, production c
 - Exact source SHA `6a5ff00268a9b289aa50c6a18804f31fb270c3b3` passed source syntax (56 files), scanner build, the regression suite (477/477), MCP STDIO smoke and all three synthetic benchmark suites on Ubuntu. Its offline package-install/CLI/MCP smoke failed because a newly added assertion called `assert.equal` on the file's local function-based assertion helper. The check was rewritten to use that helper correctly.
 - The correction is on the current draft branch in `artifacts/api-server/scripts/test-agentshield-package.mjs`; the new exact-source qualification run is pending. Do not treat the older run as qualified and do not copy the 477/477 number as a complete pass until package smoke also passes on all three OSes.
 - GitGuardian incident `35188914` flagged a JSON Web Token at `.replit:65`, commit `5f94f9a823f4d3932973ac5a0fd71fc7079316c0`. Triage verified the JWT payload's Supabase issuer and `role=anon`; it is the client-facing `VITE_SUPABASE_ANON_KEY`, not a `service_role` token. The `.replit` blob SHA is identical on `main`, PR #69's base and PR #70's branch, so this finding predates the Foxy branch and was not introduced by the recent PR #70 work. The token value is intentionally not copied into this record. Treat this specific GitGuardian detector event as a public anon-key false positive, not as evidence of a leaked privileged credential. Do not revoke/rotate it blindly; the owner should confirm the same role in Supabase project settings and resolve/allowlist the GitGuardian incident as a public client key. Continue to protect service-role and secret keys, which must never use a `VITE_` prefix or appear in repository config.
+
+ 
+## Final exact-source evidence — 28 November 2026
+
+The latest code and workflow candidate is **`e6ab2fcfd373f3473bc6d282eabebfcc105db2c6`**, qualified by [Actions run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859). All three platform jobs completed successfully:
+
+- Windows x64, Node.js 24.15.0: 477/477 regression tests; all qualification stages passed; offline install/CLI/MCP smoke passed.
+- macOS arm64, Node.js 24.15.0: 477/477 regression tests; all qualification stages passed; offline install/CLI/MCP smoke passed.
+- Ubuntu/Linux x64, Node.js 24.15.0: 477/477 regression tests; all qualification stages passed; offline install/CLI/MCP smoke passed.
+
+All reports bind to the exact same source SHA, report `validation_passed_review_required` and `candidate_for_independent_human_review`, report no failed or skipped qualification steps, and state `productionTouched=false`. The package is `@vibesane/foxy@0.7.0-beta.6`, 33 files, and the canonical package-content SHA-256 is identical across all three operating systems: `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. All individual file digests also match. The outer npm `.tgz` wrapper hash/size can vary on Windows due to archive representation; do not claim that the archive wrapper is byte-identical. The extracted 33 package file bytes and digests are identical.
+
+The workflow-level publication gate is now stricter than the individual matrix: `.github/workflows/foxy-publish.yml` downloads all three exact-SHA artifacts and compares the full package file manifest, version and content digest; each report must prove every required step passed, with no failures or skips, before the optional publish job can be eligible. This workflow is manual-only, defaults to `confirm_publication=false`, requires exact versioned `foxy-v*` tag ancestry to `main`, uses immutable SHA checkouts, npm OIDC/provenance, and the protected `npm-release` environment. Structural regression tests cover those controls. The manual publisher has not been dispatched because the PR remains draft and no npm Trusted Publisher/environment has been configured.
+
+The repository workflow audit found 14 workflow YAML files and 28 external action references; all 28 are pinned to immutable 40-character commits. A regression test now checks this invariant repository-wide.
+
+This evidence supersedes the earlier `f97f95a48ffbdd3ef61a3d7da8ef57caf36a4ad3` qualification reference above for code/workflow status. Later branch commits after `e6ab...` update documentation only; the package source and workflow/test candidate qualified by #46167652859 is SHA `e6ab...`.
+
+### Remaining release blockers — unchanged
+
+1. Independent product-security review has **not** been completed. The existing review brief must be updated to this exact source SHA and the reviewer must inspect the actual source, not rely on this triage.
+2. Actual live-host acceptance in Claude Code, Codex CLI and Cursor on supported OSes remains incomplete. Synthetic CI MCP smoke is not host acceptance.
+3. Owner must attest legal rights/ownership and approve the third-party notices; attribution to Md Faizal is not proof of ownership.
+4. Owner must complete npm organization/package ownership, GitHub `npm-release` environment protections, `foxy-v*` tag protection and exact npm Trusted Publishing configuration.
+5. PR #70 remains draft/open/unmerged and currently reports `mergeable=false` against its stacked base. The parent PR stack must be reviewed and consolidated deliberately; do not force-push or bypass reviews.
+6. No package is published and the npm publisher has not been configured.
+
+**Release disposition:** automated qualification is complete for SHA `e6ab...`; Foxy remains a candidate for independent human review only. It is not yet cleared for a public launch or external beta distribution. No merge, production deployment, website release, npm publication, or tag push has been performed.
