@@ -42,6 +42,7 @@ The fixed npm-global executable path gives MCP host configs a stable server loca
 foxy install --agent auto     Detect hosts and preview exact project MCP edits
 foxy doctor                   Check local runtime and host configuration
 foxy status                   Report local scan/gate status
+foxy update                   Update a verified npm-global beta safely
 foxy scan --changed           Scan supported changed files
 foxy verify --changed         Verify the changed-file remediation state
 foxy disconnect --agent all   Remove exact managed MCP entries from supported hosts
