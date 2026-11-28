@@ -532,6 +532,64 @@ try {
   assert(mcpResult.invalidArgumentsRejected, 'Installed MCP did not reject unexpected tool arguments.');
   assert(cancelledScan.cancelled.status === 'cancelled', 'Installed MCP could not cancel a queued scan job.');
 
+  // A single uninstall command must remove every exact workspace integration
+  // while retaining unrelated hooks, local state, backups and the global CLI.
+  const uninstallFixture = path.join(temp, 'full-uninstall-fixture');
+  const isolatedHome = path.join(temp, 'uninstall-home');
+  const isolatedState = path.join(isolatedHome, '.local', 'state');
+  const uninstallEnv = {
+    ...process.env,
+    HOME: isolatedHome,
+    USERPROFILE: isolatedHome,
+    XDG_STATE_HOME: isolatedState,
+    LOCALAPPDATA: path.join(isolatedHome, 'AppData', 'Local'),
+  };
+  await mkdir(path.join(uninstallFixture, '.claude'), { recursive: true });
+  await run('git', ['init', '-q', uninstallFixture]);
+  const claudeSettingsPath = path.join(uninstallFixture, '.claude', 'settings.json');
+  const unrelatedClaudeHook = {
+    PreToolUse: [{ matcher: 'Read', hooks: [{ type: 'command', command: 'preserve-unrelated-hook' }] }],
+  };
+  await writeFile(claudeSettingsPath, JSON.stringify({ hooks: unrelatedClaudeHook }, null, 2));
+  await runCli(['init', '--cwd', uninstallFixture], { cwd: temp, env: uninstallEnv });
+  const codexInitForRemoval = JSON.parse((await runCli(
+    ['init-codex', '--cwd', uninstallFixture], { cwd: temp, env: uninstallEnv },
+  )).stdout);
+  assert.equal(codexInitForRemoval.status, 'installed');
+  const fullConnected = JSON.parse((await runCli(
+    ['connect', '--agent', 'all', '--cwd', uninstallFixture], { cwd: temp, env: uninstallEnv },
+  )).stdout);
+  assert.equal(fullConnected.status, 'connected');
+  const fullUninstallOutput = await runCli(['uninstall', '--cwd', uninstallFixture], {
+    cwd: temp, env: uninstallEnv,
+  });
+  const fullUninstallLines = fullUninstallOutput.stdout.trim().split(/\\r?\\n/);
+  const fullUninstall = JSON.parse(fullUninstallLines[fullUninstallLines.length - 1]);
+  assert.equal(fullUninstall.status, 'uninstalled', 'Single-command uninstall must complete all workspace integrations.');
+  assert.equal(fullUninstall.mcp.results.map(item => item.status).join(','),
+    'removed,removed,removed,removed,removed,shared_config',
+    'Uninstall must remove all exact MCP entries while de-duplicating shared Claude/Copilot config.');
+  const claudeAfterFullUninstall = JSON.parse(await readFile(claudeSettingsPath, 'utf8'));
+  assert.deepEqual(claudeAfterFullUninstall.hooks, unrelatedClaudeHook,
+    'Full uninstall must preserve unrelated Claude hooks.');
+  const codexHooksAfterFullUninstall = JSON.parse(await readFile(
+    path.join(uninstallFixture, '.codex', 'hooks.json'), 'utf8',
+  ));
+  assert.ok(!codexHooksAfterFullUninstall.hooks?.Stop,
+    'Full uninstall must remove the matching Codex Stop hook.');
+  await assert.rejects(readFile(
+    path.join(uninstallFixture, '.agents', 'skills', 'vibesane-agentshield', 'SKILL.md'),
+  ), (error) => error?.code === 'ENOENT');
+  const claudeMcpAfterFullUninstall = JSON.parse(await readFile(
+    path.join(uninstallFixture, '.mcp.json'), 'utf8',
+  ));
+  assert.ok(!claudeMcpAfterFullUninstall.mcpServers?.['vibesane-agentshield']);
+  const privateBackups = await readdir(path.join(isolatedState, 'vibesane', 'foxy', 'backups'));
+  assert.ok(privateBackups.length > 0, 'Full uninstall must preserve out-of-workspace recovery backups.');
+  assert.ok(fullUninstall.preserved.includes('global npm package')
+    && fullUninstall.preserved.includes('baselines'),
+    'Full uninstall must explicitly preserve the installed CLI and local security data.');
+
   const manifestHash = createHash('sha256');
   for (const file of packaged.fileDigests) {
     manifestHash.update(file.path).update('\0').update(String(file.bytes)).update('\0')
@@ -548,7 +606,7 @@ try {
     packageFileDigests: packaged.fileDigests,
     packagedFiles: packaged.fileCount,
     checks: ['build', 'npm-pack-manifest', 'isolated-offline-install', 'cli-help', 'foxy-bin-help', 'foxy-bin-install-dry-run-no-write', 'doctor',
-      'one-command-agent-connect', 'one-command-agent-disconnect', 'universal-installer-no-consent-denied', 'universal-installer-dry-run', 'universal-installer-install-and-verify', 'universal-installer-repeat-idempotent', 'universal-installer-disconnect', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall'],
+      'one-command-agent-connect', 'one-command-agent-disconnect', 'universal-installer-no-consent-denied', 'universal-installer-dry-run', 'universal-installer-install-and-verify', 'universal-installer-repeat-idempotent', 'universal-installer-disconnect', 'mcp-doctor-valid-config', 'mcp-doctor-malformed-config-denial', 'codex-init-hook', 'synthetic-committed-scan', 'codex-stop-block', 'codex-stop-remediation', 'mcp-modern-protocol', 'mcp-tools-list', 'mcp-status', 'mcp-scan', 'mcp-baseline-tools', 'mcp-explain-finding', 'mcp-workspace-boundary', 'mcp-queue-saturation', 'mcp-queued-cancellation', 'mcp-invalid-tool-arguments', 'codex-uninstall', 'one-command-workspace-uninstall'],
     fixture: 'synthetic-disposable-git-repository',
     published: false,
   }) + '\n');
