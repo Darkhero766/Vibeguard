@@ -301,6 +301,8 @@ async function main() {
     packageFileCount: report.packageFileDigests.length,
     qualificationFailures,
     failedSteps: report.failedSteps,
+    failedTestDetails: results.filter(item => item.status === 'failed' && item.name === 'unit-integration-regression')
+      .flatMap(item => (item.failedTests || []).slice(0, 10)),
   };
   process.stdout.write(JSON.stringify(summary, null, 2) + '\n');
   if (report.status !== 'validation_passed_review_required') process.exitCode = 1;
