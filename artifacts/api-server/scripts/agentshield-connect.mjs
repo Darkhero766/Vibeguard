@@ -6,7 +6,7 @@ import path from 'node:path';
 import { constants } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chmod, lstat, mkdir, open, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { assertSafeGitConfiguration } from './agentshield-safe-git.mjs';
@@ -16,6 +16,126 @@ const SERVER_LABEL = 'vibesane-agentshield';
 const SERVER_FILE = 'agentshield-mcp-stdio.mjs';
 const MAX_HOST_CONFIG_BYTES = 256_000;
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
+const EXCLUDE_START = '# BEGIN VIBESANE FOXY MACHINE-LOCAL MCP CONFIGURATION';
+const EXCLUDE_END = '# END VIBESANE FOXY MACHINE-LOCAL MCP CONFIGURATION';
+const HOST_CONFIG_PATHS = Object.freeze({
+  claude: '.mcp.json',
+  copilot: '.mcp.json',
+  codex: '.codex/config.toml',
+  cursor: '.cursor/mcp.json',
+  gemini: '.gemini/settings.json',
+  roo: '.roo/mcp.json',
+});
+const ALLOWED_CONFIG_EXCLUDES = new Set(Object.values(HOST_CONFIG_PATHS).map((item) => '/' + item));
+
+function foxyStateRoot(env = process.env, platform = process.platform) {
+  const home = envValue(env, 'USERPROFILE') || envValue(env, 'HOME') || os.homedir();
+  if (platform === 'win32') {
+    return path.join(envValue(env, 'LOCALAPPDATA') || path.join(home, 'AppData', 'Local'), 'VibeSane', 'Foxy');
+  }
+  if (platform === 'darwin') return path.join(home, 'Library', 'Application Support', 'VibeSane', 'Foxy');
+  const xdg = envValue(env, 'XDG_STATE_HOME');
+  const base = xdg && path.isAbsolute(xdg) ? xdg : path.join(home, '.local', 'state');
+  return path.join(base, 'vibesane', 'foxy');
+}
+
+async function ensurePrivateDirectory(directory) {
+  const absolute = path.resolve(directory);
+  const root = path.parse(absolute).root;
+  let current = root;
+  for (const component of absolute.slice(root.length).split(path.sep).filter(Boolean)) {
+    current = path.join(current, component);
+    try {
+      const info = await lstat(current);
+      if (!info.isDirectory() || info.isSymbolicLink()) {
+        throw new Error('Foxy refuses a symlinked or non-directory private state path.');
+      }
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+      await mkdir(current, { mode: 0o700 });
+      const info = await lstat(current);
+      if (!info.isDirectory() || info.isSymbolicLink()) {
+        throw new Error('Foxy private state directory changed during creation.');
+      }
+    }
+  }
+  if (process.platform !== 'win32') await chmod(absolute, 0o700);
+  return absolute;
+}
+
+function stablePathDigest(file) {
+  const normalized = path.resolve(file);
+  return createHash('sha256')
+    .update(process.platform === 'win32' ? normalized.toLowerCase() : normalized)
+    .digest('hex');
+}
+
+function updateManagedExclude(raw, requiredPatterns) {
+  const starts = raw.split(EXCLUDE_START).length - 1;
+  const ends = raw.split(EXCLUDE_END).length - 1;
+  if (starts !== ends || starts > 1) {
+    throw new Error('Foxy found a damaged or duplicate managed Git exclude block; refusing to rewrite it.');
+  }
+  let prefix = raw;
+  let suffix = '';
+  const patterns = new Set();
+  if (starts === 1) {
+    const start = raw.indexOf(EXCLUDE_START);
+    const end = raw.indexOf(EXCLUDE_END, start + EXCLUDE_START.length);
+    if (end < 0) throw new Error('Foxy found an incomplete managed Git exclude block.');
+    const block = raw.slice(start + EXCLUDE_START.length, end);
+    for (const line of block.split(/\\r?\\n/)) {
+      const item = line.trim();
+      if (!item) continue;
+      if (!ALLOWED_CONFIG_EXCLUDES.has(item)) {
+        throw new Error('Foxy found an unexpected path in its managed Git exclude block; refusing to modify it.');
+      }
+      patterns.add(item);
+    }
+    prefix = raw.slice(0, start);
+    suffix = raw.slice(end + EXCLUDE_END.length);
+  }
+  for (const item of requiredPatterns) patterns.add(item);
+  const body = [EXCLUDE_START, ...[...patterns].sort(), EXCLUDE_END].join('\\n');
+  const left = prefix.replace(/[\\r\\n]+$/, '');
+  const right = suffix.replace(/^[\\r\\n]+/, '');
+  return [left, body, right].filter(Boolean).join('\\n') + '\\n';
+}
+
+async function ensureGitLocalOnlyConfigPaths(root, hosts, stateRoot) {
+  const paths = [...new Set(hosts.map((host) => HOST_CONFIG_PATHS[host]).filter(Boolean))];
+  for (const relativePath of paths) {
+    try {
+      await exec('git', ['-C', root, 'ls-files', '--error-unmatch', '--', relativePath], {
+        timeout: 7000, maxBuffer: 4000, windowsHide: true,
+      });
+      throw new Error('Foxy will not write machine-specific MCP paths into the tracked workspace file '
+        + relativePath + '. Move that file out of Git tracking before installing Foxy.');
+    } catch (error) {
+      if (error?.message?.includes('will not write machine-specific')) throw error;
+      if (error?.code !== 1) throw error;
+    }
+  }
+
+  const { stdout } = await exec('git', [
+    '-C', root, 'rev-parse', '--path-format=absolute', '--git-path', 'info/exclude',
+  ], { timeout: 7000, maxBuffer: 4000, windowsHide: true });
+  const excludeFile = path.resolve(stdout.trim());
+  await ensureSafeDirectory(path.dirname(excludeFile));
+  return withHostConfigLock(excludeFile, async () => {
+    let originalRaw = null;
+    try {
+      originalRaw = await readRegularHostConfig(excludeFile, 'Git info/exclude');
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+    const next = updateManagedExclude(originalRaw || '', paths.map((item) => '/' + item));
+    if (next === originalRaw) return { status: 'already_excluded', excludeFile };
+    await backupFile(excludeFile, originalRaw, stateRoot);
+    await atomicWrite(excludeFile, next, originalRaw);
+    return { status: 'excluded_locally', excludeFile };
+  }, stateRoot);
+}
 
 function envValue(env, name) {
   const key = Object.keys(env || {}).find((item) => item.toLowerCase() === name.toLowerCase());
@@ -203,8 +323,9 @@ async function ensureSafeDirectory(directory) {
   }
 }
 
-async function withHostConfigLock(file, operation) {
-  const lockPath = file + '.agentshield.lock';
+async function withHostConfigLock(file, operation, stateRoot = foxyStateRoot()) {
+  const lockDirectory = await ensurePrivateDirectory(path.join(stateRoot, 'locks'));
+  const lockPath = path.join(lockDirectory, stablePathDigest(file) + '.lock');
   const token = randomUUID();
   let handle = null;
   let identity = null;
@@ -329,7 +450,7 @@ async function readJsonConfig(file) {
   }
 }
 
-async function backupFile(file, expectedRaw = undefined) {
+async function backupFile(file, expectedRaw = undefined, stateRoot = foxyStateRoot()) {
   const before = await lstat(file).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
   if (!before) {
     if (expectedRaw !== undefined && expectedRaw !== null) {
@@ -362,7 +483,9 @@ async function backupFile(file, expectedRaw = undefined) {
       || bytesRead !== opened.size || (expectedRaw !== undefined && raw !== expectedRaw)) {
       throw new Error('Host configuration changed or no longer matches the version being backed up.');
     }
-    const backup = file + '.vibesane-backup-' + new Date().toISOString().replaceAll(':', '-') + '-' + randomUUID();
+    const backupDirectory = await ensurePrivateDirectory(path.join(stateRoot, 'backups'));
+    const backup = path.join(backupDirectory, stablePathDigest(file) + '-'
+      + new Date().toISOString().replaceAll(':', '-') + '-' + randomUUID() + '.bak');
     try {
       await writeFile(backup, buffer, { flag: 'wx', mode: 0o600 });
       if (process.platform !== 'win32') await chmod(backup, 0o600);
@@ -407,7 +530,7 @@ function sameJson(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-async function configureJsonHost(host, root, nodePath, serverPath) {
+async function configureJsonHost(host, root, nodePath, serverPath, stateRoot) {
   const configDir = host === 'cursor' ? path.join(root, '.cursor')
     : host === 'gemini' ? path.join(root, '.gemini')
       : host === 'roo' ? path.join(root, '.roo') : root;
@@ -428,7 +551,7 @@ async function configureJsonHost(host, root, nodePath, serverPath) {
       if (!sameJson(servers[SERVER_LABEL], legacy)) {
         throw new Error('A different or customized MCP entry already uses ' + SERVER_LABEL + '; it was left untouched.');
       }
-      const backup = await backupFile(file, originalRaw);
+      const backup = await backupFile(file, originalRaw, stateRoot);
       config.mcpServers = { ...servers, [SERVER_LABEL]: desired };
       await atomicWrite(file, JSON.stringify(config, null, 2) + '\n', originalRaw);
       return { host, status: 'migrated', configFile: file, backup };
@@ -437,10 +560,10 @@ async function configureJsonHost(host, root, nodePath, serverPath) {
     config.mcpServers = { ...servers, [SERVER_LABEL]: desired };
     await atomicWrite(file, JSON.stringify(config, null, 2) + '\n', originalRaw);
     return { host, status: 'configured', configFile: file, backup };
-  });
+  }, stateRoot);
 }
 
-async function configureCodex(root, nodePath, serverPath) {
+async function configureCodex(root, nodePath, serverPath, stateRoot) {
   const directory = path.join(root, '.codex');
   await ensureSafeDirectory(directory);
   const file = path.join(directory, 'config.toml');
@@ -480,10 +603,10 @@ async function configureCodex(root, nodePath, serverPath) {
     const prefix = existing && !existing.endsWith(newline) ? existing + newline : existing;
     await atomicWrite(file, prefix + (prefix ? newline : '') + block + newline, originalRaw);
     return { host: 'codex', status: 'configured', configFile: file, backup };
-  });
+  }, stateRoot);
 }
 
-async function disconnectJsonHost(host, root, nodePath, serverPath) {
+async function disconnectJsonHost(host, root, nodePath, serverPath, stateRoot) {
   const configDir = host === 'cursor' ? path.join(root, '.cursor')
     : host === 'gemini' ? path.join(root, '.gemini')
       : host === 'roo' ? path.join(root, '.roo') : root;
@@ -514,10 +637,10 @@ async function disconnectJsonHost(host, root, nodePath, serverPath) {
     else delete config.mcpServers;
     await atomicWrite(file, JSON.stringify(config, null, 2) + '\n', originalRaw);
     return { host, status: 'removed', configFile: file, backup };
-  });
+  }, stateRoot);
 }
 
-async function disconnectCodex(root, nodePath, serverPath) {
+async function disconnectCodex(root, nodePath, serverPath, stateRoot) {
   const directory = path.join(root, '.codex');
   if (!await isDirectory(directory)) return { host: 'codex', status: 'not_configured', configFile: path.join(directory, 'config.toml') };
   const file = path.join(directory, 'config.toml');
@@ -550,23 +673,26 @@ async function disconnectCodex(root, nodePath, serverPath) {
       : suffix.startsWith(newline) ? suffix.slice(1) : suffix;
     await atomicWrite(file, existing.slice(0, start) + tail, originalRaw);
     return { host: 'codex', status: 'removed', configFile: file, backup };
-  });
+  }, stateRoot);
 }
 
 export async function disconnectAgentShield(args = [], overrides = {}) {
   const { agent, cwd } = parseConnectArgs(args);
   if (agent === 'mcp') throw new Error('Use disconnect with a named host or all; generic MCP entries must be removed from the client configuration manually.');
   const root = await projectRoot(cwd);
+  const env = overrides.env || process.env;
+  const platform = overrides.platform || process.platform;
+  const stateRoot = foxyStateRoot(env, platform);
   const nodePath = overrides.nodePath || process.execPath;
   const serverPath = overrides.serverPath || path.join(scriptsDir, SERVER_FILE);
-  const detected = await detectAgents({ cwd: root, env: overrides.env || process.env, platform: overrides.platform || process.platform });
+  const detected = await detectAgents({ cwd: root, env, platform });
   const hosts = agent === 'all' ? ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']
     : agent === 'auto' ? detected : [agent];
   const results = [];
   const processedConfigFiles = new Set();
   for (const host of hosts) {
     if (host === 'codex') {
-      results.push(await disconnectCodex(root, nodePath, serverPath));
+      results.push(await disconnectCodex(root, nodePath, serverPath, stateRoot));
       continue;
     }
     const configFile = host === 'cursor' ? path.join(root, '.cursor', 'mcp.json')
@@ -577,7 +703,7 @@ export async function disconnectAgentShield(args = [], overrides = {}) {
       continue;
     }
     processedConfigFiles.add(configFile);
-    results.push(await disconnectJsonHost(host, root, nodePath, serverPath));
+    results.push(await disconnectJsonHost(host, root, nodePath, serverPath, stateRoot));
   }
   return { status: 'disconnected', root, detected, results,
     note: 'Only exact, unmodified AgentShield entries were removed. Backups were written before changes. Generic MCP entries and customized configurations are left untouched.' };
@@ -586,9 +712,12 @@ export async function disconnectAgentShield(args = [], overrides = {}) {
 export async function connectAgentShield(args = [], overrides = {}) {
   const { agent, cwd } = parseConnectArgs(args);
   const root = await projectRoot(cwd);
+  const env = overrides.env || process.env;
+  const platform = overrides.platform || process.platform;
+  const stateRoot = foxyStateRoot(env, platform);
   const nodePath = overrides.nodePath || process.execPath;
   const serverPath = overrides.serverPath || path.join(scriptsDir, SERVER_FILE);
-  const detected = await detectAgents({ cwd: root, env: overrides.env || process.env, platform: overrides.platform || process.platform });
+  const detected = await detectAgents({ cwd: root, env, platform });
   const hosts = agent === 'all' ? ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']
     : agent === 'auto' ? detected
       : agent === 'mcp' ? [] : [agent];
@@ -609,11 +738,12 @@ export async function connectAgentShield(args = [], overrides = {}) {
       genericMcpServer: generic,
       note: 'No supported host was detected. Re-run with --agent claude|codex|cursor|gemini|roo|copilot, or use the generic MCP entry in an MCP-compatible client.' };
   }
+  await ensureGitLocalOnlyConfigPaths(root, hosts, stateRoot);
   const results = [];
   for (const host of hosts) {
     results.push(host === 'codex'
-      ? await configureCodex(root, nodePath, serverPath)
-      : await configureJsonHost(host, root, nodePath, serverPath));
+      ? await configureCodex(root, nodePath, serverPath, stateRoot)
+      : await configureJsonHost(host, root, nodePath, serverPath, stateRoot));
   }
   return { status: 'connected', root, detected, results,
     note: 'MCP registration only; restart the host and approve the server. Optional lifecycle hooks are not installed. The .mcp.json entry also serves VS Code Copilot workspace configuration where workspace-root MCP config is enabled. The server is read-only and authorized only for this repository.' };
