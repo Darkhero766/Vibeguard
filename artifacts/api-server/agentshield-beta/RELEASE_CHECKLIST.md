@@ -17,7 +17,11 @@
 - [ ] Verify copyright assignment/authority for every Foxy-authored file attributed to Md Faizal; check employer, client, contractor, co-founder and prior-contributor rights before distribution
 - [ ] Audit all bundled/transitive components in the final archive and confirm each license/notice is present and compatible
 - [ ] Confirm `@vibesane` npm organization and package ownership from the intended npm owner account; enable 2FA and restrict publish membership
-- [ ] Configure and independently review npm Trusted Publishing (OIDC), a protected release environment and a dedicated non-implicit release workflow before publication
+- [ ] Review `.github/workflows/foxy-publish.yml`: it is manual-only, defaults to preflight (`confirm_publication=false`), validates `foxy-v<package-version>`, pins all jobs to the immutable event SHA, and requires all three OS qualification jobs before the publish job can run
+- [ ] Protect the `foxy-v*` tag pattern with a repository ruleset; restrict tag creation/update to release maintainers and prevent tag mutation after approval
+- [ ] Configure GitHub Environment `npm-release` with required owner/reviewer approval, prevent self-review where available, and restrict deployments to approved release tags
+- [ ] Configure and independently verify npm Trusted Publishing (OIDC) for exact owner `Darkhero766`, repo `Vibeguard`, workflow filename `foxy-publish.yml`, environment `npm-release`; no long-lived npm token
+- [ ] Run the owner-gated workflow once with `confirm_publication=false` against the exact release tag, inspect all OS qualification artifacts and archive checksums, then rerun with `true` only after explicit owner approval
 - [ ] Verify every Foxy contribution has a valid DCO sign-off (`Signed-off-by`) or separately documented rights grant
 - [ ] Allowlist is narrow, validated, and host MCP status reports it configured
 - [ ] Beta limitations, troubleshooting, rollback, feedback and private vulnerability-reporting instructions are supplied
