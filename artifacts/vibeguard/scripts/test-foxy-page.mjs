@@ -28,6 +28,11 @@ assert.ok(foxyPageSource.includes("VITE_FOXY_BETA_INSTALL_ENABLED === 'true'"), 
 assert.ok(foxyPageSource.includes('disabled={!FOXY_BETA_INSTALL_ENABLED}'), 'Install command copy control must be disabled while the package is unpublished.');
 assert.ok(foxyPageSource.includes('if (!FOXY_BETA_INSTALL_ENABLED) return;'), 'Clipboard action must fail closed while the beta installation flag is disabled.');
 assert.ok(foxyPageSource.includes("const FOXY_BETA_INSTALL_COMMAND = 'npx -y @vibesane/foxy@beta install';"), 'The one-line beta command must match the packaged beta channel.');
+assert.ok(foxyPageSource.includes("useState<InstallAgent>('auto')"), 'Install flow must default to safe auto-detection.');
+assert.ok(foxyPageSource.includes("FOXY_BETA_INSTALL_COMMAND + ' --agent ' + selectedAgent"), 'Explicit host selection must append the CLI-supported --agent flag.');
+assert.ok(foxyPageSource.includes('navigator.clipboard.writeText(installCommand)'), 'The install action must copy the exact selected command.');
+assert.ok(foxyPageSource.includes('id="foxy-install-agent"'), 'The host selector must have a stable accessible label target.');
+assert.ok(foxyPageSource.includes('installAgentOptions.map'), 'The host selector must be rendered from the supported-host option registry.');
 
 const uiSource = mainPageSource + dashboardSource + themeSource;
 const legacyCountLabels = ['51 checks', '51 security checks', '50 CHECKS', 'SCAN // 50', '50 RULES ACTIVE'];
@@ -42,7 +47,7 @@ for (const token of [
   '472 / 472', 'Regression suite', 'Windows + macOS + Ubuntu/Linux', '10 tools', '30 files',
   'real-host acceptance', 'independent security review',
   'https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745',
-  'https://github.com/Darkhero766/Vibeguard/pull/70', 'https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745', 'f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14', 'Install MCP', 'Available after beta publication', 'not published yet', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
+  'https://github.com/Darkhero766/Vibeguard/pull/70', 'https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745', 'f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14', 'Install MCP', 'Available after beta publication', 'not published yet', 'Auto-detect installed agents', 'Configure for', '--agent codex', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
 ]) assert.ok(html.includes(token), 'Foxy SEO route is missing: ' + token);
 
 assert.match(html, /<main id="main-content"/);
