@@ -13,14 +13,14 @@ assert.ok(html.includes('Security context for your AI agent.') && html.includes(
 assert.ok(html.includes('Repository files are never modified'), 'Preview must state the repository write boundary.');
 assert.ok(html.includes('Foxy maintains only its own local scan, baseline and queue state'), 'Preview must disclose Foxy-managed local state.');
 assert.ok(!/read-only MCP/i.test(html), 'Preview must not imply every MCP tool is side-effect free.');
-assert.ok(html.includes('472 / 472') && html.includes('Windows') && html.includes('Ubuntu / Linux'));
+assert.ok(html.includes('477 / 477') && html.includes('Windows') && html.includes('Ubuntu / Linux'));
 assert.ok(html.includes('id="install"') && html.includes('Available after beta publication'));
 assert.ok(html.includes('curl -fsSL https://vibesane.app/install.sh | bash'));
 assert.ok(html.includes("$env:FOXY_INSTALL_AGENT='auto'; irm https://vibesane.app/install.ps1 | iex"));
 assert.ok(html.includes('--agent codex') && html.includes('--agent copilot'), 'Static preview must document explicit host targeting.');
 assert.ok(html.includes('Beta.6 passed the three-platform automated matrix.'));
-assert.ok(html.includes('https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503'), 'Static preview must link to the final qualified Beta.6 run.');
-assert.ok(html.includes('edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8'), 'Static preview must display the current package-content hash.');
+assert.ok(html.includes('https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859'), 'Static preview must link to the final qualified Beta.6 run.');
+assert.ok(html.includes('39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98'), 'Static preview must display the current package-content hash.');
 assert.ok(!html.includes('beta.5 exact-source CI pending'));
 assert.match(html, /name="robots" content="noindex, nofollow, noarchive"/);
 assert.ok(!/<script\b[^>]*type=["']module["']/i.test(html), 'Static Foxy preview must not bootstrap the VibeSane SPA.');
