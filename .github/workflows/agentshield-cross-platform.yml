@@ -36,7 +36,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: foxy-qualification-${{ github.ref }}
+  group: foxy-qualification-v2-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
