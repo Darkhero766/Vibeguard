@@ -1,0 +1,15 @@
+Foxy distribution
+Copyright 2026 Md Faizal
+
+The copyright notice above applies to the original Foxy-authored material
+distributed in the @vibesane/foxy package, subject to the scope and exclusions
+described in docs/FOXY_LICENSE_AND_OWNERSHIP.md.
+
+Third-party components and bundled dependencies remain the property of their
+respective copyright holders and are distributed under their own licenses.
+Their attributions and license texts are reproduced in THIRD_PARTY_NOTICES.txt.
+
+The Apache License, Version 2.0, does not grant permission to use any product
+names, trademarks, service marks, logos, or branding except as expressly
+permitted by applicable law or written permission. See the Foxy trademark
+guidance in docs/FOXY_LICENSE_AND_OWNERSHIP.md.
