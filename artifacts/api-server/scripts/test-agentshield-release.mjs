@@ -186,7 +186,7 @@ test('frontend does not falsely report successful GitHub disconnect after API fa
 
 test('release tag parser extracts the exact package version', async () => {
   const source = await read('artifacts/api-server/scripts/agentshield-version.mjs');
-  const match = source.match(/AGENTSHIELD_VERSION\\s*=\\s*'([^']+)'/);
+  const match = source.match(/AGENTSHIELD_VERSION\s*=\s*'([^']+)'/);
   assert.ok(match, 'Package version source must contain the expected named constant.');
   assert.equal(match[1], AGENTSHIELD_VERSION);
 });
@@ -249,6 +249,13 @@ test('Foxy self-update installs the exact validated npm version, never a mutable
   assert.ok(updater.includes('typeof publishedVersion !== \'string\''));
   assert.ok(updater.includes('semverPattern.test(publishedVersion)'));
   assert.ok(updater.includes('`@vibesane/foxy@${publishedVersion}`'));
-  assert.ok(!updater.includes("'@vibesane/foxy@beta'"),
+  assert.ok(updater.includes("'view', '@vibesane/foxy@beta'"),
+    'Foxy updater must resolve the official beta dist-tag before selecting a version.');
+  const installStart = updater.indexOf("'install', '--global'");
+  const installEnd = updater.indexOf('], npmOptions);', installStart);
+  assert.ok(installStart >= 0 && installEnd > installStart, 'Global npm install arguments must be present.');
+  const installArgs = updater.slice(installStart, installEnd);
+  assert.ok(installArgs.includes('`@vibesane/foxy@${publishedVersion}`'));
+  assert.ok(!installArgs.includes('@vibesane/foxy@beta'),
     'Foxy updater must install the resolved exact version, not the mutable beta tag.');
 });
