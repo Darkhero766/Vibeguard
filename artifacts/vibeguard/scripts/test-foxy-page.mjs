@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile, chmod } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,6 +18,56 @@ assert.ok(powershellInstaller.includes("https://registry.npmjs.org")
   && powershellInstaller.includes("Get-Command 'npm.cmd'"));
 assert.ok(powershellInstaller.includes('--ignore-scripts') && powershellInstaller.includes('& $FoxyCommand install --agent $Agent'));
 assert.ok(powershellInstaller.includes('Node.js 24.15.0 or newer') && !powershellInstaller.includes('--yes'));
+
+const bootstrapFixture = await mkdtemp(path.join(os.tmpdir(), 'foxy-bootstrap-guard-'));
+try {
+  const bin = path.join(bootstrapFixture, 'bin');
+  const log = path.join(bootstrapFixture, 'npm-invocations.log');
+  await mkdir(bin, { recursive: true });
+  const guardEnv = { ...process.env, PATH: bin, FOXY_TEST_LOG: log };
+  if (process.platform === 'win32') {
+    const npmCmd = path.join(bin, 'npm.cmd');
+    const gitCmd = path.join(bin, 'git.cmd');
+    await writeFile(npmCmd, '@echo off\r\necho %*>> "%FOXY_TEST_LOG%"\r\nif /I "%~1"=="view" exit /b 1\r\nexit /b 99\r\n');
+    await writeFile(gitCmd, '@echo off\r\nexit /b 0\r\n');
+    const where = spawnSync('where.exe', ['pwsh'], { encoding: 'utf8', windowsHide: true });
+    const pwsh = where.status === 0 ? where.stdout.split(/\r?\n/).map(x => x.trim()).find(Boolean) : null;
+    assert.ok(pwsh, 'Windows CI must provide PowerShell 7 to validate the PowerShell bootstrap.');
+    const windowsEnv = {
+      ...process.env,
+      PATH: bin + path.delimiter + (process.env.PATH || ''),
+      FOXY_TEST_LOG: log,
+    };
+    const result = spawnSync(pwsh, ['-NoProfile', '-File', path.join(root, 'public', 'install.ps1')], {
+      cwd: bootstrapFixture, env: windowsEnv, encoding: 'utf8', windowsHide: true, timeout: 30_000,
+    });
+    assert.notEqual(result.status, 0, 'PowerShell bootstrap must stop when the official package does not exist.');
+    assert.match(result.stderr + result.stdout, /not available on the official npm registry yet/i);
+    const calls = await readFile(log, 'utf8');
+    assert.match(calls, /^view @vibesane\/foxy@beta /m);
+    assert.doesNotMatch(calls, /^install /m, 'PowerShell bootstrap must never install after registry lookup fails.');
+  } else {
+    const nodeLink = path.join(bin, 'node');
+    await symlink(process.execPath, nodeLink);
+    const npmStub = path.join(bin, 'npm');
+    await writeFile(npmStub, '#!/bin/sh\nprintf "%s\\n" "$*" >> "$FOXY_TEST_LOG"\nif [ "$1" = "view" ]; then exit 1; fi\nexit 99\n');
+    await chmod(npmStub, 0o755);
+    const gitStub = path.join(bin, 'git');
+    await writeFile(gitStub, '#!/bin/sh\nexit 0\n');
+    await chmod(gitStub, 0o755);
+    const result = spawnSync('/bin/bash', [path.join(root, 'public', 'install.sh'), '--agent', 'claude'], {
+      cwd: bootstrapFixture, env: guardEnv, encoding: 'utf8', timeout: 30_000,
+    });
+    assert.equal(result.status, 2, 'POSIX bootstrap must return its documented failure code when the package is unpublished.');
+    assert.match(result.stderr, /not available on the official npm registry yet/i);
+    const calls = await readFile(log, 'utf8');
+    assert.match(calls, /^view @vibesane\/foxy@beta /m);
+    assert.doesNotMatch(calls, /^install /m, 'POSIX bootstrap must never install after registry lookup fails.');
+  }
+} finally {
+  await rm(bootstrapFixture, { recursive: true, force: true });
+}
+
 if (process.platform === 'win32') {
   const escapedPath = path.join(root, 'public', 'install.ps1').replaceAll("'", "''");
   const parse = spawnSync('pwsh', ['-NoProfile', '-Command',
