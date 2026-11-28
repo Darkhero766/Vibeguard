@@ -137,13 +137,13 @@ These items require an approved operating model, not just a code change.
 
 ## 7. Web experience and accessibility
 
-- [ ] Build the production frontend and run route/SEO/static-preview checks.
+- [x] Build the production frontend and run route/SEO/static-preview checks (CI run #46109758971).
 - [ ] Verify /, /foxy, /agentshield, /scan-public, /audit, auth, settings and report routes.
 - [ ] Verify signed-out, signed-in, loading, error, exhausted-quota, scan-in-progress, findings, clean, partial-coverage and UNKNOWN states.
 - [ ] Test desktop, tablet and small mobile breakpoints; confirm forms, navigation, cards and tables do not overflow.
 - [ ] Test keyboard navigation, visible focus, semantic headings/landmarks, accessible names and form error announcements.
 - [ ] Test reduced-motion behavior and contrast in graphite, lime and warm-white sections.
-- [ ] Verify staging and reviewer previews are noindex and robots-blocked; do not index private beta material.
+- [x] Verify staging and reviewer previews are noindex and robots-blocked; do not index private beta material (CI run #46109758971).
 - [ ] Check every product claim and number against source evidence. Historical beta.4 metrics remain labeled historical.
 - [ ] Confirm the public rule count matches the source catalog (54 rules at this candidate) in the landing page, public report, signed-in dashboard and animated console.
 - [ ] Review contrast on the lime CTA and light clean/upgrade/dashboard cards in both normal and reduced-motion browser states.
@@ -173,13 +173,13 @@ Release remains blocked until all mandatory evidence is complete.
 This section supersedes older candidate-SHA and in-progress-status notes earlier in this document.
 
 - **Current code candidate:** `8ff17de5c5f9ce788e3447ae47263c77136cc3db`.
-- **Exact-source Windows/macOS qualification:** [run #46109758971](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971) was queued after this source update. Do not claim it passed until both jobs and both qualification reports are successful.
+- **Exact-source Windows/macOS qualification:** [run #46109758971](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971) completed successfully on both platforms; 454/454 tests per OS and zero failed, cancelled or skipped tests.
 - **Current PR state:** PR #70 remains draft, open and unmerged. No production deployment or package publication was performed.
 - **Earlier source results:** `a777754...` passed the prior 453/453-per-platform run #46055587747. Runtime-provenance candidate `089c2ac...` failed its source-matched run #46108972740 due to missing provenance propagation and a test-scope issue; follow-up commits fixed those. Candidate `65cd27b...` passed macOS but failed Windows at 453/454 in run #46109329318 due to a concurrent SQLite WAL-initialization lock. These failures remain part of the qualification history.
 - **Latest fixes:** commit `24e08b1...` adds the installed bundled `agentshield-mcp-stdio.mjs` executable to the MCP runtime fingerprint. Commit `8ff17de...` adds bounded retries only for SQLite BUSY/LOCKED during WAL initialization, then restores the normal busy timeout. It still refuses any journal mode other than WAL.
 
 
-The release checklist remains **NOT APPROVED FOR PRODUCTION**. Keep the exact-source CI gate pending until run #46109758971 reports success on both Windows and macOS and both artifact reports show zero failed/cancelled/skipped required tests. Independent security review, real-host acceptance, PR-stack reconciliation, rollback/support readiness and owner approval remain separate mandatory gates.
+The release checklist remains **NOT APPROVED FOR PRODUCTION**. The exact-source CI gate is PASSED; independent security review, real-host acceptance, PR-stack reconciliation, package/release provenance, rollback/support readiness, accessibility QA and owner authorization remain separate mandatory gates.
 
 
 ## 9. Final automated qualification — 28 November 2026

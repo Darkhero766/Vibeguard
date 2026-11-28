@@ -194,7 +194,7 @@ At the start of a new chat:
 This section supersedes older candidate-SHA and in-progress-status notes earlier in this document.
 
 - **Current code candidate:** `8ff17de5c5f9ce788e3447ae47263c77136cc3db`.
-- **Exact-source Windows/macOS qualification:** [run #46109758971](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971) was queued after this source update. Do not claim it passed until both jobs and both qualification reports are successful.
+- **Exact-source Windows/macOS qualification:** [run #46109758971](https://github.com/Darkhero766/Vibeguard/actions/runs/46109758971) passed on both platforms, 454/454 tests per OS.
 - **Current PR state:** PR #70 remains draft, open and unmerged. No production deployment or package publication was performed.
 - **Earlier source results:** `a777754...` passed the prior 453/453-per-platform run #46055587747. Runtime-provenance candidate `089c2ac...` failed its source-matched run #46108972740 due to missing provenance propagation and a test-scope issue; follow-up commits fixed those. Candidate `65cd27b...` passed macOS but failed Windows at 453/454 in run #46109329318 due to a concurrent SQLite WAL-initialization lock. These failures remain part of the qualification history.
 - **Latest fixes:** commit `24e08b1...` adds the installed bundled `agentshield-mcp-stdio.mjs` executable to the MCP runtime fingerprint. Commit `8ff17de...` adds bounded retries only for SQLite BUSY/LOCKED during WAL initialization, then restores the normal busy timeout. It still refuses any journal mode other than WAL.
@@ -202,7 +202,7 @@ This section supersedes older candidate-SHA and in-progress-status notes earlier
 
 ## Launch decision
 
-Two-day timing does not justify waiving the remaining gates. The present candidate should not be called public-launch ready until exact-source Windows/macOS qualification passes, actual host sessions are accepted for every advertised host/platform pair (or the support matrix is narrowed), and an independent security reviewer signs off. If those gates are still open at the target date, use a restricted private beta for the combinations actually tested or defer public distribution. Do not expand Markdown/config scanning or add optional integrations in the final qualification window.
+Two-day timing does not justify waiving the remaining gates. Exact-source Windows/macOS qualification has now passed. The candidate should still not be called public-launch ready until actual host sessions are accepted for every advertised host/platform pair (or the support matrix is narrowed), and an independent security reviewer signs off. If those gates are still open at the target date, use a restricted private beta for the combinations actually tested or defer public distribution. Do not expand Markdown/config scanning or add optional integrations in the final qualification window.
 
 
 ## 28 November 2026 — final Foxy beta.5 exact-source qualification
