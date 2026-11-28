@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import {
   buildCodexMcpBlock,
+  codexHasMcpConflict,
   buildJsonMcpEntry,
   jobStoreNamespaceForHost,
   connectAgentShield,
@@ -50,6 +51,36 @@ test('agent detection recognizes project markers without launching agents', asyn
     env: { PATH: bin, USERPROFILE: root },
     platform: process.platform,
   }), ['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']);
+});
+
+test('Codex TOML conflict detection recognizes quoted and dotted table keys', () => {
+  const conflicts = [
+    '[mcp_servers.vibesane_agentshield]',
+    '["mcp_servers"."vibesane_agentshield"]',
+    "[mcp_servers.'vibesane_agentshield']",
+    '[ "mcp_servers" . "vibesane_agentshield" ]',
+    '[[mcp_servers.vibesane_agentshield]]',
+    'mcp_servers.vibesane_agentshield = { command = "custom" }',
+    '[mcp_servers]\nvibesane_agentshield = { command = "custom" }',
+    'mcp_servers = { vibesane_agentshield = { command = "custom" } }',
+  ];
+  for (const source of conflicts) {
+    assert.equal(codexHasMcpConflict(source), true, 'Must refuse conflicting TOML: ' + source);
+  }
+
+  const safe = [
+    '# [mcp_servers.vibesane_agentshield] is only a comment',
+    'description = "[mcp_servers.vibesane_agentshield]"',
+    '[mcp_servers]',
+    '[mcp_servers.other_server]',
+    'command = "other"',
+    'args = []',
+    '',
+    '[features]',
+    'experimental = true',
+  ].join('\n');
+  assert.equal(codexHasMcpConflict(safe), false,
+    'Unrelated server entries and comment/string lookalikes must remain configurable.');
 });
 
 test('Codex TOML and JSON MCP entries escape Windows paths and keep the allowlist narrow', () => {
