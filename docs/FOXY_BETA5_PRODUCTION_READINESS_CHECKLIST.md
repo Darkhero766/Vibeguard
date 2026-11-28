@@ -2,17 +2,18 @@
 
 **Status:** NOT APPROVED FOR PRODUCTION  
 **Candidate:** 0.7.0-beta.5  
-**Current source candidate:** 089c2ac60d5679c71dde4ef1fe0dd3d1f23177a1  
+**Current source candidate:** 65cd27b474db7863e1795a7d4dd59d44045e7177  
 **Prior fully qualified source:** a777754de234ed2e469cd9822ad4a1f5f881e095  
-**Current exact-source run:** [#46108972740](https://github.com/Darkhero766/Vibeguard/actions/runs/46108972740) — in progress when this checklist revision was written  
+**Current exact-source run:** [#46109329318](https://github.com/Darkhero766/Vibeguard/actions/runs/46109329318) — in progress when this checklist revision was written  
+**Earlier provenance attempt:** run #46108972740 on 089c2ac returned `not_qualified`; the identified restore and async-context propagation defects were fixed in e3edce0 and 65cd27b.  
 **PR:** [#70 — Foxy beta.5](https://github.com/Darkhero766/Vibeguard/pull/70)
 
 This is the release control record for Foxy / AgentShield beta.5. A source change, test definition, historical green run, or reviewer preview is not a completed release gate. Mark an item complete only when its evidence is attached to the exact candidate commit and reviewed. Keep the PR draft, unpublished and unmerged until every mandatory gate is closed.
 
 ## 1. Source identity and change control
 
-- [ ] Qualify exact source SHA `089c2ac60d5679c71dde4ef1fe0dd3d1f23177a1` on Windows and macOS in [Actions run #46108972740](https://github.com/Darkhero766/Vibeguard/actions/runs/46108972740). The previous exact-source pass on `a777754...` is historical for that earlier source only.
-- [ ] Confirm package version beta.5, Git revision, source fingerprint, generated README, package inventory and per-file content manifest for SHA `089c2ac...`.
+- [ ] Qualify exact source SHA `65cd27b474db7863e1795a7d4dd59d44045e7177` on Windows and macOS in [Actions run #46109329318](https://github.com/Darkhero766/Vibeguard/actions/runs/46109329318). The earlier run #46108972740 failed on 089c2ac; its identified regressions were fixed in this candidate.
+- [ ] Confirm package version beta.5, Git revision, source fingerprint, generated README, package inventory and per-file content manifest for SHA `65cd27b...`.
 - [x] Verify workflow triggerability: `.github/workflows/agentshield-cross-platform.yml` has a branch-scoped `push` trigger for `feat/agentshield-cross-platform-autoconnect`; run #46055587747 completed successfully on both platforms.
 - [x] CI checks out the exact candidate with a clean checkout and verifies the source revision before building.
 - [ ] Review the entire PR diff, not only the latest commit.
@@ -41,7 +42,7 @@ Run on Node.js 24.15.0 or newer, using the repository lockfile and .github/workf
 - [ ] Verify zero failed, cancelled or skipped required test cases.
 - [ ] Download and inspect both platform artifacts. Confirm their reported source SHA equals the candidate SHA.
 
-**Historical evidence:** [run #46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747) passed on SHA `a777754de234ed2e469cd9822ad4a1f5f881e095`: 453/453 regression tests per OS, all release steps passed, MCP STDIO and offline package smoke passed. Artifacts: [macOS](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747/artifacts/15226766918), [Windows](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747/artifacts/15226592319). Both 29-file packages had identical content manifest SHA-256 `7e65e968cbea7f9396148cdb3cfa6483efbf492aba4bf899ac675036812c401a`; outer archive hashes are platform-specific. This does not qualify the later code change at `089c2ac...`. Run #46108972740 is the source-matched qualification for `089c2ac...` and must finish successfully on both OS before these checklist items are completed.
+**Historical evidence:** [run #46055587747](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747) passed on SHA `a777754de234ed2e469cd9822ad4a1f5f881e095`: 453/453 regression tests per OS, all release steps passed, MCP STDIO and offline package smoke passed. Artifacts: [macOS](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747/artifacts/15226766918), [Windows](https://github.com/Darkhero766/Vibeguard/actions/runs/46055587747/artifacts/15226592319). Both 29-file packages had identical content manifest SHA-256 `7e65e968cbea7f9396148cdb3cfa6483efbf492aba4bf899ac675036812c401a`; outer archive hashes are platform-specific. This evidence applies only to `a777754...`. The first runtime-provenance candidate `089c2ac...` was not qualified: run #46108972740 recorded 451/454 tests passed and an MCP STDIO smoke failure. The restore-field, async-context propagation and test-scope issues were corrected in `e3edce0...` and `65cd27b...`. Run #46109329318 is the source-matched Windows/macOS qualification for `65cd27b...`; it was still running when this checklist was updated. Do not mark these gates complete until both platform jobs pass.
 
 ## 3. SQLite queue and migration adversarial validation
 
@@ -153,7 +154,7 @@ Release remains blocked until all mandatory evidence is complete.
 | Sign-off | Required owner | Status |
 |---|---|---|
 | Source and dependency review | Maintainer + stack reviewer | OPEN |
-| Exact-source Windows/macOS CI | Engineering owner | PENDING — run #46108972740 for SHA 089c2ac; prior SHA a777754 passed |
+| Exact-source Windows/macOS CI | Engineering owner | PENDING — run #46109329318 for SHA 65cd27b; earlier SHA a777754 passed; attempt 089c2ac failed and was corrected |
 | Queue/migration adversarial review | Independent engineer | OPEN |
 | Installed-host acceptance | Host/platform testers | OPEN |
 | Independent security review | External reviewer | OPEN |

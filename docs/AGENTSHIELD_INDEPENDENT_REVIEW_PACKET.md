@@ -149,7 +149,7 @@ The current queue test file defines 39 cases. These are definitions only. Run th
 
 ## MCP runtime-provenance hardening delta — 28 November 2026
 
-**Candidate implementation commit:** `089c2ac60d5679c71dde4ef1fe0dd3d1f23177a1` on PR #70.
+**Initial implementation commit:** `089c2ac60d5679c71dde4ef1fe0dd3d1f23177a1` on PR #70. Follow-up fixes: `e3edce0e880c074b00030e418eb1df568a00c960` and `65cd27b474db7863e1795a7d4dd59d44045e7177`. Current source candidate: `65cd27b474db7863e1795a7d4dd59d44045e7177`.
 
 The queue's persisted remediation-baseline context previously compared the standalone scanner artifact fingerprint, ruleset/version string and report-schema version. The candidate adds a required `runtimeFingerprint` computed from the exact bytes of these packaged modules:
 
@@ -164,6 +164,6 @@ The fingerprint uses stable relative module names and SHA-256 over each module's
 
 Regression coverage was added/extended in `test-agentshield-baselines.mjs`, `test-agentshield-jobs.mjs` and `test-agentshield-mcp.mjs`, including provenance generation, missing-field rejection and cross-restart runtime-drift invalidation.
 
-**Qualification status:** Windows/macOS run [#46108972740](https://github.com/Darkhero766/Vibeguard/actions/runs/46108972740) was in progress when this packet update was prepared. Do not treat the new tests as passing until both jobs complete on the exact source SHA. The prior run #46055587747 applies only to `a777754...`.
+**Qualification chronology:** run [#46108972740](https://github.com/Darkhero766/Vibeguard/actions/runs/46108972740) on the initial commit `089c2ac...` returned `not_qualified`: 451/454 regression tests passed and MCP STDIO integration smoke failed. Diagnosis showed that `BaselineStore.restore()` dropped the runtime fingerprint, the async changed-scan context did not carry it, and one queue test referenced a block-scoped job ID. Follow-up commits `e3edce0...` and `65cd27b...` fix these exact issues while retaining strict validation. The current exact-source Windows/macOS run [#46109329318](https://github.com/Darkhero766/Vibeguard/actions/runs/46109329318) on `65cd27b...` was still in progress when this packet update was prepared. Do not treat the current tests as passed until both jobs complete. The old passing run #46055587747 applies only to `a777754...`.
 
 **Independent reviewer tasks:** confirm that the six-file inventory covers every module that can change workspace authorization, scan orchestration, baseline interpretation or queue restoration; inspect package inclusion and fstat checks; reproduce both runtime-drift and missing-provenance behavior; inspect whether a partial package update can result in a mixed runtime; and confirm a stale baseline never becomes a clean or verifiable result.
