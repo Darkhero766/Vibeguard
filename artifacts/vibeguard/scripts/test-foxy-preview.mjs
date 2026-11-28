@@ -10,6 +10,9 @@ const route = await readFile(path.join(out, 'foxy', 'index.html'), 'utf8');
 
 assert.equal(html, route, 'Preview root and /foxy entrypoint must be byte-identical.');
 assert.ok(html.includes('Security context for your AI agent.') && html.includes('GitHub Copilot'));
+assert.ok(html.includes('No repository writes'), 'Preview must state the repository write boundary.');
+assert.ok(html.includes('Foxy maintains only its own local scan, baseline and queue state'), 'Preview must disclose Foxy-managed local state.');
+assert.ok(!/read-only MCP/i.test(html), 'Preview must not imply every MCP tool is side-effect free.');
 assert.ok(html.includes('472 / 472') && html.includes('Windows') && html.includes('Ubuntu / Linux'));
 assert.ok(html.includes('id="install"') && html.includes('Available after beta publication'));
 assert.ok(html.includes('npx -y @vibesane/foxy@beta install'));
