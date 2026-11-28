@@ -82,7 +82,7 @@ process.stdin.on("data", chunk => { input += chunk; });
 process.stdin.on("end", () => {
   let version;
   try { version = JSON.parse(input); } catch { process.exit(2); }
-  const semver = /^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$/;
+  const semver = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
   if (typeof version !== "string" || !semver.test(version)) process.exit(2);
   process.stdout.write(version);
 });
