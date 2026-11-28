@@ -1,0 +1,225 @@
+name: Foxy owner-gated publication
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_publication:
+        description: "Set true only after the owner has approved this exact release and completed npm Trusted Publishing setup."
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foxy-publication-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-ref:
+    name: Validate approved release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Require a version-matched tag merged into main
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_REF" in
+            refs/tags/foxy-v*) ;;
+            *) echo "Ref must be a versioned foxy-v* tag." >&2; exit 1 ;;
+          esac
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Release tag must point to a commit already reachable from main." >&2
+            exit 1
+          fi
+          version="$(node --input-type=module -e "import { PACKAGE_VERSION } from './artifacts/api-server/scripts/package-agentshield-beta.mjs'; console.log(PACKAGE_VERSION)")"
+          expected_tag="foxy-v${version}"
+          if [ "$GITHUB_REF_NAME" != "$expected_tag" ]; then
+            echo "Tag mismatch: expected $expected_tag, received $GITHUB_REF_NAME." >&2
+            exit 1
+          fi
+          echo "Validated release tag $GITHUB_REF_NAME at $GITHUB_SHA."
+
+  qualify:
+    name: Release qualification (${{ matrix.os }})
+    needs: validate-ref
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    env:
+      CI: "true"
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      npm_config_update_notifier: "false"
+      VITE_DEPLOYMENT_ENV: staging
+    steps:
+      - name: Checkout exact release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.0
+        with:
+          version: 10.34.9
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24.15"
+          cache: pnpm
+
+      - name: Install frozen workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build TypeScript workspace project references
+        run: pnpm exec tsc -b --pretty false
+
+      - name: Typecheck VibeSane frontend
+        run: pnpm --filter @workspace/vibeguard run typecheck
+
+      - name: Typecheck API server
+        run: pnpm --filter @workspace/api-server run typecheck
+
+      - name: Build VibeSane app and standalone Foxy staging page
+        run: pnpm --filter @workspace/vibeguard run build && pnpm --filter @workspace/vibeguard run test:foxy:page && node artifacts/vibeguard/scripts/staging-postbuild.mjs && node artifacts/vibeguard/scripts/build-foxy-preview.mjs && pnpm --filter @workspace/vibeguard run test:foxy:preview
+
+      - name: Run cross-platform connector regression tests
+        run: pnpm --filter @workspace/api-server run test:agentshield:connect
+
+      - name: Run complete Foxy release qualification
+        run: pnpm --filter @workspace/api-server run test:agentshield:release-qualification
+
+      - name: Upload exact-source qualification evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: foxy-release-${{ matrix.os }}-${{ github.sha }}
+          path: |
+            artifacts/api-server/dist/agentshield-release-validation.json
+            artifacts/vibeguard/dist/public/foxy/index.html
+            pnpm-lock.yaml
+          if-no-files-found: warn
+          retention-days: 14
+
+  publish:
+    name: Publish approved Foxy beta with npm OIDC
+    needs: [validate-ref, qualify]
+    if: ${{ inputs.confirm_publication == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: npm-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout exact release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.0
+        with:
+          version: 10.34.9
+          run_install: false
+
+      - name: Setup Node with npm registry and no package cache
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24.15"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Verify npm CLI supports trusted publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm_version="$(npm --version)"
+          NPM_VERSION="$npm_version" node -e "
+            const [major, minor, patch] = process.env.NPM_VERSION.split('.').map(Number);
+            if (!(major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1))))) {
+              throw new Error('npm 11.5.1 or newer is required for Trusted Publishing.');
+            }
+          "
+          if [ -n "${NODE_AUTH_TOKEN:-}" ] || [ -n "${NPM_TOKEN:-}" ]; then
+            echo "Long-lived npm tokens are forbidden; use the configured OIDC Trusted Publisher." >&2
+            exit 1
+          fi
+          echo "npm $npm_version is compatible with Trusted Publishing."
+
+      - name: Install frozen workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and validate the exact unpublished archive
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @workspace/api-server run build:agentshield
+          node artifacts/api-server/scripts/package-agentshield-beta.mjs > "$RUNNER_TEMP/foxy-package.json"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const result = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/foxy-package.json', 'utf8'));
+          const stage = path.resolve('artifacts/api-server/dist/agentshield-beta-stage');
+          const manifest = JSON.parse(fs.readFileSync(path.join(stage, 'package.json'), 'utf8'));
+          const expectedVersion = process.env.GITHUB_REF_NAME.slice('foxy-v'.length);
+          const requiredFiles = ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.txt'];
+          if (result.status !== 'packaged_local_only' || result.published !== false) {
+            throw new Error('Package generation must remain local-only and explicitly unpublished.');
+          }
+          if (manifest.name !== '@vibesane/foxy' || manifest.version !== expectedVersion
+            || manifest.license !== 'Apache-2.0' || manifest.private === true
+            || manifest.repository?.url !== 'https://github.com/Darkhero766/Vibeguard.git'
+            || manifest.engines?.node !== '>=24.15.0'
+            || requiredFiles.some(file => !manifest.files?.includes(file))) {
+            throw new Error('Generated npm manifest does not match the approved Foxy release contract.');
+          }
+          const archive = path.resolve(result.archive);
+          const dist = path.resolve('artifacts/api-server/dist') + path.sep;
+          if (!archive.startsWith(dist) || !fs.statSync(archive).isFile()
+            || !/^[a-f0-9]{64}$/.test(result.sha256 || '')
+            || !/^[a-f0-9]{64}$/.test(result.contentSha256 || '')) {
+            throw new Error('Generated archive path or SHA-256 evidence is invalid.');
+          }
+          const actualArchiveHash = await import('node:crypto').then(({createHash}) =>
+            createHash('sha256').update(fs.readFileSync(archive)).digest('hex'));
+          if (actualArchiveHash !== result.sha256) throw new Error('Archive SHA-256 mismatch.');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,
+            'archive=' + archive + '\nversion=' + manifest.version + '\nsha256=' + result.sha256
+            + '\ncontent_sha256=' + result.contentSha256 + '\n');
+          console.log(JSON.stringify({
+            package: manifest.name, version: manifest.version, license: manifest.license,
+            archiveSha256: result.sha256, packageContentSha256: result.contentSha256,
+            packagedFiles: result.fileCount, publishedByBuilder: result.published,
+          }));
+          NODE
+
+      - name: Publish beta using npm Trusted Publishing and provenance
+        env:
+          FOXY_ARCHIVE: ${{ steps.package.outputs.archive }}
+        run: npm publish "$FOXY_ARCHIVE" --access public --tag beta --provenance --ignore-scripts
