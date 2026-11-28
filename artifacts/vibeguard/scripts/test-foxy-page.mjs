@@ -9,6 +9,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const html = await readFile(path.join(root, 'dist', 'public', 'foxy', 'index.html'), 'utf8');
 const shellInstaller = await readFile(path.join(root, 'public', 'install.sh'), 'utf8');
 const powershellInstaller = await readFile(path.join(root, 'public', 'install.ps1'), 'utf8');
+const qualificationWorkflow = await readFile(path.resolve(root, '../..', '.github', 'workflows', 'agentshield-cross-platform.yml'), 'utf8');
+assert.equal((qualificationWorkflow.match(/artifacts\\/vibeguard\\/public\\/\\*\\*/g) || []).length, 2,
+  'Both push and pull-request qualification filters must include public bootstrap scripts.');
 assert.ok(shellInstaller.startsWith('#!/usr/bin/env bash') && shellInstaller.includes('set -Eeuo pipefail'));
 assert.ok(shellInstaller.includes('https://registry.npmjs.org') && shellInstaller.includes('npm view "${PACKAGE}@${CHANNEL}"'));
 assert.ok(shellInstaller.includes('npm install --global --ignore-scripts') && shellInstaller.includes('foxy_command" install --agent'));
