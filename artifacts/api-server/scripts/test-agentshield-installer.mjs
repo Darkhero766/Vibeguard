@@ -147,3 +147,21 @@ test('verification mismatch triggers rollback of entries created by this attempt
   assert.equal(result.status, 'rolled_back');
   assert.deepEqual(removed, ['claude']);
 });
+
+
+test('connector throw marks in-flight host uncertain and never claims clean rollback', async () => {
+  const disconnectCalls = [];
+  const plan = buildInstallPlan({ agent: 'codex', root, detected: [] });
+  const result = await applyInstallPlan(plan, {
+    connect: async () => { throw new Error('synthetic lock-release failure after possible atomic write'); },
+    disconnect: async (args) => {
+      disconnectCalls.push(args[1]);
+      return { results: [{ host: args[1], status: 'removed' }] };
+    },
+  });
+  assert.equal(result.status, 'partial_failure');
+  assert.deepEqual(result.uncertainHosts, ['codex']);
+  assert.deepEqual(disconnectCalls, [],
+    'An in-flight host with an unknown write outcome must not be automatically removed.');
+  assert.match(result.note, /marked uncertain/i);
+});
