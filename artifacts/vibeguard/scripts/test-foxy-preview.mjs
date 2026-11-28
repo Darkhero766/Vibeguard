@@ -13,6 +13,7 @@ assert.ok(html.includes('Security context for your AI agent.') && html.includes(
 assert.ok(html.includes('472 / 472') && html.includes('Windows') && html.includes('Ubuntu / Linux'));
 assert.ok(html.includes('id="install"') && html.includes('Available after beta publication'));
 assert.ok(html.includes('npx -y @vibesane/foxy@beta install'));
+assert.ok(html.includes('--agent codex') && html.includes('--agent copilot'), 'Static preview must document explicit host targeting.');
 assert.ok(html.includes('Beta.6 passed the three-platform automated matrix.'));
 assert.ok(!html.includes('beta.5 exact-source CI pending'));
 assert.match(html, /name="robots" content="noindex, nofollow, noarchive"/);
