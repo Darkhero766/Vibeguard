@@ -186,8 +186,10 @@ export async function applyInstallPlan(plan, overrides = {}) {
         rollback.push({ host, status: 'rollback_failed', message: String(rollbackError?.message || 'Inspect configuration manually.').slice(0, 240) });
       }
     }
+    const unresolvedUncertainHosts = uncertainHosts.filter((host) =>
+      !rollback.some((item) => item.host === host && item.status === 'removed'));
     return {
-      status: uncertainHosts.length || rollback.some((item) => item.status !== 'removed') || preservedMigrations.length
+      status: unresolvedUncertainHosts.length || rollback.some((item) => item.status !== 'removed') || preservedMigrations.length
         ? 'partial_failure'
         : 'rolled_back',
       root: plan.root,
@@ -195,7 +197,7 @@ export async function applyInstallPlan(plan, overrides = {}) {
       hosts: plan.hosts,
       results,
       preservedMigrations,
-      uncertainHosts,
+      uncertainHosts: unresolvedUncertainHosts,
       rollback,
       error: String(error?.message || 'Installation failed.').slice(0, 400),
       note: 'Only entries newly created in this attempt were eligible for automatic removal. Existing or migrated entries and backups were preserved. A host whose connector threw before returning a status is marked uncertain because its atomic config write may already have completed; inspect it before retrying.',
