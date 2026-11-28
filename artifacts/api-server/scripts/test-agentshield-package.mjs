@@ -104,7 +104,7 @@ try {
     'VIBESANE_ALLOWED_ROOTS_JSON', 'mcp-doctor', 'Codex Stop hooks', 'Node.js 24.15.0', 'SQLite',
     'init-codex', 'connect --agent cursor', 'connect --agent copilot', 'uninstall-mcp --host claude',
     'Node.js >=24.15.0', 'node:sqlite', 'transactional multi-process job claims', 'jobs.json snapshot is migrated',
-    'vibesane install', '--dry-run', '--agent auto', 'npx @vibesane/foxy install',
+    'vibesane install', '--dry-run', '--agent auto', 'npx @vibesane/foxy@beta install', 'npx @vibesane/foxy install',
   ];
   const missingReadmeText = requiredReadmeText.filter((item) => !packagedReadme.stdout.includes(item));
   assert(missingReadmeText.length === 0,
