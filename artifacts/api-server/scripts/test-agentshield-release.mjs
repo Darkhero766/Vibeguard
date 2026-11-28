@@ -121,6 +121,7 @@ test('Foxy Apache-2.0 grant is scoped and its copyright/third-party notices are 
   const notice=await read('artifacts/api-server/FOXY-NOTICE.txt');
   const policy=await read('docs/FOXY_LICENSE_AND_OWNERSHIP.md');
   const contribution=await read('docs/FOXY_CONTRIBUTING.md');
+  const releaseChecklist=await read('artifacts/api-server/agentshield-beta/RELEASE_CHECKLIST.md');
   assert.match(license,/Apache License\s+Version 2\.0/);
   assert.match(notice,/Copyright 2026 Md Faizal/);
   assert.match(notice,/identify the origin/i);
@@ -131,6 +132,10 @@ test('Foxy Apache-2.0 grant is scoped and its copyright/third-party notices are 
   assert.match(policy,/Developer Certificate of Origin/i);
   assert.match(contribution,/git commit -s/);
   assert.match(contribution,/Signed-off-by/);
+  assert.match(releaseChecklist,/exact npm archive declares `Apache-2\.0`/);
+  assert.match(releaseChecklist,/copyright assignment\/authority/i);
+  assert.match(releaseChecklist,/`@vibesane` npm organization/);
+  assert.match(releaseChecklist,/Trusted Publishing \(OIDC\)/);
 });
 test('production planning never silently replays the legacy Supabase migration script',async()=>{
   const plan=await read('supabase/review-only/PROPOSED_USAGE_ENTITLEMENT_LOCKDOWN.sql');
