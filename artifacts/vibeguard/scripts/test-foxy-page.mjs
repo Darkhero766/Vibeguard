@@ -12,11 +12,19 @@ const powershellInstaller = await readFile(path.join(root, 'public', 'install.ps
 assert.ok(shellInstaller.startsWith('#!/usr/bin/env bash') && shellInstaller.includes('set -Eeuo pipefail'));
 assert.ok(shellInstaller.includes('https://registry.npmjs.org') && shellInstaller.includes('npm view "${PACKAGE}@${CHANNEL}"'));
 assert.ok(shellInstaller.includes('npm install --global --ignore-scripts') && shellInstaller.includes('foxy_command" install --agent'));
+assert.ok(shellInstaller.includes('package_version_json=') && shellInstaller.includes('"${PACKAGE}@${package_version}"'));
+assert.ok(shellInstaller.includes('The official npm registry returned an invalid version'));
+assert.doesNotMatch(shellInstaller, /npm install[^\n]*\$\{PACKAGE\}@\$\{CHANNEL\}/,
+  'POSIX bootstrap must install the resolved version, never a mutable dist-tag.');
 assert.ok(shellInstaller.includes('Node.js 24.15.0 or newer') && !shellInstaller.includes('foxy install --agent "$agent" --yes'));
 assert.ok(powershellInstaller.includes("https://registry.npmjs.org")
   && powershellInstaller.includes("$NpmPath view \"$PackageName@$Channel\"")
   && powershellInstaller.includes("Get-Command 'npm.cmd'"));
 assert.ok(powershellInstaller.includes('--ignore-scripts') && powershellInstaller.includes('& $FoxyCommand install --agent $Agent'));
+assert.ok(powershellInstaller.includes('$PublishedVersionJson =') && powershellInstaller.includes('"$PackageName@$PublishedVersion"'));
+assert.ok(powershellInstaller.includes('$SemverPattern') && powershellInstaller.includes('invalid version'));
+assert.doesNotMatch(powershellInstaller, /install[^\n]*\$PackageName@\$Channel/,
+  'PowerShell bootstrap must install the resolved version, never a mutable dist-tag.');
 assert.ok(powershellInstaller.includes('Node.js 24.15.0 or newer') && !powershellInstaller.includes('--yes'));
 
 const bootstrapFixture = await mkdtemp(path.join(os.tmpdir(), 'foxy-bootstrap-guard-'));
