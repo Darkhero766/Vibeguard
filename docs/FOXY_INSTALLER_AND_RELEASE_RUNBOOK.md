@@ -117,3 +117,12 @@ Foxy remains local-first and account-independent. Clerk is an optional VibeSane 
 - Benchmark fixtures are controlled and synthetic; passing benchmarks do not establish real-world false-positive/false-negative rates.
 - Automated CI does not replace live validation in each advertised AI host.
 - This runbook does not configure Clerk/Supabase/Render production services, publish npm, deploy the website or merge either draft PR.
+
+ 
+## Final qualification evidence — 28 November 2026
+
+The latest exact code/workflow candidate `e6ab2fcfd373f3473bc6d282eabebfcc105db2c6` passed [Actions run #46167652859](https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859) on Windows x64, macOS arm64 and Ubuntu/Linux x64, Node.js 24.15.0. Each OS reports 477/477 regression tests, all required qualification steps passed, no skipped/failed stages, successful MCP STDIO smoke and successful offline package-install/CLI/MCP smoke.
+
+The package is `@vibesane/foxy@0.7.0-beta.6`, 33 files. The full per-file manifest and canonical package-content SHA-256 match across all three operating systems: `39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98`. The outer `.tgz` wrapper hash can differ by OS archive representation; the 33 extracted package files and their hashes match.
+
+The owner-gated publisher now contains a separate `verify-cross-platform-package` job. It downloads all three exact-source artifacts and checks the revision, release decision, production untouched flag, all-stage pass state, regression pass counts, package smoke, benchmark evidence and identical version/file manifest/content hash. The optional publish job depends on this aggregate gate as well as all three OS jobs. This workflow has not been dispatched and is not runnable from the default branch until the PR stack is safely integrated. The npm package remains unpublished.
