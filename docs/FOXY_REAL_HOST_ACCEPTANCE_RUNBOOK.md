@@ -186,18 +186,18 @@ Backups must match the exact bytes read by the operation. Immediately before ren
 
 ## Current universal-installer Codespaces pilot — 28 November 2026
 
-For the owner's first actual Codex host session, use [FOXY_UNIVERSAL_INSTALLER_PILOT.md](FOXY_UNIVERSAL_INSTALLER_PILOT.md). It targets exact code SHA `3ec649c01506ae077639595794fd0b0cc445db04`, package `@vibesane/foxy@0.7.0-beta.6` and a disposable repository with synthetic files. Build/package locally from the qualified source and install the local archive into an isolated npm prefix; the registry package is unpublished. Preview with `foxy install --dry-run --agent codex --cwd <fixture>` and run the interactive `foxy install --agent codex --cwd <fixture>` only after reviewing the target/config preview. Do not run a public `npx` command yet. Capture actual Codex MCP discovery, `/mcp` tools, `status`, authorized/unauthorized workspace behavior and `/hooks` trust separately from CI. Keep completion policy advisory for the initial run and use no production repositories.
+For the owner's first actual Codex host session, use [FOXY_UNIVERSAL_INSTALLER_PILOT.md](FOXY_UNIVERSAL_INSTALLER_PILOT.md). It targets exact code SHA `ca9de05d00672d9a3148deec13ee2e280f1996eb`, package `@vibesane/foxy@0.7.0-beta.6` and a disposable repository with synthetic files. Build/package locally from the qualified source and install the local archive into an isolated npm prefix; the registry package is unpublished. Preview with `foxy install --dry-run --agent codex --cwd <fixture>` and run the interactive `foxy install --agent codex --cwd <fixture>` only after reviewing the target/config preview. Do not run a public `npx` command yet. Capture actual Codex MCP discovery, `/mcp` tools, `status`, authorized/unauthorized workspace behavior and `/hooks` trust separately from CI. Keep completion policy advisory for the initial run and use no production repositories.
 
-The final automated evidence is [run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) on source SHA `3ec649c01506ae077639595794fd0b0cc445db04`; Windows, macOS and Ubuntu/Linux all passed 472/472 tests and package smoke with 30 files and canonical package-content SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`. All real-host matrix rows remain pending.
+The final automated evidence is [run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) on source SHA `ca9de05d00672d9a3148deec13ee2e280f1996eb`; Windows, macOS and Ubuntu/Linux all passed 472/472 tests and package smoke with 30 files and canonical package-content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`. All real-host matrix rows remain pending.
 
 
 ## Final Beta.6 evidence override — 28 November 2026
 
 This is the current source of truth; older Beta.5 and pre-fix Beta.6 evidence blocks above are historical.
 
-- Exact code candidate: `3ec649c01506ae077639595794fd0b0cc445db04`; workflow [#46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) passed on Windows, macOS and Ubuntu/Linux.
+- Exact code candidate: `ca9de05d00672d9a3148deec13ee2e280f1996eb`; workflow [#46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) passed on Windows, macOS and Ubuntu/Linux.
 - All three reports: 472/472 regression tests, successful workspace/frontend/API typechecks and builds, connector regression, MCP STDIO, curated/holdout/additional-adversarial benchmarks, offline install/CLI/MCP smoke; zero failed qualification steps.
-- Package: `@vibesane/foxy@0.7.0-beta.6`, 30 files, Node.js >=24.15.0, content SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`; unpublished.
+- Package: `@vibesane/foxy@0.7.0-beta.6`, 30 files, Node.js >=24.15.0, content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`; unpublished.
 - The intended post-approval beta command is `npx @vibesane/foxy@beta install`; it is not available until the owner approves publication and npm namespace/provenance checks pass.
 - Real-host matrix remains pending for each host/OS version. Automated CI does not verify that a live coding-agent app loads or trusts its MCP entry, runs hooks, or enforces completion behavior.
 - Do not enable enforcement in the first pilot. Use disposable repositories and fake data only. Keep PR #70 draft/unmerged; no npm publication, production deployment or production configuration was performed.
