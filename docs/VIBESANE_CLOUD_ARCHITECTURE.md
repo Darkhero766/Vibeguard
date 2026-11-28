@@ -80,7 +80,7 @@ Every exposed table must have RLS enabled and ownership-aware policies. Membersh
 
 ## 4A. Read-only staging database snapshot — 28 November 2026
 
-The connected Supabase project named `VibeSane-staging` (project ref `aojmjxxmsgnipbbrtvlz`) reported `ACTIVE_HEALTHY`. A read-only catalog inspection found eight public tables:
+The connected Supabase project named `VibeSane-staging` (project ref `aojmjxxmsgnipbbrtvlz`) reported `ACTIVE_HEALTHY`. A read-only catalog inspection found nine public tables:
 
 - `usage`
 - `github_tokens`
@@ -91,8 +91,6 @@ The connected Supabase project named `VibeSane-staging` (project ref `aojmjxxmsg
 - `api_rate_limits`
 - `dodo_webhook_events`
 - `hackathon_redemptions`
-
-Correction: the catalog inspection returns **nine** public tables (the list above includes all nine).
 
 All listed tables reported RLS enabled. A read-only `pg_policies` / role-grants inspection found:
 - `anon`: no direct table grants in the public schema.
