@@ -13,7 +13,9 @@ A first CLI implementation is now present on `feat/agentshield-cross-platform-au
 - Offline package smoke covers non-interactive consent denial, dry-run/no-write, explicit-consent installation, idempotent repeat and managed-entry disconnect.
 - The release validator now requires installer-specific package evidence.
 
-This is implementation-in-progress, not a release-qualified installer. Tests have been added but have not yet been executed in the current environment. Prior beta.5 qualification for `f8d2baf` does not cover these subsequent code changes. See [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md).
+The installer engine has passed an exact-source Windows/macOS CI qualification on commit `ebb1d887d03aad38496f286b78c08ac191832f63` ([run #46122257414](https://github.com/Darkhero766/Vibeguard/actions/runs/46122257414)): 472/472 regression tests and 24/24 installer/connect tests on each platform, including MCP STDIO and offline package/CLI smoke. This evidence applies to that exact source SHA.
+
+A follow-on bootstrap candidate now changes the local package identity to `@vibesane/foxy`, adds the `foxy` executable expected by `npx`, and bumps the candidate version to `0.7.0-beta.6`. Those newer package changes are **not yet covered by that earlier run** and require a fresh exact-source qualification. The package is not published, and registry ownership/availability of `@vibesane/foxy` has not been verified. See [Universal Installer Codespaces pilot](FOXY_UNIVERSAL_INSTALLER_PILOT.md).
 
 ## Product objective
 
@@ -23,7 +25,7 @@ Make Foxy installation a short, predictable, auditable flow. Preferred user expe
 npx @vibesane/foxy install
 ```
 
-This is a target command, not an existing or qualified command. The current beta remains a checkout-based installation until implementation, packaging and host acceptance prove otherwise.
+The local package candidate now declares `@vibesane/foxy` with a `foxy` executable mapped to the consent-first installer, and the package smoke test exercises the installed executable and a non-mutating install dry run. The intended registry command is still **not available** until the exact candidate passes fresh qualification, the npm scope/name is confirmed under the owner's account, release/provenance requirements are satisfied, and the owner explicitly approves publication. No registry publish is performed by packaging or tests.
 
 ## Principles and non-goals
 
