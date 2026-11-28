@@ -2,11 +2,11 @@
 
 ## Purpose
 
-This runbook captures the real application acceptance that automated Windows/macOS CI cannot establish. Use it with a locally built, unpublished Foxy candidate from the exact commit under review. Do not use production repositories, production credentials, or a real secrets corpus.
+This runbook captures the real application acceptance that automated Windows/macOS/Linux CI cannot establish. Use it with a locally built, unpublished Foxy candidate from the exact commit under review. Do not use production repositories, production credentials, or a real secrets corpus.
 
 A green CI run is necessary but not sufficient for distribution. The host matrix below remains a human-controlled release gate.
 
-**Automated evidence context (2026-11-28):** current code SHA `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5` passed Windows and macOS exact-source qualification in run [#46114784990](https://github.com/Darkhero766/Vibeguard/actions/runs/46114784990). Both reports show 462/462 regression tests, zero failures/cancellations/skips, eight release stages, 53 source checks, MCP STDIO integration smoke and offline package smoke passed, and status `validation_passed_review_required`. The identical 29-file package content digest is `b4ab8da681923e558184b3f156c05a29d6057cc03125d7d91803323ec5793cdd`. This is automated evidence only. All real-host rows below remain **Pending** until tested by a human on that host and OS.
+**Automated evidence context (2026-11-28):** exact code SHA `3ec649c01506ae077639595794fd0b0cc445db04` passed Windows, macOS and Ubuntu/Linux in [Foxy qualification run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745). Each report confirms 472/472 regression tests, no failed qualification steps, MCP STDIO and offline package/CLI/MCP smoke passed, and status `validation_passed_review_required`. The identical 30-file package-content digest is `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`. This is automated evidence only. All real-host rows below remain **Pending** until tested by a human on that host and OS.
 
 ## Candidate evidence
 
@@ -184,8 +184,20 @@ Before clearing a stale \`.agentshield.lock\`:
 Backups must match the exact bytes read by the operation. Immediately before rename, Foxy rereads the target and refuses replacement if the content differs. This protects against stale reads and concurrent Foxy writers; a foreign editor can still race in the tiny interval between the final comparison and rename, so keep host applications closed during automated configuration changes.
 
 
-## Current Codespaces Codex pilot — 28 November 2026
+## Current universal-installer Codespaces pilot — 28 November 2026
 
-For the owner’s first actual Codex host session, use [FOXY_CODEX_CODESPACES_PILOT.md](FOXY_CODEX_CODESPACES_PILOT.md). It uses a separate worktree at `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5`, Node 24, pnpm 10.34.9, a disposable repository with fake source, project-scoped `vibesane connect --agent codex`, and a separate `vibesane init-codex` step. This human-run test must capture actual Codex MCP tool discovery, `/hooks` trust and scan/remediation calls. Do not infer it from the CI artifacts. Keep completion policy at advisory for the initial run.
+For the owner's first actual Codex host session, use [FOXY_UNIVERSAL_INSTALLER_PILOT.md](FOXY_UNIVERSAL_INSTALLER_PILOT.md). It targets exact code SHA `3ec649c01506ae077639595794fd0b0cc445db04`, package `@vibesane/foxy@0.7.0-beta.6` and a disposable repository with synthetic files. Build/package locally from the qualified source and install the local archive into an isolated npm prefix; the registry package is unpublished. Preview with `foxy install --dry-run --agent codex --cwd <fixture>` and run the interactive `foxy install --agent codex --cwd <fixture>` only after reviewing the target/config preview. Do not run a public `npx` command yet. Capture actual Codex MCP discovery, `/mcp` tools, `status`, authorized/unauthorized workspace behavior and `/hooks` trust separately from CI. Keep completion policy advisory for the initial run and use no production repositories.
 
-The older current-candidate override and final evidence sections above are historical. Current automated evidence is run #46114784990 on `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5`; 462/462 tests per OS and canonical package-content SHA-256 `b4ab8da681923e558184b3f156c05a29d6057cc03125d7d91803323ec5793cdd`. All real-host matrix rows remain pending.
+The final automated evidence is [run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) on source SHA `3ec649c01506ae077639595794fd0b0cc445db04`; Windows, macOS and Ubuntu/Linux all passed 472/472 tests and package smoke with 30 files and canonical package-content SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`. All real-host matrix rows remain pending.
+
+
+## Final Beta.6 evidence override — 28 November 2026
+
+This is the current source of truth; older Beta.5 and pre-fix Beta.6 evidence blocks above are historical.
+
+- Exact code candidate: `3ec649c01506ae077639595794fd0b0cc445db04`; workflow [#46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) passed on Windows, macOS and Ubuntu/Linux.
+- All three reports: 472/472 regression tests, successful workspace/frontend/API typechecks and builds, connector regression, MCP STDIO, curated/holdout/additional-adversarial benchmarks, offline install/CLI/MCP smoke; zero failed qualification steps.
+- Package: `@vibesane/foxy@0.7.0-beta.6`, 30 files, Node.js >=24.15.0, content SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`; unpublished.
+- The intended post-approval beta command is `npx @vibesane/foxy@beta install`; it is not available until the owner approves publication and npm namespace/provenance checks pass.
+- Real-host matrix remains pending for each host/OS version. Automated CI does not verify that a live coding-agent app loads or trusts its MCP entry, runs hooks, or enforces completion behavior.
+- Do not enable enforcement in the first pilot. Use disposable repositories and fake data only. Keep PR #70 draft/unmerged; no npm publication, production deployment or production configuration was performed.
