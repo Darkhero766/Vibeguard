@@ -31,32 +31,28 @@ export VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/disposable-repo"]'
 
 `mcp-doctor` checks the current process environment, canonicalizes and deduplicates existing directories, and never prints configured paths. The MCP `status` tool is the final check that the host actually passed the environment to its server process. The workspace must be a Git repository root under one of the allowlisted directories.
 
-### Connect Codex
+### Connect Codex CLI
 
-Add this to `~/.codex/config.toml`, replacing the executable and workspace paths. Keep the JSON array as TOML single-quoted text so the inner JSON quotes remain literal:
-
-```toml
-[mcp_servers.vibesane_agentshield]
-command = "/home/you/.local/bin/vibesane-mcp"
-args = []
-env = { VIBESANE_ALLOWED_ROOTS_JSON = '["/absolute/path/to/disposable-repo"]' }
-```
-
-Restart Codex. Ask it to call `status`; verify `workspaceAuthorization` is `configured`, then discover the ten Foxy tools. Review the project hook before enabling it:
+Use the source checkout's project-scoped connector rather than hand-writing a global `~/.codex/config.toml` entry. From the trusted VibeSane checkout:
 
 ```sh
-"$HOME/.local/bin/vibesane" init-codex --cwd /absolute/path/to/disposable-repo
-"$HOME/.local/bin/vibesane" doctor --cwd /absolute/path/to/disposable-repo
+node artifacts/api-server/scripts/vibesane.mjs connect --agent codex --cwd /absolute/path/to/disposable-repo
+node artifacts/api-server/scripts/vibesane.mjs init-codex --cwd /absolute/path/to/disposable-repo
+node artifacts/api-server/scripts/vibesane.mjs doctor --cwd /absolute/path/to/disposable-repo
 ```
 
-In Codex, inspect and trust the hook with `/hooks`; `doctor` should report `checks.codexStopHookInstalled: true`. Verify the completion-gate policy with `vibesane status --cwd ...`. For completion enforcement, configure a local target ref that is a strict ancestor of `HEAD`:
+The connector writes the managed block to the repository's `.codex/config.toml`, including absolute Node/server paths, an exact `VIBESANE_ALLOWED_ROOTS_JSON` for that repository, and the `foxy-codex` SQLite namespace. It serializes Foxy config writers, backs up the original config bytes, preserves unrelated TOML entries and refuses customized/conflicting managed blocks. `init-codex` separately installs the project Stop hook in `.codex/hooks.json` and the Foxy skill in `.agents/skills/vibesane-agentshield`; it does not register MCP by itself.
+
+Restart Codex from the project root. In Codex, inspect `/mcp` and confirm the ten Foxy tools. Inspect `/hooks`, review the Stop hook and explicitly trust it before expecting it to run. Do not enable completion enforcement for the first test; start with the default advisory policy. The exact Codespaces workflow uses a separate worktree and disposable repo and is documented in [FOXY_CODEX_CODESPACES_PILOT.md](FOXY_CODEX_CODESPACES_PILOT.md).
+
+To remove only the matching project entries, exit Codex and run:
 
 ```sh
-git -C /absolute/path/to/disposable-repo fetch origin main
-"$HOME/.local/bin/vibesane" config --mode assist --completion-gate enforce \
-  --base-ref origin/main --cwd /absolute/path/to/disposable-repo
-"$HOME/.local/bin/vibesane" status --cwd /absolute/path/to/disposable-repo
+node artifacts/api-server/scripts/vibesane.mjs uninstall-codex --cwd /absolute/path/to/disposable-repo
+node artifacts/api-server/scripts/vibesane.mjs disconnect --agent codex --cwd /absolute/path/to/disposable-repo
 ```
+
+A customized skill or MCP entry is left untouched for manual review. MCP registration and lifecycle-hook installation/removal are separate operations.
 
 ### Connect Claude Code
 
@@ -104,7 +100,7 @@ The command resolves the Git repository root, limits the MCP server to that exac
 "$HOME/.local/bin/vibesane" uninstall-mcp --host cursor --cwd /absolute/path/to/disposable-repo
 ```
 
-A customized Foxy entry is not automatically deleted; inspect it and remove it manually after backing up the file. The helper does not install software from the network and does not grant the coding agent additional file permissions. Codex remains on the documented manual MCP registration plus separate hook/skill setup, pending a dedicated safe TOML installer and live host qualification.
+A customized Foxy entry is not automatically deleted; inspect it and remove it manually after backing up the file. The helper does not install software from the network and does not grant the coding agent additional file permissions. Codex project MCP registration is supported by `vibesane connect --agent codex`; its Stop hook and skill remain a separate opt-in operation through `vibesane init-codex`. All live host acceptance still remains pending.
 
 ### Remove, upgrade, or roll back
 
@@ -177,14 +173,7 @@ Configure the environment on the MCP server process itself. Example for a single
 VIBESANE_ALLOWED_ROOTS_JSON='["/absolute/path/to/repo"]' vibesane-mcp
 ```
 
-For Codex TOML, add the environment under the server entry:
-
-```toml
-[mcp_servers.vibesane_agentshield]
-command = "vibesane-mcp"
-args = []
-env = { VIBESANE_ALLOWED_ROOTS_JSON = '["/absolute/path/to/repo"]' }
-```
+For Codex, use the generated project-scoped block from `vibesane connect --agent codex --cwd PROJECT` instead of copying a generic/global TOML example. That block uses an absolute server path, the exact workspace allowlist and a dedicated host namespace. See [FOXY_CODEX_CODESPACES_PILOT.md](FOXY_CODEX_CODESPACES_PILOT.md) for the first-run flow.
 
 Use the narrowest parent directory that contains the intended checkout(s). Do not use `/` or a broad home/workspaces directory unless every Git repository beneath it is authorized for scanning. MCP scan, list, and verification calls independently re-authorize their workspace; baselines remain bound to the canonical repository path and cannot be reused in another repository. The caller-provided workspace never grants authorization by itself.
 
