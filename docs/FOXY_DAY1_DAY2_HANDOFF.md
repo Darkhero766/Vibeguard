@@ -1,10 +1,10 @@
 # Foxy beta.6 — Day 1 / Day 2 engineering handoff
 
 **As of:** 28 November 2026  
-**Current qualified code:** `3ec649c01506ae077639595794fd0b0cc445db04`  
+**Current qualified code:** `ca9de05d00672d9a3148deec13ee2e280f1996eb`  
 **Package:** `@vibesane/foxy 0.7.0-beta.6` (local-only; unpublished)  
 **PR:** [#70 — draft, open, unmerged](https://github.com/Darkhero766/Vibeguard/pull/70)  
-**Exact-source qualification:** [Actions run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) — Windows, macOS and Ubuntu/Linux passed  
+**Exact-source qualification:** [Actions run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) — Windows, macOS and Ubuntu/Linux passed  
 **Decision:** `candidate_for_independent_human_review` — **not approved for public distribution**
 
 The detailed Day 1 narrative below retains historical beta.5 implementation/qualification context. The current beta.6 installer, package and exact-source evidence in the later sections supersede any older candidate SHA or package hash.
@@ -85,7 +85,7 @@ The consent-first `vibesane install` engine resolves the canonical Git root, det
 
 ### Beta.6 exact-source automated qualification — passed on three platforms
 
-Commit `3ec649c01506ae077639595794fd0b0cc445db04` passed [Foxy qualification workflow #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) on Windows, macOS and Ubuntu/Linux. All three platform jobs completed successfully with zero failed steps.
+Commit `ca9de05d00672d9a3148deec13ee2e280f1996eb` passed [Foxy qualification workflow #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) on Windows, macOS and Ubuntu/Linux. All three platform jobs completed all 17 steps successfully with zero failed steps.
 
 | Evidence | Windows | macOS | Ubuntu/Linux |
 |---|---:|---:|---:|
@@ -106,9 +106,11 @@ All three reports record `validation_passed_review_required` and `candidate_for_
 - Executables: `foxy` and `vibesane`, both mapped to the same consent-first CLI.
 - Runtime: Node.js `>=24.15.0`.
 - Packaged files: 30.
-- Canonical package-content SHA-256, identical across all three OSes: `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`.
+- Canonical package-content SHA-256, identical across all three OSes: `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`.
 - The offline package smoke invokes the installed `foxy` executable (and verifies the Windows shim), checks `--help`, exercises `foxy install --dry-run`, and asserts no host configuration is created. It also covers consent denial, explicit-consent install/verification, idempotency, disconnect and MCP STDIO smoke.
 - The generated package README now states the Beta.6 identity, Windows/macOS/Ubuntu matrix, Node.js requirement and live-host/independent-review caveats; package smoke has regression assertions against stale release claims.
+- Cross-process SQLite first-open now checks application identity, schema objects and integrity inside `BEGIN IMMEDIATE`, preventing a second process from combining a stale zero application ID with schema created by the first process.
+- The VibeSane `/foxy` page now has an Install MCP panel with the beta command, but its copy action remains disabled until `VITE_FOXY_BETA_INSTALL_ENABLED=true` is explicitly set after owner-approved package publication/provenance checks. The static SEO and no-JavaScript staging page display the same evidence and the disabled state.
 - Package generation and tests report `published: false`; the package is not published. The `@vibesane` npm scope/name ownership and availability have not been verified.
 
 Because the package is configured with the `beta` dist-tag, the intended command after an owner-approved beta publication would be `npx @vibesane/foxy@beta install`. The untagged `npx @vibesane/foxy install` resolves the `latest` dist-tag and is intended for a future stable release. Neither registry command is usable against this unpublished candidate.
