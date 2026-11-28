@@ -230,3 +230,48 @@ Latest GitHub PR metadata at current head `bff625bd3a31635feebca587d8d86c579a22a
 - Static independent-challenge pass found that persisted job JSON could disagree with SQLite indexed columns. A payload could claim a terminal/completed state while the authoritative row remained running. Commit \`3140ed2...\` adds payload/index consistency validation on decode, treats status/results integrity failures as queue-wide storage faults and aborts active scans, and adds a forged-completed-payload regression. Full scans now also bracket scanner/runtime provenance and check ctime on opened files.
 - Static independent-challenge pass found a host configuration lost-update window. Commit \`6270f43...\` adds per-file exclusive locks and byte-snapshot checks for connector connect/disconnect. Regression coverage and operator documentation for stale locks are being added. This candidate requires a new exact-source qualification.
 - These are same-session adversarial engineering findings, not third-party independent certification. Day 1 is not complete for live host acceptance: the real Claude/Codex/Cursor/Gemini/Roo/Copilot matrix still requires actual application sessions on the exact host versions/OS combinations.
+
+
+## 28 November 2026 — beta.6 final qualification and Clerk checkpoint
+
+This section is the current source of truth and supersedes earlier candidate SHA, package hash, qualification status and pending-run notes above.
+
+### Foxy beta.6 — final exact-source result
+
+- **Qualified code source:** `3ec649c01506ae077639595794fd0b0cc445db04` on `feat/agentshield-cross-platform-autoconnect`.
+- **Exact-source workflow:** [Foxy qualification run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) completed successfully on Windows, macOS and Ubuntu/Linux. All three platform jobs completed all 17 workflow steps successfully; zero failed steps.
+- **Regression suite:** 472/472 on each platform, Node.js v24.15.0.
+- **Other release stages:** workspace/frontend/API typechecks, VibeSane frontend and standalone Foxy preview build, cross-platform connector regression step, MCP STDIO integration, curated/holdout/additional-adversarial synthetic benchmarks, and offline package install/CLI/MCP smoke all passed.
+- **Package parity:** 30 files on each platform; same canonical package-content SHA-256 on Windows, macOS and Ubuntu/Linux: `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`.
+- **Release reports:** `validation_passed_review_required`, release decision `candidate_for_independent_human_review`, with no failed steps. Evidence is synthetic-fixture automated qualification, not live coding-agent host acceptance, third-party security review or certification.
+- **Package candidate:** `@vibesane/foxy@0.7.0-beta.6`; executables `foxy` and `vibesane`; Node.js >=24.15.0 and Git required. Archive remains local-only; `published: false`.
+- **One-line registry bootstrap:** after an owner-approved beta publication only, the intended command is `npx @vibesane/foxy@beta install`. It is not currently usable because the package is unpublished and npm scope ownership/availability, provenance/signing and publication authorization are not yet verified. The untagged `npx @vibesane/foxy install` is reserved for a future stable/latest channel.
+- Package README now states the Beta.6 identity, Windows/macOS/Ubuntu matrix, Node requirement, and separate human review/live-host gates. Package smoke has regression assertions against stale platform/version/publication claims.
+- Earlier failed/cancelled qualification attempts are historical diagnostics only. Do not use those to replace the final passing run above.
+
+### VibeSane Clerk authentication — separate draft PR
+
+- **PR:** [#71](https://github.com/Darkhero766/Vibeguard/pull/71), branch `feat/vibesane-clerk-auth-provider`, exact head `e715a029864d35bc244c72a03815a98e4edf8a6`; open, draft, unmerged.
+- **CI:** [run #46129251186](https://github.com/Darkhero766/Vibeguard/actions/runs/46129251186) passed on the exact PR head, including TypeScript project references, Clerk auth-contract tests, VibeSane frontend typecheck and frontend build.
+- **Architecture:** Clerk is an optional identity provider through Supabase Auth custom OAuth/OIDC provider `custom:clerk`. Supabase remains the application session issuer and UUID authority so current API bearer tokens, ownership, usage/billing/referrals and data links remain compatible.
+- **Feature gate:** `VITE_CLERK_AUTH_ENABLED` defaults to false. Do not enable it until a separate Clerk OAuth app and matching Supabase custom provider are configured in isolated staging.
+- **Not yet verified:** live Clerk login, new-user provisioning, returning-user account linking, preservation of existing Supabase UUID and billing/Pro ownership, referral attribution, API bearer-token flows, and sign-out. Email matching must not be assumed to link accounts safely.
+- No Clerk provider dashboard, secret, Supabase Auth configuration or production environment was changed in this session.
+
+### Current PR and safety state
+
+- PR #70 remains draft, open and unmerged; GitHub currently reports `mergeable=false`. Its stacked relationship with PR #69/base branch is unresolved. Do not rebase, retarget, force-push or merge until ancestry and conflict scope are deliberately reconciled.
+- PR #71 remains draft, open and unmerged; do not merge or enable its flag in production.
+- No package publication, production deployment, production configuration/secret change, production SQL/migration, Supabase Auth mutation, billing/grant mutation or production service operation was performed.
+- Do not treat passing automated qualification as a clean VibeSane security scan. Existing VibeSane Security critical finding / GitGuardian signal recorded above still require inspection and disposition.
+
+### Next bounded work
+
+1. Obtain an independent human security review of exact Foxy code SHA `3ec649c01506ae077639595794fd0b0cc445db04`; preserve the reviewer’s written evidence and disposition.
+2. Run real host acceptance on a disposable repository: begin with the Codex Codespaces pilot only when the owner chooses to spend the remaining Codex quota; then separately validate Claude Code, Cursor, Gemini CLI, Roo and Copilot on the exact OS/host combinations to be advertised.
+3. Reconcile PR #69/#70 stack ancestry and the current GitHub mergeability/conflict state without force-push or speculative retargeting.
+4. Verify npm scope ownership, package provenance/signing, publication permissions, rollback/support procedures; publish only after separate owner approval.
+5. For Clerk, configure only the isolated staging OAuth app and Supabase `custom:clerk` provider, then execute the complete new-user and returning-account ownership/entitlement/referral/API/sign-out acceptance checklist. Keep the public flag false until all pass.
+6. Inspect and disposition current SaaS security findings and perform the website/browser/accessibility QA already tracked in the release checklist.
+
+**Resume phrase:** “Continue VibeSane from the latest override in `docs/VIBESANE_ENGINEERING_STATE.md`; verify PR #70/#71 and run #46137576745 live before editing. Keep both PRs draft/unmerged, package unpublished, Clerk disabled, and production untouched.”
