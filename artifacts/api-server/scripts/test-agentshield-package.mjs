@@ -145,6 +145,12 @@ try {
     && installedManifest.bin?.foxy === './scripts/vibesane.mjs'
     && installedManifest.license === 'Apache-2.0',
     'Installed package must expose the public Foxy identity, Apache-2.0 metadata and npx-compatible foxy executable.');
+  const lifecycleScripts = Object.keys(installedManifest.scripts || {})
+    .filter(name => /^(?:preinstall|install|postinstall|prepare)$/i.test(name));
+  assert.equal(lifecycleScripts.length, 0,
+    'The published package must not execute npm install lifecycle scripts.');
+  assert.deepEqual(installedManifest.dependencies || {},
+    {}, 'The self-contained Foxy package must not silently add runtime npm dependencies.');
   const installedLicense = await readFile(path.join(packageRoot, 'LICENSE'), 'utf8');
   const installedNotice = await readFile(path.join(packageRoot, 'NOTICE'), 'utf8');
   assert(installedLicense.includes('Apache License') && installedLicense.includes('Version 2.0, January 2004')
