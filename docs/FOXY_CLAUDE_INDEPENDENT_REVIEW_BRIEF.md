@@ -2,7 +2,7 @@
 
 # Claude independent security review brief — Foxy beta.6
 
-**Current PR head to inspect:** `68f06d84865fdd17c2677d64a4821263efee5cce` ([PR #70](https://github.com/Darkhero766/Vibeguard/pull/70))  
+**Current PR head to inspect:** fetch the live head from [PR #70](https://github.com/Darkhero766/Vibeguard/pull/70) immediately before review. The last code/UI revision inspected in this handoff was `68f06d84865fdd17c2677d64a4821263efee5cce`; later commits in the resumed session update documentation and review evidence.  
 **Qualified Foxy package source:** `a0651317c1cb16170d563867adcf5ddff08d5927` ([three-OS run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820))  
 **Package:** `@vibesane/foxy@0.7.0-beta.6` (unpublished local candidate); 33 files; content SHA-256 `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`  
 **CI evidence:** Windows, macOS and Ubuntu/Linux each passed 479/479 regression tests with no failed qualification steps.  
