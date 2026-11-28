@@ -201,3 +201,16 @@ This is the current source of truth; older Beta.5 and pre-fix Beta.6 evidence bl
 - The intended post-approval beta command is `npx @vibesane/foxy@beta install`; it is not available until the owner approves publication and npm namespace/provenance checks pass.
 - Real-host matrix remains pending for each host/OS version. Automated CI does not verify that a live coding-agent app loads or trusts its MCP entry, runs hooks, or enforces completion behavior.
 - Do not enable enforcement in the first pilot. Use disposable repositories and fake data only. Keep PR #70 draft/unmerged; no npm publication, production deployment or production configuration was performed.
+
+
+## Final Beta.6 source and website install UX — 28 November 2026
+
+This section supersedes earlier exact-source Beta.6 blocks above.
+
+- **Exact code source:** `ca9de05d00672d9a3148deec13ee2e280f1996eb`.
+- **Qualification:** [run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) passed Windows, macOS and Ubuntu/Linux. Each platform reports 472/472 tests, 0 failed/cancelled/skipped and 0 failed qualification steps.
+- **Package:** `@vibesane/foxy@0.7.0-beta.6`, 30 files, identical package-content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`; local-only and unpublished.
+- **SQLite first-open fix:** application identity, schema-object count, integrity check and app-ID assignment now share an immediate transaction. The two-process fresh-queue startup test passes on all three platforms. Keep this test in every future release qualification.
+- **Website:** the `/foxy` page includes an Install MCP entry point, copy panel and static no-JavaScript preview. The beta command `npx -y @vibesane/foxy@beta install` is displayed but copying remains disabled until the explicit public build flag `VITE_FOXY_BETA_INSTALL_ENABLED=true` is set after approved publication and provenance checks.
+- The page cannot write local MCP configuration. It must direct the user to a terminal where the CLI resolves the canonical Git root, previews exact targets, asks for consent and verifies connector changes. Agent host trust remains host-controlled; hooks/skills and completion enforcement remain separate opt-ins.
+- **Human acceptance still pending:** use a disposable synthetic repository and local package archive. Do not use production credentials or customer repositories. Passing CI is not proof that a real agent loads or trusts its project MCP entry.
