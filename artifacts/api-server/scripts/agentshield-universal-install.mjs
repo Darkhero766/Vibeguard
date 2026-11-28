@@ -17,7 +17,7 @@ import {
 const exec = promisify(execFile);
 const SUPPORTED_HOSTS = Object.freeze(['claude', 'codex', 'cursor', 'gemini', 'roo', 'copilot']);
 export function checkInstallerRuntime(nodeVersion = process.versions.node, platform = process.platform) {
-  const match = /^v?(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(String(nodeVersion));
+  const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(nodeVersion));
   if (!match) throw new Error('Could not parse the Node.js runtime version.');
   const [major, minor] = match.slice(1).map((part) => Number(part));
   const supportedNode = major > 24 || (major === 24 && minor >= 15);
