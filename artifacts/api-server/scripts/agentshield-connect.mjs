@@ -276,30 +276,25 @@ function parseTomlDottedKey(input) {
   while (index < value.length) {
     while (/\s/.test(value[index] || '')) index++;
     if (value[index] === '"' || value[index] === "'") {
-      const quote = value[index++];
-      let token = '';
+      const quote = value[index];
+      const start = index++;
       let escaped = false;
       let closed = false;
-      while (index < value.length) {
-        const char = value[index++];
-        if (quote === '"' && escaped) {
-          token += '\\' + char;
-          escaped = false;
-        } else if (quote === '"' && char === '\\') {
-          escaped = true;
-        } else if (char === quote) {
-          closed = true;
-          break;
-        } else {
-          token += char;
+      if (quote === '"') {
+        while (index < value.length) {
+          const char = value[index++];
+          if (escaped) escaped = false;
+          else if (char === '\\') escaped = true;
+          else if (char === '"') { closed = true; break; }
         }
+        if (!closed || escaped) return null;
+        try { parts.push(JSON.parse(value.slice(start, index))); } catch { return null; }
+      } else {
+        const end = value.indexOf("'", index);
+        if (end < 0) return null;
+        parts.push(value.slice(index, end));
+        index = end + 1;
       }
-      if (!closed || escaped) return null;
-      if (quote === '"' && /[\r\n]/.test(token)) return null;
-      if (quote === '"' && /[^A-Za-z0-9_-]/.test(token)) {
-        try { token = JSON.parse('"' + token.replaceAll('"', '\\"') + '"'); } catch { return null; }
-      }
-      parts.push(token);
     } else {
       const match = /^[A-Za-z0-9_-]+/.exec(value.slice(index));
       if (!match) return null;
