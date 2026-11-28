@@ -12,11 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # pinned verified commit
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 24
           cache: pnpm
@@ -39,14 +39,14 @@ jobs:
           SUE_LIVE_REPORT_PATH: sue-live-core-benchmark.json
       - name: Upload SUE core benchmark report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: sue-v1-core-live-benchmark
           path: artifacts/api-server/sue-live-core-benchmark.json
           if-no-files-found: warn
       - name: Upload SUE policy benchmark report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: sue-vibecoded-policy-benchmark
           path: artifacts/api-server/sue-policy-benchmark-report.json
