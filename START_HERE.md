@@ -1,11 +1,12 @@
 # VibeSane / AgentShield — start here
 
-**Last maintained:** 27 November 2026  
+**Last maintained:** 28 November 2026  
 **Repository:** `Darkhero766/Vibeguard`  
-**Active Foxy MCP candidates:** [PR #69](https://github.com/Darkhero766/Vibeguard/pull/69) beta.3 and [PR #70](https://github.com/Darkhero766/Vibeguard/pull/70) beta.5 — both draft and unmerged.  
+**Foxy beta.6:** [PR #70](https://github.com/Darkhero766/Vibeguard/pull/70) remains draft/open/unmerged. Exact code SHA `3ec649c01506ae077639595794fd0b0cc445db04` passed [three-platform qualification run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745); 472/472 regression tests per OS, 30-file package, content SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`. Package is local-only and unpublished.  
+**Clerk sign-in:** [PR #71](https://github.com/Darkhero766/Vibeguard/pull/71) remains draft/open/unmerged. Frontend/auth-contract CI passed on `e715a029864d35bc244c72a03815a98e4edf8a6`; Clerk is an optional provider through Supabase Auth, and `VITE_CLERK_AUTH_ENABLED` stays false until staging provider setup and real account-linking acceptance.  
 **SaaS hardening:** [PR #61](https://github.com/Darkhero766/Vibeguard/pull/61) — draft and unmerged.  
 **Durable live checkpoint:** read [docs/VIBESANE_ENGINEERING_STATE.md](docs/VIBESANE_ENGINEERING_STATE.md) first; it records exact heads, workflow evidence, blockers and next tasks.  
-**27 November 2026 checkpoint:** beta.5 code candidate `4dec4fb27a9070127904e3c29ece476dad3ad2a4`. No exact-source Windows/macOS run or passing local build is available. The beta.4 run #75 is historical only. See the [production-readiness checklist](docs/FOXY_BETA5_PRODUCTION_READINESS_CHECKLIST.md). Keep PR #70 draft/unmerged.  
+**Release boundary:** no npm publication, production merge/deploy, production Auth/configuration change, production SQL or secret change is authorized. Keep PRs #70 and #71 draft/unmerged.  
 
 **Production:** do not merge, migrate, publish or deploy without separate explicit approval.
 
