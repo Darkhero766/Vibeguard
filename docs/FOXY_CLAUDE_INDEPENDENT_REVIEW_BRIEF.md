@@ -1,9 +1,10 @@
-# Claude independent security review brief — Foxy beta.5
+# Claude independent security review brief — Foxy beta.6
 
-**Exact candidate to review:** `f8d2bafbeaac4811f740cc1bbf089385f6e8d0e5`  
-**Package:** `0.7.0-beta.5`  
-**Pull request:** [Darkhero766/Vibeguard #70](https://github.com/Darkhero766/Vibeguard/pull/70)  
-**Exact-source CI evidence:** [run #46114784990](https://github.com/Darkhero766/Vibeguard/actions/runs/46114784990)  
+**Exact code candidate to review:** `3ec649c01506ae077639595794fd0b0cc445db04`  
+**Package:** `@vibesane/foxy@0.7.0-beta.6` (unpublished local candidate)  
+**Pull request:** [Darkhero766/Vibeguard #70](https://github.com/Darkhero766/Vibeguard/pull/70), still draft/open/unmerged  
+**Exact-source CI evidence:** [run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) — Windows, macOS and Ubuntu/Linux passed; 472/472 regression tests per OS  
+**Package manifest:** 30 files; identical three-platform SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`  
 **Review status:** not yet reviewed by an independent party.
 
 ## Instructions to the reviewer
@@ -94,3 +95,14 @@ Also provide:
 ## Review boundary and handback
 
 Do not push fixes. First return the full report for owner review. If a finding is confirmed, preserve its reproduction and affected lines so it can be fixed in a separate reviewed commit and requalified on both platforms. The PR must remain draft/open/unmerged during this review. No production changes, package publication or deployments are authorized.
+
+
+## Current review target clarification — 28 November 2026
+
+Review the source tree at exact code SHA `3ec649c01506ae077639595794fd0b0cc445db04`; the current PR branch has later documentation-only commits. The source-matched [qualification run #46137576745](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745) passed on Windows, macOS and Ubuntu/Linux. Its synthetic tests and benchmark evidence are not a substitute for your independent reproduction.
+
+The package is `@vibesane/foxy@0.7.0-beta.6`, 30 files, package-content SHA-256 `f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14`, and remains unpublished. The intended beta registry bootstrap after separate owner approval is `npx @vibesane/foxy@beta install`; do not treat that as currently available.
+
+In addition to the original areas below, inspect the new consent-first universal installer and package path: agent detection for Claude/Codex/Cursor/Gemini/Roo/Copilot, generic MCP fallback, canonical Git root handling, exact target previews, consent boundaries, no-write dry-run, connector lock/snapshot semantics, post-write verification, rollback and ambiguous outcomes, and the Windows executable shim. Check that the README and package evidence describe the same tested source and do not overstate host acceptance.
+
+Keep this review strictly read-only. PR #70 must remain draft/open/unmerged; do not publish, merge, rebase, deploy or modify the candidate. No real credentials, customer repositories or production services.
