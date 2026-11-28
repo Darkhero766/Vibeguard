@@ -130,3 +130,54 @@ Final license-validation candidate update:
 - Exact-source qualification: [workflow #46159923973](https://github.com/Darkhero766/Vibeguard/actions/runs/46159923973), queued/pending when checked; GitHub returned no matrix jobs yet. Do not claim the license/package-builder changes passed until this run has Windows, macOS and Ubuntu jobs completed successfully, and the artifact content hashes match.
 - The final package normalizer accepts only known text extensions plus the two exact extensionless filenames `LICENSE` and `NOTICE`; arbitrary extensionless files remain rejected.
 - The private-beta release checklist now includes scoped-license, legal assignment, third-party inventory, npm namespace ownership, Trusted Publishing and DCO checks.
+
+
+## 28 November 2026 — final-day release engineering follow-up
+
+This section supersedes older workflow/package status statements above. It does not close the independent-review findings or grant release approval.
+
+### Licensing regression diagnosis and correction
+
+The first license-candidate matrix run (#46159923973) failed in the same regression suite on Windows, macOS and Ubuntu: 472 passed and 3 failed. A diagnostic field was added to the release validator so the failing TAP test names are included in the JSON summary. The three failures were stale assumptions introduced by the license update, not scanner/MCP runtime failures:
+
+1. The notice test rejected a repository documentation path inside the archive NOTICE. The package notice was corrected to be self-contained and no longer points to a file outside the archive.
+2. The week-four package test still expected 31 archive files. It now expects 33 and explicitly includes package-root `LICENSE` and `NOTICE`.
+3. The week-five metadata test still required `UNLICENSED`. It now checks the intended `Apache-2.0` SPDX field and the included license/notice inputs.
+
+These are code/test corrections, not passing qualification evidence. A fresh exact-head matrix run is still required.
+
+### Owner-gated npm publication workflow
+
+Draft PR #70 now contains `.github/workflows/foxy-publish.yml` and structural regression coverage. The workflow:
+- is `workflow_dispatch` only; there is no push or release trigger;
+- defaults `confirm_publication` to `false`, so the default action is qualification-only;
+- rejects anything other than a `foxy-v<package-version>` tag whose exact commit is already reachable from `main`;
+- checks out the immutable workflow event SHA in every job to avoid re-resolving a mutable tag between validation and publish;
+- requires the Windows/macOS/Ubuntu qualification matrix to pass before the optional publish job can run;
+- uses GitHub Environment `npm-release`, `id-token: write`, npm CLI 11.5.1+, Node 24.15, no package-manager cache in the publish job, and npm provenance;
+- validates the `@vibesane/foxy` name, exact tag/version, Apache-2.0 metadata, required license/notice files, canonical per-file manifest and archive SHA-256 before invoking npm;
+- refuses long-lived npm token environment variables and uses `npm publish --ignore-scripts`.
+
+The workflow is only on draft PR #70 and is not available for dispatch until it is integrated into the default branch. No npm Trusted Publisher or GitHub Environment protection has been configured, and no publish workflow has published a package. Owner-only protections (required reviewers, tag ruleset, trusted-publisher settings and legal rights attestation) remain mandatory.
+
+The offline package regression now also rejects npm lifecycle scripts and any runtime npm dependencies in the generated package. The self-contained package is expected to have no runtime npm dependencies.
+
+### Current exact-source status
+
+- Current candidate branch: `feat/agentshield-cross-platform-autoconnect`.
+- Latest recorded branch head at this update: `fb9b9c56005538f7fab9ebb7937224e1fc15c122`. Additional release checklist documentation may move the head again; always check the live PR head before citing any test result.
+- A three-OS matrix run on a prior licensing candidate exposed the three stale assertions listed above. All three have been corrected in follow-up commits.
+- The latest qualification workflow was queued when this note was written. Do not claim any pass count or release qualification until all three jobs complete successfully for the live PR head and their package manifests/checksums match.
+- PR #70 remains draft/open/unmerged. GitHub currently reports `mergeable_state=dirty`; its base branch has advanced beyond the commit on which the feature branch was based (23 commits behind in the observed comparison). Resolve the stack/merge conflicts deliberately after qualification; do not force-push or change the base silently.
+- F-02 remains an accepted product limitation: a same-OS-user process can bypass a cooperative local gate. Do not market Foxy as tamper-proof or as a certification.
+
+### Owner-only tasks before the launch decision
+
+1. Confirm legal ownership/assignment and the right to license all Foxy-authored files attributed to Md Faizal; approve third-party dependency notices.
+2. Verify npm organization and package ownership for `@vibesane/foxy` using the intended npm owner account; enable 2FA and restrict publish membership.
+3. Create GitHub Environment `npm-release` with required reviewer approval and restrict deployment branches/tags; protect `foxy-v*` tags with a ruleset.
+4. Configure npm Trusted Publishing for GitHub owner `Darkhero766`, repository `Vibeguard`, workflow filename `foxy-publish.yml`, and environment `npm-release`.
+5. Complete an independent review of scanner rules, full MCP server, installer rollback, queue race/error recovery, package contents, and real Claude/Codex/Cursor acceptance on the supported OSes.
+6. Inspect exact-head, all-OS qualification artifacts and run the manual preflight with `confirm_publication=false`. Publish only after all gates and explicit owner approval.
+
+No merge, production deployment, website install-button enablement, production configuration change, SQL migration, npm publication or automatic beta invitation is authorized by this engineering work.
