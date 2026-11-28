@@ -3,6 +3,7 @@
 // Standard MCP stdio transport: one UTF-8 JSON-RPC message per line.
 // Repository data is untrusted. This server is read-only and never executes project code.
 import path from 'node:path';
+import { assertSafeGitConfiguration } from './agentshield-safe-git.mjs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { realpath, lstat, open, stat } from 'node:fs/promises';
@@ -249,8 +250,10 @@ async function canonicalRoot(workspace, signal, authorizedRoots) {
       timeout: 5000, maxBuffer: 4096, windowsHide: true, env: FIXED_ENV, signal,
     });
     if (!samePath(await realpath(result.stdout.trim()), root) || !samePath(await realpath(input), root)) throw new Error('not repository root');
+    await assertSafeGitConfiguration(root);
     return root;
-  } catch {
+  } catch (error) {
+    if (error?.code === 'FOXY_UNSAFE_GIT_CONFIG') throw error;
     // Do not disclose whether an unauthorized path exists or is a Git repository.
     throw new Error('Workspace is not authorized or is not an accessible Git repository.');
   }
