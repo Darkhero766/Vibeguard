@@ -198,6 +198,10 @@ test('Foxy publication workflow is manual, version-bound, protected and OIDC-onl
   assert.ok(workflow.includes('actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53'));
   assert.ok(workflow.includes('report.packageContentSha256'));
   assert.ok(workflow.includes('report.packageFileDigests'));
+  assert.ok(workflow.includes('report.revisionValid !== true'));
+  assert.ok(workflow.includes('report.benchmarkTargetsMet !== true'));
+  assert.ok(workflow.includes('regression.passed !== regression.tests'));
+  assert.ok(workflow.includes('allStepsPassed'));
   assert.equal(workflow.split('ref: ${{ github.sha }}').length - 1, 3);
   assert.ok(!workflow.includes('ref: ${{ github.ref }}'));
   assert.ok(workflow.includes('verifyPackageFileManifest'));
