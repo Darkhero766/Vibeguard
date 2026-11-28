@@ -106,6 +106,7 @@ try {
     'Node.js >=24.15.0', 'node:sqlite', 'transactional multi-process job claims', 'jobs.json snapshot is migrated',
     'vibesane install', '--dry-run', '--agent auto', 'npx @vibesane/foxy@beta install', 'npx @vibesane/foxy install',
     'VibeSane Foxy 0.7.0-beta.6', 'Windows, macOS, and Ubuntu/Linux', 'Actual live-host acceptance',
+    'cooperative local verification gate', 'not a tamper-proof security boundary',
   ];
   const missingReadmeText = requiredReadmeText.filter((item) => !packagedReadme.stdout.includes(item));
   assert(missingReadmeText.length === 0,
@@ -131,6 +132,10 @@ try {
     'Installed package must expose the public Foxy package identity and npx-compatible foxy executable.');
   assert(installedManifest.engines?.node === '>=24.15.0',
     'Installed package must declare its built-in SQLite runtime requirement.');
+  const safeGitSource = await readFile(path.join(packageRoot, 'scripts', 'agentshield-safe-git.mjs'), 'utf8');
+  assert(safeGitSource.includes('assertSafeGitConfiguration') && safeGitSource.includes('filter.')
+    && safeGitSource.includes('FOXY_UNSAFE_GIT_CONFIG'),
+    'Installed package must ship the executable Git config preflight used by MCP, CLI and installer paths.');
   const sqliteStoreSource = await readFile(path.join(packageRoot, 'scripts', 'agentshield-jobs-store.mjs'), 'utf8');
   assert(sqliteStoreSource.includes("from 'node:sqlite'") && sqliteStoreSource.includes('BEGIN IMMEDIATE'),
     'Installed package must contain the transactional SQLite queue store.');
