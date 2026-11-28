@@ -42,6 +42,21 @@ for (const validator of [shellSemver, powershellSemver]) {
     'Bootstrap must reject registry output that could alter the install command.');
 }
 
+const shellSyntax = spawnSync('bash', ['-n', path.join(root, 'public', 'install.sh')], { encoding: 'utf8' });
+if (process.platform !== 'win32') {
+  assert.equal(shellSyntax.status, 0, `POSIX bootstrap syntax must be valid: ${shellSyntax.stderr}`);
+}
+if (process.platform === 'win32') {
+  const powershellSyntax = spawnSync('pwsh', ['-NoLogo', '-NoProfile', '-Command',
+    '[scriptblock]::Create([IO.File]::ReadAllText($env:FOXY_INSTALL_TEST_PATH)) | Out-Null'
+  ], {
+    encoding: 'utf8',
+    env: { ...process.env, FOXY_INSTALL_TEST_PATH: path.join(root, 'public', 'install.ps1') },
+  });
+  assert.equal(powershellSyntax.status, 0,
+    `PowerShell bootstrap syntax must be valid: ${powershellSyntax.stderr}`);
+}
+
 const bootstrapFixture = await mkdtemp(path.join(os.tmpdir(), 'foxy-bootstrap-guard-'));
 try {
   const bin = path.join(bootstrapFixture, 'bin');
