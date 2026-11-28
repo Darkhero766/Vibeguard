@@ -11,7 +11,7 @@ const pages = [
   {
     path: '/foxy',
     title: 'Foxy — Local-First MCP Security for AI Coding Agents | VibeSane',
-    description: 'Install VibeSane Foxy as a local, workspace-scoped, read-only MCP security integration for Claude Code, Codex, Cursor, Gemini CLI, Roo Code and GitHub Copilot. Beta.6 passed automated Windows, macOS and Ubuntu/Linux qualification; live host acceptance and independent security review remain open.',
+    description: 'Install VibeSane Foxy as a local, workspace-scoped MCP security integration for Claude Code, Codex, Cursor, Gemini CLI, Roo Code and GitHub Copilot. Repository files are never modified; scan, baseline and queue operations update only Foxy-managed local state. Beta.6 passed automated Windows, macOS and Ubuntu/Linux qualification; live host acceptance and independent security review remain open.',
     staticBody: `<main id="main-content" class="min-h-screen bg-[#0b1112] text-[#f4f6f0]">
 <header class="border-b border-[#28352f] bg-[#0b1112]">
   <div class="mx-auto flex max-w-[1180px] items-center justify-between gap-5 px-5 py-5 sm:px-8">
@@ -27,7 +27,7 @@ const pages = [
       <h1 class="mt-8 max-w-[760px] font-sans text-[clamp(3.15rem,7.2vw,6.25rem)] font-extrabold leading-[.98] tracking-[-.075em]">Security context for your AI agent.<span class="mt-2 block text-[#c7f36a]">Not extra authority.</span></h1>
       <p class="mt-7 max-w-[630px] text-[15px] leading-8 text-[#aab5ad] sm:text-lg">Foxy connects supported coding agents to VibeSane’s local security engine through MCP STDIO. Inspect supported changes, understand findings, and verify remediation while access stays scoped to the selected repository.</p>
       <div class="mt-9 flex flex-wrap gap-3"><a href="#install" class="vg-button vg-focus inline-flex items-center gap-2 border border-[#c7f36a] bg-[#c7f36a] px-5 py-3.5 text-sm font-bold text-[#0b1112]">Install MCP →</a><a href="#qualification" class="vg-button vg-focus inline-flex items-center gap-2 border border-[#35433a] bg-[#111b18] px-5 py-3.5 text-sm font-semibold text-[#f4f6f0]">Review qualification</a></div>
-      <p class="mt-7 font-mono text-[10px] uppercase leading-6 tracking-[.13em] text-[#87958b]">Private beta · Node.js 24.15+ · Windows + macOS + Ubuntu/Linux · read-only MCP</p>
+      <p class="mt-7 font-mono text-[10px] uppercase leading-6 tracking-[.13em] text-[#87958b]">Private beta · Node.js 24.15+ · Windows + macOS + Ubuntu/Linux · no repository writes</p>
     </div>
     <aside class="border border-[#344139] bg-[#111b18] p-5 shadow-[0_24px_70px_rgba(0,0,0,.28)] sm:p-7" aria-label="Foxy local connection preview">
       <div class="flex items-center justify-between border-b border-white/10 pb-4"><div class="flex gap-2"><span class="h-2 w-2 rounded-full bg-[#87958b]"></span><span class="h-2 w-2 rounded-full bg-[#87958b]"></span><span class="h-2 w-2 rounded-full bg-[#c7f36a]"></span></div><span class="font-mono text-[9px] uppercase tracking-[.18em] text-[#9eaaa1]">Local connection / STDIO</span></div>
@@ -71,7 +71,7 @@ $ foxy disconnect --agent all</code></pre>
 <section id="security-model" class="border-y border-[#dce3da] bg-[#f4f6f0] text-[#0b1112]">
   <div class="mx-auto grid max-w-[1180px] gap-12 px-5 py-20 sm:px-8 lg:grid-cols-2">
     <div><p class="font-mono text-[10px] uppercase tracking-[.17em] text-[#536a46]">03 / Security boundaries</p><h2 class="mt-4 font-sans text-3xl font-extrabold tracking-[-.05em]">Useful context. No extra authority.</h2><p class="mt-6 text-sm leading-8 text-[#59665d]">Foxy exposes security analysis through a local MCP server. The selected repository root is passed as an explicit allowlist, and requested workspace paths are checked against that scope. Registration does not replace the coding agent’s own permission controls.</p></div>
-    <ul class="space-y-4 text-sm leading-6 text-[#435147]"><li>Read-only MCP tools. No shell, patch, commit, or deploy capability.</li><li>Only the canonical Git root selected during setup is authorized.</li><li>The connector does not execute repository scripts or project code.</li><li>Existing host configuration is backed up and unrelated entries are preserved.</li><li>Malformed, symlinked, oversized, or conflicting configuration is refused.</li><li>Host approval and each coding agent’s own permission model remain in control.</li></ul>
+    <ul class="space-y-4 text-sm leading-6 text-[#435147]"><li>Repository files are never modified. Foxy maintains only its own local scan, baseline and queue state.</li><li>No shell, patch, commit, or deploy tools are exposed.</li><li>Only the canonical Git root selected during setup is authorized.</li><li>The connector does not execute repository scripts or project code.</li><li>Existing host configuration is backed up and unrelated entries are preserved.</li><li>Malformed, symlinked, oversized, or conflicting configuration is refused.</li><li>Host approval and each coding agent’s own permission model remain in control.</li></ul>
   </div>
 </section>
 <section id="qualification" class="mx-auto max-w-[1180px] px-5 py-20 sm:px-8 sm:py-24">
