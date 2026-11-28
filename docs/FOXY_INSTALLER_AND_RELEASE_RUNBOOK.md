@@ -98,7 +98,7 @@ Only after a separate publish workflow is authored and independently reviewed, c
 
 No publishing workflow or Trusted Publisher has been configured by this licensing change. Do not create an npm token or enable publishing until the ownership and independent security gates are complete.
 
-The workflow must use GitHub-hosted runners and grant only `id-token: write` plus the read access needed for checkout. Use current, full-SHA-pinned GitHub Actions. npm trusted publishing uses short-lived OIDC credentials and can generate provenance for public packages. Provenance links the package to a source/build workflow; it is not a security certification.
+The workflow must use GitHub-hosted runners (self-hosted runners are not currently supported), grant only `id-token: write` plus `contents: read`, and use npm CLI 11.5.1+ with Node.js 22.14.0+ (the Foxy runtime requirement of Node.js 24.15.0 already exceeds this). Use current, full-SHA-pinned GitHub Actions; configure `actions/setup-node` with `registry-url: https://registry.npmjs.org` and disable package-manager caching in the publish job. The `repository.url` in the generated package must exactly match `https://github.com/Darkhero766/Vibeguard.git`. npm validates the exact trusted-publisher workflow filename and, when configured, environment name; verify spelling and case. For a public package from this public repository, npm Trusted Publishing automatically generates provenance. Provenance provides cryptographic workflow/source traceability; it is not a security certification. These requirements are separate from the read-only qualification workflow.
 
 No Trusted Publisher has been configured by this work, and no publish workflow has been run.
 
