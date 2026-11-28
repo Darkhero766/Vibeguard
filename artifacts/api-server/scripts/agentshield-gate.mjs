@@ -6,6 +6,7 @@ import { lstat, realpath, open } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import { assertSafeGitConfiguration } from './agentshield-safe-git.mjs';
 
 const exec = promisify(execFile);
 const SOURCE = /\.(?:[cm]?[jt]sx?|pyi?|sql|json|ya?ml)$/i;
@@ -96,6 +97,7 @@ function diffChangedPaths(output) {
 // A changed Git status or a changed content fingerprint invalidates the result.
 export async function snapshot(root, { baseRef = null } = {}) {
   const real = await realpath(root);
+  await assertSafeGitConfiguration(real);
   const status = await git(real, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
   const worktreePaths = changedEntries(status);
   const baseCommit = await resolveBaseCommit(real, baseRef);
