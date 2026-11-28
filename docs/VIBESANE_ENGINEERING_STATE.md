@@ -1,6 +1,6 @@
 # VibeSane engineering state
 
-**Snapshot date:** 28 November 2026 (updated after beta.5 runtime-provenance hardening; exact-source CI requalification in progress)  
+**Snapshot date:** 28 November 2026 (Beta.6 three-platform qualification passed; Install MCP website and SQLite startup race fix validated)  
 **Repository:** `Darkhero766/Vibeguard`  
 **Purpose:** portable source of truth for new engineering sessions. This file records observed state, not intentions or assumptions. Recheck GitHub refs and runs before every write.
 
@@ -275,3 +275,48 @@ This section is the current source of truth and supersedes earlier candidate SHA
 6. Inspect and disposition current SaaS security findings and perform the website/browser/accessibility QA already tracked in the release checklist.
 
 **Resume phrase:** “Continue VibeSane from the latest override in `docs/VIBESANE_ENGINEERING_STATE.md`; verify PR #70/#71 and run #46137576745 live before editing. Keep both PRs draft/unmerged, package unpublished, Clerk disabled, and production untouched.”
+
+ 
+## 28 November 2026 — final Beta.6 UI + SQLite startup qualification override
+
+This is the newest source of truth. It supersedes earlier Beta.6 SHA/package-hash blocks above. Older runs remain useful diagnostic history.
+
+### Exact-source release qualification
+
+- **Qualified exact source:** `ca9de05d00672d9a3148deec13ee2e280f1996eb` on `feat/agentshield-cross-platform-autoconnect`.
+- **Workflow:** [Foxy qualification run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503) completed successfully on Windows, macOS and Ubuntu/Linux. All 17 steps per platform passed.
+- **Regression suite:** 472/472 on each platform; 0 failed, 0 cancelled, 0 skipped.
+- **Other gates:** source syntax/fingerprinting, scanner build, TypeScript workspace/frontend/API checks, VibeSane and standalone Foxy preview builds, cross-platform connector tests, MCP STDIO, curated/holdout/additional-adversarial benchmarks, and offline package/CLI/MCP smoke all passed.
+- **Package:** `@vibesane/foxy@0.7.0-beta.6`; 30 files, `published: false`; identical package-content SHA-256 on all OSes: `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`.
+- **Release reports:** `validation_passed_review_required`, release decision `candidate_for_independent_human_review`; zero failed qualification steps. The reports are synthetic-fixture automated evidence, not live-host acceptance, third-party audit or security certification.
+
+### SQLite first-open race — root cause and fix
+
+- Workflow #46139761242 exposed one macOS regression: 471/472 in the two-independent-process shared SQLite queue test. The failure occurred when a process read `application_id = 0`, another process then claimed the database and created Foxy schema, and the first process used its stale zero ID with the later non-empty schema count, incorrectly treating Foxy's own DB as foreign.
+- Commit `ca9de05...` moves application ID, schema-object, quick-check and first-claim operations into a SQLite `BEGIN IMMEDIATE` transaction. The transaction serializes the identity/schema decision across processes, retains the bounded busy timeout and rolls back on any ownership or integrity rejection.
+- The regression passed on Windows, macOS and Ubuntu/Linux in run #46140045503. Do not remove the transaction or weaken the refusal of foreign non-empty databases.
+
+### Website Install MCP experience
+
+- The VibeSane `/foxy` page now has an Install MCP entry point and a structured install panel. It explains project root, exact target review, explicit CLI consent and host approval.
+- The displayed post-publication beta command is `npx -y @vibesane/foxy@beta install`.
+- Copy is fail-closed behind `VITE_FOXY_BETA_INSTALL_ENABLED === 'true'`. A missing/false value leaves the control disabled; the flag is intended only after owner-approved npm publication and package provenance/signing checks.
+- The static SEO route and standalone no-JavaScript preview mirror the Beta.6 evidence and disabled publication state. Tests assert the exact workflow URL/hash, no stale Beta.5 qualification copy, disabled action, noindex preview and fail-closed React gate.
+- The website cannot write local host configuration or approve an AI host. The local terminal installer still owns canonical Git-root handling, preview/consent, connector writes and verification. Lifecycle hooks/skills and completion enforcement remain separate opt-ins.
+
+### PR, Clerk and production state
+
+- PR #70 remains draft/open/unmerged; GitHub reports `mergeable=false` because PR #69/#70 stack ancestry still needs deliberate reconciliation. Do not rebase, retarget, force-push or merge without an explicit plan.
+- PR #71 remains draft/open/unmerged at the previously verified Clerk provider implementation. It is additive through Supabase Auth; the public `VITE_CLERK_AUTH_ENABLED` flag remains false. Live provider configuration and account-linking acceptance have not been performed.
+- The Clerk plugin ID was not available in this ChatGPT plugin directory and no Clerk skill was installed. The user was shown the explicit Clerk setup checklist and asked for approval; no Clerk plugin/CLI setup has been started pending that approval.
+- No npm publication, production deployment, production auth/provider/secret change, production SQL/migration, billing/grant mutation or production service operation was performed.
+
+### Next bounded work
+
+1. Independent human review of exact source `ca9de05...`, including the SQLite startup transaction, connector mutation/rollback and web install publication gate.
+2. Real host acceptance on a disposable synthetic repository; keep MCP trust and hooks separate, and do not use a production repository.
+3. Reconcile PR #69/#70 ancestry and mergeability without a speculative rebase/force-push.
+4. Verify npm scope ownership, package provenance/signing, rollback/support procedures and explicit owner approval before publishing or enabling the page copy flag.
+5. For Clerk, wait for the user's approval before plugin/setup. Preserve Supabase as session/UUID authority; configure only isolated staging and prove returning-account UUID/entitlement/referral/API continuity before considering the public flag.
+
+**Resume phrase:** “Continue VibeSane from the final Beta.6 override in docs/VIBESANE_ENGINEERING_STATE.md; verify PR #70/#71 and workflow #46140045503 live. Keep both PRs draft/unmerged, package unpublished, install-copy flag disabled, Clerk disabled pending approval, and production untouched.”
