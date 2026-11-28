@@ -1,8 +1,8 @@
 # VibeSane / AgentShield — start here
 
-**Last maintained:** 28 November 2026  
+**Last maintained:** 28 November 2026 — updated after the 479-test Beta.6 qualification  
 **Repository:** `Darkhero766/Vibeguard`  
-**Foxy beta.6:** [PR #70](https://github.com/Darkhero766/Vibeguard/pull/70) remains draft/open/unmerged. Exact code SHA `ca9de05d00672d9a3148deec13ee2e280f1996eb` passed [three-platform qualification run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503); 472/472 regression tests per OS, 30-file package, content SHA-256 `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`. The website Install MCP flow is present but publication-gated. Package is local-only and unpublished.  
+**Foxy beta.6:** [PR #70](https://github.com/Darkhero766/Vibeguard/pull/70) remains draft/open/unmerged and GitHub reports `mergeable=false`. Package source `a0651317c1cb16170d563867adcf5ddff08d5927` passed [three-platform qualification run #46169706820](https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820); Windows, macOS and Ubuntu/Linux each passed 479/479 tests. The 33-file package-content SHA-256 is `2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa`. Current PR head `68f06d84865fdd17c2677d64a4821263efee5cce` has four later website/SEO evidence-display changes not yet requalified at that exact head; the packaged Foxy runtime is unchanged. Package remains local-only and unpublished; independent review, live-host testing, legal/npm ownership checks and stack reconciliation remain open.  
 **Clerk sign-in:** [PR #71](https://github.com/Darkhero766/Vibeguard/pull/71) remains draft/open/unmerged. Frontend/auth-contract CI passed on `e715a029864d35bc244c72a03815a98e4edf8a6`; Clerk is an optional provider through Supabase Auth, and `VITE_CLERK_AUTH_ENABLED` stays false until staging provider setup and real account-linking acceptance.  
 **SaaS hardening:** [PR #61](https://github.com/Darkhero766/Vibeguard/pull/61) — draft and unmerged.  
 **Durable live checkpoint:** read [docs/VIBESANE_ENGINEERING_STATE.md](docs/VIBESANE_ENGINEERING_STATE.md) first; it records exact heads, workflow evidence, blockers and next tasks.  
@@ -22,7 +22,7 @@
 VibeSane has two connected but distinct product surfaces:
 
 - **VibeSane web/GitHub security SaaS:** a developer connects GitHub, selects a repository, receives a baseline security analysis, and can receive later push/pull-request checks, reports, findings and plan/usage controls. It is a remote repository-analysis service. Its GitHub OAuth login and GitHub App installation are different integrations.
-- **Foxy / AgentShield local developer preview:** a local scanner/CLI and read-only stdio MCP server for coding-agent hosts, with optional host lifecycle hooks as a separate feature. The beta.4 connector has Windows/macOS CI evidence, but real-host acceptance and independent review remain pending. Local source processing does not prove SaaS release readiness.
+- **Foxy / AgentShield local developer preview:** a local scanner/CLI and repository-read-only stdio MCP server for coding-agent hosts, with optional host lifecycle hooks as a separate feature. Beta.6 has automated Windows/macOS/Ubuntu qualification; actual host acceptance and independent review remain pending. Local source processing does not prove SaaS release readiness.
 
 The shared scanning engine does **not** make these two products identical. Clearly label which path a feature or benchmark covers.
 
