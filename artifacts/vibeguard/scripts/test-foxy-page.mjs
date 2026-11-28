@@ -5,6 +5,16 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const html = await readFile(path.join(root, 'dist', 'public', 'foxy', 'index.html'), 'utf8');
+const shellInstaller = await readFile(path.join(root, 'public', 'install.sh'), 'utf8');
+const powershellInstaller = await readFile(path.join(root, 'public', 'install.ps1'), 'utf8');
+assert.ok(shellInstaller.startsWith('#!/usr/bin/env bash') && shellInstaller.includes('set -Eeuo pipefail'));
+assert.ok(shellInstaller.includes('https://registry.npmjs.org') && shellInstaller.includes('npm view "${PACKAGE}@${CHANNEL}"'));
+assert.ok(shellInstaller.includes('npm install --global --ignore-scripts') && shellInstaller.includes('foxy_command" install --agent'));
+assert.ok(shellInstaller.includes('Node.js 24.15.0 or newer') && !shellInstaller.includes('foxy install --agent "$agent" --yes'));
+assert.ok(powershellInstaller.includes("https://registry.npmjs.org") && powershellInstaller.includes('npm view "$PackageName@$Channel"'));
+assert.ok(powershellInstaller.includes('--ignore-scripts') && powershellInstaller.includes('& $FoxyCommand install --agent $Agent'));
+assert.ok(powershellInstaller.includes('Node.js 24.15.0 or newer') && !powershellInstaller.includes('--yes'));
+
 const agentShieldHtml = await readFile(path.join(root, 'dist', 'public', 'agentshield', 'index.html'), 'utf8');
 const scannerCatalog = await readFile(path.resolve(root, '../api-server/src/lib/securityCheckCatalog.ts'), 'utf8');
 const mainPageSource = await readFile(path.join(root, 'src', 'AppOriginal.tsx'), 'utf8');
@@ -27,7 +37,11 @@ assert.ok(themeSource.includes('54 CHECKS. ONE SECURITY PERIMETER.') && themeSou
 assert.ok(foxyPageSource.includes("VITE_FOXY_BETA_INSTALL_ENABLED === 'true'"), 'Live beta install must require explicit publication approval flag.');
 assert.ok(foxyPageSource.includes('disabled={!FOXY_BETA_INSTALL_ENABLED}'), 'Install command copy control must be disabled while the package is unpublished.');
 assert.ok(foxyPageSource.includes('if (!FOXY_BETA_INSTALL_ENABLED) return;'), 'Clipboard action must fail closed while the beta installation flag is disabled.');
-assert.ok(foxyPageSource.includes("const FOXY_BETA_INSTALL_COMMAND = 'npx -y @vibesane/foxy@beta install';"), 'The one-line beta command must match the packaged beta channel.');
+assert.ok(foxyPageSource.includes("const FOXY_UNIX_INSTALL_COMMAND = 'curl -fsSL https://vibesane.app/install.sh | bash';"));
+assert.ok(foxyPageSource.includes('https://vibesane.app/install.ps1 | iex'));
+assert.ok(foxyPageSource.includes("useState<InstallPlatform>('unix')") || f.result.content.includes("useState<InstallPlatform>('unix')"));
+assert.ok(foxyPageSource.includes('selectedPlatform === \'windows\''));
+assert.ok(foxyPageSource.includes('foxy-install-platform'));
 assert.ok(foxyPageSource.includes("useState<InstallAgent>('auto')"), 'Install flow must default to safe auto-detection.');
 assert.ok(foxyPageSource.includes("FOXY_BETA_INSTALL_COMMAND + ' --agent ' + selectedAgent"), 'Explicit host selection must append the CLI-supported --agent flag.');
 assert.ok(foxyPageSource.includes('navigator.clipboard.writeText(installCommand)'), 'The install action must copy the exact selected command.');
@@ -42,7 +56,7 @@ for (const token of [
   '<title>Foxy — Local-First MCP Security for AI Coding Agents | VibeSane</title>',
   'Security context for your AI agent.', 'Not extra authority.',
   'Claude Code', 'Codex CLI', 'Cursor', 'Gemini CLI', 'Roo Code', 'GitHub Copilot',
-  'foxy install --agent auto', 'foxy doctor', 'npx -y @vibesane/foxy@beta install',
+  'foxy install --agent auto', 'foxy doctor', 'curl -fsSL https://vibesane.app/install.sh | bash', 'https://vibesane.app/install.ps1 | iex',
   'Repository files are never modified', 'Foxy maintains only its own local scan, baseline and queue state',
   'No shell, patch, commit, or deploy tools are exposed', 'canonical Git root',
   '472 / 472', 'Regression suite', 'Windows + macOS + Ubuntu/Linux', '10 tools', '30 files',
@@ -65,7 +79,8 @@ assert.ok(html.includes('Node.js 24.15+'), 'Static Foxy page must state the supp
 assert.ok(html.includes('Beta.6 passed the three-platform automated matrix.'), 'Foxy page must advertise the current qualified candidate.');
 assert.ok(!html.includes('beta.5 exact-source CI pending'), 'Stale beta.5 qualification copy must not remain on the public page.');
 assert.ok(!html.includes('The current beta.5 candidate adds'), 'Stale beta.5 release copy must not remain on the public page.');
-assert.ok(html.includes('npx -y @vibesane/foxy@beta install'), 'The future beta one-command installer must be shown.');
+assert.ok(html.includes('curl -fsSL https://vibesane.app/install.sh | bash'), 'The future POSIX one-command bootstrap must be shown.');
+assert.ok(html.includes('irm https://vibesane.app/install.ps1 | iex'), 'Windows PowerShell bootstrap must be shown.');
 assert.ok(html.includes('Available after beta publication'), 'The install action must remain gated while the package is unpublished.');
 assert.ok(html.includes('#0b1112') && html.includes('#c7f36a'), 'Static page must match the graphite/lime visual system.');
 assert.ok(!html.includes('Node.js 20+'), 'Static page must not advertise the obsolete runtime floor.');
