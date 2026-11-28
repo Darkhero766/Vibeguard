@@ -165,10 +165,10 @@ for (const token of [
   'foxy install --agent auto', 'foxy doctor', 'curl -fsSL https://vibesane.app/install.sh | bash', 'https://vibesane.app/install.ps1 | iex',
   'Repository files are never modified', 'Foxy maintains only its own local scan, baseline and queue state',
   'No shell, patch, commit, or deploy tools are exposed', 'canonical Git root',
-  '477 / 477', 'Regression suite', 'Windows + macOS + Ubuntu/Linux', '10 tools', '33 files',
+  '479 / 479', 'Regression suite', 'Windows + macOS + Ubuntu/Linux', '10 tools', '33 files',
   'real-host acceptance', 'independent security review',
-  'https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859',
-  'https://github.com/Darkhero766/Vibeguard/pull/70', 'https://github.com/Darkhero766/Vibeguard/actions/runs/46167652859', '39bb5a4893f49c2a035454bb9ac063eb09e41b5a05a826621558bd2280818b98', 'Install MCP', 'Available after beta publication', 'not published yet', 'Auto-detection is recommended', 'macOS / Linux', 'Windows PowerShell', '--agent codex', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
+  'https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820',
+  'https://github.com/Darkhero766/Vibeguard/pull/70', 'https://github.com/Darkhero766/Vibeguard/actions/runs/46169706820', '2a0405717fd3a8873e74eded393de73a286c70fd71a2626c24cab841cc7a95fa', 'Install MCP', 'Available after beta publication', 'not published yet', 'Auto-detection is recommended', 'macOS / Linux', 'Windows PowerShell', '--agent codex', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
 ]) assert.ok(html.includes(token), 'Foxy SEO route is missing: ' + token);
 
 assert.ok(!/read-only MCP/i.test(html), 'Foxy page must distinguish repository read-only access from Foxy-managed local state.');
