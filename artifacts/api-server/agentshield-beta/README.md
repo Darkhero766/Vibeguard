@@ -3,6 +3,7 @@
 **Status: unpublished and not approved for external distribution.** The npm package `@vibesane/foxy` has not been published. Do not treat this document as a public install announcement.
 
 Foxy is a local-first security scanner and MCP server for AI coding agents. It inspects supported repository files, returns actionable findings, and can verify remediation. The MCP surface does not modify repository files or execute project code. Scan, baseline, and queue operations may update Foxy-managed local state.
+No remote telemetry is collected or transmitted by the local scanner. No source code is uploaded. Foxy writes only its own local queue/baseline state and configuration explicitly approved by the operator.
 
 ## Requirements and supported hosts
 
