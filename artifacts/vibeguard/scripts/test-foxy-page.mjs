@@ -34,7 +34,7 @@ for (const token of [
   'foxy install --agent auto', 'foxy doctor', 'npx -y @vibesane/foxy@beta install',
   'Read-only MCP tools', 'canonical Git root',
   '472 / 472', 'Regression suite', 'Windows + macOS + Ubuntu/Linux', '10 tools', '30 files',
-  'real coding-agent host acceptance', 'independent review',
+  'real-host acceptance', 'independent security review',
   'https://github.com/Darkhero766/Vibeguard/actions/workflows/agentshield-cross-platform.yml?query=branch%3Afeat%2Fagentshield-cross-platform-autoconnect',
   'https://github.com/Darkhero766/Vibeguard/pull/70', 'https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745', 'f60677328e0c5eb2de94ec4ae44598e973c198e62f15ad4156b061bd6ed42c14', 'Install MCP', 'Available after beta publication', 'not published yet', 'chat.mcp.workspaceRootConfig.enabled', '.mcp.json',
 ]) assert.ok(html.includes(token), 'Foxy SEO route is missing: ' + token);
