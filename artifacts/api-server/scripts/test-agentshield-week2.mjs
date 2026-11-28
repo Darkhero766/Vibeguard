@@ -309,9 +309,10 @@ test('explicit-session verify merges against state acquired after a concurrent h
   const scanImpl = async () => {
     // Model a hook completing after verify's scan starts but before verify
     // takes the state lock. The newer state must survive the verification write.
-    await writeFile(f.target, fakeJWT.replace('const JWT_SECRET', 'let JWT_SECRET'));
     const concurrent = await f.hook();
     assert.equal(concurrent.code, 0);
+    const updated = await f.cmd('status', '--session', 'test-session');
+    assert.equal(updated.output.summary.files[0].attempts, 1);
     interleaved = true;
     return {
       status: 'complete',

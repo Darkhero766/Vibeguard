@@ -285,8 +285,8 @@ export async function readHookInput(stream = process.stdin) {
       inputBytes += chunkBytes;
       input += chunk;
     });
-    process.stdin.on('error', fail);
-    process.stdin.on('end', () => {
+    stream.on('error', fail);
+    stream.on('end', () => {
       if (settled) return;
       settled = true;
       try { resolve(JSON.parse(input)); } catch { reject(new Error('Invalid hook event.')); }
