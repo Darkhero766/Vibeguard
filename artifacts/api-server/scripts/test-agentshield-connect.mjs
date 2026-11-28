@@ -160,7 +160,56 @@ test('one connect command configures Claude, Codex, Cursor, Gemini, Roo and Copi
   assert.equal(codexAgain.split('BEGIN VIBESANE AGENTSHIELD MANAGED MCP ENTRY').length - 1, 1);
 
   const files = await readdir(project);
-  assert.ok(files.some((file) => file.includes('.vibesane-backup-')));
+  assert.ok(!files.some((file) => file.includes('.vibesane-backup-') || file.endsWith('.agentshield.lock')),
+    'Backups and lock files must never be written into the workspace.');
+  const stateRoot = path.join(home, 'AppData', 'Local', 'VibeSane', 'Foxy');
+  const backups = await readdir(path.join(stateRoot, 'backups'));
+  assert.ok(backups.some((file) => file.endsWith('.bak')), 'Private backup must be stored in the per-user Foxy state directory.');
+  assert.equal((await readdir(path.join(stateRoot, 'locks'))).length, 0, 'Lock files must be removed after successful operations.');
+  const exclude = await readFile(path.join(project, '.git', 'info', 'exclude'), 'utf8');
+  for (const ignoredPath of [
+    '/.mcp.json',
+    '/.codex/config.toml',
+    '/.cursor/mcp.json',
+    '/.gemini/settings.json',
+    '/.roo/mcp.json',
+    '/.mcp.json.agentshield-*.tmp',
+  ]) assert.ok(exclude.includes(ignoredPath), 'Missing managed local exclude: ' + ignoredPath);
+  for (const ignoredPath of [
+    '.mcp.json',
+    '.codex/config.toml',
+    '.cursor/mcp.json',
+    '.gemini/settings.json',
+    '.roo/mcp.json',
+  ]) {
+    await exec('git', ['-C', project, 'check-ignore', '--no-index', '--', ignoredPath]);
+  }
+});
+
+test('refuses tracked workspace MCP config before writing machine-specific paths', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agentshield-tracked-config-'));
+  const home = path.join(root, 'home');
+  const project = path.join(root, 'project');
+  await mkdir(project, { recursive: true });
+  await mkdir(home, { recursive: true });
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await exec('git', ['init', project]);
+  const configFile = path.join(project, '.mcp.json');
+  const original = JSON.stringify({ mcpServers: { team: { command: 'team-mcp', args: [] } } }, null, 2) + '\\n';
+  await writeFile(configFile, original);
+  await exec('git', ['-C', project, 'add', '.mcp.json']);
+  await assert.rejects(
+    connectAgentShield(['--agent', 'claude', '--cwd', project], {
+      env: { PATH: '', USERPROFILE: home },
+      platform: 'win32',
+      nodePath: 'C:\\\\Program Files\\\\nodejs\\\\node.exe',
+      serverPath: 'C:\\\\Tools\\\\Foxy\\\\agentshield-mcp-stdio.mjs',
+    }),
+    /will not write machine-specific MCP paths into the tracked workspace file \.mcp\.json/,
+  );
+  assert.equal(await readFile(configFile, 'utf8'), original, 'Tracked user/team config must remain untouched.');
+  assert.ok(!(await readFile(path.join(project, '.git', 'info', 'exclude'), 'utf8')).includes('/.mcp.json'),
+    'A refused tracked config must not gain a misleading local exclusion.');
 });
 
 test('generic MCP mode returns a stdio entry scoped to the selected repository', async (t) => {
