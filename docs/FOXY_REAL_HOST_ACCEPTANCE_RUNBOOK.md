@@ -6,7 +6,7 @@ This runbook captures the real application acceptance that automated Windows/mac
 
 A green CI run is necessary but not sufficient for distribution. The host matrix below remains a human-controlled release gate.
 
-**Automated evidence context (2026-11-28):** exact code SHA `ca9de05d00672d9a3148deec13ee2e280f1996eb` passed Windows, macOS and Ubuntu/Linux in [Foxy qualification run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46137576745). Each report confirms 472/472 regression tests, no failed qualification steps, MCP STDIO and offline package/CLI/MCP smoke passed, and status `validation_passed_review_required`. The identical 30-file package-content digest is `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`. This is automated evidence only. All real-host rows below remain **Pending** until tested by a human on that host and OS.
+**Automated evidence context (2026-11-28):** exact code SHA `ca9de05d00672d9a3148deec13ee2e280f1996eb` passed Windows, macOS and Ubuntu/Linux in [Foxy qualification run #46140045503](https://github.com/Darkhero766/Vibeguard/actions/runs/46140045503). Each report confirms 472/472 regression tests, no failed qualification steps, MCP STDIO and offline package/CLI/MCP smoke passed, and status `validation_passed_review_required`. The identical 30-file package-content digest is `edf7851ec847dce63f24c66b59b396bae770d69e9e4e52843709df1778a816b8`. This is automated evidence only. All real-host rows below remain **Pending** until tested by a human on that host and OS.
 
 ## Candidate evidence
 
