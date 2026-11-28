@@ -6,8 +6,10 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, utimes, realpath } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { freshState, parseConfig, trackFile, keyForFinding, guidanceFor } from './agentshield-policy.mjs';
+import { verifyNow, readHookInput } from './agentshield-controller.mjs';
 
 const scripts = path.dirname(fileURLToPath(import.meta.url));
 const controller = path.join(scripts, 'agentshield-controller.mjs');
@@ -295,6 +297,51 @@ test('aged malformed state locks remain indeterminate and are never reclaimed', 
   const result = await f.hook();
   assert.match(jsonContext(result), /UNKNOWN/);
   assert.equal(await readFile(path.join(lockDir, 'owner.json'), 'utf8'), malformedOwner);
+});
+
+
+
+test('explicit-session verify merges against state acquired after a concurrent hook update', async (t) => {
+  const f = await fixture(t, 'src/auth.js', fakeJWT);
+  await f.hook();
+  const config = parseConfig({});
+  let interleaved = false;
+  const scanImpl = async () => {
+    // Model a hook completing after verify's scan starts but before verify
+    // takes the state lock. The newer state must survive the verification write.
+    await writeFile(f.target, fakeJWT.replace('const JWT_SECRET', 'let JWT_SECRET'));
+    const concurrent = await f.hook();
+    assert.equal(concurrent.code, 0);
+    interleaved = true;
+    return {
+      status: 'complete',
+      filesScanned: 1,
+      scannedPaths: ['src/auth.js'],
+      findings: [{
+        filePath: 'src/auth.js',
+        ruleId: 'hardcoded_jwt_secret',
+        title: 'Hardcoded JWT secret',
+        severity: 'Critical',
+        line: 1,
+        count: 1,
+      }],
+    };
+  };
+  const verification = await verifyNow(f.root, {
+    session: 'test-session', changed: false, file: 'src/auth.js',
+  }, config, { scanImpl });
+  assert.equal(interleaved, true);
+  assert.equal(verification.result.files[0].attempts, 1);
+  const status = await f.cmd('status', '--session', 'test-session');
+  assert.equal(status.output.summary.files[0].attempts, 1);
+});
+
+test('hook input rejects UTF-8 payloads above the byte budget and stops reading', async () => {
+  const stream = new PassThrough();
+  const pending = readHookInput(stream);
+  stream.end('{"value":"' + 'é'.repeat(64_001) + '"}');
+  await assert.rejects(pending, /Hook input is too large/);
+  assert.equal(stream.destroyed, true);
 });
 
 test('prompt injection in scanned source is never repeated as repair instructions', async (t) => {

@@ -242,7 +242,7 @@ function humanReport(result) {
 }
 
 
-async function readHookInput() {
+export async function readHookInput(stream = process.stdin) {
   return new Promise((resolve, reject) => {
     let input = '';
     let inputBytes = 0;
@@ -252,13 +252,13 @@ async function readHookInput() {
       settled = true;
       reject(error);
     };
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
+    stream.setEncoding('utf8');
+    stream.on('data', (chunk) => {
       if (settled) return;
       const chunkBytes = Buffer.byteLength(chunk, 'utf8');
       if (inputBytes + chunkBytes > 128_000) {
         fail(new Error('Hook input is too large.'));
-        process.stdin.destroy();
+        stream.destroy();
         return;
       }
       inputBytes += chunkBytes;
@@ -467,34 +467,45 @@ async function stateForReading(root, session, config) {
   const file = session ? sessionFile(root, session) : await latestStateFile(root);
   return readState(file, config);
 }
-async function verifyNow(root, opts, config) {
-  const state = await stateForReading(root, opts.session, config);
-  const report = opts.changed ? await finalGate(root, config, scan) : await scan(root, ['--file', opts.file]);
+export async function verifyNow(root, opts, config, { scanImpl = scan } = {}) {
+  // Explicit interactive-session verification must read the latest state only
+  // after acquiring that session's lock. Otherwise a hook update made while
+  // scanning can be overwritten by a stale pre-scan snapshot.
+  const priorState = opts.session ? null : await stateForReading(root, null, config);
+  const report = opts.changed ? await finalGate(root, config, scanImpl) : await scanImpl(root, ['--file', opts.file]);
   if (report.status !== 'complete') throw new Error('Final changed-file scan incomplete or unavailable.');
   if (!report.filesScanned) throw new Error('No source files scanned; no security verification is possible.');
   const session = opts.session || 'manual-verify';
-  const next = structuredClone(state);
+  let sourceState = priorState;
+  let next = null;
   const outcomes = [];
-  for (const file of report.scannedPaths) {
-    const prior = state.files[file];
-    const update = trackFile(next, file, findingsFor(report, file), config, { edited: false });
-    const entry = update.entry;
-    if (prior?.active?.length && !entry.active.length) {
-      entry.verificationResults = await verifyResolvedFile(root, file, prior.active, config);
-      entry.verificationState = entry.verificationResults.length && entry.verificationResults.every((f) => f.status === 'verification_passed')
-        ? 'verification_passed' : entry.verificationResults.some((f) => f.status === 'verification_failed') ? 'verification_failed' : 'unverified';
-      entry.history.push({ event: entry.verificationState, at: Date.now() });
+  await withLockedState(root, session, config, async (lockedState) => {
+    sourceState = opts.session ? lockedState : priorState;
+    next = structuredClone(sourceState);
+    for (const file of report.scannedPaths) {
+      const prior = sourceState.files[file];
+      const update = trackFile(next, file, findingsFor(report, file), config, { edited: false });
+      const entry = update.entry;
+      if (prior?.active?.length && !entry.active.length) {
+        entry.verificationResults = await verifyResolvedFile(root, file, prior.active, config);
+        entry.verificationState = entry.verificationResults.length && entry.verificationResults.every((f) => f.status === 'verification_passed')
+          ? 'verification_passed' : entry.verificationResults.some((f) => f.status === 'verification_failed') ? 'verification_failed' : 'unverified';
+        entry.history.push({ event: entry.verificationState, at: Date.now() });
+      }
+      next.files[file] = entry;
+      outcomes.push({ filePath: file, scanState: entry.scanState, verificationState: entry.verificationState,
+        activeFindings: entry.active.length, verificationResults: entry.verificationResults || [],
+        acknowledgedRules: entry.active.filter(f => config.acknowledgements.some(a =>
+          a.expiresAt > Date.now() && a.filePath === file && a.ruleId === f.ruleId)).map(f => f.ruleId) });
     }
-    next.files[file] = entry;
-    outcomes.push({ filePath: file, scanState: entry.scanState, verificationState: entry.verificationState,
-      activeFindings: entry.active.length, verificationResults: entry.verificationResults || [],
-      acknowledgedRules: entry.active.filter(f => config.acknowledgements.some(a =>
-        a.expiresAt > Date.now() && a.filePath === file && a.ruleId === f.ruleId)).map(f => f.ruleId) });
-  }
-  next.updatedAt = Date.now();
-  // Keep interactive session state untouched when an independent CLI verification is requested.
-  await withLockedState(root, session, config, async () => ({ state: next }));
-  const incomplete = Object.values(state.files).filter((x) => x.active?.length && !report.scannedPaths.includes(x.filePath)).map((x) => x.filePath);
+    next.updatedAt = Date.now();
+    return { state: next };
+  });
+  // When --session is omitted this remains an independent manual report in its
+  // own state file. The interactive session that supplied the latest snapshot
+  // is never modified by that path.
+  const incomplete = Object.values(sourceState.files).filter((x) =>
+    x.active?.length && !report.scannedPaths.includes(x.filePath)).map((x) => x.filePath);
   const status = incomplete.length || next.prunedEntries ? 'partial' : 'complete';
   const summary = summarize(next, config);
   const result = { tool: 'VibeSane AgentShield', status, mode: config.mode, filesScanned: report.filesScanned,
