@@ -8,6 +8,16 @@ import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
 
 const FOXY_BETA_INSTALL_COMMAND = 'npx -y @vibesane/foxy@beta install';
+type InstallAgent = 'auto' | 'claude' | 'codex' | 'cursor' | 'gemini' | 'roo' | 'copilot';
+const installAgentOptions: Array<{ id: InstallAgent; label: string }> = [
+  { id: 'auto', label: 'Auto-detect installed agents (recommended)' },
+  { id: 'claude', label: 'Claude Code' },
+  { id: 'codex', label: 'Codex CLI' },
+  { id: 'cursor', label: 'Cursor' },
+  { id: 'gemini', label: 'Gemini CLI' },
+  { id: 'roo', label: 'Roo Code' },
+  { id: 'copilot', label: 'GitHub Copilot' },
+];
 // Enable only in a release build after npm publication and package provenance are verified.
 const FOXY_BETA_INSTALL_ENABLED = import.meta.env.VITE_FOXY_BETA_INSTALL_ENABLED === 'true';
 
@@ -31,12 +41,16 @@ const boundaries = [
 
 export default function FoxyPage() {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [selectedAgent, setSelectedAgent] = useState<InstallAgent>('auto');
+  const installCommand = selectedAgent === 'auto'
+    ? FOXY_BETA_INSTALL_COMMAND
+    : FOXY_BETA_INSTALL_COMMAND + ' --agent ' + selectedAgent;
 
   const copyInstallCommand = async () => {
     if (!FOXY_BETA_INSTALL_ENABLED) return;
     try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable.');
-      await navigator.clipboard.writeText(FOXY_BETA_INSTALL_COMMAND);
+      await navigator.clipboard.writeText(installCommand);
       setCopyState('copied');
     } catch {
       setCopyState('error');
@@ -140,7 +154,27 @@ export default function FoxyPage() {
                 <p className="font-mono text-[10px] uppercase tracking-[.15em] text-[#9eaaa1]">Beta channel · one-line installer</p>
                 <span className="border border-[#6b5733] bg-[#211b12] px-2.5 py-1 font-mono text-[9px] uppercase tracking-[.12em] text-[#e4c58f]">Private beta</span>
               </div>
-              <pre className="mt-5 overflow-x-auto border border-white/10 bg-[#0b1112] p-4 font-mono text-[12px] leading-7 text-[#e8eee7] sm:text-[13px]"><code>{FOXY_BETA_INSTALL_COMMAND}</code></pre>
+              <label htmlFor="foxy-install-agent" className="mt-5 block font-mono text-[10px] uppercase tracking-[.13em] text-[#9eaaa1]">
+                Configure for
+              </label>
+              <select
+                id="foxy-install-agent"
+                value={selectedAgent}
+                onChange={(event) => {
+                  setSelectedAgent(event.target.value as InstallAgent);
+                  setCopyState('idle');
+                }}
+                aria-describedby="foxy-install-agent-help"
+                className="vg-focus mt-2 w-full border border-white/15 bg-[#0b1112] px-3 py-3 text-sm text-[#f4f6f0]"
+              >
+                {installAgentOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+              <p id="foxy-install-agent-help" className="mt-2 text-[11px] leading-5 text-[#9eaaa1]">
+                Auto-detect configures only supported agents found in this project. Select one host to target it explicitly.
+              </p>
+              <pre className="mt-4 overflow-x-auto border border-white/10 bg-[#0b1112] p-4 font-mono text-[12px] leading-7 text-[#e8eee7] sm:text-[13px]"><code>{installCommand}</code></pre>
               <button
                 type="button"
                 onClick={copyInstallCommand}
