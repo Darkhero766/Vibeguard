@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CAPABILITIES, printCapabilities } from './agentshield-capabilities.mjs';
 import { digestPackageFileManifest, verifyPackageFileManifest } from './package-agentshield-beta.mjs';
+import { AGENTSHIELD_VERSION } from './agentshield-version.mjs';
 const exec=promisify(execFile);
 const scripts=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(scripts,'../../..');
@@ -180,6 +181,14 @@ test('frontend does not falsely report successful GitHub disconnect after API fa
   const src=await read('artifacts/vibeguard/src/contexts/AuthContext.tsx');
   assert.match(src,/if \(!response\.ok\) throw new Error\('GitHub disconnection failed'\)/);
   assert.match(src,/setHasGithubToken\(null\)/);
+});
+
+
+test('release tag parser extracts the exact package version', async () => {
+  const source = await read('scripts/agentshield-version.mjs');
+  const match = source.match(/AGENTSHIELD_VERSION\\s*=\\s*'([^']+)'/);
+  assert.ok(match, 'Package version source must contain the expected named constant.');
+  assert.equal(match[1], AGENTSHIELD_VERSION);
 });
 
 test('Foxy publication workflow is manual, version-bound, protected and OIDC-only', async () => {
